@@ -67,7 +67,7 @@ async function saveHistory(fullHistory) {
     const res = await fetch(`${KV_URL}/set/${HISTORY_KEY}`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${KV_TOKEN}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ result: JSON.stringify(trimmed) }),
+      body: JSON.stringify(trimmed),
     });
     const bodyText = await res.text();
     if (!res.ok) {
