@@ -21,38 +21,61 @@ const KV_TOKEN = process.env.KV_REST_API_TOKEN;
 const HISTORY_KEY = 'nex:conversation-log';
 
 async function loadHistory() {
-  if (!KV_URL || !KV_TOKEN) return [];
+  if (!KV_URL || !KV_TOKEN) {
+    console.error('loadHistory: missing KV_URL or KV_TOKEN env vars');
+    return [];
+  }
   try {
     const res = await fetch(`${KV_URL}/get/${HISTORY_KEY}`, {
       headers: { Authorization: `Bearer ${KV_TOKEN}` },
     });
     const contentType = res.headers.get('content-type') || '';
-    if (!res.ok || contentType.includes('text/html')) return [];
+    if (!res.ok || contentType.includes('text/html')) {
+      const bodyText = await res.text();
+      console.error('loadHistory: bad response', res.status, bodyText.slice(0, 300));
+      return [];
+    }
     const data = await res.json();
-    if (!data.result) return [];
+    if (!data.result) {
+      console.log('loadHistory: no existing history found (empty key)');
+      return [];
+    }
     try {
       const parsed = JSON.parse(data.result);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
+      const result = Array.isArray(parsed) ? parsed : [];
+      console.log('loadHistory: loaded', result.length, 'messages');
+      return result;
+    } catch (parseErr) {
+      console.error('loadHistory: JSON parse failed', parseErr.message);
       return [];
     }
   } catch (err) {
+    console.error('loadHistory: fetch threw', err.message);
     return [];
   }
 }
 
 async function saveHistory(fullHistory) {
-  if (!KV_URL || !KV_TOKEN) return;
+  if (!KV_URL || !KV_TOKEN) {
+    console.error('saveHistory: missing KV_URL or KV_TOKEN env vars');
+    return;
+  }
   try {
     const cleanHistory = fullHistory.filter((msg) => msg.role !== 'system' && msg.content);
     const trimmed = cleanHistory.slice(-40);
-    await fetch(`${KV_URL}/set/${HISTORY_KEY}`, {
+    const res = await fetch(`${KV_URL}/set/${HISTORY_KEY}`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${KV_TOKEN}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ result: JSON.stringify(trimmed) }),
     });
+    if (!res.ok) {
+      const bodyText = await res.text();
+      console.error('saveHistory: bad response', res.status, bodyText.slice(0, 300));
+    } else {
+      console.log('saveHistory: saved', trimmed.length, 'messages');
+    }
   } catch (err) {
-    // swallow — memory is best-effort, shouldn't crash the chat
+    console.error('saveHistory: fetch threw', err.message);
   }
 }
 
