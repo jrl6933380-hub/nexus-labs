@@ -6,6 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import { listMemories, addMemory } from '../lib/memory.js';
 import { initSentry, Sentry } from '../lib/sentry.js';
+import { createOrUpdateFile, deleteFile, listFiles } from '../lib/github.js';
 
 // ============================================================
 // PROVIDER CONFIG — three tiers, one API key. A cheap classification
@@ -140,6 +141,67 @@ const TOOLS = [
       required: ['content'],
     },
   },
+  {
+    name: 'list_repo_files',
+    description: 'List files in a GitHub repo directory (or the whole repo root if no path given). Use this to see what exists before creating or editing files.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        owner: { type: 'string', description: 'Repo owner (GitHub username or org).' },
+        repo: { type: 'string', description: 'Repo name.' },
+        path: { type: 'string', description: 'Folder path. Leave empty for repo root.' },
+        branch: { type: 'string', description: 'Branch name. Defaults to the repo default branch.' },
+      },
+      required: ['owner', 'repo'],
+    },
+  },
+  {
+    name: 'create_repo_file',
+    description: 'Create a new file in a GitHub repo, or overwrite it if it already exists. Only use this on draft/in-progress work, not live client sites, without explicit approval first.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        owner: { type: 'string' },
+        repo: { type: 'string' },
+        path: { type: 'string', description: 'File path within the repo, e.g. "api/chat.js".' },
+        content: { type: 'string', description: 'Full file contents.' },
+        message: { type: 'string', description: 'Commit message. Optional.' },
+        branch: { type: 'string' },
+      },
+      required: ['owner', 'repo', 'path', 'content'],
+    },
+  },
+  {
+    name: 'update_repo_file',
+    description: 'Overwrite an existing file in a GitHub repo with new content. Only use this on draft/in-progress work, not live client sites, without explicit approval first.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        owner: { type: 'string' },
+        repo: { type: 'string' },
+        path: { type: 'string' },
+        content: { type: 'string' },
+        message: { type: 'string' },
+        branch: { type: 'string' },
+      },
+      required: ['owner', 'repo', 'path', 'content'],
+    },
+  },
+  {
+    name: 'delete_repo_file',
+    description: 'Delete a file from a GitHub repo. This is permanent. Only use this with explicit approval from Mr. Lopez, never proactively.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        owner: { type: 'string' },
+        repo: { type: 'string' },
+        path: { type: 'string' },
+        message: { type: 'string' },
+        branch: { type: 'string' },
+      },
+      required: ['owner', 'repo', 'path'],
+    },
+  },
 ];
 
 // ============================================================
@@ -204,6 +266,60 @@ async function callClaude(model, history, identityText, memoriesText) {
             type: 'tool_result',
             tool_use_id: block.id,
             content: 'Failed to save that memory.',
+            is_error: true,
+          });
+        }
+      } else if (block.name === 'list_repo_files') {
+        try {
+          const files = await listFiles(block.input);
+          console.log('list_repo_files tool: listed', block.input.owner, block.input.repo);
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: JSON.stringify(files),
+          });
+        } catch (err) {
+          console.error('list_repo_files tool failed:', err.message);
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: `Failed to list files: ${err.message}`,
+            is_error: true,
+          });
+        }
+      } else if (block.name === 'create_repo_file' || block.name === 'update_repo_file') {
+        try {
+          const result = await createOrUpdateFile(block.input);
+          console.log(block.name, 'tool: wrote', block.input.path);
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: JSON.stringify(result),
+          });
+        } catch (err) {
+          console.error(block.name, 'tool failed:', err.message);
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: `Failed to write file: ${err.message}`,
+            is_error: true,
+          });
+        }
+      } else if (block.name === 'delete_repo_file') {
+        try {
+          const result = await deleteFile(block.input);
+          console.log('delete_repo_file tool: deleted', block.input.path);
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: JSON.stringify(result),
+          });
+        } catch (err) {
+          console.error('delete_repo_file tool failed:', err.message);
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: `Failed to delete file: ${err.message}`,
             is_error: true,
           });
         }
