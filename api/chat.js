@@ -264,6 +264,12 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Deliberate test hook — send this exact phrase to force a real error,
+    // useful for confirming Sentry (or any error monitoring) is actually working.
+    if (message.trim() === 'TEST_SENTRY_ERROR') {
+      throw new Error('This is a deliberate test error, triggered on purpose to confirm Sentry is catching things.');
+    }
+
     const [recent, memories] = await Promise.all([loadRecent(), listMemories()]);
     const runningHistory = recent.filter((msg) => msg.role !== 'system');
     const updatedHistoryWithUser = [...runningHistory, { role: 'user', content: message }];
