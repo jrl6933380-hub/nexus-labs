@@ -146,7 +146,7 @@ const TOOLS = [
 // Claude decides to call it, then returns the final text reply.
 // ============================================================
 async function callClaude(model, history, identityText, memoriesText) {
-  const systemPrompt = `${identityText}\n\n## What I remember long-term:\n${memoriesText || '(nothing saved yet)'}`;
+  const systemPrompt = `${identityText}\n\n## What I remember long-term:\n${memoriesText || '(nothing saved yet)'}\n\n## Important: always include a short text reply to Mr. Lopez, even when you also call a tool. Never respond with a tool call and nothing else.`;
 
   const claudeMessages = history.map((msg) => ({
     role: msg.role === 'assistant' ? 'assistant' : 'user',
@@ -219,9 +219,17 @@ async function callClaude(model, history, identityText, memoriesText) {
 
   const textBlock = data?.content?.find((block) => block.type === 'text');
   const reply = textBlock?.text;
+
   if (!reply) {
-    console.error('Unexpected Claude response shape:', data);
-    throw new Error('Malformed response from Claude.');
+    console.error('Claude returned no text block on', model, '— retrying with Sonnet:', JSON.stringify(data).slice(0, 500));
+
+    // Only retry once, and only if we weren't already on Sonnet.
+    if (model !== MODEL_TIERS.standard) {
+      return callClaude(MODEL_TIERS.standard, history, identityText, memoriesText);
+    }
+
+    // Sonnet itself went silent — genuinely unusual. Fail loud so we notice.
+    throw new Error('Claude returned no text even on retry with Sonnet.');
   }
 
   return reply;
