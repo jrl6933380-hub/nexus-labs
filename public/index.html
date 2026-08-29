@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nexus Hub — Nex</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0A0E14;
+    --panel: #12192A;
+    --panel-raised: #17203570;
+    --border: #1F2B42;
+    --blue: #2E7FFF;
+    --blue-dim: #2E7FFF33;
+    --cyan: #4DD8E8;
+    --text: #E4E9F2;
+    --text-dim: #8891A3;
+    --text-faint: #5B6577;
+    --amber: #E8A94D;
+    --red: #E85D5D;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Inter', -apple-system, sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    height: 100vh;
+    overflow: hidden;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 48px 48px;
+    background-position: center center;
+    background-attachment: fixed;
+    position: relative;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse 80% 60% at 50% 0%, #2E7FFF14 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app {
+    display: grid;
+    grid-template-columns: 260px 1fr 300px;
+    height: 100vh;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ===== Shared panel styling ===== */
+  .panel {
+    background: rgba(18, 25, 42, 0.55);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .panel-header {
+    padding: 20px 18px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .panel-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+
+  .panel-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px;
+  }
+
+  /* ===== LEFT: Identity + Projects ===== */
+  .nex-id {
+    padding: 22px 18px 18px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .nex-name-row {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+
+  .nex-name {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+
+  .pulse-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--cyan);
+    box-shadow: 0 0 0 0 var(--cyan);
+    animation: pulse 2.4s infinite;
+    flex-shrink: 0;
+  }
+
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 #4DD8E866; }
+    70% { box-shadow: 0 0 0 8px #4DD8E800; }
+    100% { box-shadow: 0 0 0 0 #4DD8E800; }
+  }
+
+  .nex-pulse-line {
+    height: 2px;
+    width: 100%;
+    background: linear-gradient(90deg, var(--cyan), transparent 70%);
+    background-size: 200% 100%;
+    animation: sweep 3s ease-in-out infinite;
+    margin-top: 10px;
+    opacity: 0.7;
+  }
+
+  @keyframes sweep {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  .nex-status {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-faint);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .section-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    padding: 16px 4px 8px;
+  }
+
+  .project-card {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 12px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+
+  .project-card:hover {
+    border-color: #2E7FFF55;
+    background: rgba(46,127,255,0.05);
+  }
+
+  .project-name {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    padding: 3px 7px;
+    border-radius: 4px;
+    text-transform: uppercase;
+  }
+
+  .status-draft {
+    background: #5B657722;
+    color: var(--text-dim);
+  }
+
+  .status-review {
+    background: #E8A94D1c;
+    color: var(--amber);
+  }
+
+  .status-live {
+    background: #4DD8E81c;
+    color: var(--cyan);
+  }
+
+  .empty-hint {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--text-faint);
+    line-height: 1.6;
+    padding: 8px 4px;
+  }
+
+  /* ===== CENTER: Chat ===== */
+  .chat-panel {
+    display: flex;
+    flex-direction: column;
+    background: rgba(10, 14, 20, 0.3);
+  }
+
+  .chat-header {
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .chat-header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--blue), var(--cyan));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 14px;
+    color: #06090F;
+  }
+
+  .chat-header-title {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .chat-header-sub {
+    font-size: 11px;
+    color: var(--text-faint);
+    font-family: var(--mono);
+  }
+
+  .chat-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .msg {
+    max-width: 72%;
+    padding: 12px 14px;
+    border-radius: 10px;
+    font-size: 14px;
+    line-height: 1.55;
+  }
+
+  .msg-nex {
+    align-self: flex-start;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-top-left-radius: 3px;
+  }
+
+  .msg-user {
+    align-self: flex-end;
+    background: var(--blue-dim);
+    border: 1px solid #2E7FFF44;
+    border-top-right-radius: 3px;
+  }
+
+  .msg-sender {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-faint);
+    margin-bottom: 5px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .chat-input-row {
+    padding: 16px 24px 22px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 10px;
+  }
+
+  .chat-input {
+    flex: 1;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.15s ease;
+  }
+
+  .chat-input:focus {
+    border-color: var(--blue);
+  }
+
+  .chat-input::placeholder {
+    color: var(--text-faint);
+  }
+
+  .send-btn {
+    background: var(--blue);
+    color: #06090F;
+    border: none;
+    border-radius: 8px;
+    padding: 0 20px;
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+
+  .send-btn:hover { background: #4A8FFF; }
+
+  /* ===== RIGHT: Approval Queue ===== */
+  .queue-panel {
+    border-right: none;
+    border-left: 1px solid var(--border);
+  }
+
+  .queue-item {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--border);
+    border-left: 2px solid var(--amber);
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 10px;
+  }
+
+  .queue-item-title {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 5px;
+  }
+
+  .queue-item-desc {
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.5;
+    margin-bottom: 10px;
+  }
+
+  .queue-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .btn-run, .btn-skip {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 6px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    text-transform: uppercase;
+  }
+
+  .btn-run {
+    background: var(--blue);
+    color: #06090F;
+  }
+
+  .btn-run:hover { background: #4A8FFF; }
+
+  .btn-skip {
+    background: transparent;
+    border-color: var(--border);
+    color: var(--text-dim);
+  }
+
+  .btn-skip:hover { border-color: var(--text-faint); }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  @media (max-width: 900px) {
+    .app { grid-template-columns: 1fr; }
+    .panel:not(.chat-panel) { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- LEFT: Identity + Projects -->
+  <div class="panel">
+    <div class="nex-id">
+      <div class="nex-name-row">
+        <span class="nex-name">NEX</span>
+        <span class="pulse-dot"></span>
+      </div>
+      <div class="nex-status">operator: mr. lopez</div>
+      <div class="nex-pulse-line"></div>
+    </div>
+
+    <div class="panel-body">
+      <div class="section-label">Projects</div>
+      <div class="empty-hint">No projects yet.<br>First client project will show up here.</div>
+
+      <div class="section-label" style="margin-top: 24px;">System</div>
+      <div class="project-card" style="cursor: default;">
+        <div class="project-name" style="font-size: 12px; margin-bottom: 4px;">Identity</div>
+        <span class="status-badge status-live">Loaded</span>
+      </div>
+      <div class="project-card" style="cursor: default;">
+        <div class="project-name" style="font-size: 12px; margin-bottom: 4px;">Capabilities</div>
+        <span class="status-badge status-draft">Not built</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- CENTER: Chat -->
+  <div class="panel chat-panel">
+    <div class="chat-header">
+      <div class="chat-header-left">
+        <div class="avatar">N</div>
+        <div>
+          <div class="chat-header-title">Nex</div>
+          <div class="chat-header-sub">online · standing by</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="chat-scroll">
+      <div class="msg msg-nex">
+        <div class="msg-sender">Nex</div>
+        Hey Mr. Lopez. I'm up and I know who I am — just don't have any real capabilities wired in yet. Once we build the first one, it'll show up here and in the queue on the right.
+      </div>
+    </div>
+
+    <div class="chat-input-row">
+      <input class="chat-input" id="chatInput" type="text" placeholder="Message Nex..." />
+      <button class="send-btn" id="sendBtn">Send</button>
+    </div>
+  </div>
+
+  <!-- RIGHT: Approval Queue -->
+  <div class="panel queue-panel">
+    <div class="panel-header">
+      <span class="panel-title">Approval Queue</span>
+    </div>
+    <div class="panel-body">
+      <div class="empty-hint">Nothing waiting on you right now.<br><br>When Nex proposes a fix or action on live work, it'll show up here for you to run or skip.</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const chatScroll = document.querySelector('.chat-scroll');
+  const chatInput = document.getElementById('chatInput');
+  const sendBtn = document.getElementById('sendBtn');
+
+  function addMessage(sender, text) {
+    const msg = document.createElement('div');
+    msg.className = sender === 'nex' ? 'msg msg-nex' : 'msg msg-user';
+    msg.innerHTML = `<div class="msg-sender">${sender === 'nex' ? 'Nex' : 'Mr. Lopez'}</div>${text}`;
+    chatScroll.appendChild(msg);
+    chatScroll.scrollTop = chatScroll.scrollHeight;
+    return msg;
+  }
+
+  async function sendMessage() {
+    const text = chatInput.value.trim();
+    if (!text) return;
+
+    addMessage('user', text);
+    chatInput.value = '';
+    sendBtn.disabled = true;
+
+    const thinkingMsg = addMessage('nex', 'thinking...');
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text }),
+      });
+
+      const data = await res.json();
+
+      if (data.error) {
+        thinkingMsg.innerHTML = `<div class="msg-sender">Nex</div>Something broke: ${data.error}`;
+      } else {
+        thinkingMsg.innerHTML = `<div class="msg-sender">Nex</div>${data.reply}`;
+      }
+    } catch (err) {
+      thinkingMsg.innerHTML = `<div class="msg-sender">Nex</div>Couldn't reach the server. Check your connection or Vercel logs.`;
+    }
+
+    sendBtn.disabled = false;
+  }
+
+  sendBtn.addEventListener('click', sendMessage);
+  chatInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendMessage();
+  });
+</script>
+
+</body>
+</html>
