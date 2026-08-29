@@ -522,7 +522,7 @@
     <div class="panel-header">
       <span class="panel-title">Approval Queue</span>
     </div>
-    <div class="panel-body">
+    <div class="panel-body" id="queue-list">
       <div class="empty-hint">Nothing waiting on you right now.<br><br>When Nex proposes a fix or action on live work, it'll show up here for you to run or skip.</div>
     </div>
   </div>
@@ -532,6 +532,7 @@
   const chatScroll = document.querySelector('.chat-scroll');
   const chatInput = document.getElementById('chatInput');
   const sendBtn = document.getElementById('sendBtn');
+  const queueList = document.getElementById('queue-list');
 
   function addMessage(sender, text) {
     const msg = document.createElement('div');
@@ -584,12 +585,73 @@
     }
 
     sendBtn.disabled = false;
+    loadQueue(); // a new message may have just proposed something new
+  }
+
+  function renderQueueItem(item) {
+    const el = document.createElement('div');
+    el.className = 'queue-item';
+    const label = item.tool.replace('_repo_file', '').replace('_', ' ');
+    el.innerHTML = `
+      <div class="queue-item-title"></div>
+      <div class="queue-item-desc"></div>
+      <div class="queue-actions">
+        <button class="btn-run">Approve</button>
+        <button class="btn-skip">Reject</button>
+      </div>
+    `;
+    el.querySelector('.queue-item-title').innerText = `${label} — ${item.input.path}`;
+    el.querySelector('.queue-item-desc').innerText = item.description;
+    el.querySelector('.btn-run').addEventListener('click', () => handleQueueAction(item.id, 'approve', el));
+    el.querySelector('.btn-skip').addEventListener('click', () => handleQueueAction(item.id, 'reject', el));
+    return el;
+  }
+
+  async function loadQueue() {
+    try {
+      const res = await fetch('/api/queue');
+      const data = await res.json();
+      const items = data.items || [];
+
+      queueList.innerHTML = '';
+      if (items.length === 0) {
+        queueList.innerHTML = '<div class="empty-hint">Nothing waiting on you right now.<br><br>When Nex proposes a fix or action on live work, it\'ll show up here for you to run or skip.</div>';
+        return;
+      }
+      items.forEach((item) => queueList.appendChild(renderQueueItem(item)));
+    } catch (err) {
+      queueList.innerHTML = '<div class="empty-hint">Couldn\'t load the queue.</div>';
+    }
+  }
+
+  async function handleQueueAction(id, action, el) {
+    el.style.opacity = '0.5';
+    try {
+      const res = await fetch('/api/queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, action }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        alert('Failed: ' + data.error);
+        el.style.opacity = '1';
+        return;
+      }
+      loadQueue();
+    } catch (err) {
+      alert('Something went wrong.');
+      el.style.opacity = '1';
+    }
   }
 
   sendBtn.addEventListener('click', sendMessage);
   chatInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') sendMessage();
   });
+
+  loadQueue();
+  setInterval(loadQueue, 10000); // refresh every 10s so new proposals show up automatically
 </script>
 
 </body>
