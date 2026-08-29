@@ -279,7 +279,7 @@ async function callClaude(model, history, identityText, memoriesText) {
             content: JSON.stringify(files),
           });
         } catch (err) {
-          console.error('list_repo_files tool failed:', err.message);
+          console.error('list_repo_files tool failed:', err.message, 'input was:', JSON.stringify(block.input));
           toolResults.push({
             type: 'tool_result',
             tool_use_id: block.id,
@@ -297,7 +297,7 @@ async function callClaude(model, history, identityText, memoriesText) {
             content: JSON.stringify(result),
           });
         } catch (err) {
-          console.error(block.name, 'tool failed:', err.message);
+          console.error(block.name, 'tool failed:', err.message, 'input was:', JSON.stringify(block.input));
           toolResults.push({
             type: 'tool_result',
             tool_use_id: block.id,
@@ -315,7 +315,7 @@ async function callClaude(model, history, identityText, memoriesText) {
             content: JSON.stringify(result),
           });
         } catch (err) {
-          console.error('delete_repo_file tool failed:', err.message);
+          console.error('delete_repo_file tool failed:', err.message, 'input was:', JSON.stringify(block.input));
           toolResults.push({
             type: 'tool_result',
             tool_use_id: block.id,
