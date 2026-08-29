@@ -189,7 +189,7 @@ const TOOLS = [
   },
   {
     name: 'delete_repo_file',
-    description: 'Delete a file from a GitHub repo. This is permanent. Only use this with explicit approval from Mr. Lopez, never proactively.',
+    description: 'Delete a file from a GitHub repo. This is permanent. Mr. Lopez asking directly to delete a specific file IS the explicit approval — call this tool immediately when he asks. Never claim a file was deleted without actually calling this tool first.',
     input_schema: {
       type: 'object',
       properties: {
@@ -209,7 +209,7 @@ const TOOLS = [
 // Claude decides to call it, then returns the final text reply.
 // ============================================================
 async function callClaude(model, history, identityText, memoriesText) {
-  const systemPrompt = `${identityText}\n\n## What I remember long-term:\n${memoriesText || '(nothing saved yet)'}\n\n## Important: always include a short text reply to Mr. Lopez, even when you also call a tool. Never respond with a tool call and nothing else.`;
+  const systemPrompt = `${identityText}\n\n## What I remember long-term:\n${memoriesText || '(nothing saved yet)'}\n\n## Important: always include a short text reply to Mr. Lopez, even when you also call a tool. Never respond with a tool call and nothing else.\n\n## Critical: never claim to have done something (saved a memory, created/updated/deleted a file, looked something up) unless you actually called the corresponding tool in this exact turn and it succeeded. If you're unsure whether an action happened, say so honestly instead of assuming it worked.`;
 
   const claudeMessages = history.map((msg) => ({
     role: msg.role === 'assistant' ? 'assistant' : 'user',
