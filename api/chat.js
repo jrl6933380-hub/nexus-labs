@@ -157,7 +157,8 @@ async function callClaude(history, identityText) {
 
   const data = await response.json();
 
-  const reply = data?.content?.[0]?.text;
+  const textBlock = data?.content?.find((block) => block.type === 'text');
+  const reply = textBlock?.text;
   if (!reply) {
     console.error('Unexpected Claude response shape:', data);
     throw new Error('Malformed response from Claude.');
