@@ -287,6 +287,7 @@ export default async function handler(req, res) {
   } catch (err) {
     console.error('Nex chat handler crashed:', err);
     Sentry.captureException(err);
+    await Sentry.flush(2000); // wait for Sentry to actually send before the function ends
     return res.status(500).json({ error: 'Internal system error processing your message.' });
   }
 }
