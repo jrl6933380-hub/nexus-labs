@@ -36,6 +36,7 @@ async function loadHistory() {
       return [];
     }
     const data = await res.json();
+    console.log('loadHistory: raw GET response', JSON.stringify(data).slice(0, 500));
     if (!data.result) {
       console.log('loadHistory: no existing history found (empty key)');
       return [];
@@ -68,11 +69,11 @@ async function saveHistory(fullHistory) {
       headers: { Authorization: `Bearer ${KV_TOKEN}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ result: JSON.stringify(trimmed) }),
     });
+    const bodyText = await res.text();
     if (!res.ok) {
-      const bodyText = await res.text();
       console.error('saveHistory: bad response', res.status, bodyText.slice(0, 300));
     } else {
-      console.log('saveHistory: saved', trimmed.length, 'messages');
+      console.log('saveHistory: saved', trimmed.length, 'messages, raw SET response', bodyText.slice(0, 300));
     }
   } catch (err) {
     console.error('saveHistory: fetch threw', err.message);
