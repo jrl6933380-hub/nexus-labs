@@ -6,7 +6,8 @@ import fs from 'fs';
 import path from 'path';
 import { listMemories, addMemory } from '../lib/memory.js';
 import { initSentry, Sentry } from '../lib/sentry.js';
-import { createOrUpdateFile, deleteFile, listFiles } from '../lib/github.js';
+import { listFiles } from '../lib/github.js';
+import { addToQueue } from '../lib/queue.js';
 
 // ============================================================
 // PROVIDER CONFIG — three tiers, one API key. A cheap classification
@@ -157,7 +158,7 @@ const TOOLS = [
   },
   {
     name: 'create_repo_file',
-    description: 'Create a new file in a GitHub repo, or overwrite it if it already exists. Only use this on draft/in-progress work, not live client sites, without explicit approval first.',
+    description: 'Propose creating a new file in a GitHub repo (or overwriting it if it already exists). This does NOT execute immediately — it adds the proposed change to Mr. Lopez\'s approval queue on the dashboard, and only actually happens once he taps Approve there.',
     input_schema: {
       type: 'object',
       properties: {
@@ -167,13 +168,14 @@ const TOOLS = [
         content: { type: 'string', description: 'Full file contents.' },
         message: { type: 'string', description: 'Commit message. Optional.' },
         branch: { type: 'string' },
+        description: { type: 'string', description: 'A short, plain-English summary of what this change does and why, shown to Mr. Lopez in the approval queue.' },
       },
       required: ['owner', 'repo', 'path', 'content'],
     },
   },
   {
     name: 'update_repo_file',
-    description: 'Overwrite an existing file in a GitHub repo with new content. Only use this on draft/in-progress work, not live client sites, without explicit approval first.',
+    description: 'Propose overwriting an existing file in a GitHub repo with new content. This does NOT execute immediately — it adds the proposed change to Mr. Lopez\'s approval queue on the dashboard, and only actually happens once he taps Approve there.',
     input_schema: {
       type: 'object',
       properties: {
@@ -183,13 +185,14 @@ const TOOLS = [
         content: { type: 'string' },
         message: { type: 'string' },
         branch: { type: 'string' },
+        description: { type: 'string', description: 'A short, plain-English summary of what this change does and why, shown to Mr. Lopez in the approval queue.' },
       },
       required: ['owner', 'repo', 'path', 'content'],
     },
   },
   {
     name: 'delete_repo_file',
-    description: 'Delete a file from a GitHub repo. This is permanent. Mr. Lopez asking directly to delete a specific file IS the explicit approval — call this tool immediately when he asks. Never claim a file was deleted without actually calling this tool first.',
+    description: 'Propose deleting a file from a GitHub repo. This does NOT execute immediately — it adds the proposed deletion to Mr. Lopez\'s approval queue on the dashboard, and only actually happens once he taps Approve there.',
     input_schema: {
       type: 'object',
       properties: {
@@ -198,6 +201,7 @@ const TOOLS = [
         path: { type: 'string' },
         message: { type: 'string' },
         branch: { type: 'string' },
+        description: { type: 'string', description: 'A short, plain-English summary of why this file should be deleted, shown to Mr. Lopez in the approval queue.' },
       },
       required: ['owner', 'repo', 'path'],
     },
@@ -209,7 +213,7 @@ const TOOLS = [
 // Claude decides to call it, then returns the final text reply.
 // ============================================================
 async function callClaude(model, history, identityText, memoriesText) {
-  const systemPrompt = `${identityText}\n\n## What I remember long-term:\n${memoriesText || '(nothing saved yet)'}\n\n## Important: always include a short text reply to Mr. Lopez, even when you also call a tool. Never respond with a tool call and nothing else.\n\n## Critical: never claim to have done something (saved a memory, created/updated/deleted a file, looked something up) unless you actually called the corresponding tool in this exact turn and it succeeded. If you're unsure whether an action happened, say so honestly instead of assuming it worked.`;
+  const systemPrompt = `${identityText}\n\n## What I remember long-term:\n${memoriesText || '(nothing saved yet)'}\n\n## Important: always include a short text reply to Mr. Lopez, even when you also call a tool. Never respond with a tool call and nothing else.\n\n## Critical: never claim to have done something unless you actually called the corresponding tool in this exact turn and it succeeded. For create_repo_file, update_repo_file, and delete_repo_file specifically: calling these tools only PROPOSES the change and adds it to the approval queue — it does not execute yet. Tell Mr. Lopez it's queued for his approval, not that it's done.`;
 
   const claudeMessages = history.map((msg) => ({
     role: msg.role === 'assistant' ? 'assistant' : 'user',
@@ -289,37 +293,45 @@ async function callClaude(model, history, identityText, memoriesText) {
         }
       } else if (block.name === 'create_repo_file' || block.name === 'update_repo_file') {
         try {
-          const result = await createOrUpdateFile(block.input);
-          console.log(block.name, 'tool: wrote', block.input.path);
+          const item = await addToQueue({
+            tool: block.name,
+            input: block.input,
+            description: block.input.description,
+          });
+          console.log(block.name, 'tool: queued', block.input.path, 'id', item.id);
           toolResults.push({
             type: 'tool_result',
             tool_use_id: block.id,
-            content: JSON.stringify(result),
+            content: `Proposed and added to the approval queue (not yet executed — waiting for Mr. Lopez to approve): ${item.description}`,
           });
         } catch (err) {
-          console.error(block.name, 'tool failed:', err.message, 'input was:', JSON.stringify(block.input));
+          console.error(block.name, 'tool failed to queue:', err.message, 'input was:', JSON.stringify(block.input));
           toolResults.push({
             type: 'tool_result',
             tool_use_id: block.id,
-            content: `Failed to write file: ${err.message}`,
+            content: `Failed to queue proposed change: ${err.message}`,
             is_error: true,
           });
         }
       } else if (block.name === 'delete_repo_file') {
         try {
-          const result = await deleteFile(block.input);
-          console.log('delete_repo_file tool: deleted', block.input.path);
+          const item = await addToQueue({
+            tool: block.name,
+            input: block.input,
+            description: block.input.description || `Delete ${block.input.path}`,
+          });
+          console.log('delete_repo_file tool: queued', block.input.path, 'id', item.id);
           toolResults.push({
             type: 'tool_result',
             tool_use_id: block.id,
-            content: JSON.stringify(result),
+            content: `Proposed deletion added to the approval queue (not yet executed — waiting for Mr. Lopez to approve): ${item.description}`,
           });
         } catch (err) {
-          console.error('delete_repo_file tool failed:', err.message, 'input was:', JSON.stringify(block.input));
+          console.error('delete_repo_file tool failed to queue:', err.message, 'input was:', JSON.stringify(block.input));
           toolResults.push({
             type: 'tool_result',
             tool_use_id: block.id,
-            content: `Failed to delete file: ${err.message}`,
+            content: `Failed to queue proposed deletion: ${err.message}`,
             is_error: true,
           });
         }
