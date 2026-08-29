@@ -5,6 +5,7 @@
 import fs from 'fs';
 import path from 'path';
 import { listMemories, addMemory } from '../lib/memory.js';
+import { initSentry, Sentry } from '../lib/sentry.js';
 
 // ============================================================
 // PROVIDER CONFIG — three tiers, one API key. A cheap classification
@@ -239,6 +240,8 @@ async function callClaude(model, history, identityText, memoriesText) {
 // HANDLER
 // ============================================================
 export default async function handler(req, res) {
+  initSentry();
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
@@ -277,6 +280,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ reply });
   } catch (err) {
     console.error('Nex chat handler crashed:', err);
+    Sentry.captureException(err);
     return res.status(500).json({ error: 'Internal system error processing your message.' });
   }
 }
