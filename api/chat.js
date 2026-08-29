@@ -163,7 +163,7 @@ async function callClaude(model, history, identityText, memoriesText) {
       },
       body: JSON.stringify({
         model,
-        max_tokens: 800,
+        max_tokens: 2000,
         system: systemPrompt,
         tools: TOOLS,
         messages,
