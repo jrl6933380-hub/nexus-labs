@@ -7,9 +7,14 @@ import path from 'path';
 import { listMemories, addMemory } from '../lib/memory.js';
 
 // ============================================================
-// PROVIDER CONFIG
+// PROVIDER CONFIG — three tiers, one API key. A cheap classification
+// call picks which tier answers the real message.
 // ============================================================
-const CLAUDE_MODEL = 'claude-sonnet-5'; // swap model name here anytime
+const MODEL_TIERS = {
+  cheap: 'claude-haiku-4-5-20251001', // casual chat, quick questions
+  standard: 'claude-sonnet-5', // default — real work, coding, building
+  heavy: 'claude-opus-5', // rare, genuinely hard multi-step reasoning
+};
 const CLAUDE_API_KEY = process.env.ANTHROPIC_API_KEY;
 const CLAUDE_ENDPOINT = 'https://api.anthropic.com/v1/messages';
 
@@ -68,6 +73,49 @@ async function saveRecent(fullHistory) {
 }
 
 // ============================================================
+// TIER CLASSIFICATION — a fast, cheap Haiku call decides which
+// model should actually answer. Falls back to 'standard' (Sonnet)
+// on any failure, since that's the safe default.
+// ============================================================
+async function classifyTier(message) {
+  try {
+    const response = await fetch(CLAUDE_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': CLAUDE_API_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: MODEL_TIERS.cheap,
+        max_tokens: 10,
+        system:
+          'Classify the message into exactly one word: "cheap" for casual chit-chat/small talk/simple questions, "standard" for real work like coding, building sites, or planning, "heavy" for genuinely complex multi-step reasoning or hard architectural decisions. Reply with only that one word, nothing else.',
+        messages: [{ role: 'user', content: message }],
+      }),
+    });
+
+    if (!response.ok) {
+      console.error('classifyTier: bad response', response.status);
+      return 'standard';
+    }
+
+    const data = await response.json();
+    const textBlock = data?.content?.find((block) => block.type === 'text');
+    const word = textBlock?.text?.trim().toLowerCase();
+
+    if (word && MODEL_TIERS[word]) {
+      console.log('classifyTier: routed to', word);
+      return word;
+    }
+    return 'standard';
+  } catch (err) {
+    console.error('classifyTier: threw', err.message);
+    return 'standard';
+  }
+}
+
+// ============================================================
 // TOOLS — Nex can call these himself mid-conversation.
 // ============================================================
 const TOOLS = [
@@ -97,7 +145,7 @@ const TOOLS = [
 // CLAUDE CALL — handles one round of tool use (save_memory) if
 // Claude decides to call it, then returns the final text reply.
 // ============================================================
-async function callClaude(history, identityText, memoriesText) {
+async function callClaude(model, history, identityText, memoriesText) {
   const systemPrompt = `${identityText}\n\n## What I remember long-term:\n${memoriesText || '(nothing saved yet)'}`;
 
   const claudeMessages = history.map((msg) => ({
@@ -114,7 +162,7 @@ async function callClaude(history, identityText, memoriesText) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: CLAUDE_MODEL,
+        model,
         max_tokens: 800,
         system: systemPrompt,
         tools: TOOLS,
@@ -211,7 +259,9 @@ export default async function handler(req, res) {
 
     const memoriesText = memories.map((m) => `- [${m.category}] ${m.content}`).join('\n');
 
-    const reply = await callClaude(updatedHistoryWithUser, NEX_IDENTITY, memoriesText);
+    const tier = await classifyTier(message);
+    const model = MODEL_TIERS[tier];
+    const reply = await callClaude(model, updatedHistoryWithUser, NEX_IDENTITY, memoriesText);
 
     const finalHistory = [...updatedHistoryWithUser, { role: 'assistant', content: reply }];
     await saveRecent(finalHistory);
