@@ -3,8 +3,11 @@
 // memory dashboard UI (public/memory.html) and callable directly.
 
 import { listMemories, addMemory, deleteMemory } from '../lib/memory.js';
+import { initSentry, Sentry } from '../lib/sentry.js';
 
 export default async function handler(req, res) {
+  initSentry();
+
   try {
     if (req.method === 'GET') {
       const memories = await listMemories();
@@ -28,6 +31,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   } catch (err) {
     console.error('memory handler crashed:', err.message);
+    Sentry.captureException(err);
     return res.status(500).json({ error: 'Internal error handling memory request.' });
   }
 }
