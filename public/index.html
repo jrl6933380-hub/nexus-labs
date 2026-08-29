@@ -429,23 +429,25 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
-  @media (max-width: 900px) {
-    .app { grid-template-columns: 1fr; }
-    .panel:not(.chat-panel) { display: none; }
-  }
-  .memory-link-mobile {
+  /* ===== Mobile chips (Memory + Queue) — shown when the side
+     panels are hidden below 900px, so both stay reachable. ===== */
+  .mobile-chips {
     display: none;
   }
 
   @media (max-width: 900px) {
     .app { grid-template-columns: 1fr; }
     .panel:not(.chat-panel) { display: none; }
-    .memory-link-mobile {
-      display: inline-block;
+    .mobile-chips {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
       position: fixed;
       top: 14px;
       right: 14px;
       z-index: 10;
+    }
+    .mobile-chip {
       font-family: var(--mono);
       font-size: 11px;
       color: var(--cyan);
@@ -454,13 +456,20 @@
       padding: 6px 10px;
       border-radius: 6px;
       background: rgba(18,25,42,0.85);
+      text-align: right;
+    }
+    .mobile-chip.queue-chip {
+      color: var(--amber);
     }
   }
 </style>
 </head>
 <body>
 
-<a href="/memory.html" class="memory-link-mobile">Memory →</a>
+<div class="mobile-chips">
+  <a href="/memory.html" class="mobile-chip">Memory →</a>
+  <a href="/queue.html" class="mobile-chip queue-chip" id="queue-chip">Queue →</a>
+</div>
 
 <div class="app">
 
@@ -474,6 +483,7 @@
       <div class="nex-status">operator: mr. lopez</div>
       <div class="nex-pulse-line"></div>
       <a href="/memory.html" style="display:inline-block; margin-top:14px; font-family:var(--mono); font-size:11px; color:var(--cyan); text-decoration:none; border:1px solid var(--border); padding:6px 10px; border-radius:6px;">View Memory →</a>
+      <a href="/queue.html" style="display:inline-block; margin-top:8px; margin-left:8px; font-family:var(--mono); font-size:11px; color:var(--amber); text-decoration:none; border:1px solid var(--border); padding:6px 10px; border-radius:6px;">View Queue →</a>
     </div>
 
     <div class="panel-body">
@@ -533,6 +543,7 @@
   const chatInput = document.getElementById('chatInput');
   const sendBtn = document.getElementById('sendBtn');
   const queueList = document.getElementById('queue-list');
+  const queueChip = document.getElementById('queue-chip');
 
   function addMessage(sender, text) {
     const msg = document.createElement('div');
@@ -612,6 +623,10 @@
       const res = await fetch('/api/queue');
       const data = await res.json();
       const items = data.items || [];
+
+      if (queueChip) {
+        queueChip.textContent = items.length > 0 ? `Queue (${items.length}) →` : 'Queue →';
+      }
 
       queueList.innerHTML = '';
       if (items.length === 0) {
