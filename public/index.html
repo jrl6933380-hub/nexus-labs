@@ -307,6 +307,19 @@
     text-transform: uppercase;
   }
 
+  .thinking-dots::after {
+    content: '';
+    animation: dots 1.2s steps(4, end) infinite;
+  }
+
+  @keyframes dots {
+    0% { content: ''; }
+    25% { content: '.'; }
+    50% { content: '..'; }
+    75% { content: '...'; }
+    100% { content: ''; }
+  }
+
   .chat-input-row {
     padding: 16px 24px 22px;
     border-top: 1px solid var(--border);
@@ -349,6 +362,7 @@
   }
 
   .send-btn:hover { background: #4A8FFF; }
+  .send-btn:disabled { opacity: 0.5; cursor: default; }
 
   /* ===== RIGHT: Approval Queue ===== */
   .queue-panel {
@@ -473,7 +487,7 @@
       </div>
       <div class="project-card" style="cursor: default;">
         <div class="project-name" style="font-size: 12px; margin-bottom: 4px;">Capabilities</div>
-        <span class="status-badge status-draft">Not built</span>
+        <span class="status-badge status-live">GitHub + Memory</span>
       </div>
     </div>
   </div>
@@ -514,7 +528,6 @@
   </div>
 
 </div>
-
 <script>
   const chatScroll = document.querySelector('.chat-scroll');
   const chatInput = document.getElementById('chatInput');
@@ -537,7 +550,18 @@
     chatInput.value = '';
     sendBtn.disabled = true;
 
-    const thinkingMsg = addMessage('nex', 'thinking...');
+    // Animated "thinking" indicator — the dots keep moving via CSS
+    // animation on .thinking-dots, so it stays visibly alive even
+    // during longer replies (e.g. when Nex calls a tool, which means
+    // two Claude API calls happening in sequence behind the scenes).
+    const thinkingMsg = addMessage('nex', '<span class="thinking-dots">Thinking</span>');
+
+    // Reassure the user it's still working if it's taking a while —
+    // swaps the label after a few seconds without resetting the dots.
+    const slowNotice = setTimeout(() => {
+      const label = thinkingMsg.querySelector('.thinking-dots');
+      if (label) label.textContent = 'Still working on it';
+    }, 4000);
 
     try {
       const res = await fetch('/api/chat', {
@@ -547,6 +571,7 @@
       });
 
       const data = await res.json();
+      clearTimeout(slowNotice);
 
       if (data.error) {
         thinkingMsg.innerHTML = `<div class="msg-sender">Nex</div>Something broke: ${data.error}`;
@@ -554,6 +579,7 @@
         thinkingMsg.innerHTML = `<div class="msg-sender">Nex</div>${data.reply}`;
       }
     } catch (err) {
+      clearTimeout(slowNotice);
       thinkingMsg.innerHTML = `<div class="msg-sender">Nex</div>Couldn't reach the server. Check your connection or Vercel logs.`;
     }
 
