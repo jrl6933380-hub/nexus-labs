@@ -32,6 +32,7 @@ export default async function handler(req, res) {
   } catch (err) {
     console.error('memory handler crashed:', err.message);
     Sentry.captureException(err);
+    await Sentry.flush(2000);
     return res.status(500).json({ error: 'Internal error handling memory request.' });
   }
 }
