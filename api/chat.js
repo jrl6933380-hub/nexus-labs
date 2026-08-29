@@ -8,10 +8,14 @@ import path from 'path';
 // PROVIDER CONFIG — this is the only section you touch to swap
 // AI providers or models later (e.g. Gemini -> OpenAI -> Claude).
 // ============================================================
-const PROVIDER = 'gemini'; // change to 'openai' later if you build that branch back in
+const PROVIDER = 'claude'; // active provider — was 'gemini', now Claude
 const GEMINI_MODEL = 'gemini-3.6-flash'; // swap model name here anytime
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+
+const CLAUDE_MODEL = 'claude-sonnet-5'; // swap model name here anytime (e.g. claude-haiku-4-5-20251001)
+const CLAUDE_API_KEY = process.env.ANTHROPIC_API_KEY;
+const CLAUDE_ENDPOINT = 'https://api.anthropic.com/v1/messages';
 
 // ============================================================
 // MEMORY (Upstash Redis via REST API)
@@ -123,6 +127,45 @@ async function callGemini(history, identityText) {
   return reply;
 }
 
+async function callClaude(history, identityText) {
+  const claudeMessages = history.map((msg) => ({
+    role: msg.role === 'assistant' ? 'assistant' : 'user',
+    content: msg.content || '',
+  }));
+
+  const response = await fetch(CLAUDE_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': CLAUDE_API_KEY,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: CLAUDE_MODEL,
+      max_tokens: 800,
+      system: identityText,
+      messages: claudeMessages,
+    }),
+  });
+
+  const responseContentType = response.headers.get('content-type') || '';
+  if (!response.ok || responseContentType.includes('text/html')) {
+    const errorText = await response.text();
+    console.error('Claude rejected the request:', errorText);
+    throw new Error('Claude API returned an error response.');
+  }
+
+  const data = await response.json();
+
+  const reply = data?.content?.[0]?.text;
+  if (!reply) {
+    console.error('Unexpected Claude response shape:', data);
+    throw new Error('Malformed response from Claude.');
+  }
+
+  return reply;
+}
+
 // ============================================================
 // HANDLER
 // ============================================================
@@ -133,7 +176,12 @@ export default async function handler(req, res) {
 
   const { message } = req.body;
   if (!message) return res.status(400).json({ error: 'Missing message' });
-  if (!GEMINI_API_KEY) return res.status(500).json({ error: 'Missing GEMINI_API_KEY environment variable.' });
+  if (PROVIDER === 'gemini' && !GEMINI_API_KEY) {
+    return res.status(500).json({ error: 'Missing GEMINI_API_KEY environment variable.' });
+  }
+  if (PROVIDER === 'claude' && !CLAUDE_API_KEY) {
+    return res.status(500).json({ error: 'Missing ANTHROPIC_API_KEY environment variable.' });
+  }
 
   // Load identity doc — filename must match what's actually in the repo: IDENTITY.md
   const identityPath = path.join(process.cwd(), 'IDENTITY.md');
@@ -154,6 +202,8 @@ export default async function handler(req, res) {
     let reply;
     if (PROVIDER === 'gemini') {
       reply = await callGemini(updatedHistoryWithUser, NEX_IDENTITY);
+    } else if (PROVIDER === 'claude') {
+      reply = await callClaude(updatedHistoryWithUser, NEX_IDENTITY);
     } else {
       return res.status(500).json({ error: `Unknown provider configured: ${PROVIDER}` });
     }
