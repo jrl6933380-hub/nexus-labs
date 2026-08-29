@@ -9,7 +9,7 @@ import path from 'path';
 // AI providers or models later (e.g. Gemini -> OpenAI -> Claude).
 // ============================================================
 const PROVIDER = 'gemini'; // change to 'openai' later if you build that branch back in
-const GEMINI_MODEL = 'gemini-2.5-flash';// swap model name here anytime
+const GEMINI_MODEL = 'gemini-3.6-flash';// swap model name here anytime
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
