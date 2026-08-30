@@ -20,6 +20,7 @@
     --text-faint: #5B6577;
     --amber: #E8A94D;
     --red: #E85D5D;
+    --green: #4DE8A0;
     --mono: 'JetBrains Mono', monospace;
     --sans: 'Inter', -apple-system, sans-serif;
   }
@@ -429,8 +430,8 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
-  /* ===== Mobile chips (Memory + Queue) — shown when the side
-     panels are hidden below 900px, so both stay reachable. ===== */
+  /* ===== Mobile chips (Memory + Queue + Connectors) — shown when
+     the side panels are hidden below 900px, so all stay reachable. ===== */
   .mobile-chips {
     display: none;
   }
@@ -461,6 +462,9 @@
     .mobile-chip.queue-chip {
       color: var(--amber);
     }
+    .mobile-chip.connectors-chip {
+      color: var(--green);
+    }
   }
 </style>
 </head>
@@ -469,6 +473,7 @@
 <div class="mobile-chips">
   <a href="/memory.html" class="mobile-chip">Memory →</a>
   <a href="/queue.html" class="mobile-chip queue-chip" id="queue-chip">Queue →</a>
+  <a href="/connectors.html" class="mobile-chip connectors-chip">Connectors →</a>
 </div>
 
 <div class="app">
@@ -484,6 +489,7 @@
       <div class="nex-pulse-line"></div>
       <a href="/memory.html" style="display:inline-block; margin-top:14px; font-family:var(--mono); font-size:11px; color:var(--cyan); text-decoration:none; border:1px solid var(--border); padding:6px 10px; border-radius:6px;">View Memory →</a>
       <a href="/queue.html" style="display:inline-block; margin-top:8px; margin-left:8px; font-family:var(--mono); font-size:11px; color:var(--amber); text-decoration:none; border:1px solid var(--border); padding:6px 10px; border-radius:6px;">View Queue →</a>
+      <a href="/connectors.html" style="display:inline-block; margin-top:8px; font-family:var(--mono); font-size:11px; color:var(--green); text-decoration:none; border:1px solid var(--border); padding:6px 10px; border-radius:6px;">View Connectors →</a>
     </div>
 
     <div class="panel-body">
