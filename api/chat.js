@@ -350,15 +350,20 @@ async function callClaude(model, history, identityText, memoriesText) {
   const reply = textBlock?.text;
 
   if (!reply) {
-    console.error('Claude returned no text block on', model, '— retrying with Sonnet:', JSON.stringify(data).slice(0, 500));
+    console.error('Claude returned no text block on', model, '— escalating to next tier:', JSON.stringify(data).slice(0, 500));
 
-    // Only retry once, and only if we weren't already on Sonnet.
-    if (model !== MODEL_TIERS.standard) {
+    // Escalate through the tiers before giving up. Haiku going silent
+    // retries on Sonnet; if Sonnet itself goes silent (rare, but has
+    // happened), make one last attempt on Opus before failing loud.
+    if (model === MODEL_TIERS.cheap) {
       return callClaude(MODEL_TIERS.standard, history, identityText, memoriesText);
     }
+    if (model === MODEL_TIERS.standard) {
+      return callClaude(MODEL_TIERS.heavy, history, identityText, memoriesText);
+    }
 
-    // Sonnet itself went silent — genuinely unusual. Fail loud so we notice.
-    throw new Error('Claude returned no text even on retry with Sonnet.');
+    // Even Opus went silent — genuinely unusual. Fail loud so we notice.
+    throw new Error('Claude returned no text even after escalating through all tiers.');
   }
 
   return reply;
