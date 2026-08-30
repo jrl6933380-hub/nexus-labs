@@ -7,7 +7,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
-import { createOrUpdateFile, deleteFile, listFiles, getFileContent } from '../lib/github.js';
+import { createOrUpdateFile, deleteFile, listFiles, readFile } from '../lib/github.js';
 
 // Safety nets — log anything that would otherwise fail completely
 // silently (errors thrown inside async callbacks, outside any try/catch).
@@ -41,19 +41,6 @@ export default async function handler(req, res) {
       repo: z.string().describe('Repo name.'),
       path: z.string().describe('File path within the repo, e.g. "api/chat.js".'),
     };
-
-    server.tool(
-      'read_file',
-      'Read the contents of a file from a GitHub repo.',
-      {
-        ...fileFields,
-        branch: z.string().optional().describe('Branch name. Defaults to the repo default branch.'),
-      },
-      async (args) => {
-        const result = await getFileContent(args);
-        return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
-      }
-    );
 
     server.tool(
       'create_file',
@@ -110,6 +97,21 @@ export default async function handler(req, res) {
       },
       async (args) => {
         const result = await listFiles(args);
+        return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+      }
+    );
+
+    server.tool(
+      'read_file',
+      'Read the contents of a file from a GitHub repo.',
+      {
+        owner: z.string().describe('Repo owner (GitHub username or org).'),
+        repo: z.string().describe('Repo name.'),
+        path: z.string().describe('File path within the repo, e.g. "api/chat.js".'),
+        branch: z.string().optional().describe('Branch name. Defaults to the repo default branch.'),
+      },
+      async (args) => {
+        const result = await readFile(args);
         return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
       }
     );
