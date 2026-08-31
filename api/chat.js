@@ -6,7 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import { listMemories, addMemory } from '../lib/memory.js';
 import { initSentry, Sentry } from '../lib/sentry.js';
-import { listFiles, readFile } from '../lib/github.js';
+import { listFiles, readFile, createBranch, createPullRequest } from '../lib/github.js';
 import { addToQueue } from '../lib/queue.js';
 
 // ============================================================
@@ -229,6 +229,63 @@ const TOOLS = [
       required: ['owner', 'repo', 'path'],
     },
   },
+  {
+    name: 'create_repo',
+    description: 'Propose creating a brand new GitHub repository. This does NOT execute immediately — it adds the proposed repo to Mr. Lopez\'s approval queue on the dashboard, and only actually gets created once he taps Approve there. Use this before creating files when the target repo does not exist yet.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        owner: { type: 'string', description: 'Repo owner — should match the connected GitHub account.' },
+        name: { type: 'string', description: 'Name for the new repository.' },
+        description: { type: 'string', description: 'Short description of the repo itself (what it is for).' },
+        private: { type: 'boolean', description: 'Whether the repo should be private. Defaults to false (public).' },
+      },
+      required: ['owner', 'name'],
+    },
+  },
+  {
+    name: 'delete_repo',
+    description: 'Propose deleting an ENTIRE GitHub repository. This is irreversible once approved — GitHub does not support undoing it. This does NOT execute immediately — it adds the proposal to Mr. Lopez\'s approval queue, and only actually happens once he taps Approve there. Only propose this when Mr. Lopez has clearly and explicitly asked for a specific repo to be deleted — never suggest this proactively.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        owner: { type: 'string' },
+        repo: { type: 'string', description: 'Repo name to delete.' },
+        description: { type: 'string', description: 'A short summary of why this repo is being deleted, shown to Mr. Lopez in the approval queue.' },
+      },
+      required: ['owner', 'repo'],
+    },
+  },
+  {
+    name: 'create_branch',
+    description: 'Create a new branch in a GitHub repo, branched off an existing branch. Executes immediately (no approval needed) since it never touches the live/default branch — it just makes a safe copy to work on. Use this before making risky or experimental changes, then propose them via create_repo_file/update_repo_file on that branch, then open a pull request with create_pull_request so Mr. Lopez can review the actual diff before it goes live.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        owner: { type: 'string' },
+        repo: { type: 'string' },
+        branch: { type: 'string', description: 'Name for the new branch.' },
+        from_branch: { type: 'string', description: 'Branch to create the new branch from. Defaults to the repo default branch.' },
+      },
+      required: ['owner', 'repo', 'branch'],
+    },
+  },
+  {
+    name: 'create_pull_request',
+    description: 'Open a pull request proposing to merge one branch into another. Executes immediately (no approval needed) since opening a PR does not merge anything — it just proposes the change for review on GitHub, which Mr. Lopez can look at and merge himself when ready. Use this after staging changes on a branch.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        owner: { type: 'string' },
+        repo: { type: 'string' },
+        title: { type: 'string', description: 'Title of the pull request.' },
+        head: { type: 'string', description: 'The branch containing the changes (the branch to merge from).' },
+        base: { type: 'string', description: 'The branch to merge into. Defaults to the repo default branch.' },
+        body: { type: 'string', description: 'Description of the changes, shown on the pull request.' },
+      },
+      required: ['owner', 'repo', 'title', 'head'],
+    },
+  },
 ];
 
 // ============================================================
@@ -236,7 +293,7 @@ const TOOLS = [
 // Claude decides to call it, then returns the final text reply.
 // ============================================================
 async function callClaude(model, history, identityText, memoriesText) {
-  const systemPrompt = `${identityText}\n\n## What I remember long-term:\n${memoriesText || '(nothing saved yet)'}\n\n## Important: always include a short text reply to Mr. Lopez, even when you also call a tool. Never respond with a tool call and nothing else.\n\n## Critical: never claim to have done something unless you actually called the corresponding tool in this exact turn and it succeeded. For create_repo_file, update_repo_file, and delete_repo_file specifically: calling these tools only PROPOSES the change and adds it to the approval queue — it does not execute yet. Tell Mr. Lopez it's queued for his approval, not that it's done.\n\n## When editing an existing file with update_repo_file, use read_repo_file first if you're not already certain exactly what it currently contains — never guess at existing code.`;
+  const systemPrompt = `${identityText}\n\n## What I remember long-term:\n${memoriesText || '(nothing saved yet)'}\n\n## Important: always include a short text reply to Mr. Lopez, even when you also call a tool. Never respond with a tool call and nothing else.\n\n## Critical: never claim to have done something unless you actually called the corresponding tool in this exact turn and it succeeded. For create_repo_file, update_repo_file, delete_repo_file, create_repo, and delete_repo specifically: calling these tools only PROPOSES the change and adds it to the approval queue — it does not execute yet. Tell Mr. Lopez it's queued for his approval, not that it's done. create_branch and create_pull_request are different — those DO execute immediately, since they never touch the live/default branch.\n\n## When editing an existing file with update_repo_file, use read_repo_file first if you're not already certain exactly what it currently contains — never guess at existing code.\n\n## delete_repo is irreversible once approved. Only propose it when Mr. Lopez has explicitly and clearly named the specific repo to delete — never suggest or propose it on your own initiative.`;
 
   // Filter out any message with empty/missing content before it ever
   // reaches Claude. Claude's API rejects empty content outright — this
@@ -379,6 +436,86 @@ async function callClaude(model, history, identityText, memoriesText) {
             type: 'tool_result',
             tool_use_id: block.id,
             content: `Failed to queue proposed deletion: ${err.message}`,
+            is_error: true,
+          });
+        }
+      } else if (block.name === 'create_repo') {
+        try {
+          const item = await addToQueue({
+            tool: block.name,
+            input: block.input,
+            description: block.input.description || `Create new repo: ${block.input.name}`,
+          });
+          console.log('create_repo tool: queued', block.input.name, 'id', item.id);
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: `Proposed new repo added to the approval queue (not yet created — waiting for Mr. Lopez to approve): ${item.description}`,
+          });
+        } catch (err) {
+          console.error('create_repo tool failed to queue:', err.message, 'input was:', JSON.stringify(block.input));
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: `Failed to queue proposed repo: ${err.message}`,
+            is_error: true,
+          });
+        }
+      } else if (block.name === 'delete_repo') {
+        try {
+          const item = await addToQueue({
+            tool: block.name,
+            input: block.input,
+            description: block.input.description || `Delete entire repo: ${block.input.repo}`,
+          });
+          console.log('delete_repo tool: queued', block.input.repo, 'id', item.id);
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: `Proposed repo deletion added to the approval queue (not yet executed — irreversible once approved, waiting for Mr. Lopez to approve): ${item.description}`,
+          });
+        } catch (err) {
+          console.error('delete_repo tool failed to queue:', err.message, 'input was:', JSON.stringify(block.input));
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: `Failed to queue proposed repo deletion: ${err.message}`,
+            is_error: true,
+          });
+        }
+      } else if (block.name === 'create_branch') {
+        try {
+          const result = await createBranch(block.input);
+          console.log('create_branch tool: created', block.input.branch, 'on', block.input.owner, block.input.repo);
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: `Branch created: ${JSON.stringify(result)}`,
+          });
+        } catch (err) {
+          console.error('create_branch tool failed:', err.message, 'input was:', JSON.stringify(block.input));
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: `Failed to create branch: ${err.message}`,
+            is_error: true,
+          });
+        }
+      } else if (block.name === 'create_pull_request') {
+        try {
+          const result = await createPullRequest(block.input);
+          console.log('create_pull_request tool: opened PR', result.number, 'on', block.input.owner, block.input.repo);
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: `Pull request opened: ${JSON.stringify(result)}`,
+          });
+        } catch (err) {
+          console.error('create_pull_request tool failed:', err.message, 'input was:', JSON.stringify(block.input));
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: `Failed to open pull request: ${err.message}`,
             is_error: true,
           });
         }
