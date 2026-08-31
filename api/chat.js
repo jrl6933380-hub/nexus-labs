@@ -6,7 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import { listMemories, addMemory } from '../lib/memory.js';
 import { initSentry, Sentry } from '../lib/sentry.js';
-import { listFiles } from '../lib/github.js';
+import { listFiles, readFile } from '../lib/github.js';
 import { addToQueue } from '../lib/queue.js';
 
 // ============================================================
@@ -46,7 +46,16 @@ async function loadRecent() {
     if (!data.result) return [];
     try {
       const parsed = JSON.parse(data.result);
-      return Array.isArray(parsed) ? parsed : [];
+      if (!Array.isArray(parsed)) return [];
+      // Defensive: drop any entry with empty/missing content. A single
+      // poisoned entry here would otherwise get resent to Claude on
+      // every future request and crash every one of them — Claude's
+      // API rejects empty message content, so no request could ever
+      // succeed until the bad entry aged out or was purged. Filtering
+      // on load means a bad entry can never get "stuck".
+      return parsed.filter(
+        (msg) => msg && typeof msg.content === 'string' && msg.content.trim().length > 0
+      );
     } catch {
       return [];
     }
@@ -157,6 +166,20 @@ const TOOLS = [
     },
   },
   {
+    name: 'read_repo_file',
+    description: 'Read the full current contents of a single file in a GitHub repo. Use this before update_repo_file whenever you are not certain exactly what the file currently contains — never guess at existing code, always read it first.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        owner: { type: 'string', description: 'Repo owner (GitHub username or org).' },
+        repo: { type: 'string', description: 'Repo name.' },
+        path: { type: 'string', description: 'File path within the repo, e.g. "api/chat.js".' },
+        branch: { type: 'string', description: 'Branch name. Defaults to the repo default branch.' },
+      },
+      required: ['owner', 'repo', 'path'],
+    },
+  },
+  {
     name: 'create_repo_file',
     description: 'Propose creating a new file in a GitHub repo (or overwriting it if it already exists). This does NOT execute immediately — it adds the proposed change to Mr. Lopez\'s approval queue on the dashboard, and only actually happens once he taps Approve there.',
     input_schema: {
@@ -213,12 +236,18 @@ const TOOLS = [
 // Claude decides to call it, then returns the final text reply.
 // ============================================================
 async function callClaude(model, history, identityText, memoriesText) {
-  const systemPrompt = `${identityText}\n\n## What I remember long-term:\n${memoriesText || '(nothing saved yet)'}\n\n## Important: always include a short text reply to Mr. Lopez, even when you also call a tool. Never respond with a tool call and nothing else.\n\n## Critical: never claim to have done something unless you actually called the corresponding tool in this exact turn and it succeeded. For create_repo_file, update_repo_file, and delete_repo_file specifically: calling these tools only PROPOSES the change and adds it to the approval queue — it does not execute yet. Tell Mr. Lopez it's queued for his approval, not that it's done.`;
+  const systemPrompt = `${identityText}\n\n## What I remember long-term:\n${memoriesText || '(nothing saved yet)'}\n\n## Important: always include a short text reply to Mr. Lopez, even when you also call a tool. Never respond with a tool call and nothing else.\n\n## Critical: never claim to have done something unless you actually called the corresponding tool in this exact turn and it succeeded. For create_repo_file, update_repo_file, and delete_repo_file specifically: calling these tools only PROPOSES the change and adds it to the approval queue — it does not execute yet. Tell Mr. Lopez it's queued for his approval, not that it's done.\n\n## When editing an existing file with update_repo_file, use read_repo_file first if you're not already certain exactly what it currently contains — never guess at existing code.`;
 
-  const claudeMessages = history.map((msg) => ({
-    role: msg.role === 'assistant' ? 'assistant' : 'user',
-    content: msg.content || '',
-  }));
+  // Filter out any message with empty/missing content before it ever
+  // reaches Claude. Claude's API rejects empty content outright — this
+  // is the fix for the bug where one bad entry could get stuck replaying
+  // forever and crash every request.
+  const claudeMessages = history
+    .filter((msg) => typeof msg.content === 'string' && msg.content.trim().length > 0)
+    .map((msg) => ({
+      role: msg.role === 'assistant' ? 'assistant' : 'user',
+      content: msg.content,
+    }));
 
   async function send(messages) {
     const response = await fetch(CLAUDE_ENDPOINT, {
@@ -288,6 +317,24 @@ async function callClaude(model, history, identityText, memoriesText) {
             type: 'tool_result',
             tool_use_id: block.id,
             content: `Failed to list files: ${err.message}`,
+            is_error: true,
+          });
+        }
+      } else if (block.name === 'read_repo_file') {
+        try {
+          const file = await readFile(block.input);
+          console.log('read_repo_file tool: read', block.input.owner, block.input.repo, block.input.path);
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: file.content || '(file is empty)',
+          });
+        } catch (err) {
+          console.error('read_repo_file tool failed:', err.message, 'input was:', JSON.stringify(block.input));
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: `Failed to read file: ${err.message}`,
             is_error: true,
           });
         }
