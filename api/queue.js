@@ -3,7 +3,8 @@
 // and Approve/Reject buttons post back to this same endpoint.
 
 import { listQueue, getQueueItem, removeFromQueue } from '../lib/queue.js';
-import { createOrUpdateFile, deleteFile, createRepo, deleteRepo } from '../lib/github.js';
+import { createOrUpdateFile, deleteFile, createRepo, deleteRepo, commitFiles } from '../lib/github.js';
+import { provisionTokenAsEnvVar, linkRepoToVercel } from '../lib/vercel.js';
 
 async function executeQueuedItem(item) {
   if (item.tool === 'create_repo_file' || item.tool === 'update_repo_file') {
@@ -17,6 +18,15 @@ async function executeQueuedItem(item) {
   }
   if (item.tool === 'delete_repo') {
     return deleteRepo(item.input);
+  }
+  if (item.tool === 'commit_files') {
+    return commitFiles(item.input);
+  }
+  if (item.tool === 'provision_vercel_token') {
+    return provisionTokenAsEnvVar(item.input);
+  }
+  if (item.tool === 'link_repo_to_vercel') {
+    return linkRepoToVercel(item.input);
   }
   throw new Error(`Unknown queued tool: ${item.tool}`);
 }
