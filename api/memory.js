@@ -2,7 +2,7 @@
 // CRUD endpoint for Nex's structured long-term memory. Used by the
 // memory dashboard UI (public/memory.html) and callable directly.
 
-import { listMemories, addMemory, deleteMemory } from '../lib/memory.js';
+import { listMemories, addMemory, updateMemory, deleteMemory } from '../lib/memory.js';
 import { initSentry, Sentry } from '../lib/sentry.js';
 
 export default async function handler(req, res) {
@@ -18,6 +18,14 @@ export default async function handler(req, res) {
       const { content, category } = req.body || {};
       if (!content) return res.status(400).json({ error: 'Missing content' });
       const memory = await addMemory(content, category);
+      return res.status(200).json({ memory });
+    }
+
+    if (req.method === 'PATCH') {
+      const { id } = req.query;
+      const { content, category } = req.body || {};
+      if (!id) return res.status(400).json({ error: 'Missing id' });
+      const memory = await updateMemory(id, content, category);
       return res.status(200).json({ memory });
     }
 
