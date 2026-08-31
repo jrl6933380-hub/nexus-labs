@@ -520,11 +520,8 @@
       </div>
     </div>
 
-    <div class="chat-scroll">
-      <div class="msg msg-nex">
-        <div class="msg-sender">Nex</div>
-        Hey Mr. Lopez. I'm up and I know who I am — just don't have any real capabilities wired in yet. Once we build the first one, it'll show up here and in the queue on the right.
-      </div>
+    <div class="chat-scroll" id="chatScroll">
+      <div class="empty-hint" id="historyLoading">Loading conversation...</div>
     </div>
 
     <div class="chat-input-row">
@@ -545,7 +542,7 @@
 
 </div>
 <script>
-  const chatScroll = document.querySelector('.chat-scroll');
+  const chatScroll = document.getElementById('chatScroll');
   const chatInput = document.getElementById('chatInput');
   const sendBtn = document.getElementById('sendBtn');
   const queueList = document.getElementById('queue-list');
@@ -558,6 +555,35 @@
     chatScroll.appendChild(msg);
     chatScroll.scrollTop = chatScroll.scrollHeight;
     return msg;
+  }
+
+  // Fetches whatever conversation is already saved and renders it,
+  // instead of always showing the same hardcoded greeting. This is
+  // what makes navigating back from Memory/Queue/Connectors actually
+  // feel like returning to the same chat, instead of starting fresh —
+  // the conversation was never lost, this page just never asked for it
+  // before.
+  async function loadHistory() {
+    const loadingEl = document.getElementById('historyLoading');
+    try {
+      const res = await fetch('/api/chat');
+      const data = await res.json();
+      const messages = data.messages || [];
+
+      if (loadingEl) loadingEl.remove();
+
+      if (messages.length === 0) {
+        addMessage('nex', "Hey Mr. Lopez. I'm up and I know who I am — just don't have any real capabilities wired in yet. Once we build the first one, it'll show up here and in the queue on the right.");
+        return;
+      }
+
+      messages.forEach((msg) => {
+        addMessage(msg.role === 'assistant' ? 'nex' : 'user', msg.content);
+      });
+    } catch (err) {
+      if (loadingEl) loadingEl.remove();
+      addMessage('nex', "Couldn't load our previous conversation, but I'm here now.");
+    }
   }
 
   async function sendMessage() {
@@ -617,7 +643,10 @@
         <button class="btn-skip">Reject</button>
       </div>
     `;
-    el.querySelector('.queue-item-title').innerText = `${label} — ${item.input.path}`;
+    const itemLabel = item.input && item.input.path
+      ? `${label} — ${item.input.path}`
+      : `${label} — ${item.input && (item.input.name || item.input.repo) || ''}`;
+    el.querySelector('.queue-item-title').innerText = itemLabel;
     el.querySelector('.queue-item-desc').innerText = item.description;
     el.querySelector('.btn-run').addEventListener('click', () => handleQueueAction(item.id, 'approve', el));
     el.querySelector('.btn-skip').addEventListener('click', () => handleQueueAction(item.id, 'reject', el));
@@ -671,6 +700,7 @@
     if (e.key === 'Enter') sendMessage();
   });
 
+  loadHistory();
   loadQueue();
   setInterval(loadQueue, 10000); // refresh every 10s so new proposals show up automatically
 </script>
