@@ -5,7 +5,7 @@
 // (tools, identity, memory) all lives in nexBrain now.
 
 import { initSentry, Sentry } from '../lib/sentry.js';
-import { askNex } from '../lib/nexBrain.js';
+import { askNex, MODEL_TIERS } from '../lib/nexBrain.js';
 
 // ============================================================
 // SHORT-TERM ROLLING BUFFER — just enough for mid-conversation
@@ -93,8 +93,13 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { message } = req.body;
+  const { message, model } = req.body;
   if (!message) return res.status(400).json({ error: 'Missing message' });
+
+  // model is an optional tier override from the model picker: 'cheap',
+  // 'standard', or 'heavy'. Anything else (including 'auto', missing,
+  // or a typo) falls through to normal auto-routing in askNex.
+  const forcedTier = MODEL_TIERS[model] ? model : null;
 
   try {
     // Deliberate test hook — send this exact phrase to force a real error,
@@ -106,12 +111,18 @@ export default async function handler(req, res) {
     const recent = await loadRecent();
     const runningHistory = recent.filter((msg) => msg.role !== 'system');
 
-    const { reply, updatedHistory } = await askNex(message, runningHistory);
+    const { reply, updatedHistory, model: answeredModel, usage } = await askNex(message, runningHistory, forcedTier);
 
-    const finalHistory = [...updatedHistory, { role: 'assistant', content: reply }];
+    // Store which model actually answered and token usage alongside the
+    // message itself, so "who answered" and token count survive a page
+    // reload — not just visible on the live response.
+    const finalHistory = [
+      ...updatedHistory,
+      { role: 'assistant', content: reply, model: answeredModel, usage },
+    ];
     await saveRecent(finalHistory);
 
-    return res.status(200).json({ reply });
+    return res.status(200).json({ reply, model: answeredModel, usage });
   } catch (err) {
     console.error('Nex chat handler crashed:', err);
     Sentry.captureException(err);
