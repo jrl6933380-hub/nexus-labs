@@ -67,3 +67,39 @@ This would be a deliberate, separate project — not a natural
 extension of Nex's current GitHub/Vercel-focused capabilities.
 Telephony alone is a big enough scope to warrant its own dedicated
 build, similar in size to the original MCP connector work.
+
+## Earlier still: the "Nexus" repo — the original idea on paper
+
+Found while cleaning up old repos. A repo simply called `Nexus`
+("Nexus ecosystem") contains a "Lead Dispatch Pipeline" — the very
+first version of the lead-finding idea, built in Mr. Lopez's first
+few days on Replit, before switching to the cheaper Vercel-based
+approach that became `github-write-mcp` and Nex.
+
+**What it was:** a dashboard where a sales rep picks a city, niche,
+lead cap, and assigned rep. The pipeline queries Google Maps via
+SerpApi, filters for businesses with no website or a rating under
+4.2, and dispatches formatted, clickable leads to a Discord channel
+for the sales team to work.
+
+**Status:** the idea was proven — Mr. Lopez confirmed it actually
+found real qualifying businesses using his SerpApi and old call-bot
+tokens. But what's committed to the repo is an early checkpoint, not
+necessarily the full working state he saw run — he believes he
+pushed to git before it got that far. Treat the repo's code as the
+concept proven on paper, not a guaranteed complete/working build.
+
+**Relationship to everything else here:** this is the earliest
+ancestor of the Scout bot idea above — the same lead-qualification
+logic (no website or weak rating), just built first, on paper,
+before it evolved into the fuller Scout/Nex/Jordan system. Mr. Lopez
+moved off Replit specifically because it got too expensive to keep
+building this way, which is what led directly to building the
+`github-write-mcp` connector and Nex on Vercel instead — this repo
+is the reason the current project exists.
+
+**If revisited:** the core idea (SerpApi + qualification filter to
+find leads) is still exactly what the site-building business needs
+and doesn't have yet — a working lead-finder. Porting this logic
+into the current Vercel/Nex stack, rather than reviving the old
+Replit/Postgres/Discord setup, would be the natural path.
