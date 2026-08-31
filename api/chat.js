@@ -559,6 +559,21 @@ async function callClaude(model, history, identityText, memoriesText) {
 export default async function handler(req, res) {
   initSentry();
 
+  // GET — used by the frontend on page load to re-render whatever
+  // conversation is already saved, instead of always showing the
+  // same hardcoded starter message. This is what actually makes
+  // "back to chat" feel like returning, not starting over — the
+  // conversation was never lost, the page just never asked for it.
+  if (req.method === 'GET') {
+    try {
+      const recent = await loadRecent();
+      return res.status(200).json({ messages: recent });
+    } catch (err) {
+      console.error('GET /api/chat failed to load history:', err.message);
+      return res.status(200).json({ messages: [] });
+    }
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
