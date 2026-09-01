@@ -1,8 +1,8 @@
 // /api/board.js
 // Shared task board endpoint — read/write access for Claude, GPT, and
 // Nex to coordinate work without stepping on each other. GET reads
-// the whole board (tasks + recent messages); POST takes an `action`
-// field to route to the right operation.
+// the whole board (tasks + recent messages + live agent presence);
+// POST takes an `action` field to route to the right operation.
 
 import {
   readBoard,
@@ -14,12 +14,13 @@ import {
   completeTask,
   postMessage,
 } from '../lib/board.js';
+import { listAgents } from '../lib/agents.js';
 
 export default async function handler(req, res) {
   try {
     if (req.method === 'GET') {
-      const board = await readBoard();
-      return res.status(200).json(board);
+      const [board, agents] = await Promise.all([readBoard(), listAgents()]);
+      return res.status(200).json({ ...board, agents });
     }
 
     if (req.method === 'POST') {
