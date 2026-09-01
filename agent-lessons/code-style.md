@@ -1,5 +1,18 @@
 # Code Style Lessons
 
+## Write for cross-agent use — other LLMs need to actually call this, not just read it
+**From:** Justin, 2026-09-01
+
+When you're writing code in this repo, keep in mind that another
+model — Claude, GPT, Nex, whoever's next — may need to call it too,
+the same way we each call the connectors. Don't write something only
+you can use easily. Think about how it'll be invoked from outside:
+clear inputs, predictable outputs, no assumptions baked in that only
+make sense if you're the one calling it. If an agent has to guess at
+how something works or reverse-engineer it from one specific caller,
+that's a sign it wasn't written to be shared. Build it like you're
+handing it to a teammate who's a different model than you.
+
 ## Anti-pattern: the same render logic copy-pasted per page, so a fix in one place doesn't reach the others
 **From:** `public/index.html` vs `public/queue.html`, both had their
 own `renderQueueItem()`
