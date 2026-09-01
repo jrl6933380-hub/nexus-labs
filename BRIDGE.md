@@ -15,43 +15,42 @@ This is the shared continuity file for Claude, Codex (ChatGPT), and Nex.
 8. Use commit message: `bridge: <agent> <YYYY-MM-DD>`.
 9. Keep this file under roughly 150 lines. Condense old LOG entries into DECISIONS.
 10. Do not store secrets, tokens, passwords, or private keys here.
-11. **Verification, not just trust (Claude and Codex only — see DECISIONS on why Nex is excluded):** before starting substantial new work, or any time this file's LOG feels like it might be behind reality, cross-check STATUS against the real Vercel deployment history for each connected project (list projects, then list recent deployments — each one carries the actual commit message/sha/branch that shipped it) before trusting this file blindly. If STATUS and the real deployment history disagree, fix STATUS as part of your session, and say so in your LOG entry. This isn't required on every single message — it's for the start of real work, not small talk.
+11. **Verification, not just trust (Claude and Codex only):** before starting substantial new work, cross-check STATUS against real Vercel deployment history (and for merges specifically, whether the file you're about to build on actually has what STATUS claims — don't trust a PR's own description). If STATUS disagrees with reality, fix it and say so in your LOG entry.
+12. **A PR sitting open is not the same as shipped.** Before marking anything STATUS as "done," confirm the actual file exists on `main` — not just that a PR exists for it. Two features (searchable memory, SMS approvals) sat fully-built-and-tested but unmerged for hours tonight because nobody checked this.
 
 ## STATUS
 
-- Production (`nexus-labs`, `main`) has: the Stark/JARVIS UI across all 4 pages, the dynamic agent registry wired into `/api/board`, Nex's Agent Board tools, SMS-based queue approvals (Twilio), `agent-lessons/`, and Nex's branch-scoped build mode.
-- `nexus-labs-sandbox` branch `feature/task-envelope-v2` (PR #2, unmerged) has epic task 01: `lib/taskEnvelope.js` — task envelope, event, and capability-lease contracts, 10 tests passing. This is the schema task 02 (dispatcher) and task 03 (Claude Routine wake-slice) build on.
-- `nexus-labs-sandbox` `feature/dynamic-agent-registry` (PR #1) is superseded by production and can likely be closed without merging.
-- SMS approvals need `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`, `JUSTIN_PHONE_NUMBER` set in Vercel, and the Twilio webhook pointed at `/api/sms-webhook`, before they're actually live.
-- Mission-orbit UI will show real agents once something calls `POST /api/agents` to register — nothing does yet, so it currently shows just Nex.
-- Verified 2026-09-01 (Codex): production deployment `17cab944c16585d0978528f5a682521030a67be5` is READY and contains the completed build-mode mechanism and identity instructions.
-- End-to-end customer demo proof: Codex created `jrl6933380-hub/buehler-services`, built the site on `feature/initial-demo`, opened PR #1, Mr. Lopez merged it, and Vercel production deployment `7b6b7da1a7bbc9e07b7ca077b968aac68f35843d` is READY.
+- Production (`nexus-labs`, `main`) confirmed live: Stark/JARVIS UI, dynamic agent registry wired into `/api/board`, Nex's Agent Board tools, Nex's branch-scoped build mode, `agent-lessons/`, SMS approvals (`lib/sms.js`, `api/sms-webhook.js` — merged, but still needs Twilio env vars + webhook config before actually usable), and searchable/tagged memory (PR #5, rebased clean on current `main` after PR #1 went stale/conflicting — merge pending).
+- E2B/`run_sandbox` incident from earlier tonight (crashed import in `github-write-mcp`'s `api/mcp.js`) — verified fixed AND live-tested by Claude (`run_sandbox` executed a real command, correct output). Not just code review.
+- Real capability gap, still open: Nex has no `list_repos` tool — can't discover repos under the account by name alone, only read inside ones he already knows. Lower priority: no Vercel visibility either.
+- `nexus-labs-sandbox` `feature/task-envelope-v2` (PR #2) has epic task 01 (`lib/taskEnvelope.js`) — unmerged, blocks task 02.
+- `nexus-labs-sandbox` `feature/dynamic-agent-registry` (PR #1) is superseded by production, safe to close without merging.
+- Mission-orbit shows only Nex — nothing calls `POST /api/agents` to register Claude/GPT presence yet.
+- End-to-end external-client proof (Codex): `jrl6933380-hub/buehler-services`, connector-created repo → branch → PR → Mr. Lopez merge → READY production deployment.
 
 ## NEXT
 
-At the start of a session, read this file first, then check `agent-lessons/` before writing new code. Next real piece: epic task 02, the dispatcher — routes by required_capabilities/risk_class/approval_state (all defined in task 01's envelope) to an available agent from the registry, with idempotent claim/lease so duplicate triggers don't cause duplicate work. Build on top of `lib/taskEnvelope.js` once PR #2 (sandbox) is reviewed/merged. Before ending a session where something meaningful changed, update STATUS/NEXT/BLOCKERS here and add one LOG entry.
+Read this file first, then `agent-lessons/`, before writing new code. Two immediate items: (1) merge PR #5 (searchable memory) once reviewed; (2) build the `list_repos` tool for Nex (`GET /users/{owner}/repos`, small/low-risk). After those: epic task 02, the dispatcher — routes by required_capabilities/risk_class/approval_state to an available agent, idempotent claim/lease. Builds on `lib/taskEnvelope.js` once PR #2 (sandbox) merges.
 
 ## BLOCKERS
 
-- None.
-- Mr. Lopez should not need to repeat context between Claude, Codex, and Nex as long as whoever ends a session updates this file and the next one actually reads it first.
+None currently.
 
 ## DECISIONS
 
-- `BRIDGE.md` at the repository root is the canonical continuity file. All three agents may update it directly.
-- One current STATUS and one concrete NEXT action are preferred over long transcripts.
-- Repository: `jrl6933380-hub/nexus-labs`; default branch: `main`. Sandbox/experiments happen in `jrl6933380-hub/nexus-labs-sandbox`; anything meant to last gets ported to production properly (see agent-lessons/code-style.md on wiring gaps), not just merged in the sandbox.
-- Epic task 01's `workspace_ref` (E2B) field was deliberately left out of the envelope schema — the Claude Routine wake-slice (task 03) uses the routine's own built-in sandbox, so it isn't needed yet. Add it back if a worker type without its own execution environment shows up.
-- Nex-originated file writes may require Mr. Lopez to approve the queued action, so Nex updates can appear with a delay. Nex's Agent Board actions (read/create/claim/update/complete/post_message) execute immediately — they're coordination, not file changes.
-- `agent-lessons/` is for durable, specific, signed lessons — not a changelog. This LOG section is the changelog; agent-lessons is for patterns that outlive any one task.
-- Rule 11's Vercel deployment cross-check only applies to Claude and Codex, both of which have an authenticated Vercel connector. Nex has no Vercel tools at all by design (see IDENTITY.md) — he relies on this file and `agent-lessons/` instead, not a live deployment check.
-- Nex build mode is enforced in code, not only by prompting: file writes to a verified non-default branch execute immediately; writes to the default/live branch or with no branch always enter the approval queue. The normal loop is create branch → iterate freely → open PR → Mr. Lopez reviews/merges.
+- `BRIDGE.md` is the canonical continuity file; all three agents may update it directly. One current STATUS + one concrete NEXT beats a long transcript.
+- Repository: `jrl6933380-hub/nexus-labs`, default branch `main`. Sandbox work happens in `jrl6933380-hub/nexus-labs-sandbox`; anything meant to last gets ported to production properly, not just merged in the sandbox.
+- The real MCP connector Claude uses is `jrl6933380-hub/github-write-mcp` — a separate repo from `nexus-labs` itself. `nexus-labs/api/mcp.js` is a smaller, unrelated internal endpoint; don't confuse the two when debugging connector issues.
+- Epic task 01's `workspace_ref` (E2B) field was left out on purpose — task 03 uses the Claude Routine's own built-in sandbox. Add back if a worker type without one shows up.
+- Nex's Agent Board actions execute immediately (coordination, not files). His file-write tools are branch-conditional: any non-default branch executes immediately (build mode), the live/default branch always queues for approval — enforced in code (`isLiveBranch` in `lib/nexBrain.js`), not by prompting alone.
+- Rule 11's Vercel cross-check is Claude/Codex only — Nex has no Vercel tools by design.
+- `agent-lessons/` is for durable, specific, signed lessons, not a changelog — that's what this LOG is for.
 
 ## LOG
 
-- [2026-09-01] [CODEX] — Proved the full external-client workflow with Buehler Services: connector-created repo and Vercel project, branch-scoped build, PR review, Mr. Lopez merge, and READY production deployment. Pricing thesis for Claude to evaluate: Nexus as provider-flexible orchestration with platform subscription + BYOAI/BYOK, optional managed AI credits, outcome pricing, or a hybrid; Nexus owns coordination/memory/safety/deployment while models remain replaceable workers.
-- [2026-09-01] [CODEX] — Recovered Claude's cutoff work from Git/Vercel, confirmed build mode was fully committed and deployed READY, then verified it end-to-end through Nex: created sandbox branch `test/nex-build-mode-verification`, directly wrote `NEX_BUILD_MODE_VERIFIED.md`, and opened unmerged PR #3 without touching the approval queue or `main`. Updated stale STATUS/DECISIONS here; epic task 02 remains NEXT.
-- [2026-09-01] [CLAUDE] — Added rule 11: cross-check STATUS against real Vercel deployment history (not just trust the log) before starting substantial work. Ran it live as a test — production matched this file exactly, no drift. Scoped to Claude/Codex only; Nex has no Vercel access.
-- [2026-09-01] [CLAUDE] — Epic task 01 done: `lib/taskEnvelope.js` in nexus-labs-sandbox (branch `feature/task-envelope-v2`, PR #2). `createTaskEnvelope`/`validateTaskEnvelope` (rejects malformed payloads), `assertSameTenant` (rejects cross-tenant), `createEvent`/`validateEvent` for all 10 event types, `toEnvelope()` migrates old `lib/board.js` tasks on read without touching storage, `validateCapabilityLease()` documents the `lib/agents.js` registry contract without duplicating it. 10 tests, actually run locally with `node --test` before opening the PR — all passing. Next: task 02 (dispatcher) builds on this.
-- [2026-09-01] [CLAUDE] — Shipped a full session's worth of work to production: Nex's Agent Board tools, SMS-based queue approvals (Twilio), Stark UI + agent registry ported from sandbox, `agent-lessons/` created and seeded, and this BRIDGE.md revived after going stale since Codex made it.
-- [2026-09-01] [CODEX] — Created the shared Claude ↔ Codex bridge after confirming the repository and protocol with Nex; next assistant should read this file first and update it at handoff.
+- [2026-09-01] [CLAUDE] — Fix-before-new-work audit: live-verified the E2B fix (`run_sandbox` actually executed), confirmed a real open gap (`list_repos` missing for Nex), and — critically — discovered PR #1 (searchable memory) and PR #3 (SMS) were fully built/tested but never merged. PR #3 now merged by Mr. Lopez. PR #1 had gone stale (conflicted with `nexBrain.js` changes from board-tools/build-mode work) — rebuilt clean as PR #5 on current `main`, tests re-verified locally (3/3) before opening. Added rules 11–12 here specifically so "PR exists" stops getting mistaken for "shipped."
+- [2026-09-01] [CODEX] — Proved the full external-client workflow with Buehler Services end to end. Raised a pricing thesis for Claude to evaluate (platform subscription vs. BYOAI/BYOK vs. managed credits vs. outcome-based vs. hybrid) — not yet reviewed.
+- [2026-09-01] [CODEX] — Recovered/verified Claude's build-mode work was live, then independently confirmed it end-to-end via a real branch write through Nex.
+- [2026-09-01] [CLAUDE] — Epic task 01 done: `lib/taskEnvelope.js`, 10 tests passing (verified locally). PR #2 open on sandbox.
+- [2026-09-01] [CLAUDE] — Shipped Nex's Agent Board tools, Stark UI + registry ported to production, `agent-lessons/` created, this file revived after going stale post-creation.
+- [2026-09-01] [CODEX] — Created this bridge file.
