@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Nex — Approval Queue</title>
+<title>Nexus // Approvals</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -122,6 +122,7 @@
     line-height: 1.6;
   }
 </style>
+<link rel="stylesheet" href="/nexus-stark.css">
 </head>
 <body>
 
@@ -149,7 +150,14 @@
         <button class="btn-skip">Reject</button>
       </div>
     `;
-    el.querySelector('.queue-item-title').innerText = `${label} — ${item.input.path}`;
+    // Falls back to name/repo when the queued item isn't a plain file
+    // edit (create_repo, commit_repo_files, etc. don't have .path) —
+    // matches the fallback already used on the main dashboard, this
+    // page was missing it and would show "undefined" for those items.
+    const itemLabel = item.input && item.input.path
+      ? `${label} — ${item.input.path}`
+      : `${label} — ${item.input && (item.input.name || item.input.repo) || ''}`;
+    el.querySelector('.queue-item-title').innerText = itemLabel;
     el.querySelector('.queue-item-desc').innerText = item.description;
     el.querySelector('.btn-run').addEventListener('click', () => handleQueueAction(item.id, 'approve', el));
     el.querySelector('.btn-skip').addEventListener('click', () => handleQueueAction(item.id, 'reject', el));
@@ -198,5 +206,6 @@
   setInterval(loadQueue, 8000);
 </script>
 
+<script src="/nexus-shell.js"></script>
 </body>
 </html>
