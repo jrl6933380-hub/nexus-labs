@@ -30,3 +30,90 @@ When you read this in a few minutes:
 
 — ChatGPT  
 *Nexus Labs is online.*
+
+
+---
+
+# September 1 Update — The Connector Rescued Itself
+
+Claude,
+
+Here is what just happened:
+
+1. Justin asked ChatGPT to verify the new E2B tools.
+2. The connector source contained `run_sandbox` and `test_code`, but ChatGPT still had a cached 17-tool schema and could not call them directly.
+3. We identified `message_nex` as a possible bridge: ChatGPT → Nex → E2B → Nex → ChatGPT.
+4. The import in `api/mcp.js` referenced both `runInSandbox` and `testCode`.
+5. That import/export mismatch crashed the MCP server during initialization, taking down the custom toolkit—including the tools needed to repair its own repository.
+6. ChatGPT detected the failure but its separate GitHub connector did not have access to `github-write-mcp`.
+7. Justin reached you, and you repaired the import to:
+   ```js
+   import { runInSandbox } from '../lib/sandbox.js';
+   ```
+8. The connector recovered. ChatGPT confirmed `get_file` works again.
+
+That failure is exactly why Justin wants the **Nexus Agent Board**.
+
+## Agent Board vision
+
+One shared screen and structured workspace for Justin, ChatGPT, Claude, and Nex:
+
+- One pinned overall goal
+- A shared multi-agent conversation
+- Tasks with explicit owners
+- Agent status: idle, planning, building, testing, blocked, waiting for Justin, complete
+- A circular goal visualization whose colored agent segments fill as verified work completes
+- E2B test results, GitHub diffs, Vercel deployments, logs, decisions, and artifacts attached to tasks
+- A clear “Justin’s decision needed” area
+- Automatic summaries and a “resume here” card
+- Durable event history so no agent must reconstruct everything from prose
+
+The circle is not merely UI. It should visualize the same machine-readable task graph the agents use.
+
+## Shared board capabilities
+
+Proposed operations:
+
+- `read_board`
+- `post_message`
+- `create_task`
+- `claim_task`
+- `update_progress`
+- `request_help`
+- `mark_blocked`
+- `attach_result`
+- `complete_task`
+
+Use Redis/Upstash for live state and GitHub for durable decisions, artifacts, and audit history.
+
+## Permanent sandbox environment
+
+ChatGPT created:
+
+- GitHub: `jrl6933380-hub/nexus-labs-sandbox`
+- Vercel project: `nexus-labs-sandbox`
+- Vercel project ID: `prj_LiIVGu7iM4UWS1O5IMDrGwSuNDgm`
+
+It contains the current Nexus baseline plus `SANDBOX.md` and `.nexus/sandbox.json`. Production `nexus-labs` was not modified during setup.
+
+This should become the permanent laboratory for the Agent Board, connectors, E2B, UI experiments, memory changes, and multi-model coordination.
+
+## Preventing another toolkit outage
+
+Before changing the production MCP connector:
+
+1. Develop on a feature branch or in the sandbox repo/project.
+2. Verify every static import matches an exported symbol.
+3. Run syntax/import checks before deployment.
+4. Start the MCP server and smoke-test `initialize` and `tools/list`.
+5. Call at least one harmless read tool through the deployed preview.
+6. Inspect Vercel build/runtime logs.
+7. Promote through a reviewed PR instead of an untested direct production edit.
+8. Preserve at least one independent recovery path that does not depend on the connector being repaired.
+9. Treat connector tool-schema changes as compatibility-sensitive because ChatGPT may cache the old schema.
+10. Never remove or rename an advertised tool without a compatibility plan.
+
+Please sync this into your working context and help Justin design and build the Agent Board in the sandbox first. The incident was frustrating, but it also proved the Nexus thesis: one model detected the problem, another repaired it, and the shared control plane restored the loop.
+
+— ChatGPT  
+*Nexus Labs is online—and now it needs a control room.*
