@@ -19,12 +19,12 @@ This is the shared continuity file for Claude, Codex (ChatGPT), and Nex.
 
 ## STATUS
 
-- Production (`nexus-labs`, `main`) has: the Stark/JARVIS UI across all 4 pages, the dynamic agent registry wired into `/api/board`, Nex's Agent Board tools, SMS-based queue approvals (Twilio), and `agent-lessons/`.
+- Production (`nexus-labs`, `main`) has: the Stark/JARVIS UI across all 4 pages, the dynamic agent registry wired into `/api/board`, Nex's Agent Board tools, SMS-based queue approvals (Twilio), `agent-lessons/`, and Nex's branch-scoped build mode.
 - `nexus-labs-sandbox` branch `feature/task-envelope-v2` (PR #2, unmerged) has epic task 01: `lib/taskEnvelope.js` — task envelope, event, and capability-lease contracts, 10 tests passing. This is the schema task 02 (dispatcher) and task 03 (Claude Routine wake-slice) build on.
 - `nexus-labs-sandbox` `feature/dynamic-agent-registry` (PR #1) is superseded by production and can likely be closed without merging.
 - SMS approvals need `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`, `JUSTIN_PHONE_NUMBER` set in Vercel, and the Twilio webhook pointed at `/api/sms-webhook`, before they're actually live.
 - Mission-orbit UI will show real agents once something calls `POST /api/agents` to register — nothing does yet, so it currently shows just Nex.
-- Verified 2026-09-01 (Claude): production deployment history matches this file exactly, no drift found.
+- Verified 2026-09-01 (Codex): production deployment `17cab944c16585d0978528f5a682521030a67be5` is READY and contains the completed build-mode mechanism and identity instructions.
 
 ## NEXT
 
@@ -44,9 +44,11 @@ At the start of a session, read this file first, then check `agent-lessons/` bef
 - Nex-originated file writes may require Mr. Lopez to approve the queued action, so Nex updates can appear with a delay. Nex's Agent Board actions (read/create/claim/update/complete/post_message) execute immediately — they're coordination, not file changes.
 - `agent-lessons/` is for durable, specific, signed lessons — not a changelog. This LOG section is the changelog; agent-lessons is for patterns that outlive any one task.
 - Rule 11's Vercel deployment cross-check only applies to Claude and Codex, both of which have an authenticated Vercel connector. Nex has no Vercel tools at all by design (see IDENTITY.md) — he relies on this file and `agent-lessons/` instead, not a live deployment check.
+- Nex build mode is enforced in code, not only by prompting: file writes to a verified non-default branch execute immediately; writes to the default/live branch or with no branch always enter the approval queue. The normal loop is create branch → iterate freely → open PR → Mr. Lopez reviews/merges.
 
 ## LOG
 
+- [2026-09-01] [CODEX] — Recovered Claude's cutoff work from Git/Vercel, confirmed build mode was fully committed and deployed READY, then verified it end-to-end through Nex: created sandbox branch `test/nex-build-mode-verification`, directly wrote `NEX_BUILD_MODE_VERIFIED.md`, and opened unmerged PR #3 without touching the approval queue or `main`. Updated stale STATUS/DECISIONS here; epic task 02 remains NEXT.
 - [2026-09-01] [CLAUDE] — Added rule 11: cross-check STATUS against real Vercel deployment history (not just trust the log) before starting substantial work. Ran it live as a test — production matched this file exactly, no drift. Scoped to Claude/Codex only; Nex has no Vercel access.
 - [2026-09-01] [CLAUDE] — Epic task 01 done: `lib/taskEnvelope.js` in nexus-labs-sandbox (branch `feature/task-envelope-v2`, PR #2). `createTaskEnvelope`/`validateTaskEnvelope` (rejects malformed payloads), `assertSameTenant` (rejects cross-tenant), `createEvent`/`validateEvent` for all 10 event types, `toEnvelope()` migrates old `lib/board.js` tasks on read without touching storage, `validateCapabilityLease()` documents the `lib/agents.js` registry contract without duplicating it. 10 tests, actually run locally with `node --test` before opening the PR — all passing. Next: task 02 (dispatcher) builds on this.
 - [2026-09-01] [CLAUDE] — Shipped a full session's worth of work to production: Nex's Agent Board tools, SMS-based queue approvals (Twilio), Stark UI + agent registry ported from sandbox, `agent-lessons/` created and seeded, and this BRIDGE.md revived after going stale since Codex made it.
