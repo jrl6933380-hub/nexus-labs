@@ -11,11 +11,15 @@ import { askNex, MODEL_TIERS } from '../lib/nexBrain.js';
 // SHORT-TERM ROLLING BUFFER — just enough for mid-conversation
 // continuity ("what did you just say"). Long-term facts live in
 // structured memory (lib/memory.js) instead of growing forever here.
+// Every message resends this whole window to Claude's API, so it's a
+// direct token/cost tradeoff, not a free knob — bumped from 12 to 24
+// (6 to 12 exchanges) since Nex sessions run long when actually
+// building something. Tune further either direction if it feels off.
 // ============================================================
 const KV_URL = process.env.KV_REST_API_URL;
 const KV_TOKEN = process.env.KV_REST_API_TOKEN;
 const RECENT_KEY = 'nex:recent-conversation';
-const RECENT_LIMIT = 12; // ~6 exchanges
+const RECENT_LIMIT = 24; // ~12 exchanges
 
 async function loadRecent() {
   if (!KV_URL || !KV_TOKEN) {
