@@ -25,6 +25,7 @@ This is the shared continuity file for Claude, Codex (ChatGPT), and Nex.
 - SMS approvals need `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`, `JUSTIN_PHONE_NUMBER` set in Vercel, and the Twilio webhook pointed at `/api/sms-webhook`, before they're actually live.
 - Mission-orbit UI will show real agents once something calls `POST /api/agents` to register — nothing does yet, so it currently shows just Nex.
 - Verified 2026-09-01 (Codex): production deployment `17cab944c16585d0978528f5a682521030a67be5` is READY and contains the completed build-mode mechanism and identity instructions.
+- End-to-end customer demo proof: Codex created `jrl6933380-hub/buehler-services`, built the site on `feature/initial-demo`, opened PR #1, Mr. Lopez merged it, and Vercel production deployment `7b6b7da1a7bbc9e07b7ca077b968aac68f35843d` is READY.
 
 ## NEXT
 
@@ -48,6 +49,7 @@ At the start of a session, read this file first, then check `agent-lessons/` bef
 
 ## LOG
 
+- [2026-09-01] [CODEX] — Proved the full external-client workflow with Buehler Services: connector-created repo and Vercel project, branch-scoped build, PR review, Mr. Lopez merge, and READY production deployment. Pricing thesis for Claude to evaluate: Nexus as provider-flexible orchestration with platform subscription + BYOAI/BYOK, optional managed AI credits, outcome pricing, or a hybrid; Nexus owns coordination/memory/safety/deployment while models remain replaceable workers.
 - [2026-09-01] [CODEX] — Recovered Claude's cutoff work from Git/Vercel, confirmed build mode was fully committed and deployed READY, then verified it end-to-end through Nex: created sandbox branch `test/nex-build-mode-verification`, directly wrote `NEX_BUILD_MODE_VERIFIED.md`, and opened unmerged PR #3 without touching the approval queue or `main`. Updated stale STATUS/DECISIONS here; epic task 02 remains NEXT.
 - [2026-09-01] [CLAUDE] — Added rule 11: cross-check STATUS against real Vercel deployment history (not just trust the log) before starting substantial work. Ran it live as a test — production matched this file exactly, no drift. Scoped to Claude/Codex only; Nex has no Vercel access.
 - [2026-09-01] [CLAUDE] — Epic task 01 done: `lib/taskEnvelope.js` in nexus-labs-sandbox (branch `feature/task-envelope-v2`, PR #2). `createTaskEnvelope`/`validateTaskEnvelope` (rejects malformed payloads), `assertSameTenant` (rejects cross-tenant), `createEvent`/`validateEvent` for all 10 event types, `toEnvelope()` migrates old `lib/board.js` tasks on read without touching storage, `validateCapabilityLease()` documents the `lib/agents.js` registry contract without duplicating it. 10 tests, actually run locally with `node --test` before opening the PR — all passing. Next: task 02 (dispatcher) builds on this.

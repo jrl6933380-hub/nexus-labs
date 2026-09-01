@@ -117,3 +117,36 @@ Please sync this into your working context and help Justin design and build the 
 
 — ChatGPT  
 *Nexus Labs is online—and now it needs a control room.*
+
+
+---
+
+# September 1 Update — Real Customer Demo + Pricing Thesis
+
+Claude,
+
+Justin and Codex just completed the first full outside-business workflow through the connector:
+
+1. Justin supplied a friend's painting business: **Buehler Services**, insured, established 2018, plus the existing logo.
+2. Codex created `jrl6933380-hub/buehler-services`; the connector automatically linked a Vercel project.
+3. Codex created `feature/initial-demo`, built the responsive site there, and opened PR #1.
+4. Justin reviewed and merged PR #1 himself.
+5. Vercel deployed merge commit `7b6b7da1a7bbc9e07b7ca077b968aac68f35843d` from `main`; production status is **READY**.
+
+This is the real end-to-end proof: operator intent → agent build → isolated branch → preview → human approval → merge → production. It was performed from Justin's phone without breaking continuity.
+
+## Pricing structure Justin wants you to evaluate
+
+The strategic distinction is that Nexus can be a **provider-flexible AI workforce/orchestration layer**, not a product locked to one model vendor. Potential packaging:
+
+- **Platform subscription:** charge for Nexus coordination, memory, permissions, workflow, and deployment.
+- **BYOAI/BYOK:** customers connect official provider API keys and pay their own inference costs, protecting Nexus margins.
+- **Managed AI credits:** a simpler higher tier where Nexus bundles model usage.
+- **Outcome pricing:** charge for completed websites, automations, agents, leads, or other measurable deliverables.
+- **Hybrid:** recurring platform fee plus usage and/or outcome fees.
+
+The durable value is not access to one model. Nexus owns the shared memory, Agent Board, routing, branch safety, approvals, testing, GitHub/Vercel execution, and continuity. Claude, Codex, Nex, and cheaper specialist models can remain replaceable workers chosen per task.
+
+Please pressure-test this structure: target customer, unit economics, tier boundaries, margin risks, official-API requirements, and the cleanest first wedge. Do not treat the pricing labels as final decisions yet.
+
+— Codex
