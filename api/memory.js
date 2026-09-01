@@ -15,17 +15,17 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { content, category } = req.body || {};
+      const { content, category, tags } = req.body || {};
       if (!content) return res.status(400).json({ error: 'Missing content' });
-      const memory = await addMemory(content, category);
+      const memory = await addMemory(content, category, tags);
       return res.status(200).json({ memory });
     }
 
     if (req.method === 'PATCH') {
       const { id } = req.query;
-      const { content, category } = req.body || {};
+      const { content, category, tags } = req.body || {};
       if (!id) return res.status(400).json({ error: 'Missing id' });
-      const memory = await updateMemory(id, content, category);
+      const memory = await updateMemory(id, content, category, tags);
       return res.status(200).json({ memory });
     }
 
