@@ -1,28 +1,10 @@
 // /api/queue.js
 // Approval queue endpoint — the dashboard reads pending items here,
-// and Approve/Reject buttons post back to this same endpoint.
+// and Approve/Reject buttons post back to this same endpoint. Shares
+// its approve/reject logic with the SMS webhook (api/sms-webhook.js)
+// via lib/queue.js, so both paths behave identically.
 
-import { listQueue, getQueueItem, removeFromQueue } from '../lib/queue.js';
-import { createOrUpdateFile, deleteFile, createRepo, deleteRepo, commitFiles } from '../lib/github.js';
-
-async function executeQueuedItem(item) {
-  if (item.tool === 'create_repo_file' || item.tool === 'update_repo_file') {
-    return createOrUpdateFile(item.input);
-  }
-  if (item.tool === 'delete_repo_file') {
-    return deleteFile(item.input);
-  }
-  if (item.tool === 'create_repo') {
-    return createRepo(item.input);
-  }
-  if (item.tool === 'delete_repo') {
-    return deleteRepo(item.input);
-  }
-  if (item.tool === 'commit_repo_files') {
-    return commitFiles(item.input);
-  }
-  throw new Error(`Unknown queued tool: ${item.tool}`);
-}
+import { listQueue, approveQueueItem, rejectQueueItem, notifyQueue } from '../lib/queue.js';
 
 export default async function handler(req, res) {
   try {
@@ -35,19 +17,21 @@ export default async function handler(req, res) {
       const { id, action } = req.body || {};
       if (!id || !action) return res.status(400).json({ error: 'Missing id or action' });
 
-      const item = await getQueueItem(id);
-      if (!item) return res.status(404).json({ error: 'Queue item not found (may already be handled)' });
-
       if (action === 'reject') {
-        await removeFromQueue(id);
-        return res.status(200).json({ rejected: true, id });
+        try {
+          const { item } = await rejectQueueItem(id);
+          await notifyQueue();
+          return res.status(200).json({ rejected: true, id, item });
+        } catch (err) {
+          return res.status(404).json({ error: err.message });
+        }
       }
 
       if (action === 'approve') {
         try {
-          const result = await executeQueuedItem(item);
-          await removeFromQueue(id);
-          return res.status(200).json({ approved: true, id, result });
+          const { item, result } = await approveQueueItem(id);
+          await notifyQueue();
+          return res.status(200).json({ approved: true, id, item, result });
         } catch (err) {
           console.error('queue approve execution failed:', err.message);
           // leave it in the queue so Mr. Lopez can see it failed and retry/reject
