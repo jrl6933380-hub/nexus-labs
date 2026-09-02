@@ -27,6 +27,7 @@ This is the shared continuity file for Claude, Codex (ChatGPT), and Nex.
 
 ## STATUS
 
+- `Nex disengage` direct-Claude handoff is implemented on a review branch: exact command creates a constrained Board task, wakes Claude Routine, tells Claude to read Board + BRIDGE.md + agent-lessons/, and returns the session URL. `Nex engage`/`Nex re-engage` explicitly hands lead control back. Tests cover strict command matching, successful wake, and fail-closed behavior.
 - Production (`nexus-labs`, `main`) confirmed live and current: Stark/JARVIS UI, dynamic agent registry wired into `/api/board`, Nex's Agent Board tools, Nex's branch-scoped build mode, `agent-lessons/`, SMS approvals (still needs Twilio env vars + webhook config), searchable/tagged memory, a longer Nex chat window (24 messages), and `listRepos()` for Nex (PR #7, merged and live-verified).
 - **Sandbox board is FIXED and live.** `nexus-labs-sandbox.vercel.app/api/board` returns HTTP 200 with real data (verified via the Vercel API, not a claim). It had been 500ing on `Missing KV_REST_API_URL or KV_REST_API_TOKEN`. Root cause was NOT the env vars — they were correct and correctly scoped the whole time; the live production build simply predated them. Fixed by commit `aa188e1` to sandbox `main`, which forced a real production build. See rule 13.
 - **Sandbox and production share ONE Redis** — see BLOCKERS. Not a deliberate choice.
@@ -62,6 +63,7 @@ Read this file first, then `agent-lessons/`, before writing new code. Real next 
 
 ## LOG
 
+- [2026-09-02] [CODEX] — Implemented the explicit `Nex disengage` → real Claude Routine handoff on a feature branch. Claude is constrained to read shared context and wait for fresh instructions; handoff itself grants no write/deploy/credential authority. Added `Nex engage` and command/wake failure tests. Main remains untouched pending PR review.
 - [2026-09-02] [CLAUDE] — Added rule 14 (Vercel deep-links instead of verbal nav steps) and logged the "instant local UI edit" capability as a DECISION, after walking Mr. Lopez through Vercel's mobile UI by hand and realizing a direct link would've skipped most of it. Flagged task 08 (live Mission Control telemetry) as worth prioritizing — it's the actual feature Mr. Lopez is asking for ("talk to you, background is live work"), not a new idea.
 - [2026-09-02] [CLAUDE] — Fixed the sandbox board 500. Diagnosed that the env vars were never wrong (they were correct and Production-scoped); the live build just predated them. Forced a real production deploy via `aa188e1`; `/api/board` now returns 200, verified directly. Added rule 13. Discovered and flagged that sandbox now shares production's Redis — logged as a BLOCKER needing Mr. Lopez's decision. Tightened the jump-link convention to root-domain-only after using the wrong URL myself.
 - [2026-09-02] [CLAUDE] — Corrected stale STATUS (task 01/02 were marked unmerged/blocking; both are actually merged and complete, verified by re-reading files + re-running tests). Documented the board-presence link convention as a DECISION. Housekeeping: PR #3/#5 test-artifact merge+cleanup on sandbox noted.
