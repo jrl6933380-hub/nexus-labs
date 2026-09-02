@@ -2,7 +2,9 @@
   "name": "nexus-labs",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "dependencies": {
-    "@sentry/node": "^8.0.0"
+    "@sentry/node": "^8.0.0",
+    "e2b": "^1.0.0"
   }
 }
