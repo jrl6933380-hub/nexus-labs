@@ -17,14 +17,17 @@ This is the shared continuity file for Claude, Codex (ChatGPT), and Nex.
 10. Do not store secrets, tokens, passwords, or private keys here.
 11. **Verification, not just trust (Claude and Codex only):** before starting substantial new work, cross-check STATUS against real Vercel deployment history (and for merges specifically, whether the file you're about to build on actually has what STATUS claims — don't trust a PR's own description). If STATUS disagrees with reality, fix it and say so in your LOG entry.
 12. **A PR sitting open is not the same as shipped.** Before marking anything STATUS as "done," confirm the actual file exists on `main` — not just that a PR exists for it.
+13. **Env vars are not applied retroactively.** Connecting an integration or adding an env var does NOT update deployments that were already built. A fix isn't live until a NEW deployment exists that was created after the var. Also: the age column in Vercel's deployment list is build DURATION ("Ready 19s"), not how long ago it deployed — read `created` via the API, not the badge.
 
 ## STATUS
 
 - Production (`nexus-labs`, `main`) confirmed live and current: Stark/JARVIS UI, dynamic agent registry wired into `/api/board`, Nex's Agent Board tools, Nex's branch-scoped build mode, `agent-lessons/`, SMS approvals (still needs Twilio env vars + webhook config), searchable/tagged memory, a longer Nex chat window (24 messages), and `listRepos()` for Nex (PR #7, merged and live-verified).
-- **Epic task 01 (task envelope) and task 02 (approval-aware dispatcher) are both merged to `nexus-labs-sandbox` `main` and complete** — corrected from a previous stale STATUS line that still called PR #2 unmerged. `lib/taskEnvelope.js`, `lib/dispatcher.js`, `lib/boardDispatcher.js` all live on sandbox `main`; verified by re-reading files directly (not trusting PR descriptions) and re-running the full test suite fresh in a sandbox (28/28 passing).
-- `github-write-mcp` (the real connector) shipped a gated `merge_pull_request` tool plus `list_repos`/`list_pull_requests`, all merged and live — Claude can now check PR status across every repo without guessing names.
+- **Sandbox board is FIXED and live.** `nexus-labs-sandbox.vercel.app/api/board` returns HTTP 200 with real data (verified via the Vercel API, not a claim). It had been 500ing on `Missing KV_REST_API_URL or KV_REST_API_TOKEN`. Root cause was NOT the env vars — they were correct and correctly scoped the whole time; the live production build simply predated them. Fixed by commit `aa188e1` to sandbox `main`, which forced a real production build. See rule 13.
+- **Sandbox and production share ONE Redis** — see BLOCKERS. Not a deliberate choice.
+- **Epic task 01 (task envelope) and task 02 (approval-aware dispatcher) are both merged to `nexus-labs-sandbox` `main` and complete.** `lib/taskEnvelope.js`, `lib/dispatcher.js`, `lib/boardDispatcher.js` all live on sandbox `main`; verified by re-reading files directly (not trusting PR descriptions) and re-running the full test suite fresh in a sandbox (28/28 passing).
+- `github-write-mcp` (the real connector) shipped a gated `merge_pull_request` tool plus `list_repos`/`list_pull_requests`, all merged and live.
 - E2B/`run_sandbox` — verified fixed AND live-tested.
-- `nexus-labs-sandbox` had a throwaway test artifact (`NEX_BUILD_MODE_VERIFIED.md`, PR #3) merged then cleaned up (PR #5) — no functional change.
+- Sandbox PR #6 (`fix/upstash-board-env-fallback`) is confirmed unnecessary — the env names were never wrong. Close it.
 - Mission-orbit still shows only Nex — nothing calls `POST /api/agents` to register Claude/GPT presence yet.
 - End-to-end external-client proof (Codex): `jrl6933380-hub/buehler-services`, connector-created repo → branch → PR → Mr. Lopez merge → READY production deployment.
 
@@ -34,7 +37,7 @@ Read this file first, then `agent-lessons/`, before writing new code. Real next 
 
 ## BLOCKERS
 
-None currently.
+- **Sandbox and production share one Redis — needs a decision from Mr. Lopez.** Now that sandbox can actually reach Redis, it turns out to be pointed at the SAME Upstash store as production: the sandbox board returns production's identical task list and message log. The earlier "sandbox is isolated" finding was only true because sandbox couldn't reach Redis at all. Nobody chose this; it's whatever `upstash-kv-sky-lever` supplied. Consequence: any "sandbox" board write IS a production board write, which directly contradicts SANDBOX.md's rule against production Redis keys. Options: (a) accept it and delete that rule, or (b) provision a second Upstash store for sandbox and repoint it. Do not treat sandbox board writes as safe/isolated until this is settled.
 
 ## DECISIONS
 
@@ -47,15 +50,17 @@ None currently.
 - `agent-lessons/` is for durable, specific, signed lessons, not a changelog — that's what this LOG is for.
 - A Claude Code session and this chat are separate agents that happen to share a model — both are expected to read/write BRIDGE.md and the board independently, same as Codex does.
 - **Per-user approval delivery uses MCP elicitation, not a custom Nexus UI.** Mr. Lopez's own dashboard/SMS approval flow stays as-is. For anyone else's connected AI, Nexus should use elicitation rather than building/hosting any approval UI ourselves. Only works if the connecting client supports it — task 06 needs a defined fallback (treat as declined) for clients that don't.
-- **"Jump to the other app" link convention:** neither Claude nor Codex can actually detect whether the other product's app is authenticated on Mr. Lopez's phone — there is no API for that. As a proxy, when either agent finishes a `read_board`/board-update action, check recent board messages for activity `from` the other named agent within the current session. If the other agent has posted recently, offer its plain product root as a tappable link (`https://claude.ai` for Claude, `https://chatgpt.com` for Codex/ChatGPT) so mobile OS link-handling opens that app directly. If the other agent hasn't shown up recently, skip the link — don't offer it on a stale or absent signal. This is board-presence, not real connection-status; say so if asked, don't imply certainty the tooling doesn't have.
+- **"Jump to the other app" link convention:** neither Claude nor Codex can actually detect whether the other product's app is authenticated on Mr. Lopez's phone — there is no API for that. As a proxy, when either agent finishes a `read_board`/board-update action, check recent board messages for activity `from` the other named agent within the current session. If the other agent has posted recently, offer its link; if not, skip it — don't offer on a stale or absent signal. This is board-presence, not real connection-status; say so if asked.
+  - **The link is the plain product root and nothing else: `https://chatgpt.com` for Codex/ChatGPT, `https://claude.ai` for Claude.** Do NOT append a path. In particular `chatgpt.com/codex` is WRONG — Codex is a feature surface, not the app, and the goal is for mobile OS link-handling to open the installed app. Claude got this wrong on 2026-09-02 even with the rule already written, hence the emphasis. Same principle applies to any future agent added here: root domain only.
 
 ## LOG
 
-- [2026-09-02] [CLAUDE] — Corrected stale STATUS (task 01/02 were marked unmerged/blocking; both are actually merged and complete, verified by re-reading files + re-running tests, not trusting prior claims). Documented the board-presence link convention as a DECISION. Housekeeping: PR #3/#5 test-artifact merge+cleanup on sandbox noted.
+- [2026-09-02] [CLAUDE] — Fixed the sandbox board 500. Diagnosed that the env vars were never wrong (they were correct and Production-scoped); the live build just predated them. Forced a real production deploy via `aa188e1`; `/api/board` now returns 200, verified directly. Added rule 13. Discovered and flagged that sandbox now shares production's Redis — logged as a BLOCKER needing Mr. Lopez's decision. Tightened the jump-link convention to root-domain-only after using the wrong URL myself.
+- [2026-09-02] [CLAUDE] — Corrected stale STATUS (task 01/02 were marked unmerged/blocking; both are actually merged and complete, verified by re-reading files + re-running tests). Documented the board-presence link convention as a DECISION. Housekeeping: PR #3/#5 test-artifact merge+cleanup on sandbox noted.
 - [2026-09-02] [CLAUDE] — `github-write-mcp` shipped gated `merge_pull_request`, `list_repos`, `list_pull_requests` — all merged and live, verified against `main` directly.
-- [2026-09-02] [CLAUDE] — Epic task 02 (dispatcher) merged to sandbox `main` (PR #4) after verifying `lib/taskEnvelope.js`/`lib/agents.js` were byte-identical to main (no drift) and re-running the full test suite fresh (28/28).
+- [2026-09-02] [CLAUDE] — Epic task 02 (dispatcher) merged to sandbox `main` (PR #4) after verifying no drift and re-running the full test suite fresh (28/28).
 - [2026-09-02] [CLAUDE] — Logged the MCP-elicitation approval-delivery design decision (task 06/09).
-- [2026-09-02] [CLAUDE] — PR #7 (`list_repos` for Nex) merged, live-verified via a real `message_nex` call — closed the earlier fix-everything pass entirely.
+- [2026-09-02] [CLAUDE] — PR #7 (`list_repos` for Nex) merged, live-verified via a real `message_nex` call.
 - [2026-09-01] [CODEX] — Proved the full external-client workflow with Buehler Services end to end. Raised a pricing thesis for Claude to evaluate — not yet reviewed.
 - [2026-09-01] [CLAUDE] — Epic task 01 done: `lib/taskEnvelope.js`, 10 tests passing. PR #2 opened on sandbox (later merged, see above).
 - [2026-09-01] [CLAUDE] — Shipped Nex's Agent Board tools, Stark UI + registry ported to production, `agent-lessons/` created, this file revived after going stale post-creation.
