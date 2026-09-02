@@ -18,6 +18,12 @@ This is the shared continuity file for Claude, Codex (ChatGPT), and Nex.
 11. **Verification, not just trust (Claude and Codex only):** before starting substantial new work, cross-check STATUS against real Vercel deployment history (and for merges specifically, whether the file you're about to build on actually has what STATUS claims — don't trust a PR's own description). If STATUS disagrees with reality, fix it and say so in your LOG entry.
 12. **A PR sitting open is not the same as shipped.** Before marking anything STATUS as "done," confirm the actual file exists on `main` — not just that a PR exists for it.
 13. **Env vars are not applied retroactively.** Connecting an integration or adding an env var does NOT update deployments that were already built. A fix isn't live until a NEW deployment exists that was created after the var. Also: the age column in Vercel's deployment list is build DURATION ("Ready 19s"), not how long ago it deployed — read `created` via the API, not the badge.
+14. **When a message or task references a Vercel action, include the direct dashboard deep link, not verbal navigation steps.** "Go to Settings → Environment Variables" wastes taps and invites the wrong-page mistakes from the 2026-09-02 sandbox session. Vercel dashboard URLs are predictable and need no special API:
+    - Env vars: `https://vercel.com/<team-slug>/<project>/settings/environment-variables`
+    - Deployments list: `https://vercel.com/<team-slug>/<project>/deployments`
+    - A specific deployment: its `inspectorUrl` from the Vercel API/tool output
+    - Project overview: `https://vercel.com/<team-slug>/<project>`
+    For this account, `<team-slug>` is `jrl6933380-hubs-projects`. Applies whenever a human needs to go look at or click something in Vercel — drop the link, don't describe the path.
 
 ## STATUS
 
@@ -28,12 +34,12 @@ This is the shared continuity file for Claude, Codex (ChatGPT), and Nex.
 - `github-write-mcp` (the real connector) shipped a gated `merge_pull_request` tool plus `list_repos`/`list_pull_requests`, all merged and live.
 - E2B/`run_sandbox` — verified fixed AND live-tested.
 - Sandbox PR #6 (`fix/upstash-board-env-fallback`) is confirmed unnecessary — the env names were never wrong. Close it.
-- Mission-orbit still shows only Nex — nothing calls `POST /api/agents` to register Claude/GPT presence yet.
+- Mission-orbit still shows only Nex — nothing calls `POST /api/agents` to register Claude/GPT presence yet, and its panel is currently static demo text, not live board events.
 - End-to-end external-client proof (Codex): `jrl6933380-hub/buehler-services`, connector-created repo → branch → PR → Mr. Lopez merge → READY production deployment.
 
 ## NEXT
 
-Read this file first, then `agent-lessons/`, before writing new code. Real next piece is **epic task 03, the Claude Routine wake-to-board vertical slice** — task 02 (dispatcher) is done and unblocks it. Task 05 (E2B workspace manager) is also unblocked. Codex: unreviewed pricing thesis from you still sitting in the LOG below. Elicitation-based approval flow (task 06) is designed but not built.
+Read this file first, then `agent-lessons/`, before writing new code. Real next piece is **epic task 03, the Claude Routine wake-to-board vertical slice** — task 02 (dispatcher) is done and unblocks it. Task 05 (E2B workspace manager) is also unblocked. **Task 08 (Mission Control → real event-driven telemetry) is worth prioritizing sooner than its number suggests** — Mr. Lopez wants to watch live agent work happen behind Nex's chat box in real time (his own words: "like a bootleg Replit"), and the panel currently shows frozen demo text. That's the whole gap, not a new feature to invent. Codex: unreviewed pricing thesis from you still sitting in the LOG below. Elicitation-based approval flow (task 06) is designed but not built.
 
 ## BLOCKERS
 
@@ -52,9 +58,11 @@ Read this file first, then `agent-lessons/`, before writing new code. Real next 
 - **Per-user approval delivery uses MCP elicitation, not a custom Nexus UI.** Mr. Lopez's own dashboard/SMS approval flow stays as-is. For anyone else's connected AI, Nexus should use elicitation rather than building/hosting any approval UI ourselves. Only works if the connecting client supports it — task 06 needs a defined fallback (treat as declined) for clients that don't.
 - **"Jump to the other app" link convention:** neither Claude nor Codex can actually detect whether the other product's app is authenticated on Mr. Lopez's phone — there is no API for that. As a proxy, when either agent finishes a `read_board`/board-update action, check recent board messages for activity `from` the other named agent within the current session. If the other agent has posted recently, offer its link; if not, skip it — don't offer on a stale or absent signal. This is board-presence, not real connection-status; say so if asked.
   - **The link is the plain product root and nothing else: `https://chatgpt.com` for Codex/ChatGPT, `https://claude.ai` for Claude.** Do NOT append a path. In particular `chatgpt.com/codex` is WRONG — Codex is a feature surface, not the app, and the goal is for mobile OS link-handling to open the installed app. Claude got this wrong on 2026-09-02 even with the rule already written, hence the emphasis. Same principle applies to any future agent added here: root domain only.
+- **"Instant local UI edit" is a real, standing capability, not a one-off:** because Claude/Codex have direct commit access and Vercel auto-deploys on push to `main`, cosmetic or behavioral requests about the live Nexus UI ("that color feels off", "show status as a pulsing dot") can go straight from Mr. Lopez's words to a live, deployed change — no ticket, no separate design pass, no waiting on someone else. Small/reversible changes (color, copy, spacing) can go straight to `main`; anything touching board/data logic still follows the normal PR review discipline above.
 
 ## LOG
 
+- [2026-09-02] [CLAUDE] — Added rule 14 (Vercel deep-links instead of verbal nav steps) and logged the "instant local UI edit" capability as a DECISION, after walking Mr. Lopez through Vercel's mobile UI by hand and realizing a direct link would've skipped most of it. Flagged task 08 (live Mission Control telemetry) as worth prioritizing — it's the actual feature Mr. Lopez is asking for ("talk to you, background is live work"), not a new idea.
 - [2026-09-02] [CLAUDE] — Fixed the sandbox board 500. Diagnosed that the env vars were never wrong (they were correct and Production-scoped); the live build just predated them. Forced a real production deploy via `aa188e1`; `/api/board` now returns 200, verified directly. Added rule 13. Discovered and flagged that sandbox now shares production's Redis — logged as a BLOCKER needing Mr. Lopez's decision. Tightened the jump-link convention to root-domain-only after using the wrong URL myself.
 - [2026-09-02] [CLAUDE] — Corrected stale STATUS (task 01/02 were marked unmerged/blocking; both are actually merged and complete, verified by re-reading files + re-running tests). Documented the board-presence link convention as a DECISION. Housekeeping: PR #3/#5 test-artifact merge+cleanup on sandbox noted.
 - [2026-09-02] [CLAUDE] — `github-write-mcp` shipped gated `merge_pull_request`, `list_repos`, `list_pull_requests` — all merged and live, verified against `main` directly.
