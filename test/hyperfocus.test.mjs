@@ -130,10 +130,25 @@ test("a reader's own folder is excluded from its inbox, so it cannot re-import i
 
 // --- concurrency ------------------------------------------------------
 
-test('a second agent cannot write while another holds the lease', async () => {
+test('REGRESSION: the handoff works — after one agent publishes, the incoming agent can write immediately', async () => {
+  // An earlier draft auto-grabbed a 10-minute lease on every write, which
+  // locked the incoming agent out of the very handoff this feature exists
+  // to perform. Leases are opt-in now; this is the guard against a
+  // "tighten the locking" change quietly reintroducing that.
   const store = createMemoryStore();
   const focus = await newFocus(store);
-  await publishChatContext({ focus_id: focus, agent: 'chatgpt', context: { goal: 'mine' }, store });
+  await publishChatContext({ focus_id: focus, agent: 'chatgpt', context: { goal: 'handing this over' }, store });
+
+  const result = await appendHyperfocusDelta({ focus_id: focus, agent: 'claude', note: 'picked it up', store });
+  assert.equal(result.deduplicated, false);
+});
+
+test('an explicit hold blocks other writers for the lease window', async () => {
+  const store = createMemoryStore();
+  const focus = await newFocus(store);
+  await publishChatContext({
+    focus_id: focus, agent: 'chatgpt', context: { goal: 'mine, actively iterating' }, hold: true, store,
+  });
 
   await assert.rejects(
     () => appendHyperfocusDelta({ focus_id: focus, agent: 'claude', note: 'racing', store }),
@@ -141,11 +156,25 @@ test('a second agent cannot write while another holds the lease', async () => {
   );
 });
 
-test('the lease holder can keep writing', async () => {
+test('the holder can keep writing while holding', async () => {
   const store = createMemoryStore();
   const focus = await newFocus(store);
-  await publishChatContext({ focus_id: focus, agent: 'chatgpt', context: { goal: 'mine' }, store });
-  const result = await appendHyperfocusDelta({ focus_id: focus, agent: 'chatgpt', note: 'more', store });
+  await publishChatContext({ focus_id: focus, agent: 'chatgpt', context: { goal: 'mine' }, hold: true, store });
+  const result = await appendHyperfocusDelta({
+    focus_id: focus, agent: 'chatgpt', note: 'still going', hold: true, store,
+  });
+  assert.equal(result.deduplicated, false);
+});
+
+test('writing without hold releases the holder’s own lease, so a handoff can follow an exclusive stretch', async () => {
+  const store = createMemoryStore();
+  const focus = await newFocus(store);
+  await publishChatContext({ focus_id: focus, agent: 'chatgpt', context: { goal: 'mine' }, hold: true, store });
+  await appendHyperfocusDelta({ focus_id: focus, agent: 'chatgpt', note: 'done, handing off', store });
+
+  const read = await readHyperfocus({ focus_id: focus, store });
+  assert.equal(read.manifest.lease, null);
+  const result = await appendHyperfocusDelta({ focus_id: focus, agent: 'claude', note: 'taking over', store });
   assert.equal(result.deduplicated, false);
 });
 
@@ -231,7 +260,7 @@ test('closing removes raw extracts but keeps the outcome and evidence links', as
 test('closing releases the lease and blocks further writes', async () => {
   const store = createMemoryStore();
   const focus = await newFocus(store);
-  await publishChatContext({ focus_id: focus, agent: 'chatgpt', context: { goal: 'x' }, store });
+  await publishChatContext({ focus_id: focus, agent: 'chatgpt', context: { goal: 'x' }, hold: true, store });
   await closeHyperfocus({ focus_id: focus, closed_by: 'claude', outcome: 'done', store });
 
   const read = await readHyperfocus({ focus_id: focus, store });
