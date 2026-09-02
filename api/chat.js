@@ -160,7 +160,14 @@ export default async function handler(req, res) {
       return res.status(200).json({ reply, model: 'nex', usage });
     }
 
-    const { reply, updatedHistory, model: answeredModel, usage } = await askNex(message, runningHistory, forcedTier);
+    const {
+      reply,
+      updatedHistory,
+      model: answeredModel,
+      provider,
+      usage,
+      degraded,
+    } = await askNex(message, runningHistory, forcedTier);
 
     // Store which model actually answered and token usage alongside the
     // message itself, so "who answered" and token count survive a page
@@ -171,7 +178,13 @@ export default async function handler(req, res) {
     ];
     await saveRecent(finalHistory);
 
-    return res.status(200).json({ reply, model: answeredModel, usage });
+    return res.status(200).json({
+      reply,
+      model: answeredModel,
+      provider,
+      usage,
+      degraded,
+    });
   } catch (err) {
     console.error('Nex chat handler crashed:', err);
     Sentry.captureException(err);

@@ -16,6 +16,7 @@ work.
 
 - `ui-style.md` — visual/design lessons, what to imitate and why
 - `code-style.md` — code patterns and anti-patterns worth repeating or avoiding
+- `coordination.md` — durable collision checks and cross-agent handoff rules
 
 ## How to write an entry
 
