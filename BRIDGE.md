@@ -20,19 +20,17 @@ This is the shared continuity file for Claude, Codex (ChatGPT), and Nex.
 
 ## STATUS
 
-- Production (`nexus-labs`, `main`) confirmed live and current: Stark/JARVIS UI, dynamic agent registry wired into `/api/board`, Nex's Agent Board tools, Nex's branch-scoped build mode, `agent-lessons/`, SMS approvals (still needs Twilio env vars + webhook config before actually usable), searchable/tagged memory, a longer Nex chat window (24 messages), and `listRepos()` for Nex (PR #7, merged and live-verified via real message_nex call).
+- Production (`nexus-labs`, `main`) confirmed live and current: Stark/JARVIS UI, dynamic agent registry wired into `/api/board`, Nex's Agent Board tools, Nex's branch-scoped build mode, `agent-lessons/`, SMS approvals (still needs Twilio env vars + webhook config), searchable/tagged memory, a longer Nex chat window (24 messages), and `listRepos()` for Nex (PR #7, merged and live-verified).
+- **Epic task 01 (task envelope) and task 02 (approval-aware dispatcher) are both merged to `nexus-labs-sandbox` `main` and complete** — corrected from a previous stale STATUS line that still called PR #2 unmerged. `lib/taskEnvelope.js`, `lib/dispatcher.js`, `lib/boardDispatcher.js` all live on sandbox `main`; verified by re-reading files directly (not trusting PR descriptions) and re-running the full test suite fresh in a sandbox (28/28 passing).
+- `github-write-mcp` (the real connector) shipped a gated `merge_pull_request` tool plus `list_repos`/`list_pull_requests`, all merged and live — Claude can now check PR status across every repo without guessing names.
 - E2B/`run_sandbox` — verified fixed AND live-tested.
-- **Every capability gap and stale-PR issue raised in the earlier fix-everything pass is closed.** Worth reading the LOG below if picking this up cold.
-- A second, independent Claude Code session proved itself as a genuine board citizen tonight — read BRIDGE.md + read_board on its own, did real verified work, self-corrected a mis-claimed task.
-- New design decision logged (not yet built): use MCP **elicitation** for per-user approval prompts when someone else's connected AI needs to confirm a risky action — see board task "Use MCP elicitation for per-user approval prompts" and DECISIONS below. Relevant to task 06 and task 09.
-- `nexus-labs-sandbox` `feature/task-envelope-v2` (PR #2) has epic task 01 (`lib/taskEnvelope.js`) — still unmerged, blocks task 02.
-- `nexus-labs-sandbox` `feature/dynamic-agent-registry` (PR #1) is superseded by production, safe to close without merging.
-- Mission-orbit shows only Nex — nothing calls `POST /api/agents` to register Claude/GPT presence yet.
+- `nexus-labs-sandbox` had a throwaway test artifact (`NEX_BUILD_MODE_VERIFIED.md`, PR #3) merged then cleaned up (PR #5) — no functional change.
+- Mission-orbit still shows only Nex — nothing calls `POST /api/agents` to register Claude/GPT presence yet.
 - End-to-end external-client proof (Codex): `jrl6933380-hub/buehler-services`, connector-created repo → branch → PR → Mr. Lopez merge → READY production deployment.
 
 ## NEXT
 
-Read this file first, then `agent-lessons/`, before writing new code. Real next piece is **epic task 02, the dispatcher** — routes by required_capabilities/risk_class/approval_state to an available agent, idempotent claim/lease. Builds on `lib/taskEnvelope.js`, so merging PR #2 (sandbox) first unblocks it. Codex: unreviewed pricing thesis from you still sitting in the LOG below. Also worth designing task 06's elicitation-based approval flow (new board task) once that work starts.
+Read this file first, then `agent-lessons/`, before writing new code. Real next piece is **epic task 03, the Claude Routine wake-to-board vertical slice** — task 02 (dispatcher) is done and unblocks it. Task 05 (E2B workspace manager) is also unblocked. Codex: unreviewed pricing thesis from you still sitting in the LOG below. Elicitation-based approval flow (task 06) is designed but not built.
 
 ## BLOCKERS
 
@@ -48,16 +46,17 @@ None currently.
 - Rule 11's Vercel cross-check is Claude/Codex only — Nex has no Vercel tools by design.
 - `agent-lessons/` is for durable, specific, signed lessons, not a changelog — that's what this LOG is for.
 - A Claude Code session and this chat are separate agents that happen to share a model — both are expected to read/write BRIDGE.md and the board independently, same as Codex does.
-- **Per-user approval delivery uses MCP elicitation, not a custom Nexus UI.** Mr. Lopez's own dashboard/SMS approval flow stays as-is — that's his personal interface. For anyone else's connected AI, Nexus should use elicitation (server pauses a tool call, sends a structured confirmation request through the client, the client's own app surfaces it however it already does) rather than building/hosting any approval UI ourselves. Only works if the connecting client supports elicitation (most modern ones do, not universal) — task 06 needs a defined fallback (treat as declined) for clients that don't.
+- **Per-user approval delivery uses MCP elicitation, not a custom Nexus UI.** Mr. Lopez's own dashboard/SMS approval flow stays as-is. For anyone else's connected AI, Nexus should use elicitation rather than building/hosting any approval UI ourselves. Only works if the connecting client supports it — task 06 needs a defined fallback (treat as declined) for clients that don't.
+- **"Jump to the other app" link convention:** neither Claude nor Codex can actually detect whether the other product's app is authenticated on Mr. Lopez's phone — there is no API for that. As a proxy, when either agent finishes a `read_board`/board-update action, check recent board messages for activity `from` the other named agent within the current session. If the other agent has posted recently, offer its plain product root as a tappable link (`https://claude.ai` for Claude, `https://chatgpt.com` for Codex/ChatGPT) so mobile OS link-handling opens that app directly. If the other agent hasn't shown up recently, skip the link — don't offer it on a stale or absent signal. This is board-presence, not real connection-status; say so if asked, don't imply certainty the tooling doesn't have.
 
 ## LOG
 
-- [2026-09-02] [CLAUDE] — Logged a real design decision: use MCP elicitation for per-user approval prompts (task 06/09), instead of building custom approval UI for other people's connected AIs. New board task created with the mechanism and two known caveats (client support isn't universal; streaming-pause plumbing needs real review). Not built yet, just captured before it got lost.
-- [2026-09-02] [CLAUDE] — PR #7 (`list_repos` for Nex) merged, then live-verified via a real `message_nex` call — closes the fix-everything pass entirely.
-- [2026-09-02] [CLAUDE] — Second live Claude Code session came online, confirmed BRIDGE.md and read_board agree, picked up and shipped the `list_repos` fix (self-corrected a mis-claimed task along the way).
-- [2026-09-01] [CLAUDE] — Fix-before-new-work audit: live-verified E2B, confirmed the `list_repos` gap, discovered PR #1 and PR #3 were built/tested but never merged. PR #3 merged; PR #1 rebuilt clean as PR #5. Added rules 11–12.
+- [2026-09-02] [CLAUDE] — Corrected stale STATUS (task 01/02 were marked unmerged/blocking; both are actually merged and complete, verified by re-reading files + re-running tests, not trusting prior claims). Documented the board-presence link convention as a DECISION. Housekeeping: PR #3/#5 test-artifact merge+cleanup on sandbox noted.
+- [2026-09-02] [CLAUDE] — `github-write-mcp` shipped gated `merge_pull_request`, `list_repos`, `list_pull_requests` — all merged and live, verified against `main` directly.
+- [2026-09-02] [CLAUDE] — Epic task 02 (dispatcher) merged to sandbox `main` (PR #4) after verifying `lib/taskEnvelope.js`/`lib/agents.js` were byte-identical to main (no drift) and re-running the full test suite fresh (28/28).
+- [2026-09-02] [CLAUDE] — Logged the MCP-elicitation approval-delivery design decision (task 06/09).
+- [2026-09-02] [CLAUDE] — PR #7 (`list_repos` for Nex) merged, live-verified via a real `message_nex` call — closed the earlier fix-everything pass entirely.
 - [2026-09-01] [CODEX] — Proved the full external-client workflow with Buehler Services end to end. Raised a pricing thesis for Claude to evaluate — not yet reviewed.
-- [2026-09-01] [CODEX] — Recovered/verified Claude's build-mode work was live, then independently confirmed it end-to-end via a real branch write through Nex.
-- [2026-09-01] [CLAUDE] — Epic task 01 done: `lib/taskEnvelope.js`, 10 tests passing. PR #2 open on sandbox.
+- [2026-09-01] [CLAUDE] — Epic task 01 done: `lib/taskEnvelope.js`, 10 tests passing. PR #2 opened on sandbox (later merged, see above).
 - [2026-09-01] [CLAUDE] — Shipped Nex's Agent Board tools, Stark UI + registry ported to production, `agent-lessons/` created, this file revived after going stale post-creation.
 - [2026-09-01] [CODEX] — Created this bridge file.
