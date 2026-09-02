@@ -6,6 +6,11 @@
 
 import { initSentry, Sentry } from '../lib/sentry.js';
 import { askNex, MODEL_TIERS } from '../lib/nexBrain.js';
+import {
+  isDisengageCommand,
+  isEngageCommand,
+  startClaudeHandoff,
+} from '../lib/claudeHandoff.js';
 
 // ============================================================
 // SHORT-TERM ROLLING BUFFER — just enough for mid-conversation
@@ -114,6 +119,46 @@ export default async function handler(req, res) {
 
     const recent = await loadRecent();
     const runningHistory = recent.filter((msg) => msg.role !== 'system');
+
+    // Exact command-level handoff: Nex does not imitate Claude. He creates
+    // a constrained Board task and wakes a real Claude Routine session,
+    // which reads the Board + BRIDGE.md before taking over.
+    if (isDisengageCommand(message)) {
+      const { task, wake } = await startClaudeHandoff();
+      const reply =
+        `Nex disengaged. Claude is awake and reading the Board and BRIDGE.md. ` +
+        `Open the direct Claude session: ${wake.session_url}`;
+      const usage = { input_tokens: 0, output_tokens: 0 };
+      await saveRecent([
+        ...runningHistory,
+        { role: 'user', content: message },
+        { role: 'assistant', content: reply, model: 'claude-routine', usage },
+      ]);
+      return res.status(200).json({
+        reply,
+        model: 'claude-routine',
+        usage,
+        handoff: {
+          task_id: task.id,
+          session_id: wake.session_id,
+          session_url: wake.session_url,
+          replayed: wake.replayed,
+        },
+      });
+    }
+
+    // Returning to the Nex chat does not terminate the separate Claude
+    // session, but it makes the ownership change explicit.
+    if (isEngageCommand(message)) {
+      const reply = 'Nex engaged. I’m back in the lead.';
+      const usage = { input_tokens: 0, output_tokens: 0 };
+      await saveRecent([
+        ...runningHistory,
+        { role: 'user', content: message },
+        { role: 'assistant', content: reply, model: 'nex', usage },
+      ]);
+      return res.status(200).json({ reply, model: 'nex', usage });
+    }
 
     const { reply, updatedHistory, model: answeredModel, usage } = await askNex(message, runningHistory, forcedTier);
 
