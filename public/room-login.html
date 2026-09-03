@@ -1,0 +1,223 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nexus // Room — Sign in</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0A0E14;
+    --panel: #12192A;
+    --border: #1F2B42;
+    --blue: #2E7FFF;
+    --cyan: #4DD8E8;
+    --text: #E4E9F2;
+    --text-dim: #8891A3;
+    --red: #E85D5D;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Inter', -apple-system, sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .card {
+    width: 100%;
+    max-width: 360px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px 24px;
+  }
+
+  .title {
+    font-family: var(--mono);
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .subtitle {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-bottom: 22px;
+  }
+
+  .tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 18px;
+  }
+
+  .tab {
+    flex: 1;
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: none;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .05em;
+    cursor: pointer;
+  }
+
+  .tab.active { color: var(--cyan); border-color: var(--cyan); }
+
+  form { display: flex; flex-direction: column; gap: 10px; }
+  form.hidden { display: none; }
+
+  input {
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    font-family: var(--sans);
+  }
+
+  button[type="submit"] {
+    margin-top: 6px;
+    padding: 10px;
+    border-radius: 8px;
+    border: none;
+    background: var(--blue);
+    color: #06090F;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  button[type="submit"]:disabled { opacity: 0.5; cursor: default; }
+
+  .error {
+    font-size: 12px;
+    color: var(--red);
+    min-height: 16px;
+  }
+
+  .hint {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+</style>
+<link rel="stylesheet" href="/nexus-stark.css">
+</head>
+<body>
+
+<div class="card">
+  <div class="title">NEX // ROOM</div>
+  <div class="subtitle">Sign in to start building.</div>
+
+  <div class="tabs">
+    <button class="tab active" id="tab-login" type="button">Sign in</button>
+    <button class="tab" id="tab-signup" type="button">Create account</button>
+  </div>
+
+  <form id="login-form">
+    <input type="text" id="login-username" placeholder="Username" autocomplete="username" required>
+    <input type="password" id="login-password" placeholder="Password" autocomplete="current-password" required>
+    <div class="error" id="login-error"></div>
+    <button type="submit" id="login-submit">Sign in</button>
+  </form>
+
+  <form id="signup-form" class="hidden">
+    <input type="text" id="signup-username" placeholder="Choose a username" autocomplete="username" required>
+    <input type="password" id="signup-password" placeholder="Choose a password (8+ characters)" autocomplete="new-password" required>
+    <input type="text" id="signup-invite" placeholder="Invite code" required>
+    <div class="error" id="signup-error"></div>
+    <button type="submit" id="signup-submit">Create account</button>
+    <div class="hint">Test group only — you'll need an invite code from Justin.</div>
+  </form>
+</div>
+
+<script>
+  const tabLogin = document.getElementById('tab-login');
+  const tabSignup = document.getElementById('tab-signup');
+  const loginForm = document.getElementById('login-form');
+  const signupForm = document.getElementById('signup-form');
+
+  function showLogin() {
+    tabLogin.classList.add('active');
+    tabSignup.classList.remove('active');
+    loginForm.classList.remove('hidden');
+    signupForm.classList.add('hidden');
+  }
+  function showSignup() {
+    tabSignup.classList.add('active');
+    tabLogin.classList.remove('active');
+    signupForm.classList.remove('hidden');
+    loginForm.classList.add('hidden');
+  }
+  tabLogin.addEventListener('click', showLogin);
+  tabSignup.addEventListener('click', showSignup);
+
+  async function submitAuth(action, body, errorEl, submitBtn) {
+    errorEl.innerText = '';
+    submitBtn.disabled = true;
+    try {
+      const res = await fetch('/api/room-auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, ...body }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        errorEl.innerText = data.error || 'Something went wrong.';
+        submitBtn.disabled = false;
+        return;
+      }
+      window.location.href = '/room.html';
+    } catch (err) {
+      errorEl.innerText = 'Could not reach the server.';
+      submitBtn.disabled = false;
+    }
+  }
+
+  loginForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    submitAuth(
+      'login',
+      {
+        username: document.getElementById('login-username').value.trim(),
+        password: document.getElementById('login-password').value,
+      },
+      document.getElementById('login-error'),
+      document.getElementById('login-submit')
+    );
+  });
+
+  signupForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    submitAuth(
+      'signup',
+      {
+        username: document.getElementById('signup-username').value.trim(),
+        password: document.getElementById('signup-password').value,
+        inviteCode: document.getElementById('signup-invite').value.trim(),
+      },
+      document.getElementById('signup-error'),
+      document.getElementById('signup-submit')
+    );
+  });
+</script>
+
+<script src="/nexus-shell.js"></script>
+</body>
+</html>

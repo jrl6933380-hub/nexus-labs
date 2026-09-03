@@ -58,6 +58,13 @@
 
   .history-btn.active { color: var(--cyan); border-color: var(--cyan); }
 
+  #whoami {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-faint);
+    margin-right: 2px;
+  }
+
   #history-panel {
     display: none;
     position: absolute;
@@ -305,7 +312,9 @@
 <div class="header">
   <span class="title">NEX // ROOM</span>
   <div class="header-actions">
+    <span id="whoami"></span>
     <button class="history-btn" id="history-btn">History</button>
+    <button class="back-link" id="logout-btn">Logout</button>
     <a class="back-link" href="/">← Back to chat</a>
   </div>
   <div id="history-panel">
@@ -335,6 +344,36 @@
 </div>
 
 <script>
+  // ---- Auth gate: bounce to login if there's no valid session ----
+  // Runs before anything else renders meaningfully. A 401 here means
+  // no session cookie or an expired one — send to the login page
+  // rather than showing a room that will just fail on first message.
+  (async function requireSession() {
+    try {
+      const res = await fetch('/api/room-auth');
+      if (!res.ok) {
+        window.location.href = '/room-login.html';
+        return;
+      }
+      const data = await res.json();
+      document.getElementById('whoami').innerText = data.username;
+    } catch (err) {
+      window.location.href = '/room-login.html';
+    }
+  })();
+
+  document.getElementById('logout-btn').addEventListener('click', async () => {
+    try {
+      await fetch('/api/room-auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'logout' }),
+      });
+    } finally {
+      window.location.href = '/room-login.html';
+    }
+  });
+
   // ---- State: just the last-built HTML, so follow-up requests can edit it ----
   let currentHtml = '';
 
@@ -474,6 +513,13 @@
         body: JSON.stringify({ message, currentHtml }),
         signal: abortCtrl.signal,
       });
+
+      if (res.status === 401) {
+        clearTimeout(slowNotice);
+        buildingBubble.innerText = 'Your session expired — redirecting to sign in.';
+        setTimeout(() => { window.location.href = '/room-login.html'; }, 1200);
+        return;
+      }
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
