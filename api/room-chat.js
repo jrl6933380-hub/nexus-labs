@@ -11,6 +11,7 @@
 // this is a narrow, stateless generation task.
 
 import { routeMessage } from '../lib/modelRouter.js';
+import { saveBuild } from '../lib/roomHistory.js';
 
 // Full self-contained pages — especially anything with real interactive
 // JS like a game or canvas animation — can take longer to generate than
@@ -89,6 +90,18 @@ export default async function handler(req, res) {
     }
 
     send({ action: 'html', html });
+
+    try {
+      const saved = await saveBuild({ label: message, requestMessage: message, html });
+      send({ action: 'saved', id: saved.id });
+    } catch (saveErr) {
+      // Not fatal to the build itself — the page is on screen either
+      // way — but the person loses it on refresh, so say so plainly
+      // rather than silently dropping it.
+      console.error('room-chat: failed to save build to history:', saveErr.message);
+      send({ action: 'save_error', message: "Built it, but couldn't save it to history — it'll be lost on refresh." });
+    }
+
     send({ action: 'done' });
   } catch (err) {
     console.error('room-chat handler crashed:', err.message);

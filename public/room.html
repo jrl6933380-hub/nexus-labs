@@ -37,11 +37,14 @@
     align-items: center;
     justify-content: space-between;
     border-bottom: 1px solid var(--border);
+    position: relative;
   }
 
   .title { font-family: var(--mono); font-size: 15px; font-weight: 700; }
 
-  .back-link {
+  .header-actions { display: flex; gap: 8px; align-items: center; }
+
+  .back-link, .history-btn {
     font-family: var(--mono);
     font-size: 12px;
     color: var(--text-dim);
@@ -49,6 +52,56 @@
     border: 1px solid var(--border);
     padding: 6px 12px;
     border-radius: 6px;
+    background: none;
+    cursor: pointer;
+  }
+
+  .history-btn.active { color: var(--cyan); border-color: var(--cyan); }
+
+  #history-panel {
+    display: none;
+    position: absolute;
+    top: 52px;
+    right: 16px;
+    width: 300px;
+    max-height: 70vh;
+    overflow-y: auto;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px;
+    z-index: 20;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+
+  #history-panel.open { display: block; }
+
+  .history-item {
+    padding: 8px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+
+  .history-item:hover { background: rgba(255,255,255,0.05); }
+
+  .history-item .label {
+    font-family: var(--sans);
+    color: var(--text);
+    margin-bottom: 2px;
+  }
+
+  .history-item .meta {
+    font-family: var(--mono);
+    color: var(--text-faint);
+    font-size: 11px;
+  }
+
+  .history-empty {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-faint);
+    padding: 10px;
   }
 
   .room {
@@ -164,7 +217,13 @@
 
 <div class="header">
   <span class="title">NEX // ROOM</span>
-  <a class="back-link" href="/">← Back to chat</a>
+  <div class="header-actions">
+    <button class="history-btn" id="history-btn">History</button>
+    <a class="back-link" href="/">← Back to chat</a>
+  </div>
+  <div id="history-panel">
+    <div id="history-list" class="history-empty">Loading…</div>
+  </div>
 </div>
 
 <div class="room">
@@ -196,6 +255,70 @@
     emptyState.style.display = 'none';
   }
 
+  // ---- History panel -------------------------------------------
+  const historyBtn = document.getElementById('history-btn');
+  const historyPanel = document.getElementById('history-panel');
+  const historyList = document.getElementById('history-list');
+
+  function formatWhen(ts) {
+    const diffMin = Math.round((Date.now() - ts) / 60000);
+    if (diffMin < 1) return 'just now';
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHr = Math.round(diffMin / 60);
+    if (diffHr < 24) return `${diffHr}h ago`;
+    return new Date(ts).toLocaleDateString();
+  }
+
+  async function loadHistoryList() {
+    historyList.className = 'history-empty';
+    historyList.innerText = 'Loading…';
+    try {
+      const res = await fetch('/api/room-history');
+      const data = await res.json();
+      const builds = data.builds || [];
+      if (builds.length === 0) {
+        historyList.innerText = 'No saved builds yet.';
+        return;
+      }
+      historyList.className = '';
+      historyList.innerHTML = '';
+      builds.forEach((b) => {
+        const item = document.createElement('div');
+        item.className = 'history-item';
+        item.innerHTML = `<div class="label"></div><div class="meta"></div>`;
+        item.querySelector('.label').innerText = b.label;
+        item.querySelector('.meta').innerText = formatWhen(b.createdAt);
+        item.addEventListener('click', () => loadBuild(b.id));
+        historyList.appendChild(item);
+      });
+    } catch (err) {
+      historyList.className = 'history-empty';
+      historyList.innerText = "Couldn't load history.";
+    }
+  }
+
+  async function loadBuild(id) {
+    try {
+      const res = await fetch('/api/room-history?id=' + encodeURIComponent(id));
+      const data = await res.json();
+      if (data.build) {
+        renderHtml(data.build.html);
+        addBubble('nex', `Loaded "${data.build.label}" from history.`);
+        historyPanel.classList.remove('open');
+        historyBtn.classList.remove('active');
+      }
+    } catch (err) {
+      addBubble('nex', "Couldn't load that build.");
+    }
+  }
+
+  historyBtn.addEventListener('click', () => {
+    const opening = !historyPanel.classList.contains('open');
+    historyPanel.classList.toggle('open', opening);
+    historyBtn.classList.toggle('active', opening);
+    if (opening) loadHistoryList();
+  });
+
   // ---- Chat -------------------------------------------
   const chatHistory = document.getElementById('chat-history');
   const chatInput = document.getElementById('chat-input');
@@ -211,6 +334,7 @@
   }
 
   addBubble('nex', 'Tell me what to build — a website, a game, a tool, anything. Try: "build a landing page for a coffee shop called Rise & Grind"');
+  addBubble('nex', 'Everything you build here is saved automatically — check History any time to pick up an old one.');
 
   async function sendMessage() {
     const message = chatInput.value.trim();
@@ -236,6 +360,7 @@
       const decoder = new TextDecoder();
       let buffer = '';
       let gotHtml = false;
+      let saveNote = '';
 
       while (true) {
         const { value, done } = await reader.read();
@@ -253,9 +378,13 @@
             gotHtml = true;
             clearTimeout(slowNotice);
             renderHtml(event.html);
+          } else if (event.action === 'save_error') {
+            saveNote = ' (' + event.message + ')';
           } else if (event.action === 'done') {
             clearTimeout(slowNotice);
-            buildingBubble.innerText = gotHtml ? 'Done — take a look.' : "Didn't get a page back — try rephrasing that.";
+            buildingBubble.innerText = gotHtml
+              ? 'Done — take a look.' + saveNote
+              : "Didn't get a page back — try rephrasing that.";
           } else if (event.action === 'error') {
             clearTimeout(slowNotice);
             buildingBubble.innerText = 'Ran into an issue: ' + event.message;
