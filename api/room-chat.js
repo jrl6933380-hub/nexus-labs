@@ -6,22 +6,19 @@
 // of Nexus) rather than nexBrain's tool loop — this is a narrow,
 // stateless JSON-generation task, not a Nex conversation, and doesn't
 // touch the board/memory/repo tools.
-//
-// no-op: forcing a fresh preview build after Justin scoped
-// ANTHROPIC_API_KEY to Preview in Vercel env vars.
 
 import { routeMessage } from '../lib/modelRouter.js';
 
 const SYSTEM_PROMPT = `You build small business websites by emitting structured edit events.
 
-Respond with ONLY a JSON array of events, nothing else — no prose, no markdown fences.
+Respond with ONLY a JSON array of events, nothing else — no prose, no markdown fences. If the request is genuinely outside what these events can express, respond with an empty array [] rather than a made-up event.
 
 Each event is one of:
 {"action":"add_section","sectionId":"<unique-slug>","type":"hero"|"about"|"gallery"|"contact_form"|"testimonial","props":{...}}
 {"action":"update_prop","sectionId":"<id>","field":"<prop name>","value":<any>}
 {"action":"remove_section","sectionId":"<id>"}
 {"action":"reorder_sections","order":["<id>", ...]}
-{"action":"set_theme","field":"accentColor"|"fontFamily","value":"<value>"}
+{"action":"set_theme","field":"accentColor"|"fontFamily"|"backgroundColor","value":"<value>"}
 
 Section props:
 - hero: headline, subhead, imageUrl
@@ -29,6 +26,11 @@ Section props:
 - gallery: images (array of urls)
 - contact_form: heading
 - testimonial: quote, author
+
+theme fields:
+- accentColor: used for headings, links, and button backgrounds within sections (hex color)
+- fontFamily: CSS font-family value applied across all sections
+- backgroundColor: the page/canvas background behind all sections (hex color or CSS color name — e.g. a request to "make the background red" is set_theme backgroundColor "red" or "#ff0000")
 
 Given the current site state and the user's message, return the minimal set of events needed to make the requested change. Use realistic, specific copy for the client's actual business — never placeholder text like "Lorem ipsum" or generic filler.`;
 

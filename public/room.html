@@ -137,6 +137,7 @@
     overflow-y: auto;
     background: #fff;
     color: #1C1C1C;
+    transition: background 0.3s ease;
   }
 
   .canvas-empty {
@@ -148,7 +149,7 @@
   }
 
   .canvas-section {
-    border-bottom: 1px solid #F0F0F0;
+    border-bottom: 1px solid rgba(0,0,0,0.08);
     animation: sectionIn 0.4s ease;
   }
 
@@ -182,9 +183,11 @@
 
 <script>
   // ---- Site state + reducer -------------------------------------------
+  // theme.backgroundColor applies to the whole canvas surface (the page
+  // background). accentColor is used for headings/buttons within sections.
   let state = {
     sections: [],
-    theme: { accentColor: '#B8734A', fontFamily: 'system-ui, sans-serif' },
+    theme: { accentColor: '#B8734A', fontFamily: 'system-ui, sans-serif', backgroundColor: '#ffffff' },
   };
 
   function applyEvent(event) {
@@ -253,6 +256,7 @@
 
   function renderCanvas() {
     const canvas = document.getElementById('canvas');
+    canvas.style.background = state.theme.backgroundColor || '#ffffff';
     if (state.sections.length === 0) {
       canvas.innerHTML = '<div class="canvas-empty">Your site will appear here as you build it.</div>';
       return;
@@ -289,6 +293,7 @@
     sendBtn.disabled = true;
     chatInput.disabled = true;
     const buildingBubble = addBubble('nex', 'Building…');
+    let appliedAnyEvent = false;
 
     try {
       const res = await fetch('/api/room-chat', {
@@ -314,10 +319,16 @@
           const event = JSON.parse(chunk.slice(6));
 
           if (event.action === 'done') {
-            buildingBubble.innerText = 'Done — take a look.';
+            // If Nex sent zero real events, it had nothing it could actually
+            // change for that request — say so plainly instead of "Done",
+            // which reads as success even when nothing happened.
+            buildingBubble.innerText = appliedAnyEvent
+              ? 'Done — take a look.'
+              : "Didn't make a change — that request may be outside what this room can currently do (sections, copy, images, accent color, font, or background color).";
           } else if (event.action === 'error') {
             buildingBubble.innerText = 'Ran into an issue: ' + event.message;
           } else {
+            appliedAnyEvent = true;
             applyEvent(event);
             renderCanvas();
           }
