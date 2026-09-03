@@ -485,9 +485,14 @@
 
   addBubble('nex', 'Tell me what to build — a website, a game, a tool, anything. Try: "build a landing page for a coffee shop called Rise & Grind"');
   addBubble('nex', 'Everything you build here is saved automatically — check History any time to pick up an old one.');
+  addBubble('nex', 'Every page you build also gets its own chat bubble in the corner, so you (or anyone you show it to) can keep editing it from inside the page itself.');
 
-  async function sendMessage() {
-    const message = chatInput.value.trim();
+  // sendMessage can be called from the chat box (no argument — reads
+  // chatInput.value) or from the live-edit widget embedded in a
+  // generated page (messageOverride — see the postMessage listener
+  // below).
+  async function sendMessage(messageOverride) {
+    const message = (typeof messageOverride === 'string' ? messageOverride : chatInput.value).trim();
     if (!message || sendBtn.disabled) return;
     setChatOpen(true);
     chatStatus.innerText = 'BUILDING';
@@ -578,8 +583,21 @@
     }
   }
 
-  sendBtn.addEventListener('click', sendMessage);
+  sendBtn.addEventListener('click', () => sendMessage());
   chatInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
+
+  // ---- Live-edit widget bridge -------------------------------------------
+  // The chat bubble injected into every generated page (see
+  // injectLiveEditWidget in api/room-chat.js) posts a message here when
+  // someone submits something from inside the iframe. Only accept
+  // messages that actually came from our own canvas iframe.
+  window.addEventListener('message', (event) => {
+    if (event.source !== frame.contentWindow) return;
+    const data = event.data;
+    if (data && data.source === 'nexus-live-edit-widget' && typeof data.message === 'string') {
+      sendMessage(data.message);
+    }
+  });
 </script>
 
 <script src="/nexus-shell.js"></script>
