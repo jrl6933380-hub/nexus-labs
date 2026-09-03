@@ -106,12 +106,10 @@
 
   .room {
     display: grid;
-    grid-template-columns: 320px 1fr;
+    grid-template-columns: minmax(240px, 280px) minmax(0, 1fr);
     height: calc(100vh - 53px);
-  }
-
-  @media (max-width: 720px) {
-    .room { grid-template-columns: 1fr; grid-template-rows: 45vh 1fr; }
+    height: calc(100dvh - 53px);
+    min-height: 0;
   }
 
   .chat-panel {
@@ -120,6 +118,46 @@
     border-right: 1px solid var(--border);
     background: var(--panel);
     min-height: 0;
+    overflow: hidden;
+  }
+
+  .chat-toolbar {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 36px;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+  }
+
+  .chat-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 0;
+    background: transparent;
+    color: var(--cyan);
+    font: 600 11px/1 var(--mono);
+    letter-spacing: .08em;
+    cursor: pointer;
+  }
+
+  .chat-toggle::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--cyan);
+    box-shadow: 0 0 10px rgba(77,216,232,.75);
+  }
+
+  .chat-toggle-label { color: var(--text-dim); letter-spacing: 0; }
+
+  .chat-status {
+    color: var(--text-faint);
+    font-size: 10px;
+    letter-spacing: .08em;
   }
 
   .chat-history {
@@ -187,6 +225,9 @@
   .canvas {
     position: relative;
     background: #fff;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
   }
 
   .canvas-empty {
@@ -210,6 +251,51 @@
   }
 
   #canvas-frame.visible { display: block; }
+
+  @media (max-width: 720px) {
+    .header { padding: 10px 12px; }
+    .title { font-size: 13px; }
+    .back-link, .history-btn { padding: 6px 9px; }
+
+    .room {
+      grid-template-columns: 1fr;
+      grid-template-rows: minmax(0, 1fr) auto;
+      height: calc(100dvh - 49px);
+    }
+
+    .canvas {
+      grid-column: 1;
+      grid-row: 1;
+    }
+
+    .chat-panel {
+      grid-column: 1;
+      grid-row: 2;
+      height: 108px;
+      border-right: 0;
+      border-top: 1px solid var(--border);
+      box-shadow: 0 -10px 30px rgba(0,0,0,.28);
+      transition: height .22s ease;
+      z-index: 10;
+    }
+
+    .room.chat-open .chat-panel {
+      height: min(44dvh, 380px);
+    }
+
+    .chat-toolbar { display: flex; }
+    .chat-history { display: none; padding: 10px; }
+    .room.chat-open .chat-history { display: flex; }
+
+    .input-row { padding: 8px; }
+    .chat-input { min-width: 0; padding: 10px; }
+    .send-btn { padding: 10px 13px; }
+    .bubble { font-size: 12px; max-width: 94%; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .chat-panel { transition: none; }
+  }
 </style>
 <link rel="stylesheet" href="/nexus-stark.css">
 </head>
@@ -228,6 +314,12 @@
 
 <div class="room">
   <aside class="chat-panel">
+    <div class="chat-toolbar">
+      <button class="chat-toggle" id="chat-toggle" type="button" aria-expanded="false">
+        CHAT <span class="chat-toggle-label" id="chat-toggle-label">Open log</span>
+      </button>
+      <span class="chat-status" id="chat-status">READY</span>
+    </div>
     <div class="chat-history" id="chat-history"></div>
     <div class="input-row">
       <input class="chat-input" id="chat-input" placeholder="Tell Nex what to build...">
@@ -323,6 +415,24 @@
   const chatHistory = document.getElementById('chat-history');
   const chatInput = document.getElementById('chat-input');
   const sendBtn = document.getElementById('send-btn');
+  const room = document.querySelector('.room');
+  const chatToggle = document.getElementById('chat-toggle');
+  const chatToggleLabel = document.getElementById('chat-toggle-label');
+  const chatStatus = document.getElementById('chat-status');
+  const mobileLayout = window.matchMedia('(max-width: 720px)');
+
+  function setChatOpen(open) {
+    room.classList.toggle('chat-open', open);
+    chatToggle.setAttribute('aria-expanded', String(open));
+    chatToggleLabel.innerText = open ? 'Hide log' : 'Open log';
+  }
+
+  chatToggle.addEventListener('click', () => {
+    setChatOpen(!room.classList.contains('chat-open'));
+  });
+
+  setChatOpen(!mobileLayout.matches);
+  mobileLayout.addEventListener('change', (event) => setChatOpen(!event.matches));
 
   function addBubble(role, text) {
     const el = document.createElement('div');
@@ -339,6 +449,8 @@
   async function sendMessage() {
     const message = chatInput.value.trim();
     if (!message || sendBtn.disabled) return;
+    setChatOpen(true);
+    chatStatus.innerText = 'BUILDING';
     addBubble('user', message);
     chatInput.value = '';
     sendBtn.disabled = true;
@@ -386,6 +498,8 @@
             generatedHtml = event.html;
             clearTimeout(slowNotice);
             renderHtml(generatedHtml);
+            chatStatus.innerText = 'READY';
+            if (mobileLayout.matches) setChatOpen(false);
           } else if (event.action === 'progress') {
             buildingBubble.innerText = event.message || 'Still building…';
           } else if (event.action === 'save_error') {
@@ -410,6 +524,7 @@
       }
     } finally {
       clearTimeout(clientTimeout);
+      if (!gotHtml) chatStatus.innerText = 'READY';
       sendBtn.disabled = false;
       chatInput.disabled = false;
       chatInput.focus();
