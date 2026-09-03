@@ -37,7 +37,8 @@ Rules:
 - If the user is asking to modify something that already exists (the current HTML is provided below), make a real edit: keep everything that wasn't asked to change, and modify only what was. Return the complete updated document, not a diff or a partial snippet.
 - If the current HTML is empty, build the request from scratch.
 - Make it genuinely complete and functional, not a placeholder or a mockup — real interactivity, real content, real styling. Use specific realistic content (names, copy, colors) suited to what was asked, never lorem ipsum or "TODO" placeholders.
-- Keep it self-contained and safe: no requests to localhost or internal networks, no attempts to break out of the iframe or access the parent page.`;
+- Keep it self-contained and safe: no requests to localhost or internal networks, no attempts to break out of the iframe or access the parent page.
+- You have a real output budget, not infinite. If a request implies many features (multiple screens, a quiz engine, animations, a scoring system, etc.), prioritize shipping ONE genuinely complete, working document over an ambitious one that runs out of room half-finished — a simpler page that fully works beats an elaborate one that's cut off mid-file. A person can always ask you to add more in a follow-up.`;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -63,7 +64,7 @@ export default async function handler(req, res) {
       claudeModel: 'claude-sonnet-5',
       env: ROOM_TIMEOUT_ENV,
       body: {
-        max_tokens: 8192,
+        max_tokens: 16000,
         system: SYSTEM_PROMPT,
         messages: [
           {
@@ -86,6 +87,21 @@ export default async function handler(req, res) {
     if (!html.toLowerCase().startsWith('<!doctype') && !html.toLowerCase().startsWith('<html')) {
       console.error('room-chat: response did not look like a full HTML document:', html.slice(0, 200));
       send({ action: 'error', message: "Got a response that wasn't a full page — try rephrasing that." });
+      return res.end();
+    }
+
+    // The model ran out of its output budget mid-document. This is not
+    // a guess — Anthropic reports it directly via stop_reason. Sending
+    // a truncated document to the iframe renders as a broken, half-built
+    // page with no clear explanation why, so catch it here instead of
+    // showing (and saving) something unusable.
+    const truncated = data.stop_reason === 'max_tokens' || !/<\/html>\s*$/i.test(html);
+    if (truncated) {
+      console.error('room-chat: response was truncated (stop_reason:', data.stop_reason + ')', 'length:', html.length);
+      send({
+        action: 'error',
+        message: "That build was too ambitious to finish in one response — it got cut off partway through. Try asking for something a bit simpler, or break it into fewer features at once (e.g. build the core page first, then ask to add the quiz/animations after).",
+      });
       return res.end();
     }
 
