@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nexus // Room</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0A0E14;
+    --panel: #12192A;
+    --border: #1F2B42;
+    --blue: #2E7FFF;
+    --cyan: #4DD8E8;
+    --text: #E4E9F2;
+    --text-dim: #8891A3;
+    --text-faint: #5B6577;
+    --amber: #E8A94D;
+    --red: #E85D5D;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Inter', -apple-system, sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+  }
+
+  .header {
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+
+  .title { font-family: var(--mono); font-size: 15px; font-weight: 700; }
+
+  .header-actions { display: flex; gap: 8px; align-items: center; }
+
+  .back-link, .history-btn {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-dim);
+    text-decoration: none;
+    border: 1px solid var(--border);
+    padding: 6px 12px;
+    border-radius: 6px;
+    background: none;
+    cursor: pointer;
+  }
+
+  .history-btn.active { color: var(--cyan); border-color: var(--cyan); }
+
+  #history-panel {
+    display: none;
+    position: absolute;
+    top: 52px;
+    right: 16px;
+    width: 300px;
+    max-height: 70vh;
+    overflow-y: auto;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px;
+    z-index: 20;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+
+  #history-panel.open { display: block; }
+
+  .history-item {
+    padding: 8px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+
+  .history-item:hover { background: rgba(255,255,255,0.05); }
+
+  .history-item .label {
+    font-family: var(--sans);
+    color: var(--text);
+    margin-bottom: 2px;
+  }
+
+  .history-item .meta {
+    font-family: var(--mono);
+    color: var(--text-faint);
+    font-size: 11px;
+  }
+
+  .history-empty {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-faint);
+    padding: 10px;
+  }
+
+  .room {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    height: calc(100vh - 53px);
+  }
+
+  @media (max-width: 720px) {
+    .room { grid-template-columns: 1fr; grid-template-rows: 45vh 1fr; }
+  }
+
+  .chat-panel {
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border);
+    background: var(--panel);
+    min-height: 0;
+  }
+
+  .chat-history {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .bubble {
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-size: 13px;
+    line-height: 1.5;
+    max-width: 90%;
+  }
+
+  .bubble.user {
+    align-self: flex-end;
+    background: var(--blue);
+    color: #06090F;
+  }
+
+  .bubble.nex {
+    align-self: flex-start;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+
+  .input-row {
+    display: flex;
+    gap: 8px;
+    padding: 12px;
+    border-top: 1px solid var(--border);
+  }
+
+  .chat-input {
+    flex: 1;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13px;
+    font-family: var(--sans);
+  }
+
+  .send-btn {
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: none;
+    background: var(--blue);
+    color: #06090F;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .send-btn:disabled { opacity: 0.5; cursor: default; }
+
+  .canvas {
+    position: relative;
+    background: #fff;
+  }
+
+  .canvas-empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: #999;
+    font-size: 14px;
+    font-family: var(--sans);
+    padding: 0 32px;
+  }
+
+  #canvas-frame {
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: none;
+  }
+
+  #canvas-frame.visible { display: block; }
+</style>
+<link rel="stylesheet" href="/nexus-stark.css">
+</head>
+<body>
+
+<div class="header">
+  <span class="title">NEX // ROOM</span>
+  <div class="header-actions">
+    <button class="history-btn" id="history-btn">History</button>
+    <a class="back-link" href="/">← Back to chat</a>
+  </div>
+  <div id="history-panel">
+    <div id="history-list" class="history-empty">Loading…</div>
+  </div>
+</div>
+
+<div class="room">
+  <aside class="chat-panel">
+    <div class="chat-history" id="chat-history"></div>
+    <div class="input-row">
+      <input class="chat-input" id="chat-input" placeholder="Tell Nex what to build...">
+      <button class="send-btn" id="send-btn">Send</button>
+    </div>
+  </aside>
+
+  <main class="canvas">
+    <div class="canvas-empty" id="canvas-empty">Ask for anything — a website, a game, a tool, whatever you can think of. It'll build here.</div>
+    <iframe id="canvas-frame" sandbox="allow-scripts allow-forms" title="Live build canvas"></iframe>
+  </main>
+</div>
+
+<script>
+  // ---- State: just the last-built HTML, so follow-up requests can edit it ----
+  let currentHtml = '';
+
+  const frame = document.getElementById('canvas-frame');
+  const emptyState = document.getElementById('canvas-empty');
+
+  function renderHtml(html) {
+    currentHtml = html;
+    frame.srcdoc = html;
+    frame.classList.add('visible');
+    emptyState.style.display = 'none';
+  }
+
+  // ---- History panel -------------------------------------------
+  const historyBtn = document.getElementById('history-btn');
+  const historyPanel = document.getElementById('history-panel');
+  const historyList = document.getElementById('history-list');
+
+  function formatWhen(ts) {
+    const diffMin = Math.round((Date.now() - ts) / 60000);
+    if (diffMin < 1) return 'just now';
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHr = Math.round(diffMin / 60);
+    if (diffHr < 24) return `${diffHr}h ago`;
+    return new Date(ts).toLocaleDateString();
+  }
+
+  async function loadHistoryList() {
+    historyList.className = 'history-empty';
+    historyList.innerText = 'Loading…';
+    try {
+      const res = await fetch('/api/room-history');
+      const data = await res.json();
+      const builds = data.builds || [];
+      if (builds.length === 0) {
+        historyList.innerText = 'No saved builds yet.';
+        return;
+      }
+      historyList.className = '';
+      historyList.innerHTML = '';
+      builds.forEach((b) => {
+        const item = document.createElement('div');
+        item.className = 'history-item';
+        item.innerHTML = `<div class="label"></div><div class="meta"></div>`;
+        item.querySelector('.label').innerText = b.label;
+        item.querySelector('.meta').innerText = formatWhen(b.createdAt);
+        item.addEventListener('click', () => loadBuild(b.id));
+        historyList.appendChild(item);
+      });
+    } catch (err) {
+      historyList.className = 'history-empty';
+      historyList.innerText = "Couldn't load history.";
+    }
+  }
+
+  async function loadBuild(id) {
+    try {
+      const res = await fetch('/api/room-history?id=' + encodeURIComponent(id));
+      const data = await res.json();
+      if (data.build) {
+        renderHtml(data.build.html);
+        addBubble('nex', `Loaded "${data.build.label}" from history.`);
+        historyPanel.classList.remove('open');
+        historyBtn.classList.remove('active');
+      }
+    } catch (err) {
+      addBubble('nex', "Couldn't load that build.");
+    }
+  }
+
+  historyBtn.addEventListener('click', () => {
+    const opening = !historyPanel.classList.contains('open');
+    historyPanel.classList.toggle('open', opening);
+    historyBtn.classList.toggle('active', opening);
+    if (opening) loadHistoryList();
+  });
+
+  // ---- Chat -------------------------------------------
+  const chatHistory = document.getElementById('chat-history');
+  const chatInput = document.getElementById('chat-input');
+  const sendBtn = document.getElementById('send-btn');
+
+  function addBubble(role, text) {
+    const el = document.createElement('div');
+    el.className = 'bubble ' + role;
+    el.innerText = text;
+    chatHistory.appendChild(el);
+    chatHistory.scrollTop = chatHistory.scrollHeight;
+    return el;
+  }
+
+  addBubble('nex', 'Tell me what to build — a website, a game, a tool, anything. Try: "build a landing page for a coffee shop called Rise & Grind"');
+  addBubble('nex', 'Everything you build here is saved automatically — check History any time to pick up an old one.');
+
+  async function sendMessage() {
+    const message = chatInput.value.trim();
+    if (!message || sendBtn.disabled) return;
+    addBubble('user', message);
+    chatInput.value = '';
+    sendBtn.disabled = true;
+    chatInput.disabled = true;
+    const buildingBubble = addBubble('nex', 'Building… (complex builds like games can take up to a minute)');
+
+    const slowNotice = setTimeout(() => {
+      buildingBubble.innerText = 'Still building… interactive stuff takes longer, hang tight.';
+    }, 20000);
+
+    try {
+      const res = await fetch('/api/room-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, currentHtml }),
+      });
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let gotHtml = false;
+      let saveNote = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const chunks = buffer.split('\n\n');
+        buffer = chunks.pop() || '';
+
+        for (const chunk of chunks) {
+          if (!chunk.startsWith('data: ')) continue;
+          const event = JSON.parse(chunk.slice(6));
+
+          if (event.action === 'html') {
+            gotHtml = true;
+            clearTimeout(slowNotice);
+            renderHtml(event.html);
+          } else if (event.action === 'save_error') {
+            saveNote = ' (' + event.message + ')';
+          } else if (event.action === 'done') {
+            clearTimeout(slowNotice);
+            buildingBubble.innerText = gotHtml
+              ? 'Done — take a look.' + saveNote
+              : "Didn't get a page back — try rephrasing that.";
+          } else if (event.action === 'error') {
+            clearTimeout(slowNotice);
+            buildingBubble.innerText = 'Ran into an issue: ' + event.message;
+          }
+        }
+      }
+    } catch (err) {
+      clearTimeout(slowNotice);
+      buildingBubble.innerText = 'Something went wrong reaching the room.';
+    } finally {
+      sendBtn.disabled = false;
+      chatInput.disabled = false;
+      chatInput.focus();
+    }
+  }
+
+  sendBtn.addEventListener('click', sendMessage);
+  chatInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
+</script>
+
+<script src="/nexus-shell.js"></script>
+</body>
+</html>
