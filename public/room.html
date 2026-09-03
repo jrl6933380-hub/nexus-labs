@@ -219,7 +219,11 @@
     chatInput.value = '';
     sendBtn.disabled = true;
     chatInput.disabled = true;
-    const buildingBubble = addBubble('nex', 'Building…');
+    const buildingBubble = addBubble('nex', 'Building… (complex builds like games can take up to a minute)');
+
+    const slowNotice = setTimeout(() => {
+      buildingBubble.innerText = 'Still building… interactive stuff takes longer, hang tight.';
+    }, 20000);
 
     try {
       const res = await fetch('/api/room-chat', {
@@ -247,15 +251,19 @@
 
           if (event.action === 'html') {
             gotHtml = true;
+            clearTimeout(slowNotice);
             renderHtml(event.html);
           } else if (event.action === 'done') {
+            clearTimeout(slowNotice);
             buildingBubble.innerText = gotHtml ? 'Done — take a look.' : "Didn't get a page back — try rephrasing that.";
           } else if (event.action === 'error') {
+            clearTimeout(slowNotice);
             buildingBubble.innerText = 'Ran into an issue: ' + event.message;
           }
         }
       }
     } catch (err) {
+      clearTimeout(slowNotice);
       buildingBubble.innerText = 'Something went wrong reaching the room.';
     } finally {
       sendBtn.disabled = false;

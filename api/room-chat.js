@@ -12,6 +12,20 @@
 
 import { routeMessage } from '../lib/modelRouter.js';
 
+// Full self-contained pages — especially anything with real interactive
+// JS like a game or canvas animation — can take longer to generate than
+// the 45s default timeout in lib/modelRouter.js, which is tuned for
+// normal chat replies. Override just for this route via the env param
+// routeMessage already accepts, rather than changing the shared default
+// for every other caller. 90000ms is the router's own hard cap.
+const ROOM_TIMEOUT_ENV = { ...process.env, NEX_PROVIDER_TIMEOUT_MS: '90000' };
+
+// Matches the timeout above with room to spare, so Vercel doesn't kill
+// the function before the provider call itself times out.
+export const config = {
+  maxDuration: 120,
+};
+
 const SYSTEM_PROMPT = `You build real, functional, self-contained web pages and mini-apps live, based on what the user asks for. This can be anything renderable in a browser tab: a business website, a landing page, an interactive game, a data visualization, a generative art piece, a utility tool — whatever the user describes.
 
 Respond with ONLY one complete HTML document, starting with <!DOCTYPE html> and nothing before or after it — no explanation, no markdown fences, no commentary.
@@ -46,6 +60,7 @@ export default async function handler(req, res) {
     const { data } = await routeMessage({
       tier: 'standard',
       claudeModel: 'claude-sonnet-5',
+      env: ROOM_TIMEOUT_ENV,
       body: {
         max_tokens: 8192,
         system: SYSTEM_PROMPT,
