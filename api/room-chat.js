@@ -1,28 +1,25 @@
 // api/room-chat.js
-// Live-canvas room, v2: Nex generates a real, complete, self-contained
-// HTML document per request (inline CSS/JS) instead of picking from a
-// fixed menu of site-builder events. The browser renders it directly
-// in a sandboxed iframe, so the room can build genuinely anything
-// expressible in a browser tab — any website, an interactive game, a
-// data tool, a canvas/WebGL effect — not just website sections.
-//
-// Uses lib/modelRouter.js directly (same Anthropic-primary/Gateway-
-// backup failover as the rest of Nexus), not nexBrain's tool loop —
-// this is a narrow, stateless generation task.
+// Live-canvas room, v3: generates a real, complete, self-contained HTML
+// document per request (inline CSS/JS), streamed token-by-token from
+// the Anthropic API directly rather than via lib/modelRouter.js's
+// blocking routeMessage(). A full page for an ambitious request can
+// genuinely take longer to generate than modelRouter's 90s hard
+// timeout ceiling (tuned for normal chat replies, not this) — streaming
+// isn't bound by that same fixed-timeout failure mode. Trade-off: this
+// route loses the Anthropic->AI-Gateway failover routeMessage() gives
+// other callers; acceptable since Gateway currently 403s anyway
+// (customer_verification_required — needs a card on file, a Vercel
+// account/billing matter, not something fixable in code).
 
-import { routeMessage } from '../lib/modelRouter.js';
 import { saveBuild } from '../lib/roomHistory.js';
 
-// Full self-contained pages — especially anything with real interactive
-// JS like a game or canvas animation — can take longer to generate than
-// the 45s default timeout in lib/modelRouter.js, which is tuned for
-// normal chat replies. Override just for this route via the env param
-// routeMessage already accepts, rather than changing the shared default
-// for every other caller. 90000ms is the router's own hard cap.
-const ROOM_TIMEOUT_ENV = { ...process.env, NEX_PROVIDER_TIMEOUT_MS: '90000' };
+const ANTHROPIC_ENDPOINT = 'https://api.anthropic.com/v1/messages';
 
-// Matches the timeout above with room to spare, so Vercel doesn't kill
-// the function before the provider call itself times out.
+// Comfortably inside Vercel's function ceiling below, so a slow
+// generation gets a clear timeout message instead of the platform
+// killing the function first.
+const STREAM_TIMEOUT_MS = 110_000;
+
 export const config = {
   maxDuration: 120,
 };
@@ -48,6 +45,10 @@ export default async function handler(req, res) {
   const { message, currentHtml } = req.body || {};
   if (!message) return res.status(400).json({ error: 'Missing message' });
 
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return res.status(500).json({ error: 'ANTHROPIC_API_KEY is not configured for this environment.' });
+  }
+
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
@@ -58,13 +59,21 @@ export default async function handler(req, res) {
     res.write(`data: ${JSON.stringify(event)}\n\n`);
   };
 
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), STREAM_TIMEOUT_MS);
+
   try {
-    const { data } = await routeMessage({
-      tier: 'standard',
-      claudeModel: 'claude-sonnet-5',
-      env: ROOM_TIMEOUT_ENV,
-      body: {
+    const response = await fetch(ANTHROPIC_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-5',
         max_tokens: 16000,
+        stream: true,
         system: SYSTEM_PROMPT,
         messages: [
           {
@@ -74,15 +83,53 @@ export default async function handler(req, res) {
               : `No existing page yet (build from scratch).\n\nUser request: ${message}`,
           },
         ],
-      },
+      }),
+      signal: controller.signal,
     });
 
-    const textBlock = (data.content || []).find((b) => b.type === 'text');
-    let html = (textBlock?.text || '').trim();
+    if (!response.ok || !response.body) {
+      const bodyText = await response.text().catch(() => '');
+      console.error('room-chat: anthropic streaming request failed', response.status, bodyText.slice(0, 300));
+      send({ action: 'error', message: 'Something went wrong reaching the model — try again in a moment.' });
+      return res.end();
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let html = '';
+    let stopReason = null;
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const events = buffer.split('\n\n');
+      buffer = events.pop() || '';
+
+      for (const evt of events) {
+        const dataLine = evt.split('\n').find((l) => l.startsWith('data: '));
+        if (!dataLine) continue;
+        let parsed;
+        try {
+          parsed = JSON.parse(dataLine.slice(6));
+        } catch {
+          continue;
+        }
+        if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'text_delta') {
+          html += parsed.delta.text;
+        } else if (parsed.type === 'message_delta' && parsed.delta?.stop_reason) {
+          stopReason = parsed.delta.stop_reason;
+        }
+      }
+    }
+
+    clearTimeout(timer);
 
     // Strip stray markdown fences if the model added them despite
     // instructions not to — cheap safety net, not the primary contract.
-    html = html.replace(/^```html\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
+    html = html.trim().replace(/^```html\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
 
     if (!html.toLowerCase().startsWith('<!doctype') && !html.toLowerCase().startsWith('<html')) {
       console.error('room-chat: response did not look like a full HTML document:', html.slice(0, 200));
@@ -90,14 +137,11 @@ export default async function handler(req, res) {
       return res.end();
     }
 
-    // The model ran out of its output budget mid-document. This is not
-    // a guess — Anthropic reports it directly via stop_reason. Sending
-    // a truncated document to the iframe renders as a broken, half-built
-    // page with no clear explanation why, so catch it here instead of
-    // showing (and saving) something unusable.
-    const truncated = data.stop_reason === 'max_tokens' || !/<\/html>\s*$/i.test(html);
+    // Real truncation check via Anthropic's own stop_reason, plus a
+    // closing-tag backstop — never show or save a half-built page.
+    const truncated = stopReason === 'max_tokens' || !/<\/html>\s*$/i.test(html);
     if (truncated) {
-      console.error('room-chat: response was truncated (stop_reason:', data.stop_reason + ')', 'length:', html.length);
+      console.error('room-chat: response was truncated (stop_reason:', stopReason + ')', 'length:', html.length);
       send({
         action: 'error',
         message: "That build was too ambitious to finish in one response — it got cut off partway through. Try asking for something a bit simpler, or break it into fewer features at once (e.g. build the core page first, then ask to add the quiz/animations after).",
@@ -111,17 +155,19 @@ export default async function handler(req, res) {
       const saved = await saveBuild({ label: message, requestMessage: message, html });
       send({ action: 'saved', id: saved.id });
     } catch (saveErr) {
-      // Not fatal to the build itself — the page is on screen either
-      // way — but the person loses it on refresh, so say so plainly
-      // rather than silently dropping it.
       console.error('room-chat: failed to save build to history:', saveErr.message);
       send({ action: 'save_error', message: "Built it, but couldn't save it to history — it'll be lost on refresh." });
     }
 
     send({ action: 'done' });
   } catch (err) {
+    clearTimeout(timer);
     console.error('room-chat handler crashed:', err.message);
-    send({ action: 'error', message: 'Something went wrong building that.' });
+    if (err.name === 'AbortError') {
+      send({ action: 'error', message: 'That took too long to build (over ~110 seconds) — try asking for something a bit simpler.' });
+    } else {
+      send({ action: 'error', message: 'Something went wrong building that.' });
+    }
   } finally {
     res.end();
   }
