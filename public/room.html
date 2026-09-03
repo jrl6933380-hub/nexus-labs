@@ -349,11 +349,10 @@
       buildingBubble.innerText = 'Still building… interactive stuff takes longer, hang tight.';
     }, 20000);
 
-    // Client-side timeout: 35s is safely under Vercel's ~30s platform
-    // streaming timeout, so we catch the error before the connection
-    // silently dies. The error message is clear instead of hanging forever.
+    // The server aborts upstream generation at 110s. Keep a slightly longer
+    // browser backstop for dead connections without cancelling valid builds.
     const abortCtrl = new AbortController();
-    const clientTimeout = setTimeout(() => abortCtrl.abort(), 35000);
+    const clientTimeout = setTimeout(() => abortCtrl.abort(), 115000);
 
     try {
       const res = await fetch('/api/room-chat', {
@@ -367,6 +366,7 @@
       const decoder = new TextDecoder();
       let buffer = '';
       let gotHtml = false;
+      let generatedHtml = '';
       let saveNote = '';
 
       while (true) {
@@ -383,7 +383,11 @@
 
           if (event.action === 'html') {
             gotHtml = true;
+            generatedHtml = event.html;
             clearTimeout(slowNotice);
+            renderHtml(generatedHtml);
+          } else if (event.action === 'progress') {
+            buildingBubble.innerText = event.message || 'Still building…';
           } else if (event.action === 'save_error') {
             saveNote = ' (' + event.message + ')';
           } else if (event.action === 'done') {
@@ -396,15 +400,11 @@
             buildingBubble.innerText = 'Ran into an issue: ' + event.message;
           }
         }
-
-        if (gotHtml) {
-          renderHtml(event.html || currentHtml);
-        }
       }
     } catch (err) {
       clearTimeout(slowNotice);
       if (err.name === 'AbortError') {
-        buildingBubble.innerText = 'That took longer than ~30 seconds — the platform timed out. Try asking for something simpler, or break it into smaller steps.';
+        buildingBubble.innerText = 'That build took too long and the connection was stopped. Try something simpler or build it in smaller steps.';
       } else {
         buildingBubble.innerText = 'Something went wrong reaching the room.';
       }
