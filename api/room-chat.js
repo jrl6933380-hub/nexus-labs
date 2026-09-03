@@ -59,6 +59,13 @@ export default async function handler(req, res) {
     res.write(`data: ${JSON.stringify(event)}\n\n`);
   };
 
+  // Start the downstream SSE response immediately, then keep it active
+  // while Anthropic streams the document to this function.
+  send({ action: 'progress', message: 'Building…' });
+  const heartbeat = setInterval(() => {
+    send({ action: 'progress', message: 'Still building… interactive projects can take a minute.' });
+  }, 15_000);
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), STREAM_TIMEOUT_MS);
 
@@ -169,6 +176,8 @@ export default async function handler(req, res) {
       send({ action: 'error', message: 'Something went wrong building that.' });
     }
   } finally {
+    clearTimeout(timer);
+    clearInterval(heartbeat);
     res.end();
   }
 }

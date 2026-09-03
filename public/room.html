@@ -349,17 +349,24 @@
       buildingBubble.innerText = 'Still building… interactive stuff takes longer, hang tight.';
     }, 20000);
 
+    // The server aborts upstream generation at 110s. Keep a slightly longer
+    // browser backstop for dead connections without cancelling valid builds.
+    const abortCtrl = new AbortController();
+    const clientTimeout = setTimeout(() => abortCtrl.abort(), 115000);
+
     try {
       const res = await fetch('/api/room-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message, currentHtml }),
+        signal: abortCtrl.signal,
       });
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
       let gotHtml = false;
+      let generatedHtml = '';
       let saveNote = '';
 
       while (true) {
@@ -376,8 +383,11 @@
 
           if (event.action === 'html') {
             gotHtml = true;
+            generatedHtml = event.html;
             clearTimeout(slowNotice);
-            renderHtml(event.html);
+            renderHtml(generatedHtml);
+          } else if (event.action === 'progress') {
+            buildingBubble.innerText = event.message || 'Still building…';
           } else if (event.action === 'save_error') {
             saveNote = ' (' + event.message + ')';
           } else if (event.action === 'done') {
@@ -393,8 +403,13 @@
       }
     } catch (err) {
       clearTimeout(slowNotice);
-      buildingBubble.innerText = 'Something went wrong reaching the room.';
+      if (err.name === 'AbortError') {
+        buildingBubble.innerText = 'That build took too long and the connection was stopped. Try something simpler or build it in smaller steps.';
+      } else {
+        buildingBubble.innerText = 'Something went wrong reaching the room.';
+      }
     } finally {
+      clearTimeout(clientTimeout);
       sendBtn.disabled = false;
       chatInput.disabled = false;
       chatInput.focus();
