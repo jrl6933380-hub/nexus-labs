@@ -18,8 +18,12 @@
 // a truncation failure that the original build never had. A patch is
 // a few lines instead of a few hundred, so it's fast and doesn't
 // re-risk the size limit that only the fresh build actually needs.
+//
+// v5: requires a signed-in session (see lib/roomAuth.js) — builds are
+// now saved per-user, not to one shared global history.
 
 import { saveBuild } from '../lib/roomHistory.js';
+import { getRequestUser } from '../lib/roomAuth.js';
 
 const ANTHROPIC_ENDPOINT = 'https://api.anthropic.com/v1/messages';
 
@@ -81,6 +85,11 @@ export default async function handler(req, res) {
 
   const { message, currentHtml } = req.body || {};
   if (!message) return res.status(400).json({ error: 'Missing message' });
+
+  const username = await getRequestUser(req);
+  if (!username) {
+    return res.status(401).json({ error: 'Sign in required' });
+  }
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return res.status(500).json({ error: 'ANTHROPIC_API_KEY is not configured for this environment.' });
@@ -247,7 +256,7 @@ export default async function handler(req, res) {
     send({ action: 'html', html });
 
     try {
-      const saved = await saveBuild({ label: message, requestMessage: message, html });
+      const saved = await saveBuild(username, { label: message, requestMessage: message, html });
       send({ action: 'saved', id: saved.id });
     } catch (saveErr) {
       console.error('room-chat: failed to save build to history:', saveErr.message);
