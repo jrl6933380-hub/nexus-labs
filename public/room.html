@@ -524,7 +524,7 @@
       }
     } finally {
       clearTimeout(clientTimeout);
-      if (!gotHtml) chatStatus.innerText = 'READY';
+      chatStatus.innerText = 'READY';
       sendBtn.disabled = false;
       chatInput.disabled = false;
       chatInput.focus();
