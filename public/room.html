@@ -38,11 +38,13 @@
     justify-content: space-between;
     border-bottom: 1px solid var(--border);
     position: relative;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
   .title { font-family: var(--mono); font-size: 15px; font-weight: 700; }
 
-  .header-actions { display: flex; gap: 8px; align-items: center; }
+  .header-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
   .back-link, .history-btn {
     font-family: var(--mono);
@@ -57,6 +59,13 @@
   }
 
   .history-btn.active { color: var(--cyan); border-color: var(--cyan); }
+
+  .push-btn {
+    color: var(--amber);
+    border-color: #E8A94D44;
+  }
+
+  .push-btn:disabled { opacity: 0.4; cursor: default; }
 
   #whoami {
     font-family: var(--mono);
@@ -313,6 +322,8 @@
   <span class="title">NEX // ROOM</span>
   <div class="header-actions">
     <span id="whoami"></span>
+    <button class="history-btn" id="import-btn">Import Home</button>
+    <button class="history-btn push-btn" id="push-btn" disabled>Push Design</button>
     <button class="history-btn" id="history-btn">History</button>
     <button class="back-link" id="logout-btn">Logout</button>
     <a class="back-link" href="/">← Back to chat</a>
@@ -379,12 +390,14 @@
 
   const frame = document.getElementById('canvas-frame');
   const emptyState = document.getElementById('canvas-empty');
+  const pushBtn = document.getElementById('push-btn');
 
   function renderHtml(html) {
     currentHtml = html;
     frame.srcdoc = html;
     frame.classList.add('visible');
     emptyState.style.display = 'none';
+    pushBtn.disabled = false;
   }
 
   // ---- History panel -------------------------------------------
@@ -486,6 +499,86 @@
   addBubble('nex', 'Tell me what to build — a website, a game, a tool, anything. Try: "build a landing page for a coffee shop called Rise & Grind"');
   addBubble('nex', 'Everything you build here is saved automatically — check History any time to pick up an old one.');
   addBubble('nex', 'Every page you build also gets its own chat bubble in the corner, so you (or anyone you show it to) can keep editing it from inside the page itself.');
+  addBubble('nex', 'Tap "Import Home" to pull in a safe copy of the real Nexus Labs home page and redesign it right here — nothing you do to it is live. Like what you see? "Push Design" opens a real PR for review, same as everything else.');
+
+  // ---- Import / Push -------------------------------------------
+  // Import: fetch the ACTUAL live public/index.html (same-origin, so
+  // this is a plain fetch, not an API call) and inject a safety shim
+  // before rendering it into the canvas. The shim:
+  //  - overrides window.fetch to always reject, so nothing in the
+  //    imported page can hit a real endpoint (a real chat message, a
+  //    real queue action) no matter how the sandboxed srcdoc iframe
+  //    resolves relative URLs;
+  //  - polyfills localStorage with an in-memory stand-in, because the
+  //    canvas iframe has no allow-same-origin and the real page's
+  //    unguarded localStorage.getItem call would otherwise throw and
+  //    break the rest of its script;
+  //  - shows a visible "SAFE COPY" banner so it's never mistaken for
+  //    the live page.
+  // Push: strips that shim back out and posts the result to
+  // /api/room-push, which opens a real branch + PR — never merges.
+  const SAFETY_SHIM = `<!-- NEXUS_SAFETY_SHIM_START -->
+<div style="position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#E8A94D;color:#0A0E14;font:600 12px 'JetBrains Mono',monospace;text-align:center;padding:6px;">SAFE COPY — imported from the real Nexus Labs, not live. Redesign freely.</div>
+<script>
+(function(){
+  window.fetch = function(){ return Promise.reject(new Error('Live network calls are disabled in this copy.')); };
+  var memoryStore = {};
+  var fakeStorage = {
+    getItem: function(k){ return Object.prototype.hasOwnProperty.call(memoryStore, k) ? memoryStore[k] : null; },
+    setItem: function(k, v){ memoryStore[k] = String(v); },
+    removeItem: function(k){ delete memoryStore[k]; },
+    clear: function(){ memoryStore = {}; }
+  };
+  try { Object.defineProperty(window, 'localStorage', { value: fakeStorage, configurable: true }); } catch (e) {}
+})();
+<\/script>
+<!-- NEXUS_SAFETY_SHIM_END -->`;
+
+  function injectSafetyShim(html) {
+    if (/<body[^>]*>/i.test(html)) {
+      return html.replace(/<body([^>]*)>/i, '<body$1>\n' + SAFETY_SHIM);
+    }
+    return SAFETY_SHIM + html;
+  }
+
+  function stripSafetyShim(html) {
+    return html.replace(/<!-- NEXUS_SAFETY_SHIM_START -->[\s\S]*?<!-- NEXUS_SAFETY_SHIM_END -->\n?/i, '');
+  }
+
+  document.getElementById('import-btn').addEventListener('click', async () => {
+    try {
+      const res = await fetch('/index.html');
+      const raw = await res.text();
+      renderHtml(injectSafetyShim(raw));
+      addBubble('nex', 'Imported a safe copy of the real home page — network calls are disabled so nothing here is live. Ask for whatever changes you want, then "Push Design" when you like it.');
+    } catch (err) {
+      addBubble('nex', "Couldn't import the home page.");
+    }
+  });
+
+  pushBtn.addEventListener('click', async () => {
+    if (!currentHtml || pushBtn.disabled) return;
+    pushBtn.disabled = true;
+    addBubble('user', 'Push this design');
+    const pushingBubble = addBubble('nex', 'Opening a PR with this design…');
+    try {
+      const res = await fetch('/api/room-push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ html: stripSafetyShim(currentHtml) }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        pushingBubble.innerText = 'Failed to open the PR: ' + (data.error || 'unknown error');
+      } else {
+        pushingBubble.innerText = `PR opened: ${data.html_url} — not merged, needs review.`;
+      }
+    } catch (err) {
+      pushingBubble.innerText = 'Something went wrong opening the PR.';
+    } finally {
+      pushBtn.disabled = false;
+    }
+  });
 
   // sendMessage can be called from the chat box (no argument — reads
   // chatInput.value) or from the live-edit widget embedded in a
