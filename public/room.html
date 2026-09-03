@@ -107,8 +107,8 @@
   .room {
     display: grid;
     grid-template-columns: minmax(240px, 280px) minmax(0, 1fr);
-    height: calc(100vh - 53px);
-    height: calc(100dvh - 53px);
+    height: calc(100vh - 101px);
+    height: calc(100dvh - 101px);
     min-height: 0;
   }
 
@@ -260,7 +260,8 @@
     .room {
       grid-template-columns: 1fr;
       grid-template-rows: minmax(0, 1fr) auto;
-      height: calc(100dvh - 49px);
+      height: calc(100dvh - 169px);
+      min-height: 300px;
     }
 
     .canvas {
