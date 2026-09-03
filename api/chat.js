@@ -11,6 +11,7 @@ import {
   isEngageCommand,
   startClaudeHandoff,
 } from '../lib/claudeHandoff.js';
+import { getNexChatMode, disengageNex, engageNex } from '../lib/nexMode.js';
 
 // ============================================================
 // SHORT-TERM ROLLING BUFFER — just enough for mid-conversation
@@ -125,8 +126,9 @@ export default async function handler(req, res) {
     // which reads the Board + BRIDGE.md before taking over.
     if (isDisengageCommand(message)) {
       const { task, wake } = await startClaudeHandoff();
+      await disengageNex({ session_url: wake.session_url, task_id: task.id });
       const reply =
-        `Nex disengaged. Claude is awake and reading the Board and BRIDGE.md. ` +
+        `Nex disengaged. I’m paused while you work directly with Claude. ` +
         `Open the direct Claude session: ${wake.session_url}`;
       const usage = { input_tokens: 0, output_tokens: 0 };
       await saveRecent([
@@ -150,6 +152,7 @@ export default async function handler(req, res) {
     // Returning to the Nex chat does not terminate the separate Claude
     // session, but it makes the ownership change explicit.
     if (isEngageCommand(message)) {
+      await engageNex();
       const reply = 'Nex engaged. I’m back in the lead.';
       const usage = { input_tokens: 0, output_tokens: 0 };
       await saveRecent([
@@ -158,6 +161,19 @@ export default async function handler(req, res) {
         { role: 'assistant', content: reply, model: 'nex', usage },
       ]);
       return res.status(200).json({ reply, model: 'nex', usage });
+    }
+
+    // Disengage is an ownership switch, not just a wake shortcut. The
+    // separate Claude session retains its normal authorized connector
+    // access; Nex does not continue consuming model calls or dispatching
+    // work until Justin explicitly re-engages him.
+    const chatMode = await getNexChatMode();
+    if (chatMode.mode === 'disengaged') {
+      return res.status(423).json({
+        error: 'Nex is disengaged while you work directly with Claude.',
+        mode: chatMode,
+        instruction: 'Send “Nex engage” here when you want Nex back in the lead.',
+      });
     }
 
     const {
