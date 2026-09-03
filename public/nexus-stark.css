@@ -182,7 +182,15 @@ input:focus,textarea:focus,select:focus,.chat-input:focus { border-color:var(--r
 .mission-detail .mission-detail-hint { margin-left:auto;white-space:nowrap;color:#5de7ff;font-size:7px; }
 
 @media(max-width:900px) {
-  body { height:100dvh!important; min-height:100dvh; overflow:hidden!important; }
+  /* Scoped to body.app-shell (index.html only) — this rule locks the
+     whole page to the viewport height so index.html's own internal
+     .chat-scroll region handles scrolling instead of the page. That's
+     wrong for every OTHER page (memory.html, queue.html,
+     connectors.html), which have no internal scroll container and
+     rely on normal page/body scrolling — a bare `body` selector here
+     silently broke scrolling on all of them since this stylesheet is
+     shared. Scoping it to the one page it was actually written for. */
+  body.app-shell { height:100dvh!important; min-height:100dvh; overflow:hidden!important; }
   .app { height:calc(100dvh - 120px)!important; min-height:0; }
   .chat-panel { height:100%; min-height:0; }
   .chat-scroll {
@@ -218,4 +226,19 @@ input:focus,textarea:focus,select:focus,.chat-input:focus { border-color:var(--r
 }
 @media(prefers-reduced-motion:reduce) {
   .goal-orbit { animation:orbitGlow 3s ease-in-out infinite!important; }
+}
+
+/* Prevent iOS Safari's automatic zoom-in when focusing any input
+   under 16px — that's a platform default, not something CSS can
+   turn off directly; the standard fix is making sure every field is
+   at least 16px on mobile. Without this, tapping the chat box (14px
+   on index.html/room.html), the model picker (11.5px), the memory
+   textarea/select (14px/12px), or the login fields (14px) zooms the
+   whole page in without asking. On pages that also lock viewport
+   height on mobile (index.html, room.html both use overflow:hidden),
+   that involuntary zoom is what makes things look clipped or stuck
+   until manually zoomed back out — especially right after navigating
+   to a field. */
+@media(max-width:900px) {
+  input,textarea,select { font-size:16px!important; }
 }
