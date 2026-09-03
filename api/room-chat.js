@@ -6,6 +6,9 @@
 // of Nexus) rather than nexBrain's tool loop — this is a narrow,
 // stateless JSON-generation task, not a Nex conversation, and doesn't
 // touch the board/memory/repo tools.
+//
+// no-op: forcing a fresh preview build after Justin scoped
+// ANTHROPIC_API_KEY to Preview in Vercel env vars.
 
 import { routeMessage } from '../lib/modelRouter.js';
 
