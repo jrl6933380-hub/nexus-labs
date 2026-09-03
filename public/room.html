@@ -349,11 +349,18 @@
       buildingBubble.innerText = 'Still building… interactive stuff takes longer, hang tight.';
     }, 20000);
 
+    // Client-side timeout: 35s is safely under Vercel's ~30s platform
+    // streaming timeout, so we catch the error before the connection
+    // silently dies. The error message is clear instead of hanging forever.
+    const abortCtrl = new AbortController();
+    const clientTimeout = setTimeout(() => abortCtrl.abort(), 35000);
+
     try {
       const res = await fetch('/api/room-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message, currentHtml }),
+        signal: abortCtrl.signal,
       });
 
       const reader = res.body.getReader();
@@ -377,7 +384,6 @@
           if (event.action === 'html') {
             gotHtml = true;
             clearTimeout(slowNotice);
-            renderHtml(event.html);
           } else if (event.action === 'save_error') {
             saveNote = ' (' + event.message + ')';
           } else if (event.action === 'done') {
@@ -390,11 +396,20 @@
             buildingBubble.innerText = 'Ran into an issue: ' + event.message;
           }
         }
+
+        if (gotHtml) {
+          renderHtml(event.html || currentHtml);
+        }
       }
     } catch (err) {
       clearTimeout(slowNotice);
-      buildingBubble.innerText = 'Something went wrong reaching the room.';
+      if (err.name === 'AbortError') {
+        buildingBubble.innerText = 'That took longer than ~30 seconds — the platform timed out. Try asking for something simpler, or break it into smaller steps.';
+      } else {
+        buildingBubble.innerText = 'Something went wrong reaching the room.';
+      }
     } finally {
+      clearTimeout(clientTimeout);
       sendBtn.disabled = false;
       chatInput.disabled = false;
       chatInput.focus();
