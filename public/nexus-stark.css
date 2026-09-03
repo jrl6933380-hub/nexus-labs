@@ -182,7 +182,15 @@ input:focus,textarea:focus,select:focus,.chat-input:focus { border-color:var(--r
 .mission-detail .mission-detail-hint { margin-left:auto;white-space:nowrap;color:#5de7ff;font-size:7px; }
 
 @media(max-width:900px) {
-  body { height:100dvh!important; min-height:100dvh; overflow:hidden!important; }
+  /* Scoped to body.app-shell (index.html only) — this rule locks the
+     whole page to the viewport height so index.html's own internal
+     .chat-scroll region handles scrolling instead of the page. That's
+     wrong for every OTHER page (memory.html, queue.html,
+     connectors.html), which have no internal scroll container and
+     rely on normal page/body scrolling — a bare `body` selector here
+     silently broke scrolling on all of them since this stylesheet is
+     shared. Scoping it to the one page it was actually written for. */
+  body.app-shell { height:100dvh!important; min-height:100dvh; overflow:hidden!important; }
   .app { height:calc(100dvh - 120px)!important; min-height:0; }
   .chat-panel { height:100%; min-height:0; }
   .chat-scroll {
