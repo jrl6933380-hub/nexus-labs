@@ -1,45 +1,35 @@
 // api/room-chat.js
-// Live-canvas room: turns a chat message into structured site-build
-// events, streamed back over SSE so the browser applies them one at a
-// time and the site visibly assembles itself. Uses lib/modelRouter.js
-// directly (same Anthropic-primary/Gateway-backup failover as the rest
-// of Nexus) rather than nexBrain's tool loop — this is a narrow,
-// stateless JSON-generation task, not a Nex conversation, and doesn't
-// touch the board/memory/repo tools.
+// Live-canvas room, v2: Nex generates a real, complete, self-contained
+// HTML document per request (inline CSS/JS) instead of picking from a
+// fixed menu of site-builder events. The browser renders it directly
+// in a sandboxed iframe, so the room can build genuinely anything
+// expressible in a browser tab — any website, an interactive game, a
+// data tool, a canvas/WebGL effect — not just website sections.
+//
+// Uses lib/modelRouter.js directly (same Anthropic-primary/Gateway-
+// backup failover as the rest of Nexus), not nexBrain's tool loop —
+// this is a narrow, stateless generation task.
 
 import { routeMessage } from '../lib/modelRouter.js';
 
-const SYSTEM_PROMPT = `You build small business websites by emitting structured edit events.
+const SYSTEM_PROMPT = `You build real, functional, self-contained web pages and mini-apps live, based on what the user asks for. This can be anything renderable in a browser tab: a business website, a landing page, an interactive game, a data visualization, a generative art piece, a utility tool — whatever the user describes.
 
-Respond with ONLY a JSON array of events, nothing else — no prose, no markdown fences. If the request is genuinely outside what these events can express, respond with an empty array [] rather than a made-up event.
+Respond with ONLY one complete HTML document, starting with <!DOCTYPE html> and nothing before or after it — no explanation, no markdown fences, no commentary.
 
-Each event is one of:
-{"action":"add_section","sectionId":"<unique-slug>","type":"hero"|"about"|"gallery"|"contact_form"|"testimonial","props":{...}}
-{"action":"update_prop","sectionId":"<id>","field":"<prop name>","value":<any>}
-{"action":"remove_section","sectionId":"<id>"}
-{"action":"reorder_sections","order":["<id>", ...]}
-{"action":"set_theme","field":"accentColor"|"fontFamily"|"backgroundColor","value":"<value>"}
-
-Section props:
-- hero: headline, subhead, imageUrl
-- about: heading, body
-- gallery: images (array of urls)
-- contact_form: heading
-- testimonial: quote, author
-
-theme fields:
-- accentColor: used for headings, links, and button backgrounds within sections (hex color)
-- fontFamily: CSS font-family value applied across all sections
-- backgroundColor: the page/canvas background behind all sections (hex color or CSS color name — e.g. a request to "make the background red" is set_theme backgroundColor "red" or "#ff0000")
-
-Given the current site state and the user's message, return the minimal set of events needed to make the requested change. Use realistic, specific copy for the client's actual business — never placeholder text like "Lorem ipsum" or generic filler.`;
+Rules:
+- Put all CSS in a <style> tag and all JS in a <script> tag, both inline in the document. You may load external libraries via <script src="https://cdnjs.cloudflare.com/..."> or similar CDNs when it genuinely helps (e.g. three.js for 3D, chart.js for charts).
+- Never use localStorage or sessionStorage — the page runs in a sandboxed iframe where they throw errors. Keep any state in plain JS variables instead.
+- If the user is asking to modify something that already exists (the current HTML is provided below), make a real edit: keep everything that wasn't asked to change, and modify only what was. Return the complete updated document, not a diff or a partial snippet.
+- If the current HTML is empty, build the request from scratch.
+- Make it genuinely complete and functional, not a placeholder or a mockup — real interactivity, real content, real styling. Use specific realistic content (names, copy, colors) suited to what was asked, never lorem ipsum or "TODO" placeholders.
+- Keep it self-contained and safe: no requests to localhost or internal networks, no attempts to break out of the iframe or access the parent page.`;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { message, currentState } = req.body || {};
+  const { message, currentHtml } = req.body || {};
   if (!message) return res.status(400).json({ error: 'Missing message' });
 
   res.writeHead(200, {
@@ -57,36 +47,33 @@ export default async function handler(req, res) {
       tier: 'standard',
       claudeModel: 'claude-sonnet-5',
       body: {
-        max_tokens: 2000,
+        max_tokens: 8192,
         system: SYSTEM_PROMPT,
         messages: [
           {
             role: 'user',
-            content: `Current site state:\n${JSON.stringify(currentState || {})}\n\nUser request: ${message}`,
+            content: currentHtml
+              ? `Current HTML:\n${currentHtml}\n\nUser request: ${message}`
+              : `No existing page yet (build from scratch).\n\nUser request: ${message}`,
           },
         ],
       },
     });
 
     const textBlock = (data.content || []).find((b) => b.type === 'text');
-    const raw = textBlock?.text || '[]';
-    const cleaned = raw.replace(/```json|```/g, '').trim();
+    let html = (textBlock?.text || '').trim();
 
-    let events = [];
-    try {
-      events = JSON.parse(cleaned);
-    } catch (parseErr) {
-      console.error('room-chat: failed to parse events JSON:', parseErr.message, 'raw:', raw.slice(0, 300));
-      send({ action: 'error', message: "Got a response I couldn't parse — try rephrasing that." });
+    // Strip stray markdown fences if the model added them despite
+    // instructions not to — cheap safety net, not the primary contract.
+    html = html.replace(/^```html\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
+
+    if (!html.toLowerCase().startsWith('<!doctype') && !html.toLowerCase().startsWith('<html')) {
+      console.error('room-chat: response did not look like a full HTML document:', html.slice(0, 200));
+      send({ action: 'error', message: "Got a response that wasn't a full page — try rephrasing that." });
       return res.end();
     }
 
-    for (const event of events) {
-      send(event);
-      // Small delay between events so the canvas visibly builds
-      // section by section instead of popping in all at once.
-      await new Promise((r) => setTimeout(r, 500));
-    }
+    send({ action: 'html', html });
     send({ action: 'done' });
   } catch (err) {
     console.error('room-chat handler crashed:', err.message);
