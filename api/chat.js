@@ -12,6 +12,7 @@ import {
   startClaudeHandoff,
 } from '../lib/claudeHandoff.js';
 import { getNexChatMode, disengageNex, engageNex } from '../lib/nexMode.js';
+import { detectHyperfocusTrigger, buildHyperfocusDirective } from '../lib/hyperfocusTriggers.js';
 
 // ============================================================
 // SHORT-TERM ROLLING BUFFER — just enough for mid-conversation
@@ -176,6 +177,22 @@ export default async function handler(req, res) {
       });
     }
 
+    // Hyperfocus trigger phrases ("bring Claude in on this for
+    // hyperfocus", "show active hyperfocus", "hyperfocus complete") are
+    // recognized deterministically (regex, not model judgment) so they
+    // always fire regardless of which tier answers this turn. The
+    // detection only decides WHETHER to append an internal directive to
+    // what's sent to the model — the actual extraction/tool-calling
+    // (open_hyperfocus, publish_chat_context, wake_claude_code, etc.,
+    // wired in nexBrain.js) still runs through a normal Nex turn, since
+    // real context synthesis is exactly what an LLM does well and a
+    // regex can't. The directive is never shown to Mr. Lopez or saved
+    // to the visible transcript — only the message he actually typed is.
+    const hyperfocusTrigger = detectHyperfocusTrigger(message);
+    const messageForModel = hyperfocusTrigger
+      ? `${message}\n\n${buildHyperfocusDirective(hyperfocusTrigger)}`
+      : message;
+
     const {
       reply,
       updatedHistory,
@@ -183,13 +200,23 @@ export default async function handler(req, res) {
       provider,
       usage,
       degraded,
-    } = await askNex(message, runningHistory, forcedTier);
+    } = await askNex(messageForModel, runningHistory, forcedTier);
+
+    // If the message sent to the model was augmented with an internal
+    // hyperfocus directive, restore Mr. Lopez's original text in the
+    // saved/returned history so the transcript shows exactly what he
+    // typed, not the internal instruction appended to it.
+    const historyForStorage = hyperfocusTrigger
+      ? updatedHistory.map((entry, i) =>
+          i === updatedHistory.length - 1 ? { ...entry, content: message } : entry
+        )
+      : updatedHistory;
 
     // Store which model actually answered and token usage alongside the
     // message itself, so "who answered" and token count survive a page
     // reload — not just visible on the live response.
     const finalHistory = [
-      ...updatedHistory,
+      ...historyForStorage,
       { role: 'assistant', content: reply, model: answeredModel, usage },
     ];
     await saveRecent(finalHistory);
