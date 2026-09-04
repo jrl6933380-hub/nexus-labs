@@ -3,6 +3,10 @@
     {
       "source": "/api/hyperfocus",
       "destination": "/api/board"
+    },
+    {
+      "source": "/api/agentlog",
+      "destination": "/api/board"
     }
   ]
 }
