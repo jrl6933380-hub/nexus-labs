@@ -46,13 +46,13 @@ test('falls back to Vercel AI Gateway when Anthropic fails', async () => {
       if (url.includes('api.anthropic.com')) {
         return response({ ok: false, status: 429, text: 'rate limited' });
       }
-      return response({ json: { model: 'openai/gpt-5.6-sol', content: [] } });
+      return response({ json: { model: 'openai/gpt-5.4-nano', content: [] } });
     },
   });
 
   assert.equal(calls.length, 2);
   assert.equal(calls[1].url, 'https://ai-gateway.vercel.sh/v1/messages');
-  assert.equal(calls[1].body.model, 'openai/gpt-5.6-sol');
+  assert.equal(calls[1].body.model, 'openai/gpt-5.4-nano');
   assert.equal(result.provider, 'vercel-ai-gateway');
 });
 
