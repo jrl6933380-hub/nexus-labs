@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   AllProvidersUnavailableError,
   routeMessage,
+  routeToModel,
 } from '../lib/modelRouter.js';
 
 function response({ ok = true, status = 200, json = {}, text = '' } = {}) {
@@ -89,5 +90,50 @@ test('reports safe-mode condition when every provider is unavailable', async () 
     (error) =>
       error instanceof AllProvidersUnavailableError &&
       error.attempts.length === 2
+  );
+});
+
+test('REGRESSION: routeToModel sends the exact named model to Gateway, skipping Anthropic entirely', async () => {
+  const calls = [];
+  const result = await routeToModel({
+    model: 'meta/llama-3.3-70b-instruct',
+    body: { messages: [{ role: 'user', content: 'hi' }], max_tokens: 512 },
+    env: { ANTHROPIC_API_KEY: 'anthropic-key', AI_GATEWAY_API_KEY: 'gateway-key' },
+    fetchFn: async (url, options) => {
+      calls.push({ url, body: JSON.parse(options.body) });
+      return response({ json: { model: 'meta/llama-3.3-70b-instruct', content: [{ type: 'text', text: 'hello' }] } });
+    },
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, 'https://ai-gateway.vercel.sh/v1/messages');
+  assert.equal(calls[0].body.model, 'meta/llama-3.3-70b-instruct');
+  assert.equal(result.provider, 'vercel-ai-gateway');
+  assert.equal(result.model, 'meta/llama-3.3-70b-instruct');
+});
+
+test('routeToModel fails loudly instead of falling back when the named model errors', async () => {
+  await assert.rejects(
+    routeToModel({
+      model: 'google/gemini-2.5-flash',
+      body: { messages: [] },
+      env: { AI_GATEWAY_API_KEY: 'gateway-key' },
+      fetchFn: async () => response({ ok: false, status: 404, text: 'model not found' }),
+    }),
+    /HTTP 404/
+  );
+});
+
+test('routeToModel requires a model name', async () => {
+  await assert.rejects(
+    routeToModel({ body: {}, env: { AI_GATEWAY_API_KEY: 'gateway-key' }, fetchFn: async () => response() }),
+    /model is required/
+  );
+});
+
+test('routeToModel requires Gateway to be configured', async () => {
+  await assert.rejects(
+    routeToModel({ model: 'google/gemini-2.5-flash', body: {}, env: {}, fetchFn: async () => response() }),
+    /AI_GATEWAY_API_KEY is not configured/
   );
 });
