@@ -26,6 +26,13 @@ import {
 } from '../lib/board.js';
 import { listAgents } from '../lib/agents.js';
 import {
+  startExecution,
+  finishExecution,
+  checkpointExecution,
+  getExecutionResume,
+  listExecutionEvents,
+} from '../lib/executionLedger.js';
+import {
   openHyperfocus,
   publishChatContext,
   readHyperfocus,
@@ -52,6 +59,11 @@ async function handleBoard(req, res) {
     if (action === 'attach_result') return res.status(200).json({ task: await attachResult(params) });
     if (action === 'complete_task') return res.status(200).json({ task: await completeTask(params) });
     if (action === 'post_message') return res.status(200).json({ message: await postMessage(params) });
+    if (action === 'start_execution') return res.status(200).json(await startExecution(params));
+    if (action === 'finish_execution') return res.status(200).json({ event: await finishExecution(params) });
+    if (action === 'checkpoint_execution') return res.status(200).json({ pointer: await checkpointExecution(params) });
+    if (action === 'get_execution_resume') return res.status(200).json({ pointer: await getExecutionResume(params.run_id) });
+    if (action === 'list_execution_events') return res.status(200).json({ events: await listExecutionEvents(params.run_id, params.limit) });
 
     return res.status(400).json({ error: `Unknown action: ${action}` });
   }
