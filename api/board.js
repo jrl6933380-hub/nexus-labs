@@ -204,9 +204,10 @@ async function handleVault(req, res) {
 // client-supplied field, so one account can never list, read, or
 // modify another account's tenants by passing a different owner in
 // the request body.
-async function handleTenants(req, res) {
+export function createTenantsHandler({ resolveUser = getRequestUser, create = createTenant, listForOwner = listTenantsForOwner, assertAccess = assertTenantAccess, register = registerConnection, meter = tenantMeter, oauthState = createOAuthState, providerFor = requireProvider } = {}) {
+  return async function handleTenants(req, res) {
   res.setHeader('Cache-Control', 'private, no-store');
-  const ownerUsername = await getRequestUser(req);
+  const ownerUsername = await resolveUser(req);
   if (!ownerUsername) return res.status(401).json({ error: 'Sign in required' });
 
   if (req.method === 'GET') {
@@ -215,11 +216,11 @@ async function handleTenants(req, res) {
     if (action === 'usage') {
       if (!tenant_id) return res.status(400).json({ error: 'tenant_id is required' });
       try {
-        const tenant = await assertTenantAccess({ ownerUsername, tenantId: tenant_id });
+        const tenant = await assertAccess({ ownerUsername, tenantId: tenant_id });
         if (!tenant.quota) {
           return res.status(400).json({ error: 'This tenant is BYO and has no managed credit quota.' });
         }
-        const usage = await tenantMeter.getUsageSummary({ tenantId: tenant.tenant_id, quota: tenant.quota });
+        const usage = await meter.getUsageSummary({ tenantId: tenant.tenant_id, quota: tenant.quota });
         return res.status(200).json({ usage });
       } catch (err) {
         return res.status(400).json({ error: err.message });
@@ -237,11 +238,11 @@ async function handleTenants(req, res) {
     if (action === 'export') {
       if (!tenant_id) return res.status(400).json({ error: 'tenant_id is required' });
       try {
-        const tenant = await assertTenantAccess({ ownerUsername, tenantId: tenant_id });
+        const tenant = await assertAccess({ ownerUsername, tenantId: tenant_id });
         let usage = null;
         if (tenant.quota) {
           try {
-            usage = await tenantMeter.getUsageSummary({ tenantId: tenant.tenant_id, quota: tenant.quota });
+            usage = await meter.getUsageSummary({ tenantId: tenant.tenant_id, quota: tenant.quota });
           } catch {
             usage = null;
           }
@@ -268,12 +269,12 @@ async function handleTenants(req, res) {
     if (action === 'oauth_start') {
       if (!tenant_id || !provider) return res.status(400).json({ error: 'tenant_id and provider are required' });
       try {
-        const tenant = await assertTenantAccess({ ownerUsername, tenantId: tenant_id });
+        const tenant = await assertAccess({ ownerUsername, tenantId: tenant_id });
         if (tenant.mode !== 'byo') {
           return res.status(400).json({ error: 'OAuth connections are only for BYO tenants.' });
         }
-        const adapter = requireProvider(provider);
-        const state = createOAuthState({ tenant_id: tenant.tenant_id, owner: ownerUsername, provider });
+        const adapter = providerFor(provider);
+        const state = oauthState({ tenant_id: tenant.tenant_id, owner: ownerUsername, provider });
         const redirectUri = `${NEXUS_PUBLIC_URL}/api/oauth/${provider}/callback`;
         const url = adapter.authorizeUrl({ redirectUri, state });
         return res.status(200).json({ url });
@@ -282,7 +283,7 @@ async function handleTenants(req, res) {
       }
     }
 
-    const tenants = await listTenantsForOwner({ ownerUsername });
+    const tenants = await listForOwner({ ownerUsername });
     return res.status(200).json({ tenants });
   }
 
@@ -292,11 +293,11 @@ async function handleTenants(req, res) {
 
     try {
       if (action === 'create') {
-        const tenant = await createTenant({ ownerUsername, name: params.name, mode: params.mode });
+        const tenant = await create({ ownerUsername, name: params.name, mode: params.mode });
         return res.status(200).json({ tenant });
       }
       if (action === 'register_connection') {
-        const tenant = await registerConnection({
+        const tenant = await register({
           ownerUsername,
           tenantId: params.tenant_id,
           provider: params.provider,
@@ -305,7 +306,7 @@ async function handleTenants(req, res) {
         return res.status(200).json({ tenant });
       }
       if (action === 'get') {
-        const tenant = await assertTenantAccess({ ownerUsername, tenantId: params.tenant_id });
+        const tenant = await assertAccess({ ownerUsername, tenantId: params.tenant_id });
         return res.status(200).json({ tenant });
       }
       return res.status(400).json({ error: `Unknown action: ${action}` });
@@ -319,7 +320,10 @@ async function handleTenants(req, res) {
   }
 
   return res.status(405).json({ error: 'Method Not Allowed' });
+  };
 }
+
+const handleTenants = createTenantsHandler();
 
 // /api/oauth/:provider/callback — GitHub/Vercel redirect back here
 // after the user approves the connection. Authorized by the signed
