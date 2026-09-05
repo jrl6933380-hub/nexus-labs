@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nexus // Tenants</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0A0E14;
+    --panel: #12192A;
+    --border: #1F2B42;
+    --blue: #2E7FFF;
+    --cyan: #4DD8E8;
+    --text: #E4E9F2;
+    --text-dim: #8891A3;
+    --text-faint: #5B6577;
+    --red: #E85D5D;
+    --green: #4DE8A0;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Inter', -apple-system, sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    padding: 32px 18px 80px;
+  }
+
+  .wrap { max-width: 640px; margin: 0 auto; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--cyan);
+    margin-bottom: 10px;
+  }
+
+  h1 {
+    font-family: var(--mono);
+    font-size: 26px;
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+
+  .tagline {
+    color: var(--text-dim);
+    font-size: 14.5px;
+    line-height: 1.55;
+    margin-bottom: 28px;
+    max-width: 480px;
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 24px;
+  }
+
+  .panel h2 {
+    font-family: var(--mono);
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 14px;
+    color: var(--text-dim);
+  }
+
+  form { display: flex; flex-direction: column; gap: 10px; }
+
+  input, select {
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    font-family: var(--sans);
+  }
+
+  button[type="submit"] {
+    margin-top: 4px;
+    padding: 10px;
+    border-radius: 8px;
+    border: none;
+    background: var(--blue);
+    color: #06090F;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  button[type="submit"]:disabled { opacity: 0.5; cursor: default; }
+
+  .error { font-size: 12px; color: var(--red); min-height: 16px; }
+
+  .card {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+
+  .card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+
+  .card-name { font-family: var(--mono); font-size: 15px; font-weight: 700; }
+
+  .badge {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 5px;
+  }
+
+  .badge-hosted { background: #4DE8A01c; color: var(--green); }
+  .badge-byo { background: #2E7FFF1c; color: var(--blue); }
+
+  .meta { font-family: var(--mono); font-size: 11.5px; color: var(--text-faint); line-height: 1.7; }
+
+  .empty { color: var(--text-faint); font-size: 13px; }
+</style>
+<link rel="stylesheet" href="/nexus-stark.css">
+</head>
+<body>
+
+<div class="wrap">
+  <div class="eyebrow">Nexus Labs</div>
+  <h1>Tenants</h1>
+  <p class="tagline">
+    Isolated projects — hosted (no GitHub/Vercel account needed) or
+    BYO (bring your own connected accounts). Each tenant only shows
+    up here for the account that created it.
+  </p>
+
+  <div class="panel">
+    <h2>New tenant</h2>
+    <form id="create-form">
+      <input type="text" id="tenant-name" placeholder="Tenant name" required>
+      <select id="tenant-mode">
+        <option value="hosted">Hosted (no external account needed)</option>
+        <option value="byo">Bring your own (GitHub/Vercel)</option>
+      </select>
+      <div class="error" id="create-error"></div>
+      <button type="submit" id="create-submit">Create tenant</button>
+    </form>
+  </div>
+
+  <div class="panel">
+    <h2>Your tenants</h2>
+    <div id="tenant-list"><div class="empty">Loading…</div></div>
+  </div>
+</div>
+
+<script>
+  const nextPath = '/tenants.html';
+
+  function renderTenants(tenants) {
+    const list = document.getElementById('tenant-list');
+    if (!tenants.length) {
+      list.innerHTML = '<div class="empty">No tenants yet — create one above.</div>';
+      return;
+    }
+    list.innerHTML = tenants.map((t) => {
+      const badge = t.mode === 'hosted'
+        ? '<span class="badge badge-hosted">Hosted</span>'
+        : '<span class="badge badge-byo">BYO</span>';
+      const quotaLine = t.quota
+        ? `${t.quota.creditsPerPeriod} credits / ${t.quota.periodDays}d`
+        : 'no managed quota (BYO)';
+      const connections = Object.keys(t.connections || {});
+      const connLine = connections.length ? connections.join(', ') : 'no connections yet';
+      return `
+        <div class="card">
+          <div class="card-top">
+            <span class="card-name">${t.name}</span>
+            ${badge}
+          </div>
+          <div class="meta">${quotaLine}</div>
+          <div class="meta">connections: ${connLine}</div>
+          <div class="meta">created ${new Date(t.created_at).toLocaleDateString()}</div>
+        </div>`;
+    }).join('');
+  }
+
+  async function loadTenants() {
+    const list = document.getElementById('tenant-list');
+    try {
+      const res = await fetch('/api/tenants', { credentials: 'include' });
+      if (res.status === 401) {
+        window.location.href = '/room-login.html?next=' + encodeURIComponent(nextPath);
+        return;
+      }
+      const data = await res.json();
+      renderTenants(data.tenants || []);
+    } catch (err) {
+      list.innerHTML = '<div class="empty">Could not load tenants.</div>';
+    }
+  }
+
+  document.getElementById('create-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errorEl = document.getElementById('create-error');
+    const submitBtn = document.getElementById('create-submit');
+    errorEl.innerText = '';
+    submitBtn.disabled = true;
+    try {
+      const res = await fetch('/api/tenants', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'create',
+          name: document.getElementById('tenant-name').value.trim(),
+          mode: document.getElementById('tenant-mode').value,
+        }),
+      });
+      const data = await res.json();
+      if (res.status === 401) {
+        window.location.href = '/room-login.html?next=' + encodeURIComponent(nextPath);
+        return;
+      }
+      if (!res.ok) {
+        errorEl.innerText = data.error || 'Could not create tenant.';
+        submitBtn.disabled = false;
+        return;
+      }
+      document.getElementById('tenant-name').value = '';
+      submitBtn.disabled = false;
+      loadTenants();
+    } catch (err) {
+      errorEl.innerText = 'Could not reach the server.';
+      submitBtn.disabled = false;
+    }
+  });
+
+  loadTenants();
+</script>
+
+<script src="/nexus-shell.js"></script>
+</body>
+</html>
