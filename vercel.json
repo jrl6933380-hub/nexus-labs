@@ -7,6 +7,10 @@
     {
       "source": "/api/agentlog",
       "destination": "/api/board"
+    },
+    {
+      "source": "/api/vault",
+      "destination": "/api/board"
     }
   ]
 }
