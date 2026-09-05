@@ -204,7 +204,18 @@ async function handleVault(req, res) {
 // client-supplied field, so one account can never list, read, or
 // modify another account's tenants by passing a different owner in
 // the request body.
-export function createTenantsHandler({ resolveUser = getRequestUser, create = createTenant, listForOwner = listTenantsForOwner, assertAccess = assertTenantAccess, register = registerConnection, meter = tenantMeter, oauthState = createOAuthState, providerFor = requireProvider } = {}) {
+export function createTenantsHandler({
+  resolveUser = getRequestUser,
+  create = createTenant,
+  listForOwner = listTenantsForOwner,
+  assertAccess = assertTenantAccess,
+  register = registerConnection,
+  meter = tenantMeter,
+  oauthState = createOAuthState,
+  providerFor = requireProvider,
+  deleteCredential = deleteTenantCredential,
+  unregister = unregisterConnection,
+} = {}) {
   return async function handleTenants(req, res) {
   res.setHeader('Cache-Control', 'private, no-store');
   const ownerUsername = await resolveUser(req);
