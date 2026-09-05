@@ -26,6 +26,7 @@ import {
   postMessage,
 } from '../lib/board.js';
 import { listAgents } from '../lib/agents.js';
+import { getNexRoleLease, acquireNexRole, renewNexRole, releaseNexRole } from '../lib/roleLease.js';
 import {
   startExecution,
   finishExecution,
@@ -46,8 +47,8 @@ import { addVaultItem, getVaultItem, searchVault, listVaultItems } from '../lib/
 
 async function handleBoard(req, res) {
   if (req.method === 'GET') {
-    const [board, agents] = await Promise.all([readBoard(), listAgents()]);
-    return res.status(200).json({ ...board, agents });
+    const [board, agents, nex_role] = await Promise.all([readBoard(), listAgents(), getNexRoleLease()]);
+    return res.status(200).json({ ...board, agents, nex_role });
   }
 
   if (req.method === 'POST') {
@@ -61,6 +62,9 @@ async function handleBoard(req, res) {
     if (action === 'attach_result') return res.status(200).json({ task: await attachResult(params) });
     if (action === 'complete_task') return res.status(200).json({ task: await completeTask(params) });
     if (action === 'post_message') return res.status(200).json({ message: await postMessage(params) });
+    if (action === 'acquire_nex_role') return res.status(200).json({ lease: await acquireNexRole(params) });
+    if (action === 'renew_nex_role') return res.status(200).json({ lease: await renewNexRole(params) });
+    if (action === 'release_nex_role') return res.status(200).json({ lease: await releaseNexRole(params) });
     if (action === 'start_execution') return res.status(200).json(await startExecution(params));
     if (action === 'finish_execution') return res.status(200).json({ event: await finishExecution(params) });
     if (action === 'checkpoint_execution') return res.status(200).json({ pointer: await checkpointExecution(params) });
