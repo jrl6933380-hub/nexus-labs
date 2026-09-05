@@ -11,6 +11,10 @@
     {
       "source": "/api/vault",
       "destination": "/api/board"
+    },
+    {
+      "source": "/api/sentry-webhook",
+      "destination": "/api/board"
     }
   ]
 }
