@@ -168,6 +168,11 @@
   tabLogin.addEventListener('click', showLogin);
   tabSignup.addEventListener('click', showSignup);
 
+  const nextPath = (() => {
+    const requested = new URLSearchParams(window.location.search).get('next');
+    return requested && requested.startsWith('/') && !requested.startsWith('//') ? requested : '/room.html';
+  })();
+
   async function submitAuth(action, body, errorEl, submitBtn) {
     errorEl.innerText = '';
     submitBtn.disabled = true;
@@ -175,6 +180,7 @@
       const res = await fetch('/api/room-auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ action, ...body }),
       });
       const data = await res.json();
@@ -183,7 +189,7 @@
         submitBtn.disabled = false;
         return;
       }
-      window.location.href = '/room.html';
+      window.location.href = nextPath;
     } catch (err) {
       errorEl.innerText = 'Could not reach the server.';
       submitBtn.disabled = false;
