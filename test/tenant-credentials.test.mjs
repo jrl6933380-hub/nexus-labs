@@ -32,3 +32,43 @@ test('decrypting a tampered ciphertext throws (auth tag mismatch)', () => {
   const tampered = buf.toString('base64');
   assert.throws(() => __internals.decrypt(tampered));
 });
+
+
+test('dedicated credential key produces versioned ciphertext and round-trips', () => {
+  const previous = process.env.NEXUS_CREDENTIAL_ENC_KEY;
+  process.env.NEXUS_CREDENTIAL_ENC_KEY = 'dedicated-test-key';
+  try {
+    const encrypted = __internals.encrypt('new-secret');
+    assert.match(encrypted, /^v2:/);
+    assert.equal(__internals.decrypt(encrypted), 'new-secret');
+  } finally {
+    if (previous === undefined) delete process.env.NEXUS_CREDENTIAL_ENC_KEY;
+    else process.env.NEXUS_CREDENTIAL_ENC_KEY = previous;
+  }
+});
+
+test('dedicated key migration still reads legacy unprefixed ciphertext', () => {
+  const previous = process.env.NEXUS_CREDENTIAL_ENC_KEY;
+  delete process.env.NEXUS_CREDENTIAL_ENC_KEY;
+  const legacy = __internals.encrypt('existing-secret');
+  process.env.NEXUS_CREDENTIAL_ENC_KEY = 'dedicated-test-key';
+  try {
+    assert.equal(__internals.decrypt(legacy), 'existing-secret');
+  } finally {
+    if (previous === undefined) delete process.env.NEXUS_CREDENTIAL_ENC_KEY;
+    else process.env.NEXUS_CREDENTIAL_ENC_KEY = previous;
+  }
+});
+
+test('v2 credentials fail closed if the dedicated key is unavailable', () => {
+  const previous = process.env.NEXUS_CREDENTIAL_ENC_KEY;
+  process.env.NEXUS_CREDENTIAL_ENC_KEY = 'dedicated-test-key';
+  const encrypted = __internals.encrypt('new-secret');
+  delete process.env.NEXUS_CREDENTIAL_ENC_KEY;
+  try {
+    assert.throws(() => __internals.decrypt(encrypted), /NEXUS_CREDENTIAL_ENC_KEY/);
+  } finally {
+    if (previous === undefined) delete process.env.NEXUS_CREDENTIAL_ENC_KEY;
+    else process.env.NEXUS_CREDENTIAL_ENC_KEY = previous;
+  }
+});
