@@ -15,6 +15,10 @@
     {
       "source": "/api/sentry-webhook",
       "destination": "/api/board"
+    },
+    {
+      "source": "/api/tenants",
+      "destination": "/api/board"
     }
   ]
 }
