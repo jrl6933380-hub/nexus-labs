@@ -11,10 +11,10 @@ function mockRes() {
   return res;
 }
 
-test('rejects non-POST requests', async () => {
+test('rejects methods other than GET and POST', async () => {
   const { default: handler } = await import('../api/dispatch.js?t=1');
   const res = mockRes();
-  await handler({ method: 'GET' }, res);
+  await handler({ method: 'DELETE' }, res);
   assert.equal(res.statusCode, 405);
 });
 
@@ -75,6 +75,96 @@ test('does not crash the process on an internal error — responds 500 instead',
     await handler({ method: 'POST', body: { action: 'recover_expired' } }, res);
     assert.equal(res.statusCode, 500);
     assert.match(res.body.error, /redis unreachable/);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+// --- GET /api/dispatch — audit trail read path (task 10 audit viewer) ---
+
+test('GET returns the audit trail with a default limit', async () => {
+  const events = [{ type: 'dispatched', task_id: 't1' }, { type: 'completed', task_id: 't1' }];
+  const originalFetch = global.fetch;
+  global.fetch = async (_url, options) => {
+    const command = JSON.parse(options.body);
+    assert.equal(command[0], 'LRANGE');
+    assert.equal(command[2], '0');
+    assert.equal(command[3], '99'); // default limit 100 -> LRANGE end index 99
+    return { ok: true, async json() { return { result: events.map((e) => JSON.stringify(e)) }; } };
+  };
+  try {
+    const { default: handler } = await import('../api/dispatch.js?t=7');
+    const res = mockRes();
+    await handler({ method: 'GET', query: {} }, res);
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.body.events, events);
+    assert.equal(res.body.limit, 100);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('GET respects a valid ?limit= query param', async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async (_url, options) => {
+    const command = JSON.parse(options.body);
+    assert.equal(command[3], '4'); // limit=5 -> end index 4
+    return { ok: true, async json() { return { result: [] }; } };
+  };
+  try {
+    const { default: handler } = await import('../api/dispatch.js?t=8');
+    const res = mockRes();
+    await handler({ method: 'GET', query: { limit: '5' } }, res);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.limit, 5);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('GET clamps an out-of-range ?limit= to the max instead of trusting client input', async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async (_url, options) => {
+    const command = JSON.parse(options.body);
+    assert.equal(command[3], '499'); // clamped to MAX_AUDIT_LIMIT (500) -> end index 499
+    return { ok: true, async json() { return { result: [] }; } };
+  };
+  try {
+    const { default: handler } = await import('../api/dispatch.js?t=9');
+    const res = mockRes();
+    await handler({ method: 'GET', query: { limit: '999999' } }, res);
+    assert.equal(res.body.limit, 500);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('GET falls back to the default limit for an invalid (non-numeric or negative) ?limit=', async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async (_url, options) => {
+    const command = JSON.parse(options.body);
+    assert.equal(command[3], '99');
+    return { ok: true, async json() { return { result: [] }; } };
+  };
+  try {
+    const { default: handler } = await import('../api/dispatch.js?t=10');
+    const res = mockRes();
+    await handler({ method: 'GET', query: { limit: '-5' } }, res);
+    assert.equal(res.body.limit, 100);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('GET skips malformed entries in the audit log rather than crashing', async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async () => ({ ok: true, async json() { return { result: ['{"type":"dispatched"}', 'not-json{{{', '{"type":"completed"}'] }; } });
+  try {
+    const { default: handler } = await import('../api/dispatch.js?t=11');
+    const res = mockRes();
+    await handler({ method: 'GET', query: {} }, res);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.events.length, 2);
   } finally {
     global.fetch = originalFetch;
   }
