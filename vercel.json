@@ -19,6 +19,10 @@
     {
       "source": "/api/tenants",
       "destination": "/api/board"
+    },
+    {
+      "source": "/api/oauth/:provider/callback",
+      "destination": "/api/board"
     }
   ]
 }
