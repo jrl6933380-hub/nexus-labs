@@ -62,6 +62,7 @@ async function handleBoard(req, res) {
       crash_count: crashes.length,
       open_crash_count: crashes.filter((crash) => crash.status !== 'resolved').length,
       active_agents: agents.filter((agent) => ['online', 'busy'].includes(agent.status)).length,
+      workspace_status: process.env.E2B_API_KEY ? 'configured' : 'not_configured',
       observed_at: Date.now(),
     };
     return res.status(200).json({ ...board, agents, nex_role, crashes, telemetry });
