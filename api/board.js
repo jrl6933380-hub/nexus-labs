@@ -47,6 +47,7 @@ import { addVaultItem, getVaultItem, searchVault, listVaultItems } from '../lib/
 import { ingestSentryCrash, listCrashes, getCrash, verifySentrySignature } from '../lib/crashFeed.js';
 import { getRequestUser } from '../lib/roomAuth.js';
 import { createTenant, listTenantsForOwner, assertTenantAccess, registerConnection } from '../lib/tenantProvisioning.js';
+import { tenantMeter } from '../lib/tenantMetering.js';
 
 async function handleBoard(req, res) {
   if (req.method === 'GET') {
@@ -199,6 +200,22 @@ async function handleTenants(req, res) {
   if (!ownerUsername) return res.status(401).json({ error: 'Sign in required' });
 
   if (req.method === 'GET') {
+    const { action, tenant_id } = req.query || {};
+
+    if (action === 'usage') {
+      if (!tenant_id) return res.status(400).json({ error: 'tenant_id is required' });
+      try {
+        const tenant = await assertTenantAccess({ ownerUsername, tenantId: tenant_id });
+        if (!tenant.quota) {
+          return res.status(400).json({ error: 'This tenant is BYO and has no managed credit quota.' });
+        }
+        const usage = await tenantMeter.getUsageSummary({ tenantId: tenant.tenant_id, quota: tenant.quota });
+        return res.status(200).json({ usage });
+      } catch (err) {
+        return res.status(400).json({ error: err.message });
+      }
+    }
+
     const tenants = await listTenantsForOwner({ ownerUsername });
     return res.status(200).json({ tenants });
   }
