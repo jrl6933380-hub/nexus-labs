@@ -627,6 +627,16 @@
         return;
       }
 
+      if (!res.ok) {
+        const failure = await res.json().catch(() => ({}));
+        if (res.status === 429 && failure.code === 'ROOM_CREDITS_EXHAUSTED') {
+          buildingBubble.innerText = failure.error + ' Check your Room usage before trying again.';
+        } else {
+          buildingBubble.innerText = failure.error || 'The Room could not start that build.';
+        }
+        return;
+      }
+
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
