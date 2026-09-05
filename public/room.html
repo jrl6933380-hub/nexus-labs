@@ -434,6 +434,14 @@
         item.querySelector('.label').innerText = b.label;
         item.querySelector('.meta').innerText = formatWhen(b.createdAt);
         item.addEventListener('click', () => loadBuild(b.id));
+        const download = document.createElement('a');
+        download.textContent = 'Download HTML';
+        download.href = '/api/room-history?id=' + encodeURIComponent(b.id) + '&download=html';
+        download.setAttribute('download', 'nexus-build.html');
+        download.style.cssText = 'display:inline-block;padding:12px 0;color:var(--cyan)';
+        download.title = 'Download generated code. Review before opening; external services are not bundled.';
+        download.addEventListener('click', (event) => event.stopPropagation());
+        item.appendChild(download);
         historyList.appendChild(item);
       });
     } catch (err) {
