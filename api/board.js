@@ -48,8 +48,23 @@ import { ingestSentryCrash, listCrashes, getCrash, verifySentrySignature } from 
 
 async function handleBoard(req, res) {
   if (req.method === 'GET') {
-    const [board, agents, nex_role] = await Promise.all([readBoard(), listAgents(), getNexRoleLease()]);
-    return res.status(200).json({ ...board, agents, nex_role });
+    const [board, agents, nex_role, crashes] = await Promise.all([readBoard(), listAgents(), getNexRoleLease(), listCrashes({ limit: 200 })]);
+    const tasks = board.tasks || [];
+    const tasksByStatus = tasks.reduce((counts, task) => {
+      counts[task.status] = (counts[task.status] || 0) + 1;
+      return counts;
+    }, {});
+    const telemetry = {
+      tasks_by_status: tasksByStatus,
+      completed_tasks: tasksByStatus.complete || 0,
+      total_tasks: tasks.length,
+      needs_approval: tasksByStatus.waiting_for_justin || 0,
+      crash_count: crashes.length,
+      open_crash_count: crashes.filter((crash) => crash.status !== 'resolved').length,
+      active_agents: agents.filter((agent) => ['online', 'busy'].includes(agent.status)).length,
+      observed_at: Date.now(),
+    };
+    return res.status(200).json({ ...board, agents, nex_role, crashes, telemetry });
   }
 
   if (req.method === 'POST') {

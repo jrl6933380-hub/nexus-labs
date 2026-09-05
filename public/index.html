@@ -703,6 +703,13 @@
     demo: true,
   };
 
+  const disconnectedBoard = {
+    tasks: [],
+    agents: [],
+    telemetry: { tasks_by_status: {}, completed_tasks: 0, total_tasks: 0, needs_approval: 0, crash_count: 0, open_crash_count: 0, active_agents: 0 },
+    disconnected: true,
+  };
+
   function safeText(value) {
     return String(value || '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   }
@@ -726,25 +733,27 @@
       card.setAttribute('aria-pressed', active ? 'true' : 'false');
     });
     document.getElementById('goalOrbitControl').style.setProperty('--selected-agent-color', visual.color);
+    const evidence = task?.result || task?.blocked_reason || (agent.lease_expires_at ? `Lease expires ${new Date(agent.lease_expires_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'No active lease');
     detail.innerHTML = `<span class="mission-detail-dot" style="background:${visual.color};box-shadow:0 0 12px ${visual.color}"></span>
-      <div><strong>${safeText(agent.display_name || visual.label)}</strong><span>${safeText(status)}</span>
-      <p>${safeText(task?.title || 'Ready for the next assignment')}</p></div>
+      <div><strong>${safeText(agent.display_name || visual.label)}</strong><span>${safeText(status)} · ${safeText(agent.provider || 'nexus')}</span>
+      <p>${safeText(task?.title || 'Ready for the next assignment')}</p><p class="mission-evidence">${safeText(String(evidence).slice(0, 180))}</p></div>
       <span class="mission-detail-hint">tap orbit to cycle</span>`;
   }
 
   function renderMissionBoard(board) {
     const tasks = board.tasks || [];
-    const agents = board.agents && board.agents.length ? board.agents : demoBoard.agents;
+    const agents = board.agents && board.agents.length ? board.agents : (board.disconnected ? [] : demoBoard.agents);
     missionAgents = agents.slice(0, 6);
     missionTasks = tasks;
     const open = tasks.filter((task) => task.status !== 'complete');
-    const completed = tasks.filter((task) => task.status === 'complete').length;
+    const completed = board.telemetry?.completed_tasks ?? tasks.filter((task) => task.status === 'complete').length;
     const progress = tasks.length ? Math.round(tasks.reduce((sum, task) => sum + (STATUS_PROGRESS[task.status] || 0), 0) / tasks.length) : 0;
-    const activeGoal = open[0]?.title || tasks[0]?.title || 'Standing by for a mission';
+    const activeGoal = open[0]?.title || tasks[0]?.title || (board.disconnected ? 'Telemetry disconnected' : 'Standing by for a mission');
 
     document.getElementById('missionTitle').textContent = activeGoal;
     document.getElementById('goalPercent').textContent = progress + '%';
-    document.getElementById('missionLive').textContent = board.demo ? '◉ SANDBOX DEMO' : '● LIVE STATE';
+    document.getElementById('missionLive').textContent = board.disconnected ? '○ DISCONNECTED' : (board.demo ? '◉ SANDBOX DEMO' : '● LIVE STATE');
+    document.getElementById('missionLive').style.color = board.disconnected ? 'var(--red)' : '';
 
     const palette = agents.map((agent) => (AGENT_VISUALS[agent.id] || { color:'#8891A3' }).color);
     const filled = Math.max(0, Math.min(progress, 100));
@@ -762,9 +771,9 @@
       const visual = AGENT_VISUALS[agent.id] || { color:'#8891A3', label:agent.display_name || agent.id };
       const owned = tasks.filter((task) => task.owner === agent.id);
       const task = owned.find((item) => item.status !== 'complete') || owned[0];
-      const agentProgress = task ? (STATUS_PROGRESS[task.status] || 0) : (agent.status === 'online' ? 8 : 0);
+      const agentProgress = task ? (STATUS_PROGRESS[task.status] || 0) : (['online', 'busy'].includes(agent.status) ? 8 : 0);
       return `<div class="agent-card" role="button" tabindex="0" aria-pressed="false" data-agent-id="${safeText(agent.id)}">
-        <div class="agent-head"><span class="agent-name" style="color:${visual.color}">${safeText(agent.display_name || visual.label)}</span><span class="agent-state">${safeText(task?.status || agent.status)}</span></div>
+        <div class="agent-head"><span class="agent-name" style="color:${visual.color}">${safeText(agent.display_name || visual.label)}</span><span class="agent-state">${safeText(task?.status || agent.status || 'offline')}</span></div>
         <div class="agent-bar"><span class="agent-fill" style="width:${agentProgress}%;background:${visual.color}"></span></div>
         <div class="agent-task">${safeText(task?.title || 'Available for assignment')}</div>
       </div>`;
@@ -778,25 +787,42 @@
     });
     selectMissionAgent(Math.min(selectedMissionAgent, Math.max(missionAgents.length - 1, 0)));
 
-    const needsJustin = tasks.filter((task) => task.status === 'waiting_for_justin').length;
+    const needsJustin = board.telemetry?.needs_approval ?? tasks.filter((task) => task.status === 'waiting_for_justin').length;
+    const crashCount = board.telemetry?.open_crash_count ?? 0;
+    const activeAgents = board.telemetry?.active_agents ?? agents.filter((agent) => ['online', 'busy'].includes(agent.status)).length;
     document.getElementById('missionFooter').innerHTML =
       `<span class="mission-chip">${completed}/${tasks.length} tasks complete</span>
-       <span class="mission-chip">${agents.length} agents visible</span>
-       <span class="mission-chip">E2B verified</span>
-       ${needsJustin ? `<span class="mission-chip needs-you">Justin needed · ${needsJustin}</span>` : ''}`;
+       <span class="mission-chip">${activeAgents}/${agents.length} agents active</span>
+       <span class="mission-chip">${crashCount} open crashes</span>
+       ${needsJustin ? `<span class="mission-chip needs-you">Justin needed · ${needsJustin}</span>` : ''}
+       ${board.disconnected ? '<span class="mission-chip needs-you">Reconnect telemetry</span>' : ''}`;
   }
 
   async function loadMissionBoard() {
     try {
-      const res = await fetch('/api/board');
+      const res = await fetch('/api/board', { headers: { Accept: 'application/json' }, cache: 'no-store' });
       if (!res.ok) throw new Error('board unavailable');
       const board = await res.json();
-      if (!(board.tasks || []).length) return renderMissionBoard(demoBoard);
       renderMissionBoard(board);
-    } catch {
-      renderMissionBoard(demoBoard);
+    } catch (error) {
+      console.warn('Mission Control telemetry unavailable:', error.message);
+      renderMissionBoard(disconnectedBoard);
     }
   }
+
+  // The board is the source of truth. Refreshing this small snapshot keeps
+  // the orbit honest without implying an agent is working when its lease
+  // has expired. Pause while hidden to save phone battery.
+  let missionPollTimer;
+  function startMissionPolling() {
+    clearInterval(missionPollTimer);
+    missionPollTimer = setInterval(() => {
+      if (!document.hidden) loadMissionBoard();
+    }, 8000);
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) loadMissionBoard();
+  });
 
   const orbitControl = document.getElementById('goalOrbitControl');
   orbitControl.addEventListener('click', () => selectMissionAgent(selectedMissionAgent + 1));
@@ -1019,10 +1045,10 @@
   });
 
   loadMissionBoard();
+  startMissionPolling();
   loadHistory();
   loadQueue();
   setInterval(loadQueue, 10000);
-  setInterval(loadMissionBoard, 10000); // refresh every 10s so new proposals show up automatically
 </script>
 
 <script src="/nexus-shell.js"></script>
