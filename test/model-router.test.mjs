@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   AllProvidersUnavailableError,
+  DEFAULT_GATEWAY_MODELS,
   routeMessage,
   routeToModel,
 } from '../lib/modelRouter.js';
@@ -136,4 +137,116 @@ test('routeToModel requires Gateway to be configured', async () => {
     routeToModel({ model: 'google/gemini-2.5-flash', body: {}, env: {}, fetchFn: async () => response() }),
     /AI_GATEWAY_API_KEY is not configured/
   );
+});
+
+// --- Coverage for the gateway fallback-chain and per-tier overrides —
+// the exact mechanism involved in the real incident where the
+// standard/heavy emergency fallback had to be switched off a
+// rate-limited gpt-5.6-sol. Neither knob had any test coverage before
+// this, despite being load-bearing during a real outage. ---
+
+test('NEX_GATEWAY_FALLBACK_MODELS reaches the Gateway request as providerOptions.gateway.models', async () => {
+  const calls = [];
+  await routeMessage({
+    tier: 'standard',
+    claudeModel: 'claude-test',
+    body: { messages: [] },
+    env: {
+      AI_GATEWAY_API_KEY: 'gateway-key',
+      NEX_GATEWAY_FALLBACK_MODELS: 'openai/gpt-5.4-nano, meta/llama-3.3-70b-instruct ,,',
+    },
+    fetchFn: async (url, options) => {
+      calls.push(JSON.parse(options.body));
+      return response({ json: { model: 'openai/gpt-5.4-nano', content: [] } });
+    },
+  });
+
+  assert.equal(calls.length, 1);
+  // Trims whitespace and drops empty entries from a trailing/double comma.
+  assert.deepEqual(calls[0].providerOptions, {
+    gateway: { models: ['openai/gpt-5.4-nano', 'meta/llama-3.3-70b-instruct'] },
+  });
+});
+
+test('no providerOptions field is sent when NEX_GATEWAY_FALLBACK_MODELS is unset', async () => {
+  const calls = [];
+  await routeMessage({
+    tier: 'standard',
+    claudeModel: 'claude-test',
+    body: { messages: [] },
+    env: { AI_GATEWAY_API_KEY: 'gateway-key' },
+    fetchFn: async (url, options) => {
+      calls.push(JSON.parse(options.body));
+      return response({ json: { model: 'openai/gpt-5.4-nano', content: [] } });
+    },
+  });
+
+  assert.equal('providerOptions' in calls[0], false);
+});
+
+test('an empty/whitespace-only NEX_GATEWAY_FALLBACK_MODELS is treated as unset, not an empty chain', async () => {
+  const calls = [];
+  await routeMessage({
+    tier: 'standard',
+    claudeModel: 'claude-test',
+    body: { messages: [] },
+    env: { AI_GATEWAY_API_KEY: 'gateway-key', NEX_GATEWAY_FALLBACK_MODELS: '  , , ' },
+    fetchFn: async (url, options) => {
+      calls.push(JSON.parse(options.body));
+      return response({ json: { model: 'openai/gpt-5.4-nano', content: [] } });
+    },
+  });
+
+  assert.equal('providerOptions' in calls[0], false);
+});
+
+test('a per-tier NEX_GATEWAY_*_MODEL override picks the named model over the default', async () => {
+  const calls = [];
+  await routeMessage({
+    tier: 'heavy',
+    claudeModel: 'claude-test',
+    body: { messages: [] },
+    env: { AI_GATEWAY_API_KEY: 'gateway-key', NEX_GATEWAY_HEAVY_MODEL: 'anthropic/claude-opus-5' },
+    fetchFn: async (url, options) => {
+      calls.push(JSON.parse(options.body));
+      return response({ json: { model: 'anthropic/claude-opus-5', content: [] } });
+    },
+  });
+
+  assert.equal(calls[0].model, 'anthropic/claude-opus-5');
+});
+
+test('an unrecognized tier falls back to the standard default model rather than sending undefined', async () => {
+  const calls = [];
+  await routeMessage({
+    tier: 'ultra-mega',
+    claudeModel: 'claude-test',
+    body: { messages: [] },
+    env: { AI_GATEWAY_API_KEY: 'gateway-key' },
+    fetchFn: async (url, options) => {
+      calls.push(JSON.parse(options.body));
+      return response({ json: { model: 'openai/gpt-5.4-nano', content: [] } });
+    },
+  });
+
+  assert.equal(calls[0].model, DEFAULT_GATEWAY_MODELS.standard);
+});
+
+test('REGRESSION: switching the emergency fallback model (the real gpt-5.6-sol -> gpt-5.4-nano incident) actually changes what gets sent, with no code change needed next time', async () => {
+  const calls = [];
+  // Simulates exactly what fixing that incident looked like: an env
+  // var change, not a code change. If this ever required editing
+  // modelRouter.js again to swap models, that would be a regression
+  // in the design this test locks in.
+  await routeMessage({
+    tier: 'standard',
+    claudeModel: 'claude-test',
+    body: { messages: [] },
+    env: { AI_GATEWAY_API_KEY: 'gateway-key', NEX_GATEWAY_STANDARD_MODEL: 'openai/gpt-5.4-nano' },
+    fetchFn: async (url, options) => {
+      calls.push(JSON.parse(options.body));
+      return response({ json: { model: 'openai/gpt-5.4-nano', content: [] } });
+    },
+  });
+  assert.equal(calls[0].model, 'openai/gpt-5.4-nano');
 });
