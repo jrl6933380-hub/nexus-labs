@@ -20,7 +20,13 @@ function fakeSandbox() {
 // commands.length before being checked), so no real ceiling ever
 // existed. These tests verify the actual enforcement: an over-cap
 // request is rejected and the sandbox is still cleaned up — not that a
-// policy number merely got stored somewhere. ---
+// policy number merely got stored somewhere.
+//
+// Default is 32 (the same as the global ceiling), not a stricter
+// sub-limit — real usage routinely runs more than a handful of
+// commands per workspace call, so a lower default would have broken
+// existing behavior for no real safety gain. What matters is that a
+// real, finite cap exists at all. ---
 
 test('runs all commands and returns their results when within the default cap', async () => {
   const store = createMemoryWorkspaceStore();
@@ -34,13 +40,25 @@ test('runs all commands and returns their results when within the default cap', 
   assert.equal(sandbox.killed, true, 'workspace/sandbox must be closed after a normal run');
 });
 
-test('rejects a command list exceeding the default max_commands (8) instead of running it anyway', async () => {
+test('20 commands run fine under the default cap (real usage regularly exceeds a handful)', async () => {
   const store = createMemoryWorkspaceStore();
   const sandbox = fakeSandbox();
-  const commands = Array.from({ length: 9 }, (_, i) => `echo ${i}`);
+  const commands = Array.from({ length: 20 }, (_, i) => `echo ${i}`);
+  const { results } = await runInWorkspace(
+    { ...scope(), commands },
+    { store, sandboxFactory: async () => sandbox },
+  );
+  assert.equal(results.length, 20);
+  assert.equal(sandbox.killed, true);
+});
+
+test('rejects a command list exceeding the default max_commands (32) instead of running it anyway', async () => {
+  const store = createMemoryWorkspaceStore();
+  const sandbox = fakeSandbox();
+  const commands = Array.from({ length: 33 }, (_, i) => `echo ${i}`);
   await assert.rejects(
     () => runInWorkspace({ ...scope(), commands }, { store, sandboxFactory: async () => sandbox }),
-    /Too many commands: 9 exceeds this workspace's max_commands policy of 8/,
+    /Too many commands: 33 exceeds this workspace's max_commands policy of 32/,
   );
   assert.equal(sandbox.ran.length, 0, 'no commands should have run before the cap was checked');
 });
@@ -48,20 +66,19 @@ test('rejects a command list exceeding the default max_commands (8) instead of r
 test('the sandbox is still closed (not orphaned) when the command count is rejected', async () => {
   const store = createMemoryWorkspaceStore();
   const sandbox = fakeSandbox();
-  const commands = Array.from({ length: 20 }, (_, i) => `echo ${i}`);
+  const commands = Array.from({ length: 40 }, (_, i) => `echo ${i}`);
   await assert.rejects(() => runInWorkspace({ ...scope(), commands }, { store, sandboxFactory: async () => sandbox }));
   assert.equal(sandbox.killed, true);
 });
 
-test('an explicit higher max_commands is honored, up to the global ceiling of 32', async () => {
+test('an explicit lower max_commands is still honored and enforced (opt-in to a stricter limit)', async () => {
   const store = createMemoryWorkspaceStore();
   const sandbox = fakeSandbox();
-  const commands = Array.from({ length: 20 }, (_, i) => `echo ${i}`);
-  const { results } = await runInWorkspace(
-    { ...scope(), commands, max_commands: 25 },
-    { store, sandboxFactory: async () => sandbox },
+  const commands = Array.from({ length: 5 }, (_, i) => `echo ${i}`);
+  await assert.rejects(
+    () => runInWorkspace({ ...scope(), commands, max_commands: 3 }, { store, sandboxFactory: async () => sandbox }),
+    /max_commands policy of 3/,
   );
-  assert.equal(results.length, 20);
 });
 
 test('an explicit max_commands above the global ceiling is still clamped to 32, and enforced', async () => {
