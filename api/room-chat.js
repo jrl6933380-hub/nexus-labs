@@ -34,6 +34,7 @@
 
 import { saveBuild } from '../lib/roomHistory.js';
 import { getRequestUser } from '../lib/roomAuth.js';
+import { roomMeter } from '../lib/roomMetering.js';
 
 const ANTHROPIC_ENDPOINT = 'https://api.anthropic.com/v1/messages';
 
@@ -158,6 +159,25 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'ANTHROPIC_API_KEY is not configured for this environment.' });
   }
 
+  let reservation;
+  try {
+    reservation = await roomMeter.reserveBuild({
+      userId: username,
+      kind: currentHtml ? 'edit' : 'fresh',
+    });
+  } catch (meterError) {
+    console.error('room-chat: usage meter unavailable:', meterError.message);
+    return res.status(503).json({ error: 'Room usage meter is temporarily unavailable. Try again shortly.' });
+  }
+  if (!reservation.ok) {
+    return res.status(429).json({
+      error: 'This Room account has reached its build-credit limit for the current period.',
+      code: 'ROOM_CREDITS_EXHAUSTED',
+      usage: reservation,
+    });
+  }
+
+  let buildSucceeded = false;
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
@@ -214,7 +234,7 @@ export default async function handler(req, res) {
       const bodyText = await response.text().catch(() => '');
       console.error('room-chat: anthropic streaming request failed', response.status, bodyText.slice(0, 300));
       send({ action: 'error', message: 'Something went wrong reaching the model — try again in a moment.' });
-      return res.end();
+      return;
     }
 
     const reader = response.body.getReader();
@@ -265,7 +285,7 @@ export default async function handler(req, res) {
       if (patches.length === 0) {
         console.error('room-chat: patch mode but no parseable OLD/NEW blocks:', raw.slice(0, 200));
         send({ action: 'error', message: "Got a response I couldn't apply — try rephrasing that." });
-        return res.end();
+        return;
       }
       let working = currentHtml;
       const notFound = [];
@@ -282,7 +302,7 @@ export default async function handler(req, res) {
           action: 'error',
           message: "Couldn't locate part of what to change — try describing it a bit more specifically (e.g. which section, or what it currently says).",
         });
-        return res.end();
+        return;
       }
       html = working;
       isRawFullDocument = false;
@@ -297,7 +317,7 @@ export default async function handler(req, res) {
     if (!html.toLowerCase().startsWith('<!doctype') && !html.toLowerCase().startsWith('<html')) {
       console.error('room-chat: response did not look like a full HTML document:', html.slice(0, 200));
       send({ action: 'error', message: "Got a response that wasn't a full page — try rephrasing that." });
-      return res.end();
+      return;
     }
 
     // Real truncation check via Anthropic's own stop_reason, plus a
@@ -312,13 +332,17 @@ export default async function handler(req, res) {
           action: 'error',
           message: "That build was too ambitious to finish in one response — it got cut off partway through. Try asking for something a bit simpler, or break it into fewer features at once (e.g. build the core page first, then ask to add the quiz/animations after).",
         });
-        return res.end();
+        return;
       }
     }
 
     html = injectLiveEditWidget(html);
 
     send({ action: 'html', html });
+    // Provider work completed, so charge the reserved operation even if
+    // history persistence later fails. The actual provider token/cost
+    // reconciliation is a later slice; this is the hard ceiling now.
+    buildSucceeded = true;
 
     try {
       const saved = await saveBuild(username, { label: message, requestMessage: message, html });
@@ -338,6 +362,20 @@ export default async function handler(req, res) {
       send({ action: 'error', message: 'Something went wrong building that.' });
     }
   } finally {
+    try {
+      if (reservation) {
+        await roomMeter.settleBuild({
+          userId: username,
+          period: reservation.period,
+          reservationId: reservation.reservationId,
+          success: buildSucceeded,
+        });
+      }
+    } catch (meterError) {
+      // A failed settlement must be visible in logs; it must never turn a
+      // completed page into a user-facing 500 after the stream is built.
+      console.error('room-chat: usage settlement failed:', meterError.message);
+    }
     clearTimeout(timer);
     clearInterval(heartbeat);
     res.end();

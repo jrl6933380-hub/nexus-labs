@@ -35,6 +35,10 @@ Run the regression suite with:
 node --test
 ```
 
+## Room usage guardrails
+
+Room builds reserve provider-neutral credits per signed-in account before generation, then settle or release the reservation when the request finishes. The default rolling period is 30 days with 250 credits, where a fresh build costs 10 and an edit costs 2. Configure `ROOM_CREDITS_LIMIT`, `ROOM_FRESH_BUILD_CREDITS`, `ROOM_EDIT_CREDITS`, `ROOM_METER_PERIOD_MS`, and `ROOM_RESERVATION_TTL_SECONDS` in Vercel to tune the ceiling. These are safety/metering units, not a billing statement; provider-token attribution remains a later Task 09 slice. The read-only `/api/room-usage` endpoint exposes the current signed-in account's limit, consumed, reserved, remaining, and reset time.
+
 ## Capability gateway boundary
 
 The MCP tool server can enforce signed, short-lived Nexus capability grants. Set
