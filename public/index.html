@@ -688,7 +688,7 @@
   const STATUS_PROGRESS = { idle: 5, planning: 22, building: 58, testing: 82, waiting_for_justin: 92, blocked: 45, complete: 100 };
   async function requireMissionSession() {
     try {
-      const response = await fetch('/api/room-auth', { headers: { Accept: 'application/json' }, cache: 'no-store' });
+      const response = await fetch('/api/room-auth', { credentials: 'include', headers: { Accept: 'application/json' }, cache: 'no-store' });
       if (!response.ok) { window.location.href = '/room-login.html?next=/'; return false; }
       return true;
     } catch { window.location.href = '/room-login.html?next=/'; return false; }
