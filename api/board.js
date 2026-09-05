@@ -4,15 +4,16 @@
 // the whole board (tasks + recent messages + live agent presence);
 // POST takes an `action` field to route to the right operation.
 //
-// Also serves /api/hyperfocus and /api/agentlog (see vercel.json
-// rewrites) — folded in here rather than as their own serverless
-// functions to stay under the Vercel Hobby plan's 12-function-per-
-// deployment cap. Routing is by req.url, not by action name, so the
-// three action namespaces never collide even though they share this
-// one function. This is a deployment-cap workaround, not a design
-// merger: the feature areas stay logically separate below, and
-// lib/hyperfocus.js / lib/agentLog.js (the actual storage/safety
-// logic) are completely untouched by this file.
+// Also serves /api/hyperfocus, /api/agentlog, and /api/vault (see
+// vercel.json rewrites) — folded in here rather than as their own
+// serverless functions to stay under the Vercel Hobby plan's
+// 12-function-per-deployment cap. Routing is by req.url, not by
+// action name, so the action namespaces never collide even though
+// they share this one function. This is a deployment-cap workaround,
+// not a design merger: the feature areas stay logically separate
+// below, and lib/hyperfocus.js / lib/agentLog.js / lib/codeVault.js
+// (the actual storage/safety logic) are completely untouched by this
+// file.
 
 import {
   readBoard,
@@ -41,6 +42,7 @@ import {
   listActiveHyperfocus,
 } from '../lib/hyperfocus.js';
 import { logExchange, checkAgentLog } from '../lib/agentLog.js';
+import { addVaultItem, getVaultItem, searchVault, listVaultItems } from '../lib/codeVault.js';
 
 async function handleBoard(req, res) {
   if (req.method === 'GET') {
@@ -117,19 +119,54 @@ async function handleAgentLog(req, res) {
   return res.status(405).json({ error: 'Method Not Allowed' });
 }
 
+async function handleVault(req, res) {
+  if (req.method === 'GET') {
+    const { query, level, slug, include_deprecated, limit } = req.query || {};
+
+    if (slug) {
+      if (!level) return res.status(400).json({ error: 'level is required when reading by slug' });
+      const item = await getVaultItem({ level, slug });
+      return res.status(200).json(item || { error: 'Not found' });
+    }
+
+    if (query) {
+      const results = await searchVault({
+        query,
+        level,
+        include_deprecated: include_deprecated === 'true',
+        limit: limit ? Number(limit) : undefined,
+      });
+      return res.status(200).json({ results });
+    }
+
+    const items = await listVaultItems({ level });
+    return res.status(200).json({ items });
+  }
+
+  if (req.method === 'POST') {
+    const { action, ...params } = req.body || {};
+    if (action !== 'add') return res.status(400).json({ error: `Unknown action: ${action || '(none)'}` });
+    const result = await addVaultItem(params);
+    return res.status(200).json(result);
+  }
+
+  return res.status(405).json({ error: 'Method Not Allowed' });
+}
+
 export default async function handler(req, res) {
   try {
     // req.url still reflects the ORIGINAL request path even when a
-    // vercel.json rewrite sent /api/hyperfocus or /api/agentlog
-    // traffic to this same function — rewrites change which function
-    // runs, not what req.url reports. That's what makes routing on
-    // it safe here.
+    // vercel.json rewrite sent /api/hyperfocus, /api/agentlog, or
+    // /api/vault traffic to this same function — rewrites change
+    // which function runs, not what req.url reports. That's what
+    // makes routing on it safe here.
     const path = (req.url || '').split('?')[0];
     if (path.startsWith('/api/hyperfocus')) return await handleHyperfocus(req, res);
     if (path.startsWith('/api/agentlog')) return await handleAgentLog(req, res);
+    if (path.startsWith('/api/vault')) return await handleVault(req, res);
     return await handleBoard(req, res);
   } catch (err) {
-    console.error('board/hyperfocus/agentlog handler crashed:', err.message);
+    console.error('board/hyperfocus/agentlog/vault handler crashed:', err.message);
     return res.status(500).json({ error: err.message });
   }
 }
