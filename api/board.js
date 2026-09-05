@@ -44,6 +44,7 @@ import {
 } from '../lib/hyperfocus.js';
 import { logExchange, checkAgentLog } from '../lib/agentLog.js';
 import { addVaultItem, getVaultItem, searchVault, listVaultItems } from '../lib/codeVault.js';
+import { ingestSentryCrash, listCrashes, getCrash, verifySentrySignature } from '../lib/crashFeed.js';
 
 async function handleBoard(req, res) {
   if (req.method === 'GET') {
@@ -123,6 +124,18 @@ async function handleAgentLog(req, res) {
   return res.status(405).json({ error: 'Method Not Allowed' });
 }
 
+
+async function handleSentryWebhook(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
+  const rawBody = Buffer.isBuffer(req.rawBody) ? req.rawBody.toString('utf8') : (typeof req.rawBody === 'string' ? req.rawBody : (typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {})));
+  const signature = req.headers?.['sentry-hook-signature'] || req.headers?.['Sentry-Hook-Signature'];
+  if (!verifySentrySignature(rawBody, signature)) return res.status(401).json({ error: 'Invalid Sentry signature' });
+  let event;
+  try { event = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || JSON.parse(rawBody)); } catch { return res.status(400).json({ error: 'Invalid JSON' }); }
+  const crash = await ingestSentryCrash(event);
+  return res.status(202).json({ accepted: true, crash: { id: crash.id, count: crash.count, repair_task_id: crash.repair_task_id } });
+}
+
 async function handleVault(req, res) {
   if (req.method === 'GET') {
     const { query, level, slug, include_deprecated, limit } = req.query || {};
@@ -168,6 +181,7 @@ export default async function handler(req, res) {
     if (path.startsWith('/api/hyperfocus')) return await handleHyperfocus(req, res);
     if (path.startsWith('/api/agentlog')) return await handleAgentLog(req, res);
     if (path.startsWith('/api/vault')) return await handleVault(req, res);
+    if (path.startsWith('/api/sentry-webhook')) return await handleSentryWebhook(req, res);
     return await handleBoard(req, res);
   } catch (err) {
     console.error('board/hyperfocus/agentlog/vault handler crashed:', err.message);
