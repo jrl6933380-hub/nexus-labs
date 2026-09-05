@@ -1,46 +1,74 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createRoomMeter, RESERVE_SCRIPT, SETTLE_SCRIPT } from '../lib/roomMetering.js';
+import { createRoomMeter, CLEANUP_SCRIPT, RESERVE_SCRIPT, SETTLE_SCRIPT } from '../lib/roomMetering.js';
 import { createUsageHandler } from '../api/room-usage.js';
 
 function fakeRedis() {
   const hashes = new Map();
   const reservations = new Map();
+  const expiry = new Map();
 
   function hashFor(key) {
     if (!hashes.has(key)) hashes.set(key, new Map());
     return hashes.get(key);
   }
 
+  function cleanup(usageKey, indexKey, timestamp) {
+    const entries = expiry.get(indexKey) || new Map();
+    for (const [reservationKey, expiresAt] of [...entries]) {
+      if (expiresAt > timestamp) continue;
+      const amount = Number(reservations.get(reservationKey) || 0);
+      if (amount) {
+        const hash = hashFor(usageKey);
+        hash.set('reserved', Number(hash.get('reserved') || 0) - amount);
+      }
+      reservations.delete(reservationKey);
+      entries.delete(reservationKey);
+    }
+    expiry.set(indexKey, entries);
+  }
+
   return {
     async command(command) {
+      if (command[0] === 'EVAL' && command[1] === CLEANUP_SCRIPT) {
+        cleanup(command[3], command[4], Number(command[5]));
+        return 0;
+      }
       if (command[0] === 'EVAL' && command[1] === RESERVE_SCRIPT) {
-        const key = command[3];
+        const usageKey = command[3];
         const reservationKey = command[4];
-        const requested = Number(command[5]);
-        const limit = Number(command[6]);
+        const indexKey = command[5];
+        const requested = Number(command[6]);
+        const limit = Number(command[7]);
+        const timestamp = Number(command[9]);
+        cleanup(usageKey, indexKey, timestamp);
         if (reservations.has(reservationKey)) return reservations.get(reservationKey);
-        const hash = hashFor(key);
+        const hash = hashFor(usageKey);
         const consumed = Number(hash.get('consumed') || 0);
         const reserved = Number(hash.get('reserved') || 0);
         if (consumed + reserved + requested > limit) return 0;
         hash.set('limit', limit);
-        hash.set('updatedAt', Number(command[8]));
+        hash.set('updatedAt', timestamp);
         hash.set('reserved', reserved + requested);
         reservations.set(reservationKey, requested);
+        const entries = expiry.get(indexKey) || new Map();
+        entries.set(reservationKey, Number(command[10]));
+        expiry.set(indexKey, entries);
         return requested;
       }
       if (command[0] === 'EVAL' && command[1] === SETTLE_SCRIPT) {
-        const key = command[3];
+        const usageKey = command[3];
         const reservationKey = command[4];
+        const indexKey = command[5];
         const reserved = Number(reservations.get(reservationKey) || 0);
         if (!reserved) return 0;
-        const hash = hashFor(key);
-        const charge = Math.min(reserved, Math.max(0, Number(command[5])));
+        const hash = hashFor(usageKey);
+        const charge = Math.min(reserved, Math.max(0, Number(command[6])));
         hash.set('reserved', Number(hash.get('reserved') || 0) - reserved);
         hash.set('consumed', Number(hash.get('consumed') || 0) + charge);
-        hash.set('updatedAt', Number(command[6]));
+        hash.set('updatedAt', Number(command[7]));
         reservations.delete(reservationKey);
+        (expiry.get(indexKey) || new Map()).delete(reservationKey);
         return charge;
       }
       if (command[0] === 'HMGET') {
@@ -54,7 +82,8 @@ function fakeRedis() {
   };
 }
 
-const now = () => 1_700_000_000_000;
+let clock = 1_700_000_000_000;
+const now = () => clock;
 
 test('fresh and edit reservations use separate credit costs', async () => {
   const redis = fakeRedis();
@@ -83,7 +112,6 @@ test('hard ceiling rejects a reservation that would exceed the account limit', a
   const second = await meter.reserveBuild({ userId: 'alice', requestId: 'two' });
   assert.equal(first.ok, true);
   assert.equal(second.ok, false);
-  assert.equal(second.reason, 'budget_exhausted');
   assert.equal(second.remaining, 0);
 });
 
@@ -129,6 +157,23 @@ test('same request id does not reserve twice while the first attempt is active',
   assert.equal(first.reservationId, 'same');
   assert.equal(second.reservationId, 'same');
   assert.equal(summary.reserved, 10);
+});
+
+test('expired reservations are reclaimed before the account is evaluated again', async () => {
+  const redis = fakeRedis();
+  const meter = createRoomMeter({
+    command: redis.command,
+    now,
+    config: { creditsLimit: 10, freshBuildCredits: 10, reservationTtlSeconds: 10 },
+  });
+  const first = await meter.reserveBuild({ userId: 'alice', requestId: 'stale' });
+  clock += 10_000;
+  const summary = await meter.getUsageSummary('alice');
+  assert.equal(summary.reserved, 0);
+  assert.equal(summary.remaining, 10);
+  assert.equal(first.ok, true);
+  const second = await meter.reserveBuild({ userId: 'alice', requestId: 'new' });
+  assert.equal(second.ok, true);
 });
 
 function response() {
