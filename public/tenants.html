@@ -148,6 +148,23 @@
   .usage-fill.low { background: #E8A94D; }
   .usage-fill.empty { background: var(--red); }
 
+  .card-actions { margin-top: 10px; }
+
+  .export-btn {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    background: none;
+    color: var(--cyan);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    cursor: pointer;
+  }
+
+  .export-btn:active { opacity: 0.7; }
+
   .empty { color: var(--text-faint); font-size: 13px; }
 </style>
 <link rel="stylesheet" href="/nexus-stark.css">
@@ -207,6 +224,10 @@
     }
   }
 
+  function exportTenant(tenantId) {
+    window.location.href = '/api/tenants?action=export&tenant_id=' + encodeURIComponent(tenantId);
+  }
+
   async function renderTenants(tenants) {
     const list = document.getElementById('tenant-list');
     if (!tenants.length) {
@@ -237,8 +258,15 @@
           ${usageSection}
           <div class="meta">connections: ${connLine}</div>
           <div class="meta">created ${new Date(t.created_at).toLocaleDateString()}</div>
+          <div class="card-actions">
+            <button class="export-btn" data-tenant-id="${t.tenant_id}">Export data</button>
+          </div>
         </div>`;
     }).join('');
+
+    list.querySelectorAll('.export-btn').forEach((btn) => {
+      btn.addEventListener('click', () => exportTenant(btn.dataset.tenantId));
+    });
   }
 
   async function loadTenants() {
