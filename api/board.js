@@ -47,11 +47,11 @@ import { logExchange, checkAgentLog } from '../lib/agentLog.js';
 import { addVaultItem, getVaultItem, searchVault, listVaultItems } from '../lib/codeVault.js';
 import { ingestSentryCrash, listCrashes, getCrash, verifySentrySignature } from '../lib/crashFeed.js';
 import { getRequestUser } from '../lib/roomAuth.js';
-import { createTenant, listTenantsForOwner, assertTenantAccess, registerConnection } from '../lib/tenantProvisioning.js';
+import { createTenant, listTenantsForOwner, assertTenantAccess, registerConnection, unregisterConnection } from '../lib/tenantProvisioning.js';
 import { tenantMeter } from '../lib/tenantMetering.js';
 import { createOAuthState, verifyOAuthState } from '../lib/oauthState.js';
 import { requireProvider } from '../lib/oauthProviders.js';
-import { storeTenantCredential } from '../lib/tenantCredentials.js';
+import { storeTenantCredential, deleteTenantCredential } from '../lib/tenantCredentials.js';
 
 // This must exactly match the Authorization Callback URL / Redirect
 // URL registered with GitHub and Vercel — deriving it from the
@@ -204,7 +204,18 @@ async function handleVault(req, res) {
 // client-supplied field, so one account can never list, read, or
 // modify another account's tenants by passing a different owner in
 // the request body.
-export function createTenantsHandler({ resolveUser = getRequestUser, create = createTenant, listForOwner = listTenantsForOwner, assertAccess = assertTenantAccess, register = registerConnection, meter = tenantMeter, oauthState = createOAuthState, providerFor = requireProvider } = {}) {
+export function createTenantsHandler({
+  resolveUser = getRequestUser,
+  create = createTenant,
+  listForOwner = listTenantsForOwner,
+  assertAccess = assertTenantAccess,
+  register = registerConnection,
+  meter = tenantMeter,
+  oauthState = createOAuthState,
+  providerFor = requireProvider,
+  deleteCredential = deleteTenantCredential,
+  unregister = unregisterConnection,
+} = {}) {
   return async function handleTenants(req, res) {
   res.setHeader('Cache-Control', 'private, no-store');
   const ownerUsername = await resolveUser(req);
@@ -308,6 +319,12 @@ export function createTenantsHandler({ resolveUser = getRequestUser, create = cr
       if (action === 'get') {
         const tenant = await assertAccess({ ownerUsername, tenantId: params.tenant_id });
         return res.status(200).json({ tenant });
+      }
+      if (action === 'disconnect_connection') {
+        const tenant = await assertAccess({ ownerUsername, tenantId: params.tenant_id });
+        await deleteCredential({ tenantId: tenant.tenant_id, provider: params.provider });
+        const result = await unregister({ ownerUsername, tenantId: tenant.tenant_id, provider: params.provider });
+        return res.status(200).json(result);
       }
       return res.status(400).json({ error: `Unknown action: ${action}` });
     } catch (err) {
