@@ -4,16 +4,16 @@
 // the whole board (tasks + recent messages + live agent presence);
 // POST takes an `action` field to route to the right operation.
 //
-// Also serves /api/hyperfocus, /api/agentlog, and /api/vault (see
-// vercel.json rewrites) — folded in here rather than as their own
-// serverless functions to stay under the Vercel Hobby plan's
-// 12-function-per-deployment cap. Routing is by req.url, not by
-// action name, so the action namespaces never collide even though
-// they share this one function. This is a deployment-cap workaround,
-// not a design merger: the feature areas stay logically separate
-// below, and lib/hyperfocus.js / lib/agentLog.js / lib/codeVault.js
-// (the actual storage/safety logic) are completely untouched by this
-// file.
+// Also serves /api/hyperfocus, /api/agentlog, /api/vault, and
+// /api/tenants (see vercel.json rewrites) — folded in here rather
+// than as their own serverless functions to stay under the Vercel
+// Hobby plan's 12-function-per-deployment cap. Routing is by req.url,
+// not by action name, so the action namespaces never collide even
+// though they share this one function. This is a deployment-cap
+// workaround, not a design merger: the feature areas stay logically
+// separate below, and lib/hyperfocus.js / lib/agentLog.js /
+// lib/codeVault.js / lib/tenantProvisioning.js (the actual
+// storage/safety logic) are completely untouched by this file.
 
 import {
   readBoard,
@@ -45,6 +45,8 @@ import {
 import { logExchange, checkAgentLog } from '../lib/agentLog.js';
 import { addVaultItem, getVaultItem, searchVault, listVaultItems } from '../lib/codeVault.js';
 import { ingestSentryCrash, listCrashes, getCrash, verifySentrySignature } from '../lib/crashFeed.js';
+import { getRequestUser } from '../lib/roomAuth.js';
+import { createTenant, listTenantsForOwner, assertTenantAccess, registerConnection } from '../lib/tenantProvisioning.js';
 
 async function handleBoard(req, res) {
   if (req.method === 'GET') {
@@ -186,21 +188,72 @@ async function handleVault(req, res) {
   return res.status(405).json({ error: 'Method Not Allowed' });
 }
 
+// /api/tenants — hosted/BYO tenant provisioning (task 09). Ownership
+// always comes from the signed-in Room session, never from a
+// client-supplied field, so one account can never list, read, or
+// modify another account's tenants by passing a different owner in
+// the request body.
+async function handleTenants(req, res) {
+  res.setHeader('Cache-Control', 'private, no-store');
+  const ownerUsername = await getRequestUser(req);
+  if (!ownerUsername) return res.status(401).json({ error: 'Sign in required' });
+
+  if (req.method === 'GET') {
+    const tenants = await listTenantsForOwner({ ownerUsername });
+    return res.status(200).json({ tenants });
+  }
+
+  if (req.method === 'POST') {
+    const { action, ...params } = req.body || {};
+    if (!action) return res.status(400).json({ error: 'Missing action' });
+
+    try {
+      if (action === 'create') {
+        const tenant = await createTenant({ ownerUsername, name: params.name, mode: params.mode });
+        return res.status(200).json({ tenant });
+      }
+      if (action === 'register_connection') {
+        const tenant = await registerConnection({
+          ownerUsername,
+          tenantId: params.tenant_id,
+          provider: params.provider,
+          metadata: params.metadata,
+        });
+        return res.status(200).json({ tenant });
+      }
+      if (action === 'get') {
+        const tenant = await assertTenantAccess({ ownerUsername, tenantId: params.tenant_id });
+        return res.status(200).json({ tenant });
+      }
+      return res.status(400).json({ error: `Unknown action: ${action}` });
+    } catch (err) {
+      // Validation/ownership errors here are expected client mistakes
+      // (duplicate name, wrong owner, bad mode, credential-shaped
+      // metadata) — 400, not 500, and safe to surface verbatim since
+      // tenantProvisioning.js never puts secrets in its own messages.
+      return res.status(400).json({ error: err.message });
+    }
+  }
+
+  return res.status(405).json({ error: 'Method Not Allowed' });
+}
+
 export default async function handler(req, res) {
   try {
     // req.url still reflects the ORIGINAL request path even when a
-    // vercel.json rewrite sent /api/hyperfocus, /api/agentlog, or
-    // /api/vault traffic to this same function — rewrites change
-    // which function runs, not what req.url reports. That's what
-    // makes routing on it safe here.
+    // vercel.json rewrite sent /api/hyperfocus, /api/agentlog,
+    // /api/vault, or /api/tenants traffic to this same function —
+    // rewrites change which function runs, not what req.url reports.
+    // That's what makes routing on it safe here.
     const path = (req.url || '').split('?')[0];
     if (path.startsWith('/api/hyperfocus')) return await handleHyperfocus(req, res);
     if (path.startsWith('/api/agentlog')) return await handleAgentLog(req, res);
     if (path.startsWith('/api/vault')) return await handleVault(req, res);
     if (path.startsWith('/api/sentry-webhook')) return await handleSentryWebhook(req, res);
+    if (path.startsWith('/api/tenants')) return await handleTenants(req, res);
     return await handleBoard(req, res);
   } catch (err) {
-    console.error('board/hyperfocus/agentlog/vault handler crashed:', err.message);
+    console.error('board/hyperfocus/agentlog/vault/tenants handler crashed:', err.message);
     return res.status(500).json({ error: err.message });
   }
 }
