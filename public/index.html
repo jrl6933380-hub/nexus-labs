@@ -686,6 +686,14 @@
     e2b: { color: '#4DE8A0', label: 'E2B' },
   };
   const STATUS_PROGRESS = { idle: 5, planning: 22, building: 58, testing: 82, waiting_for_justin: 92, blocked: 45, complete: 100 };
+  async function requireMissionSession() {
+    try {
+      const response = await fetch('/api/room-auth', { headers: { Accept: 'application/json' }, cache: 'no-store' });
+      if (!response.ok) { window.location.href = '/room-login.html?next=/'; return false; }
+      return true;
+    } catch { window.location.href = '/room-login.html?next=/'; return false; }
+  }
+
   const demoBoard = {
     tasks: [
       { title: 'Dynamic agent registry', owner: 'chatgpt', status: 'complete' },
@@ -790,6 +798,7 @@
     const needsJustin = board.telemetry?.needs_approval ?? tasks.filter((task) => task.status === 'waiting_for_justin').length;
     const crashCount = board.telemetry?.open_crash_count ?? 0;
     const activeAgents = board.telemetry?.active_agents ?? agents.filter((agent) => ['online', 'busy'].includes(agent.status)).length;
+    const workspaceStatus = board.telemetry?.workspace_status === 'configured' ? 'Workspace configured' : 'Workspace unavailable';
     document.getElementById('missionFooter').innerHTML =
       `<span class="mission-chip">${completed}/${tasks.length} tasks complete</span>
        <span class="mission-chip">${activeAgents}/${agents.length} agents active</span>
@@ -1044,11 +1053,14 @@
     if (e.key === 'Enter') sendMessage();
   });
 
-  loadMissionBoard();
-  startMissionPolling();
-  loadHistory();
-  loadQueue();
-  setInterval(loadQueue, 10000);
+  requireMissionSession().then((authenticated) => {
+    if (!authenticated) return;
+    loadMissionBoard();
+    startMissionPolling();
+    loadHistory();
+    loadQueue();
+    setInterval(loadQueue, 10000);
+  });
 </script>
 
 <script src="/nexus-shell.js"></script>
