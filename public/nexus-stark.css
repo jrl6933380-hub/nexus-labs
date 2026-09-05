@@ -48,6 +48,8 @@ body::after {
 .workspace-pill { justify-self:start; display:flex; align-items:center; gap:7px; min-width:0; padding:6px 9px; border:1px solid #263750; background:#ffffff04; border-radius:6px; font:500 9px var(--mono,'JetBrains Mono',monospace); color:#99a8bc; }
 .workspace-pill b { color:#f1f6ff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .command-actions { display:flex; align-items:center; gap:10px; }
+.theme-select { background:#07111a; border:1px solid #263750; color:#cfeeff; border-radius:6px; padding:4px 6px; font:600 8px var(--mono,'JetBrains Mono',monospace); }
+.theme-select:focus-visible { outline:2px solid var(--reactor); outline-offset:2px; }
 .system-online { font:600 8px var(--mono,'JetBrains Mono',monospace); color:#4de8a0; letter-spacing:.08em; white-space:nowrap; }
 .system-online::before { content:""; display:inline-block; width:5px; height:5px; margin-right:6px; border-radius:50%; background:#4de8a0; box-shadow:0 0 9px #4de8a0; }
 .operator-chip { width:27px; height:27px; border-radius:7px; display:grid; place-items:center; border:1px solid #ff4b4b55; background:#ff4b4b12; color:#ff8585; font:700 9px var(--mono,'JetBrains Mono',monospace); }
