@@ -4,6 +4,7 @@
     ['/', 'Mission'],
     ['/memory.html', 'Memory'],
     ['/queue.html', 'Approvals'],
+    ['/tenants.html', 'Tenants'],
     ['/connectors.html', 'Connectors'],
   ];
   const activePath = route === '/index.html' ? '/' : route;
