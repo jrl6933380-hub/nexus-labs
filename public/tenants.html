@@ -136,6 +136,18 @@
 
   .meta { font-family: var(--mono); font-size: 11.5px; color: var(--text-faint); line-height: 1.7; }
 
+  .usage-bar {
+    height: 5px;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.06);
+    margin: 6px 0 2px;
+    overflow: hidden;
+  }
+
+  .usage-fill { height: 100%; background: var(--green); }
+  .usage-fill.low { background: #E8A94D; }
+  .usage-fill.empty { background: var(--red); }
+
   .empty { color: var(--text-faint); font-size: 13px; }
 </style>
 <link rel="stylesheet" href="/nexus-stark.css">
@@ -173,28 +185,56 @@
 <script>
   const nextPath = '/tenants.html';
 
-  function renderTenants(tenants) {
+  function usageBarHtml(usage) {
+    if (!usage) return '<div class="meta">usage unavailable</div>';
+    const pct = usage.limit > 0 ? Math.min(100, Math.round((usage.consumed / usage.limit) * 100)) : 0;
+    const remainingPct = usage.limit > 0 ? usage.remaining / usage.limit : 0;
+    const fillClass = remainingPct <= 0 ? 'empty' : remainingPct <= 0.15 ? 'low' : '';
+    return `
+      <div class="meta">${usage.remaining} / ${usage.limit} credits remaining</div>
+      <div class="usage-bar"><div class="usage-fill ${fillClass}" style="width:${pct}%"></div></div>
+      <div class="meta">resets ${new Date(usage.resetAt).toLocaleDateString()}</div>`;
+  }
+
+  async function fetchUsage(tenantId) {
+    try {
+      const res = await fetch('/api/tenants?action=usage&tenant_id=' + encodeURIComponent(tenantId), { credentials: 'include' });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.usage || null;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  async function renderTenants(tenants) {
     const list = document.getElementById('tenant-list');
     if (!tenants.length) {
       list.innerHTML = '<div class="empty">No tenants yet — create one above.</div>';
       return;
     }
+
+    const usageByTenant = {};
+    await Promise.all(tenants.filter((t) => t.mode === 'hosted').map(async (t) => {
+      usageByTenant[t.tenant_id] = await fetchUsage(t.tenant_id);
+    }));
+
     list.innerHTML = tenants.map((t) => {
       const badge = t.mode === 'hosted'
         ? '<span class="badge badge-hosted">Hosted</span>'
         : '<span class="badge badge-byo">BYO</span>';
-      const quotaLine = t.quota
-        ? `${t.quota.creditsPerPeriod} credits / ${t.quota.periodDays}d`
-        : 'no managed quota (BYO)';
       const connections = Object.keys(t.connections || {});
       const connLine = connections.length ? connections.join(', ') : 'no connections yet';
+      const usageSection = t.mode === 'hosted'
+        ? usageBarHtml(usageByTenant[t.tenant_id])
+        : '<div class="meta">no managed quota (BYO)</div>';
       return `
         <div class="card">
           <div class="card-top">
             <span class="card-name">${t.name}</span>
             ${badge}
           </div>
-          <div class="meta">${quotaLine}</div>
+          ${usageSection}
           <div class="meta">connections: ${connLine}</div>
           <div class="meta">created ${new Date(t.created_at).toLocaleDateString()}</div>
         </div>`;
