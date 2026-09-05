@@ -216,6 +216,41 @@ async function handleTenants(req, res) {
       }
     }
 
+    // Export: a tenant's full record (metadata, mode, quota, connection
+    // metadata — never credentials, which never live in this record to
+    // begin with) as a plain downloadable JSON file. This is the
+    // no-lock-in guarantee from task 09's acceptance criteria: nothing
+    // about a tenant lives anywhere a downloadable export can't reach.
+    // Usage is included best-effort (hosted only) — its absence never
+    // blocks the export, since the tenant record itself is the thing
+    // that must never be trapped.
+    if (action === 'export') {
+      if (!tenant_id) return res.status(400).json({ error: 'tenant_id is required' });
+      try {
+        const tenant = await assertTenantAccess({ ownerUsername, tenantId: tenant_id });
+        let usage = null;
+        if (tenant.quota) {
+          try {
+            usage = await tenantMeter.getUsageSummary({ tenantId: tenant.tenant_id, quota: tenant.quota });
+          } catch {
+            usage = null;
+          }
+        }
+        const exportPayload = {
+          exported_at: new Date().toISOString(),
+          export_format_version: 1,
+          tenant,
+          usage,
+        };
+        const filename = `nexus-tenant-${tenant.slug}.json`;
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        return res.status(200).send(JSON.stringify(exportPayload, null, 2));
+      } catch (err) {
+        return res.status(400).json({ error: err.message });
+      }
+    }
+
     const tenants = await listTenantsForOwner({ ownerUsername });
     return res.status(200).json({ tenants });
   }
