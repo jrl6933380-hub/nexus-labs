@@ -733,9 +733,10 @@
       card.setAttribute('aria-pressed', active ? 'true' : 'false');
     });
     document.getElementById('goalOrbitControl').style.setProperty('--selected-agent-color', visual.color);
+    const evidence = task?.result || task?.blocked_reason || (agent.lease_expires_at ? `Lease expires ${new Date(agent.lease_expires_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'No active lease');
     detail.innerHTML = `<span class="mission-detail-dot" style="background:${visual.color};box-shadow:0 0 12px ${visual.color}"></span>
-      <div><strong>${safeText(agent.display_name || visual.label)}</strong><span>${safeText(status)}</span>
-      <p>${safeText(task?.title || 'Ready for the next assignment')}</p></div>
+      <div><strong>${safeText(agent.display_name || visual.label)}</strong><span>${safeText(status)} · ${safeText(agent.provider || 'nexus')}</span>
+      <p>${safeText(task?.title || 'Ready for the next assignment')}</p><p class="mission-evidence">${safeText(String(evidence).slice(0, 180))}</p></div>
       <span class="mission-detail-hint">tap orbit to cycle</span>`;
   }
 
