@@ -34,3 +34,14 @@ Run the regression suite with:
 ```sh
 node --test
 ```
+
+## Capability gateway boundary
+
+The MCP tool server can enforce signed, short-lived Nexus capability grants. Set
+`NEXUS_GRANT_SIGNING_SECRET` in the server environment and enable
+`NEXUS_CAPABILITY_GATEWAY_REQUIRED=true` to require the
+`x-nexus-capability-grant` header on every MCP tool call. Grants are scoped to
+agent, tenant, project, task, tool, action, resource, read/write level, and
+expiration. Write actions also require an approval reference. The gateway logs
+sanitized actor/tool/result metadata to the server-side audit stream; provider
+credentials remain server-side.
