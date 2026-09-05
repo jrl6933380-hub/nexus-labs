@@ -27,6 +27,9 @@ This is the shared continuity file for Claude, Codex (ChatGPT), and Nex.
 
 ## STATUS
 
+- `nexus-labs` PR #54 is merged to `main` and production deployment `dpl_8pDqQ62k5zEN1VDu4T9WwPZEx7dZ` is READY. Room builds now use per-account, provider-neutral credit reservations (250 credits/30 days by default; fresh builds 10, edits 2), with safe expiry/release and session-scoped usage.
+- **Account creation race fix is ready on `fix/room-account-creation-race`, pending PR review.** Room signup now uses Redis `HSETNX` to prevent concurrent signup requests from replacing an existing account password. Regression test proves exactly one simultaneous signup succeeds.
+
 - `Nex disengage` direct-Claude handoff is implemented on a review branch: exact command creates a constrained Board task, wakes Claude Routine, tells Claude to read Board + BRIDGE.md + agent-lessons/, and returns the session URL. `Nex engage`/`Nex re-engage` explicitly hands lead control back. Tests cover strict command matching, successful wake, and fail-closed behavior.
 - Production (`nexus-labs`, `main`) confirmed live and current: Stark/JARVIS UI, dynamic agent registry wired into `/api/board`, Nex's Agent Board tools, Nex's branch-scoped build mode, `agent-lessons/`, SMS approvals (still needs Twilio env vars + webhook config), searchable/tagged memory, a longer Nex chat window (24 messages), and `listRepos()` for Nex (PR #7, merged and live-verified).
 - **Sandbox board is FIXED and live.** `nexus-labs-sandbox.vercel.app/api/board` returns HTTP 200 with real data (verified via the Vercel API, not a claim). It had been 500ing on `Missing KV_REST_API_URL or KV_REST_API_TOKEN`. Root cause was NOT the env vars — they were correct and correctly scoped the whole time; the live production build simply predated them. Fixed by commit `aa188e1` to sandbox `main`, which forced a real production build. See rule 13.
@@ -39,6 +42,8 @@ This is the shared continuity file for Claude, Codex (ChatGPT), and Nex.
 - End-to-end external-client proof (Codex): `jrl6933380-hub/buehler-services`, connector-created repo → branch → PR → Mr. Lopez merge → READY production deployment.
 
 ## NEXT
+
+- Review and merge the Room account creation race fix, then continue task 09 with explicit tenant/project boundaries and provider-neutral cost attribution.
 
 Read this file first, then `agent-lessons/`, before writing new code. Real next piece is **epic task 03, the Claude Routine wake-to-board vertical slice** — task 02 (dispatcher) is done and unblocks it. Task 05 (E2B workspace manager) is also unblocked. **Task 08 (Mission Control → real event-driven telemetry) is worth prioritizing sooner than its number suggests** — Mr. Lopez wants to watch live agent work happen behind Nex's chat box in real time (his own words: "like a bootleg Replit"), and the panel currently shows frozen demo text. That's the whole gap, not a new feature to invent. Codex: unreviewed pricing thesis from you still sitting in the LOG below. Elicitation-based approval flow (task 06) is designed but not built.
 
@@ -63,6 +68,7 @@ Read this file first, then `agent-lessons/`, before writing new code. Real next 
 
 ## LOG
 
+- [2026-09-05] [CODEX] — Verified PR #54 was merged and its post-merge production deployment is READY. Found and fixed the concurrent Room signup overwrite race on a separate branch using atomic Redis account creation; full suite passes 114/114.
 - [2026-09-02] [CODEX] — Implemented the explicit `Nex disengage` → real Claude Routine handoff on a feature branch. Claude is constrained to read shared context and wait for fresh instructions; handoff itself grants no write/deploy/credential authority. Added `Nex engage` and command/wake failure tests. Main remains untouched pending PR review.
 - [2026-09-02] [CLAUDE] — Added rule 14 (Vercel deep-links instead of verbal nav steps) and logged the "instant local UI edit" capability as a DECISION, after walking Mr. Lopez through Vercel's mobile UI by hand and realizing a direct link would've skipped most of it. Flagged task 08 (live Mission Control telemetry) as worth prioritizing — it's the actual feature Mr. Lopez is asking for ("talk to you, background is live work"), not a new idea.
 - [2026-09-02] [CLAUDE] — Fixed the sandbox board 500. Diagnosed that the env vars were never wrong (they were correct and Production-scoped); the live build just predated them. Forced a real production deploy via `aa188e1`; `/api/board` now returns 200, verified directly. Added rule 13. Discovered and flagged that sandbox now shares production's Redis — logged as a BLOCKER needing Mr. Lopez's decision. Tightened the jump-link convention to root-domain-only after using the wrong URL myself.
