@@ -5,6 +5,11 @@
 // function since Justin's Vercel Pro upgrade lifts the Hobby plan's
 // function-count cap that previously required folding extra routes
 // into api/board.js.
+//
+// GET support (audit trail) added for task 10 — this is the "audit
+// viewer" acceptance item: every dispatch/heartbeat/complete/fail/
+// handoff event was already being written via appendAudit(), but
+// nothing could ever read it back. This is the read side.
 
 import { createDispatcher, RedisDispatchStore } from '../lib/dispatcher.js';
 import { createBoardDispatchService } from '../lib/boardDispatcher.js';
@@ -40,6 +45,9 @@ async function ensureRoutineAgentRegistered() {
   }
 }
 
+const MAX_AUDIT_LIMIT = 500;
+const DEFAULT_AUDIT_LIMIT = 100;
+
 function service() {
   const dispatcher = createDispatcher({ store: new RedisDispatchStore() });
   // Only wired when the routine env vars are actually configured, so
@@ -50,12 +58,26 @@ function service() {
     ? { 'claude-routine': (envelope) =>
         fireClaudeRoutine(envelope, { ledger: createRedisWakeLedger() }) }
     : {};
-  return { routineConfigured, dispatch: createBoardDispatchService({ dispatcher,
+  return { routineConfigured, dispatcher, dispatch: createBoardDispatchService({ dispatcher,
     board: { claimTask, updateProgress, markBlocked, completeTask }, wake }) };
+}
+
+// GET /api/dispatch?limit=N — read-only audit trail, most-recent-first.
+// No task_id lookup needed here, unlike the POST actions: the audit
+// log is a global feed across all tasks, not scoped to one.
+async function handleGet(req, res) {
+  const rawLimit = Number(req.query?.limit);
+  const limit = Number.isFinite(rawLimit) && rawLimit > 0
+    ? Math.min(Math.floor(rawLimit), MAX_AUDIT_LIMIT)
+    : DEFAULT_AUDIT_LIMIT;
+  const { dispatcher } = service();
+  const events = await dispatcher.listAudit(limit);
+  return res.status(200).json({ events, limit });
 }
 
 export default async function handler(req, res) {
   try {
+    if (req.method === 'GET') return await handleGet(req, res);
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
     const { action, task_id, envelope_overrides, agent_id, lease_token, result, error, to_agent } = req.body || {};
     if (!action) return res.status(400).json({ error: 'action is required' });
