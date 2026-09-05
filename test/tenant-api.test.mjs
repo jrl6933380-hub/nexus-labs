@@ -24,3 +24,29 @@ test('tenant export denies cross-owner access and omits credentials', async () =
   assert.equal(ar.code,200); assert.match(ar.headers['Content-Disposition'],/^attachment;/); const body=JSON.stringify(JSON.parse(ar.body));
   assert.equal(body.includes('accessToken'),false); assert.equal(body.includes('refreshToken'),false); assert.equal(body.includes('credential'),false);
 });
+
+
+test('tenant disconnect uses the signed-in owner and revokes before removing metadata', async () => {
+  const calls = [];
+  const handler = createTenantsHandler({
+    resolveUser: async () => 'alice',
+    assertAccess: async ({ ownerUsername, tenantId }) => {
+      calls.push(['access', ownerUsername, tenantId]);
+      return tenant;
+    },
+    deleteCredential: async ({ tenantId, provider }) => calls.push(['delete', tenantId, provider]),
+    unregister: async ({ ownerUsername, tenantId, provider }) => {
+      calls.push(['unregister', ownerUsername, tenantId, provider]);
+      return { tenant: { ...tenant, connections: {} }, disconnected: true };
+    },
+  });
+  const res = response();
+  await handler({ method: 'POST', body: { action: 'disconnect_connection', tenant_id: 'tenant-a', provider: 'github', owner: 'bob' } }, res);
+  assert.equal(res.code, 200);
+  assert.deepEqual(calls, [
+    ['access', 'alice', 'tenant-a'],
+    ['delete', 'tenant-a', 'github'],
+    ['unregister', 'alice', 'tenant-a', 'github'],
+  ]);
+  assert.equal(res.body.disconnected, true);
+});

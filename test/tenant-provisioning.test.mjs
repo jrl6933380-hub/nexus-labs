@@ -7,6 +7,7 @@ import {
   assertTenantAccess,
   registerConnection,
   createMemoryStore,
+  unregisterConnection,
 } from '../lib/tenantProvisioning.js';
 
 test('creates a hosted tenant with a default quota', async () => {
@@ -114,4 +115,20 @@ test('getTenantBySlug returns null for a tenant that does not exist', async () =
   const store = createMemoryStore();
   const result = await getTenantBySlug({ ownerUsername: 'justin', name: 'Nope', store });
   assert.equal(result, null);
+});
+
+
+test('unregisterConnection removes only the signed-in owner\'s selected provider', async () => {
+  const store = createMemoryStore();
+  const record = await createTenant({ ownerUsername: 'justin', name: 'Disconnectable', mode: 'byo', store });
+  await registerConnection({ tenantId: record.tenant_id, ownerUsername: 'justin', provider: 'github', metadata: { accountLogin: 'org' }, store });
+  await registerConnection({ tenantId: record.tenant_id, ownerUsername: 'justin', provider: 'vercel', metadata: { accountLogin: 'team' }, store });
+
+  await assert.rejects(() => unregisterConnection({ tenantId: record.tenant_id, ownerUsername: 'alex', provider: 'github', store }));
+  const removed = await unregisterConnection({ tenantId: record.tenant_id, ownerUsername: 'justin', provider: 'github', store });
+  assert.equal(removed.disconnected, true);
+  assert.equal(removed.tenant.connections.github, undefined);
+  assert.equal(removed.tenant.connections.vercel.accountLogin, 'team');
+  const again = await unregisterConnection({ tenantId: record.tenant_id, ownerUsername: 'justin', provider: 'github', store });
+  assert.equal(again.disconnected, false);
 });
