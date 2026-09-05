@@ -124,3 +124,48 @@ test('missing optional workers fall back to Nex or remain pending with a clear r
   assert.equal(pending.status, 'pending_agent');
   assert.match(pending.reason, /payments/);
 });
+
+// --- listAudit: the read-side counterpart to appendAudit. Before this,
+// every dispatched/completed/failed/etc event was written but could
+// never be read back — a write-only audit trail fails the epic's own
+// "every run exposes evidence, cost, and an audit trail" criterion. ---
+
+test('listAudit returns dispatch lifecycle events, most-recent-first', async () => {
+  const store = new MemoryDispatchStore();
+  const dispatcher = createDispatcher({ store, listAgentsFn: async () => [claude] });
+  const claimed = await dispatcher.dispatch(envelope());
+  await dispatcher.complete(envelope(), { agentId: 'claude', leaseToken: claimed.record.lease_token }, { ok: true });
+
+  const events = await dispatcher.listAudit();
+  assert.equal(events.length, 2);
+  // Most recent first: 'completed' was recorded after 'dispatched'.
+  assert.equal(events[0].type, 'completed');
+  assert.equal(events[1].type, 'dispatched');
+  assert.equal(events[0].task_id, 'task-1');
+});
+
+test('listAudit respects a limit smaller than the full history', async () => {
+  const store = new MemoryDispatchStore();
+  const dispatcher = createDispatcher({ store, listAgentsFn: async () => [claude] });
+  for (let i = 0; i < 5; i += 1) {
+    await store.appendAudit({ type: 'progress', task_id: 'task-1', tenant_id: 'default', trace_id: 't', at: i });
+  }
+  const events = await dispatcher.listAudit(2);
+  assert.equal(events.length, 2);
+  // Most-recent-first: the last two appended (at: 3, at: 4), reversed.
+  assert.deepEqual(events.map((e) => e.at), [4, 3]);
+});
+
+test('listAudit returns an empty array when nothing has happened yet', async () => {
+  const dispatcher = createDispatcher({ store: new MemoryDispatchStore(), listAgentsFn: async () => [claude] });
+  assert.deepEqual(await dispatcher.listAudit(), []);
+});
+
+test('a failed dispatch (dead-lettered) still shows up in the audit trail', async () => {
+  const store = new MemoryDispatchStore();
+  const dispatcher = createDispatcher({ store, listAgentsFn: async () => [claude], maxAttempts: 0 });
+  await dispatcher.dispatch(envelope());
+  const events = await store.listAudit();
+  assert.equal(events[0].type, 'failed');
+  assert.equal(events[0].data.reason, 'attempt_limit_exceeded');
+});
