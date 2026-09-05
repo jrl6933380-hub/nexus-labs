@@ -58,6 +58,17 @@
     max-width: 480px;
   }
 
+  .banner {
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 13px;
+    margin-bottom: 20px;
+    font-family: var(--mono);
+  }
+
+  .banner-success { background: #4DE8A01c; color: var(--green); border: 1px solid #4DE8A044; }
+  .banner-error { background: #E85D5D1c; color: var(--red); border: 1px solid #E85D5D44; }
+
   .panel {
     background: var(--panel);
     border: 1px solid var(--border);
@@ -133,6 +144,7 @@
 
   .badge-hosted { background: #4DE8A01c; color: var(--green); }
   .badge-byo { background: #2E7FFF1c; color: var(--blue); }
+  .badge-connected { background: #4DE8A01c; color: var(--green); }
 
   .meta { font-family: var(--mono); font-size: 11.5px; color: var(--text-faint); line-height: 1.7; }
 
@@ -148,9 +160,9 @@
   .usage-fill.low { background: #E8A94D; }
   .usage-fill.empty { background: var(--red); }
 
-  .card-actions { margin-top: 10px; }
+  .card-actions { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
 
-  .export-btn {
+  .export-btn, .connect-btn {
     font-family: var(--mono);
     font-size: 11px;
     font-weight: 600;
@@ -163,7 +175,9 @@
     cursor: pointer;
   }
 
-  .export-btn:active { opacity: 0.7; }
+  .connect-btn.done { color: var(--green); border-color: #4DE8A044; cursor: default; }
+
+  .export-btn:active, .connect-btn:active { opacity: 0.7; }
 
   .empty { color: var(--text-faint); font-size: 13px; }
 </style>
@@ -179,6 +193,8 @@
     BYO (bring your own connected accounts). Each tenant only shows
     up here for the account that created it.
   </p>
+
+  <div id="oauth-banner"></div>
 
   <div class="panel">
     <h2>New tenant</h2>
@@ -201,6 +217,33 @@
 
 <script>
   const nextPath = '/tenants.html';
+
+  const OAUTH_ERROR_MESSAGES = {
+    github_denied: 'GitHub connection was cancelled.',
+    vercel_denied: 'Vercel connection was cancelled.',
+    oauth_missing_params: 'The connection response was incomplete. Try again.',
+    oauth_invalid_state: 'That connection link expired or was invalid. Try again.',
+    oauth_provider_mismatch: 'Something didn\\'t match up on that connection. Try again.',
+    oauth_exchange_failed: 'Could not complete the connection. Try again.',
+  };
+
+  function showOAuthBanner() {
+    const params = new URLSearchParams(window.location.search);
+    const connected = params.get('connected');
+    const error = params.get('error');
+    const banner = document.getElementById('oauth-banner');
+    if (connected) {
+      banner.innerHTML = `<div class="banner banner-success">Connected ${connected} successfully.</div>`;
+    } else if (error) {
+      banner.innerHTML = `<div class="banner banner-error">${OAUTH_ERROR_MESSAGES[error] || 'Something went wrong connecting that provider.'}</div>`;
+    }
+    if (connected || error) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('connected');
+      url.searchParams.delete('error');
+      window.history.replaceState({}, '', url.pathname);
+    }
+  }
 
   function usageBarHtml(usage) {
     if (!usage) return '<div class="meta">usage unavailable</div>';
@@ -228,6 +271,20 @@
     window.location.href = '/api/tenants?action=export&tenant_id=' + encodeURIComponent(tenantId);
   }
 
+  async function connectProvider(tenantId, provider) {
+    try {
+      const res = await fetch(`/api/tenants?action=oauth_start&tenant_id=${encodeURIComponent(tenantId)}&provider=${encodeURIComponent(provider)}`, { credentials: 'include' });
+      const data = await res.json();
+      if (!res.ok || !data.url) {
+        alert(data.error || 'Could not start that connection.');
+        return;
+      }
+      window.location.href = data.url;
+    } catch (err) {
+      alert('Could not reach the server.');
+    }
+  }
+
   async function renderTenants(tenants) {
     const list = document.getElementById('tenant-list');
     if (!tenants.length) {
@@ -244,11 +301,24 @@
       const badge = t.mode === 'hosted'
         ? '<span class="badge badge-hosted">Hosted</span>'
         : '<span class="badge badge-byo">BYO</span>';
-      const connections = Object.keys(t.connections || {});
-      const connLine = connections.length ? connections.join(', ') : 'no connections yet';
+      const connections = t.connections || {};
+      const connectedProviders = Object.keys(connections);
+      const connLine = connectedProviders.length ? connectedProviders.join(', ') : 'no connections yet';
       const usageSection = t.mode === 'hosted'
         ? usageBarHtml(usageByTenant[t.tenant_id])
         : '<div class="meta">no managed quota (BYO)</div>';
+
+      let connectButtons = '';
+      if (t.mode === 'byo') {
+        connectButtons = ['github', 'vercel'].map((provider) => {
+          const done = connectedProviders.includes(provider);
+          const label = provider === 'github' ? 'GitHub' : 'Vercel';
+          return done
+            ? `<button class="connect-btn done" disabled>${label} connected</button>`
+            : `<button class="connect-btn" data-connect-tenant="${t.tenant_id}" data-connect-provider="${provider}">Connect ${label}</button>`;
+        }).join('');
+      }
+
       return `
         <div class="card">
           <div class="card-top">
@@ -259,6 +329,7 @@
           <div class="meta">connections: ${connLine}</div>
           <div class="meta">created ${new Date(t.created_at).toLocaleDateString()}</div>
           <div class="card-actions">
+            ${connectButtons}
             <button class="export-btn" data-tenant-id="${t.tenant_id}">Export data</button>
           </div>
         </div>`;
@@ -266,6 +337,9 @@
 
     list.querySelectorAll('.export-btn').forEach((btn) => {
       btn.addEventListener('click', () => exportTenant(btn.dataset.tenantId));
+    });
+    list.querySelectorAll('[data-connect-provider]').forEach((btn) => {
+      btn.addEventListener('click', () => connectProvider(btn.dataset.connectTenant, btn.dataset.connectProvider));
     });
   }
 
@@ -320,6 +394,7 @@
     }
   });
 
+  showOAuthBanner();
   loadTenants();
 </script>
 
