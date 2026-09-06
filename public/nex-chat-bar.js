@@ -159,6 +159,16 @@ export function createNexChatBar() {
       50% { box-shadow: 0 0 0 5px rgba(77, 232, 160, 0.04), 0 0 22px rgba(77, 232, 160, 0.85); }
     }
 
+    @media (prefers-reduced-motion: reduce) {
+      .nex-orb {
+        animation: none;
+      }
+
+      .nex-message {
+        animation: none;
+      }
+    }
+
     .nex-status,
     .nex-drag-label {
       color: var(--nex-text-faint);
@@ -575,7 +585,10 @@ export function createNexChatBar() {
     try { localStorage.setItem(positionKey, JSON.stringify(next)); } catch {}
   });
 
-  restoreDockPosition();
+  // Deferred to the next frame — createNexChatBar() returns the container
+  // before the caller appends it, so offsetWidth/offsetHeight (used for
+  // clamping) would read 0 if restored synchronously here.
+  requestAnimationFrame(() => restoreDockPosition());
 
   // Keep the room visible on phones. The bar expands only after the user taps it.
   if (window.matchMedia('(max-width: 640px)').matches) {
