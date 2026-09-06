@@ -1,15 +1,15 @@
 (() => {
   const route = location.pathname;
   const items = [
-    ['/space.html#command', 'Mission', 'command'],
-    ['/space.html#memory', 'Memory', 'memory'],
-    ['/space.html#queue', 'Approvals', 'queue'],
-    ['/space.html#tenants', 'Tenants', 'tenants'],
-    ['/space.html#connectors', 'Connectors', 'connectors'],
-    ['/space.html#conference', 'Rooms', 'conference'],
+    ['/nexus-space.html#command', 'Mission', 'command'],
+    ['/nexus-space.html#memory', 'Memory', 'memory'],
+    ['/nexus-space.html#queue', 'Approvals', 'queue'],
+    ['/nexus-space.html#tenants', 'Tenants', 'tenants'],
+    ['/nexus-space.html#connectors', 'Connectors', 'connectors'],
+    ['/nexus-space.html#conference', 'Rooms', 'conference'],
   ];
   const activePath = route === '/index.html' ? '/' : route;
-  const activeScene = route === '/space.html' ? location.hash.replace(/^#/u, '') || 'command' : null;
+  const activeScene = route === '/nexus-space.html' ? location.hash.replace(/^#/u, '') || 'command' : null;
   const bar = document.createElement('header');
   bar.className = 'nexus-command-bar';
   bar.innerHTML = `
