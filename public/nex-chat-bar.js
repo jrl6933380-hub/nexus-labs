@@ -157,7 +157,6 @@ export function createNexChatBar() {
       line-height: 1.4;
       padding: 8px 10px;
       border-radius: 6px;
-      animation: nex-message-in 0.3s ease-out;
     }
 
     @keyframes nex-message-in {
@@ -174,7 +173,7 @@ export function createNexChatBar() {
     .nex-message.nex-system {
       background: rgba(46, 127, 255, 0.08);
       border-left: 2px solid var(--nex-accent);
-      color: var(--nex-text-dim);
+      color: #E4E9F2;
     }
 
     .nex-message.nex-user {
@@ -196,7 +195,7 @@ export function createNexChatBar() {
     .nex-timestamp {
       font-family: var(--nex-mono);
       font-size: 10px;
-      color: var(--nex-text-faint);
+      color: #E4E9F2;
       display: block;
       margin-bottom: 2px;
     }
