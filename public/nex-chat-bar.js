@@ -21,7 +21,7 @@ export function createNexChatBar() {
         </button>
       </div>
       
-      <div class="nex-chat-messages" id="nexMessages">
+      <div class="nex-chat-messages" id="nexMessages" tabindex="0">
         <div class="nex-message nex-system">
           <span class="nex-timestamp">now</span>
           <span class="nex-text">Ready for input. Type below to send a task or question.</span>
@@ -51,7 +51,7 @@ export function createNexChatBar() {
       --nex-border: #1F2B42;
       --nex-text: #E4E9F2;
       --nex-text-dim: #8891A3;
-      --nex-text-faint: #5B6577;
+      --nex-text-faint: #AEB9C9;
       --nex-accent: #2E7FFF;
       --nex-mono: 'JetBrains Mono', monospace;
       --nex-sans: 'Inter', -apple-system, sans-serif;
