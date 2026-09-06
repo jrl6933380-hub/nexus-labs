@@ -13,5 +13,4 @@ jobs:
           node-version: 20
       - run: npm install
       - run: npx playwright install --with-deps chromium
-      - run: python3 -m http.server 4173 --directory public > /tmp/nexus-labs-http.log 2>&1 &
       - run: npx playwright test e2e/accessibility.spec.mjs

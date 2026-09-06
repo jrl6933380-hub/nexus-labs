@@ -3,12 +3,16 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "scripts": {
+    "test:a11y": "playwright test"
+  },
   "dependencies": {
     "@sentry/node": "^8.0.0",
     "e2b": "^1.0.0"
   },
   "devDependencies": {
-    "@axe-core/playwright": "^4.13.0",
-    "@playwright/test": "^1.63.0"
+    "@axe-core/playwright": "^4.10.0",
+    "@playwright/test": "^1.48.0",
+    "serve": "^14.2.0"
   }
 }
