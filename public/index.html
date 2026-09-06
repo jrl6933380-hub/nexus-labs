@@ -961,7 +961,7 @@
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, model: modelSelect.value || undefined }),
+        body: JSON.stringify({ message: text, model: modelSelect.value || undefined, workspace: { active_view: window.location.pathname } }),
       });
 
       const data = await res.json();

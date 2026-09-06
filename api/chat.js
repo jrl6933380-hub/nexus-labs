@@ -27,6 +27,15 @@ const KV_URL = process.env.KV_REST_API_URL;
 const KV_TOKEN = process.env.KV_REST_API_TOKEN;
 const RECENT_KEY = 'nex:recent-conversation';
 const RECENT_LIMIT = 24; // ~12 exchanges
+function normalizeClientContext(input) {
+  const activeView = typeof input?.active_view === 'string' ? input.active_view.trim() : '';
+  return {
+    active_view: activeView.startsWith('/') && !activeView.startsWith('//')
+      ? activeView.slice(0, 160)
+      : null,
+  };
+}
+
 
 async function loadRecent() {
   if (!KV_URL || !KV_TOKEN) {
@@ -104,7 +113,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { message, model } = req.body;
+  const { message, model, workspace } = req.body;
   if (!message) return res.status(400).json({ error: 'Missing message' });
 
   // model is an optional tier override from the model picker: 'cheap',
@@ -201,7 +210,7 @@ export default async function handler(req, res) {
       usage,
       navigation,
       degraded,
-    } = await askNex(messageForModel, runningHistory, forcedTier);
+    } = await askNex(messageForModel, runningHistory, forcedTier, normalizeClientContext(workspace));
 
     // If the message sent to the model was augmented with an internal
     // hyperfocus directive, restore Mr. Lopez's original text in the
