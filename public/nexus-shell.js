@@ -1,14 +1,15 @@
 (() => {
   const route = location.pathname;
   const items = [
-    ['/', 'Mission'],
-    ['/memory.html', 'Memory'],
-    ['/queue.html', 'Approvals'],
-    ['/tenants.html', 'Tenants'],
-    ['/connectors.html', 'Connectors'],
-    ['/conference-room.html', 'Rooms'],
+    ['/space.html#command', 'Mission', 'command'],
+    ['/space.html#memory', 'Memory', 'memory'],
+    ['/space.html#queue', 'Approvals', 'queue'],
+    ['/space.html#tenants', 'Tenants', 'tenants'],
+    ['/space.html#connectors', 'Connectors', 'connectors'],
+    ['/space.html#conference', 'Rooms', 'conference'],
   ];
   const activePath = route === '/index.html' ? '/' : route;
+  const activeScene = route === '/space.html' ? location.hash.replace(/^#/u, '') || 'command' : null;
   const bar = document.createElement('header');
   bar.className = 'nexus-command-bar';
   bar.innerHTML = `
@@ -18,7 +19,7 @@
   const dock = document.createElement('nav');
   dock.className = 'nexus-dock';
   dock.setAttribute('aria-label', 'Nexus workspace');
-  dock.innerHTML = items.map(([href,label]) => `<a href="${href}" class="${activePath === href ? 'active' : ''}">${label}</a>`).join('');
+  dock.innerHTML = items.map(([href,label,scene]) => `<a href="${href}" class="${activeScene ? (activeScene === scene ? 'active' : '') : ''}">${label}</a>`).join('');
   document.body.prepend(bar);
   document.body.appendChild(dock);
 
@@ -46,7 +47,7 @@
     .then((response) => response.ok ? response.json() : null)
     .then((user) => { if (user?.username) document.getElementById('nexus-operator').textContent = user.username.slice(0, 2).toUpperCase(); })
     .catch(() => {});
-  document.body.dataset.nexusScreen = items.find(([href]) => href === activePath)?.[1]?.toLowerCase() || 'workspace';
+  document.body.dataset.nexusScreen = activeScene || 'workspace';
 
   // Mission Control already has the full-size Nex conversation column. Every
   // other shell-backed workspace gets the same compact chat bar, which shares

@@ -414,6 +414,13 @@ export function createNexChatBar() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'Nex could not process that message.');
       addMessage(data.reply || 'Nex completed the request without a text reply.', 'nex-response');
+      if (data.navigation?.type === 'room' && typeof data.navigation.url === 'string') {
+        const event = new CustomEvent('nexus:navigate', { detail: data.navigation });
+        window.dispatchEvent(event);
+        if (!window.NexusSpace && data.navigation.url.startsWith('/') && !data.navigation.url.startsWith('//')) {
+          window.location.assign(data.navigation.url);
+        }
+      }
     } catch (err) {
       addMessage(err.message || 'Message failed to send. Try again.', 'nex-system');
     } finally {
