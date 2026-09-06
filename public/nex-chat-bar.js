@@ -275,12 +275,15 @@ export function createNexChatBar() {
 
     @media (max-width: 640px) {
       .nex-chat-bar-container {
-        width: 100%;
-        height: 100%;
-        max-height: 100vh;
-        bottom: 0;
-        right: 0;
-        border-radius: 0;
+        width: calc(100% - 20px);
+        max-height: min(500px, 70vh);
+        bottom: 10px;
+        right: 10px;
+        border-radius: 12px;
+      }
+
+      .nex-chat-bar-container.collapsed {
+        width: min(220px, calc(100% - 20px));
       }
     }
   `;
@@ -374,6 +377,11 @@ export function createNexChatBar() {
   toggleBtn.addEventListener('click', () => {
     container.classList.toggle('collapsed');
   });
+
+  // Keep the room visible on phones. The bar expands only after the user taps it.
+  if (window.matchMedia('(max-width: 640px)').matches) {
+    container.classList.add('collapsed');
+  }
 
   loadHistory();
   return container;
