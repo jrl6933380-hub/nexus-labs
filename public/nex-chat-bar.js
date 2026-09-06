@@ -276,7 +276,8 @@ export function createNexChatBar() {
     @media (max-width: 640px) {
       .nex-chat-bar-container {
         width: calc(100% - 20px);
-        max-height: min(500px, 70vh);
+        height: min(500px, 70vh);
+        max-height: 70vh;
         bottom: 10px;
         right: 10px;
         border-radius: 12px;
@@ -284,6 +285,14 @@ export function createNexChatBar() {
 
       .nex-chat-bar-container.collapsed {
         width: min(220px, calc(100% - 20px));
+        height: auto;
+      }
+
+      .nex-chat-messages {
+        min-height: 0;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+        touch-action: pan-y;
       }
     }
   `;
