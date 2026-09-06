@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nexus // Conference Room</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0A0E14;
+    --panel: #12192A;
+    --border: #1F2B42;
+    --text: #E4E9F2;
+    --text-dim: #8891A3;
+    --text-faint: #5B6577;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Inter', -apple-system, sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    padding: 24px 16px 60px;
+    background-image: radial-gradient(ellipse 80% 50% at 50% 0%, #2E7FFF14 0%, transparent 60%);
+  }
+
+  .header {
+    max-width: 900px;
+    margin: 0 auto 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .title { font-family: var(--mono); font-size: 18px; font-weight: 700; }
+
+  .live-badge {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--green, #4DE8A0);
+    border: 1px solid #4DE8A044;
+    background: #4DE8A00d;
+    padding: 5px 9px;
+    border-radius: 999px;
+  }
+
+  .live-badge.disconnected { color: #E85D5D; border-color: #E85D5D44; background: #E85D5D0d; }
+
+  .back-link {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-dim);
+    text-decoration: none;
+    border: 1px solid var(--border);
+    padding: 6px 12px;
+    border-radius: 6px;
+  }
+
+  .header-links { display: flex; gap: 10px; align-items: center; }
+
+  /* ===== The table ===== */
+  .room {
+    max-width: 900px;
+    margin: 0 auto;
+    position: relative;
+    aspect-ratio: 16 / 10;
+    min-height: 420px;
+  }
+
+  .table {
+    position: absolute;
+    inset: 22% 18%;
+    border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, #17203a, #0d1220 75%);
+    border: 1px solid var(--border);
+    box-shadow: inset 0 0 60px #0009, 0 20px 50px #0007;
+  }
+
+  .table-label {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 20px;
+    pointer-events: none;
+  }
+
+  .table-goal {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    max-width: 220px;
+    line-height: 1.4;
+  }
+
+  .table-sub {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-top: 8px;
+  }
+
+  /* Seats are positioned individually (not evenly auto-spaced) so a
+     seat's position stays stable as agents come and go, instead of
+     the whole table rearranging every time the agent list changes
+     length. New agent ids beyond this list fall back to stacking
+     near the bottom — rare in practice, but never invisible. */
+  .seat {
+    position: absolute;
+    width: 150px;
+    transform: translate(-50%, -50%);
+    text-align: center;
+  }
+
+  .seat[data-slot="0"] { top: 4%;  left: 50%; }
+  .seat[data-slot="1"] { top: 30%; left: 96%; }
+  .seat[data-slot="2"] { top: 74%; left: 82%; }
+  .seat[data-slot="3"] { top: 74%; left: 18%; }
+  .seat[data-slot="4"] { top: 30%; left: 4%;  }
+  .seat[data-slot="overflow"] { top: 100%; left: 50%; position: relative; margin: 60px auto 0; }
+
+  .avatar {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    margin: 0 auto 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 16px;
+    color: #06090F;
+    border: 2px solid var(--bg);
+    box-shadow: 0 0 0 2px var(--seat-color, var(--border));
+    position: relative;
+  }
+
+  .avatar.active {
+    animation: seat-pulse 1.8s ease-in-out infinite;
+  }
+
+  @keyframes seat-pulse {
+    0%, 100% { box-shadow: 0 0 0 2px var(--seat-color), 0 0 0 2px var(--seat-color); }
+    50% { box-shadow: 0 0 0 2px var(--seat-color), 0 0 14px 4px var(--seat-color); }
+  }
+
+  .seat-name {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .seat-state {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 2px;
+  }
+
+  .speech-bubble {
+    margin-top: 6px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 9px;
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.4;
+    max-height: 3.6em;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+  }
+
+  .empty-room-hint {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-faint);
+    text-align: center;
+    margin-top: 60px;
+  }
+
+  .footer-strip {
+    max-width: 900px;
+    margin: 24px auto 0;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .chip {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 5px 9px;
+  }
+
+  @media (max-width: 640px) {
+    .room { aspect-ratio: 1 / 1.15; min-height: 480px; }
+    .seat { width: 110px; }
+    .avatar { width: 38px; height: 38px; font-size: 13px; }
+    .speech-bubble { font-size: 10px; }
+  }
+</style>
+<link rel="stylesheet" href="/nexus-stark.css">
+</head>
+<body>
+
+<div class="header">
+  <span class="title">NEX // CONFERENCE ROOM</span>
+  <div class="header-links">
+    <span class="live-badge" id="liveBadge">● LIVE</span>
+    <a class="back-link" href="/">← Board view</a>
+  </div>
+</div>
+
+<div class="room" id="room" aria-live="polite" aria-label="Live agent conference room — seats show each agent's current status and task">
+  <div class="table">
+    <div class="table-label">
+      <div class="table-goal" id="tableGoal">Standing by for a mission…</div>
+      <div class="table-sub" id="tableProgress">0% of current objective</div>
+    </div>
+  </div>
+  <div id="seats"></div>
+</div>
+
+<div class="footer-strip" id="footerStrip"></div>
+
+<script type="module">
+  import { safeText, startPolling, visualFor, currentTaskFor } from '/mission-engine.js';
+
+  const STATUS_PROGRESS = { idle: 5, planning: 22, building: 58, testing: 82, waiting_for_justin: 92, blocked: 45, complete: 100 };
+  const ACTIVE_STATES = new Set(['planning', 'building', 'testing']);
+
+  const seatsEl = document.getElementById('seats');
+  const tableGoalEl = document.getElementById('tableGoal');
+  const tableProgressEl = document.getElementById('tableProgress');
+  const liveBadgeEl = document.getElementById('liveBadge');
+  const footerEl = document.getElementById('footerStrip');
+
+  function render(board) {
+    const tasks = board.tasks || [];
+    const agents = (board.agents || []).slice(0, 5); // 5 named seat slots; a 6th+ agent falls into the overflow seat
+
+    liveBadgeEl.textContent = board.disconnected ? '○ DISCONNECTED' : '● LIVE';
+    liveBadgeEl.classList.toggle('disconnected', Boolean(board.disconnected));
+
+    const open = tasks.filter((t) => t.status !== 'complete');
+    const activeGoal = open[0]?.title || tasks[0]?.title || (board.disconnected ? 'Telemetry disconnected' : 'Standing by for a mission…');
+    const progress = tasks.length
+      ? Math.round(tasks.reduce((sum, t) => sum + (STATUS_PROGRESS[t.status] || 0), 0) / tasks.length)
+      : 0;
+    tableGoalEl.textContent = activeGoal;
+    tableProgressEl.textContent = `${progress}% of current objective`;
+
+    if (agents.length === 0) {
+      seatsEl.innerHTML = '<div class="empty-room-hint">No agents seated right now.</div>';
+    } else {
+      seatsEl.innerHTML = agents.map((agent, index) => {
+        const visual = visualFor(agent);
+        const task = currentTaskFor(agent, tasks);
+        const status = task?.status || agent.status || 'idle';
+        const isActive = ACTIVE_STATES.has(status);
+        const line = task?.title
+          ? task.title
+          : (agent.status === 'available_on_demand' ? 'Available, not assigned' : 'Idle');
+        return `
+          <div class="seat" data-slot="${index}">
+            <div class="avatar${isActive ? ' active' : ''}" style="--seat-color:${visual.color}; background:${visual.color};">
+              ${safeText((agent.display_name || visual.label || '?').slice(0, 1).toUpperCase())}
+            </div>
+            <div class="seat-name" style="color:${visual.color}">${safeText(agent.display_name || visual.label)}</div>
+            <div class="seat-state">${safeText(status)}</div>
+            <div class="speech-bubble">${safeText(line)}</div>
+          </div>`;
+      }).join('');
+    }
+
+    const completed = board.telemetry?.completed_tasks ?? tasks.filter((t) => t.status === 'complete').length;
+    const needsJustin = board.telemetry?.needs_approval ?? tasks.filter((t) => t.status === 'waiting_for_justin').length;
+    footerEl.innerHTML = `
+      <span class="chip">${completed}/${tasks.length} tasks complete</span>
+      <span class="chip">${agents.length} agent(s) seated</span>
+      ${needsJustin ? `<span class="chip" style="color:#E8A94D;border-color:#E8A94D44;">Needs you · ${needsJustin}</span>` : ''}
+    `;
+  }
+
+  startPolling(render, { intervalMs: 8000 });
+</script>
+
+<script src="/nexus-shell.js"></script>
+</body>
+</html>
