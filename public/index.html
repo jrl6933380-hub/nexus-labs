@@ -536,8 +536,9 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
-  /* ===== Mobile chips (Memory + Queue + Connectors) — shown when
-     the side panels are hidden below 900px, so all stay reachable. ===== */
+  /* ===== Mobile chips (Memory + Queue + Connectors + Conference Room)
+     — shown when the side panels are hidden below 900px, so all stay
+     reachable. ===== */
   .mobile-chips {
     display: none;
   }
@@ -571,6 +572,9 @@
     .mobile-chip.connectors-chip {
       color: var(--green);
     }
+    .mobile-chip.room-chip {
+      color: #A879FF;
+    }
   }
 </style>
 <link rel="stylesheet" href="/nexus-stark.css">
@@ -581,6 +585,7 @@
   <a href="/memory.html" class="mobile-chip">Memory →</a>
   <a href="/queue.html" class="mobile-chip queue-chip" id="queue-chip">Queue →</a>
   <a href="/connectors.html" class="mobile-chip connectors-chip">Connectors →</a>
+  <a href="/conference-room.html" class="mobile-chip room-chip">Conference Room →</a>
 </div>
 
 <div class="app">
@@ -597,6 +602,7 @@
       <a href="/memory.html" style="display:inline-block; margin-top:14px; font-family:var(--mono); font-size:11px; color:var(--cyan); text-decoration:none; border:1px solid var(--border); padding:6px 10px; border-radius:6px;">View Memory →</a>
       <a href="/queue.html" style="display:inline-block; margin-top:8px; margin-left:8px; font-family:var(--mono); font-size:11px; color:var(--amber); text-decoration:none; border:1px solid var(--border); padding:6px 10px; border-radius:6px;">View Queue →</a>
       <a href="/connectors.html" style="display:inline-block; margin-top:8px; font-family:var(--mono); font-size:11px; color:var(--green); text-decoration:none; border:1px solid var(--border); padding:6px 10px; border-radius:6px;">View Connectors →</a>
+      <a href="/conference-room.html" style="display:inline-block; margin-top:8px; margin-left:8px; font-family:var(--mono); font-size:11px; color:#A879FF; text-decoration:none; border:1px solid var(--border); padding:6px 10px; border-radius:6px;">Conference Room →</a>
     </div>
 
     <div class="panel-body">
