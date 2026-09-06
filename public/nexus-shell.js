@@ -6,6 +6,7 @@
     ['/queue.html', 'Approvals'],
     ['/tenants.html', 'Tenants'],
     ['/connectors.html', 'Connectors'],
+    ['/conference-room.html', 'Rooms'],
   ];
   const activePath = route === '/index.html' ? '/' : route;
   const bar = document.createElement('header');
