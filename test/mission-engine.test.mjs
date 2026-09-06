@@ -72,8 +72,17 @@ function fakeDoc(initialHidden = false) {
   };
 }
 
+// fetchBoard has two internal awaits (the fetch call, then res.json()),
+// so a single `await Promise.resolve()` isn't enough microtask depth
+// to let a tick's async work actually settle before the assertion
+// runs — this flush was added after actually running the tests and
+// seeing them fail on a real timing bug, not assumed correct upfront.
+async function flushMicrotasks(times = 5) {
+  for (let i = 0; i < times; i += 1) await Promise.resolve();
+}
+
 // NOTE: this Node version's mock-timers API takes a plain array of
-// timer names (['setInterval']), not { apis: [...] } — caught by
+// timer names (['setInterval']), not { apis: [...] } — also caught by
 // actually running these tests, not assumed from memory/docs.
 test('startPolling fires immediately and again on the interval', async (t) => {
   t.mock.timers.enable(['setInterval']);
@@ -84,10 +93,10 @@ test('startPolling fires immediately and again on the interval', async (t) => {
     fetchImpl: async () => ({ ok: true, json: async () => ({ tasks: [], agents: [] }) }),
     doc,
   });
-  await Promise.resolve(); // let the immediate tick's async work settle
+  await flushMicrotasks();
   assert.equal(calls.length, 1);
   t.mock.timers.tick(1000);
-  await Promise.resolve();
+  await flushMicrotasks();
   assert.equal(calls.length, 2);
   stop();
   t.mock.timers.reset();
@@ -102,7 +111,7 @@ test('startPolling skips a tick while the document is hidden', async (t) => {
     fetchImpl: async () => ({ ok: true, json: async () => ({ tasks: [], agents: [] }) }),
     doc,
   });
-  await Promise.resolve();
+  await flushMicrotasks();
   assert.equal(calls.length, 0, 'the initial tick should be skipped while hidden');
   stop();
   t.mock.timers.reset();
@@ -117,12 +126,12 @@ test('startPolling stop() prevents further ticks and removes its listener', asyn
     fetchImpl: async () => ({ ok: true, json: async () => ({ tasks: [], agents: [] }) }),
     doc,
   });
-  await Promise.resolve();
+  await flushMicrotasks();
   assert.equal(calls.length, 1);
   stop();
   assert.equal(doc.listenerCount, 0, 'stop() must remove the visibilitychange listener');
   t.mock.timers.tick(5000);
-  await Promise.resolve();
+  await flushMicrotasks();
   assert.equal(calls.length, 1, 'no further ticks should fire after stop()');
   t.mock.timers.reset();
 });
