@@ -121,10 +121,15 @@ test('spend_cap_cents of 0 (the default) means no cap — matches the network_al
 test('closeWorkspace records real elapsed-time cost on the workspace, feeding the audit trail', async () => {
   const store = createMemoryWorkspaceStore();
   const sandbox = { id: 'sb-6', async kill() {} };
-  let clock = 1_000_000;
   const { workspace } = await createWorkspace({ ...scope() }, { store, sandboxFactory: async () => sandbox });
   assert.equal(workspace.actual_cost_cents, 0, 'no cost recorded yet at creation time');
-  clock += 60 * 60 * 1000; // pretend one hour of real wall-clock elapsed
-  const closed = await closeWorkspace(workspace.id, scope(), { sandbox, now: () => clock }, { store });
+  // Relative to the workspace's own real created_at, not an arbitrary
+  // absolute timestamp — created_at comes from the real clock inside
+  // createWorkspace, so the "later" time for this test must be
+  // computed relative to it, or the elapsed duration would come out
+  // negative (and get silently clamped to 0 cost) instead of the
+  // intended one hour.
+  const oneHourLater = workspace.created_at + 60 * 60 * 1000;
+  const closed = await closeWorkspace(workspace.id, scope(), { sandbox, now: () => oneHourLater }, { store });
   assert.equal(closed.actual_cost_cents, 11); // same rate as the one-hour estimate test above
 });
