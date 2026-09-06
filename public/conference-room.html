@@ -6,308 +6,90 @@
 <title>Nexus // Conference Room</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --bg: #0A0E14;
-    --panel: #12192A;
-    --border: #1F2B42;
-    --text: #E4E9F2;
-    --text-dim: #8891A3;
-    --text-faint: #5B6577;
-    --mono: 'JetBrains Mono', monospace;
-    --sans: 'Inter', -apple-system, sans-serif;
-  }
-
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--sans);
-    min-height: 100vh;
-    padding: 24px 16px 60px;
-    background-image: radial-gradient(ellipse 80% 50% at 50% 0%, #2E7FFF14 0%, transparent 60%);
-  }
-
-  .header {
-    max-width: 900px;
-    margin: 0 auto 20px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .title { font-family: var(--mono); font-size: 18px; font-weight: 700; }
-
-  .live-badge {
-    font-family: var(--mono);
-    font-size: 10px;
-    font-weight: 600;
-    color: var(--green, #4DE8A0);
-    border: 1px solid #4DE8A044;
-    background: #4DE8A00d;
-    padding: 5px 9px;
-    border-radius: 999px;
-  }
-
-  .live-badge.disconnected { color: #E85D5D; border-color: #E85D5D44; background: #E85D5D0d; }
-
-  .back-link {
-    font-family: var(--mono);
-    font-size: 12px;
-    color: var(--text-dim);
-    text-decoration: none;
-    border: 1px solid var(--border);
-    padding: 6px 12px;
-    border-radius: 6px;
-  }
-
-  .header-links { display: flex; gap: 10px; align-items: center; }
-
-  /* ===== The table ===== */
-  .room {
-    max-width: 900px;
-    margin: 0 auto;
-    position: relative;
-    aspect-ratio: 16 / 10;
-    min-height: 420px;
-  }
-
-  .table {
-    position: absolute;
-    inset: 22% 18%;
-    border-radius: 50%;
-    background: radial-gradient(circle at 40% 35%, #17203a, #0d1220 75%);
-    border: 1px solid var(--border);
-    box-shadow: inset 0 0 60px #0009, 0 20px 50px #0007;
-  }
-
-  .table-label {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    padding: 20px;
-    pointer-events: none;
-  }
-
-  .table-goal {
-    font-family: var(--mono);
-    font-size: 13px;
-    font-weight: 600;
-    max-width: 220px;
-    line-height: 1.4;
-  }
-
-  .table-sub {
-    font-family: var(--mono);
-    font-size: 9px;
-    color: var(--text-faint);
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    margin-top: 8px;
-  }
-
-  /* Seats are positioned individually (not evenly auto-spaced) so a
-     seat's position stays stable as agents come and go, instead of
-     the whole table rearranging every time the agent list changes
-     length. New agent ids beyond this list fall back to stacking
-     near the bottom — rare in practice, but never invisible. */
-  .seat {
-    position: absolute;
-    width: 150px;
-    transform: translate(-50%, -50%);
-    text-align: center;
-  }
-
-  .seat[data-slot="0"] { top: 4%;  left: 50%; }
-  .seat[data-slot="1"] { top: 30%; left: 96%; }
-  .seat[data-slot="2"] { top: 74%; left: 82%; }
-  .seat[data-slot="3"] { top: 74%; left: 18%; }
-  .seat[data-slot="4"] { top: 30%; left: 4%;  }
-  .seat[data-slot="overflow"] { top: 100%; left: 50%; position: relative; margin: 60px auto 0; }
-
-  .avatar {
-    width: 46px;
-    height: 46px;
-    border-radius: 50%;
-    margin: 0 auto 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-family: var(--mono);
-    font-weight: 700;
-    font-size: 16px;
-    color: #06090F;
-    border: 2px solid var(--bg);
-    box-shadow: 0 0 0 2px var(--seat-color, var(--border));
-    position: relative;
-  }
-
-  .avatar.active {
-    animation: seat-pulse 1.8s ease-in-out infinite;
-  }
-
-  @keyframes seat-pulse {
-    0%, 100% { box-shadow: 0 0 0 2px var(--seat-color), 0 0 0 2px var(--seat-color); }
-    50% { box-shadow: 0 0 0 2px var(--seat-color), 0 0 14px 4px var(--seat-color); }
-  }
-
-  .seat-name {
-    font-family: var(--mono);
-    font-size: 12px;
-    font-weight: 600;
-  }
-
-  .seat-state {
-    font-family: var(--mono);
-    font-size: 9px;
-    color: var(--text-faint);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-top: 2px;
-  }
-
-  .speech-bubble {
-    margin-top: 6px;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 6px 9px;
-    font-size: 11px;
-    color: var(--text-dim);
-    line-height: 1.4;
-    max-height: 3.6em;
-    overflow: hidden;
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    -webkit-box-orient: vertical;
-  }
-
-  .empty-room-hint {
-    font-family: var(--mono);
-    font-size: 12px;
-    color: var(--text-faint);
-    text-align: center;
-    margin-top: 60px;
-  }
-
-  .footer-strip {
-    max-width: 900px;
-    margin: 24px auto 0;
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-
-  .chip {
-    font-family: var(--mono);
-    font-size: 10px;
-    color: var(--text-dim);
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    padding: 5px 9px;
-  }
-
-  @media (max-width: 640px) {
-    .room { aspect-ratio: 1 / 1.15; min-height: 480px; }
-    .seat { width: 110px; }
-    .avatar { width: 38px; height: 38px; font-size: 13px; }
-    .speech-bubble { font-size: 10px; }
-  }
-</style>
 <link rel="stylesheet" href="/nexus-stark.css">
+<style>
+  :root { --bg:#070a11; --panel:#111827; --line:#26334d; --text:#e8eefb; --dim:#91a0b9; --faint:#5e6b81; --blue:#4b8dff; --green:#58edb0; --mono:'JetBrains Mono',monospace; --sans:Inter,-apple-system,sans-serif; }
+  * { box-sizing:border-box; }
+  body { margin:0; min-height:100vh; overflow-x:hidden; background:#05070c; color:var(--text); font-family:var(--sans); }
+  .room-shell { min-height:100vh; padding:24px 18px 72px; position:relative; isolation:isolate; overflow:hidden; background:
+    radial-gradient(ellipse 62% 34% at 50% 18%, #2468c42c, transparent 70%),
+    radial-gradient(ellipse 42% 30% at 83% 82%, #7a4eff12, transparent 72%),
+    linear-gradient(180deg,#121b2c 0%,#090e18 43%,#05070c 100%); }
+  .room-shell::before { content:""; position:absolute; z-index:-1; inset:0; opacity:.45; background-image:linear-gradient(#5a79a50e 1px,transparent 1px),linear-gradient(90deg,#5a79a50e 1px,transparent 1px); background-size:42px 42px; mask-image:linear-gradient(to bottom,black,transparent 92%); }
+  .room-shell::after { content:""; position:absolute; z-index:-1; inset:0; pointer-events:none; background:radial-gradient(ellipse at center,transparent 35%,#02040acc 100%); }
+  .topbar { max-width:1120px; margin:0 auto 18px; display:flex; justify-content:space-between; align-items:center; gap:16px; font-family:var(--mono); }
+  .eyebrow { color:var(--blue); letter-spacing:.19em; font-size:10px; text-transform:uppercase; }
+  .title { margin:5px 0 0; font-size:20px; letter-spacing:.04em; }
+  .top-actions { display:flex; align-items:center; gap:9px; }
+  .badge,.back-link { font-size:10px; border:1px solid #4febb455; border-radius:99px; padding:7px 10px; text-decoration:none; color:var(--green); background:#4febb40d; }
+  .badge.disconnected { color:#ff7979; border-color:#ff797955; background:#ff79790d; }
+  .back-link { color:var(--dim); border-color:var(--line); background:#0f1522aa; border-radius:7px; }
+  .scene { width:min(1120px,100%); height:clamp(540px,66vw,700px); margin:auto; position:relative; overflow:hidden; border:1px solid #32476b; border-radius:22px; background:
+    linear-gradient(102deg,transparent 0 17%,#35588b12 17.1% 17.4%,transparent 17.5% 82.5%,#35588b12 82.6% 82.9%,transparent 83%),
+    radial-gradient(ellipse 48% 56% at 50% 40%,#18365d80,transparent 72%),
+    linear-gradient(180deg,#1a2a44 0%,#0d1727 49%,#070b12 50%,#05070d 100%);
+    box-shadow:0 28px 80px #000a,inset 0 1px #7eaaff38; }
+  .ceiling { position:absolute; inset:0 0 49%; background:linear-gradient(150deg,#21385a 0%,#0d1728 60%,#08101b); clip-path:polygon(0 0,100% 0,74% 100%,26% 100%); }
+  .ceiling::after { content:""; position:absolute; left:15%; right:15%; top:0; height:62%; background:linear-gradient(90deg,transparent,#7cbbff43 45%,#d4ecff7a 50%,#7cbbff43 55%,transparent); filter:blur(3px); clip-path:polygon(0 0,100% 0,78% 100%,22% 100%); }
+  .window { position:absolute; top:13%; width:23%; height:38%; border:1px solid #77aaff55; background:linear-gradient(#7d9bd425,#111f3e55),radial-gradient(circle at 63% 26%,#cae1ffdd 0 1px,transparent 2px),radial-gradient(circle at 22% 39%,#8ac6ffcc 0 1px,transparent 2px),radial-gradient(circle at 76% 67%,#8ac6ffbb 0 1px,transparent 2px),linear-gradient(175deg,#1d4c89 0%,#091527 70%); box-shadow:inset 0 0 30px #1a76ff25,0 0 20px #2c77df1c; }
+  .window::after { content:""; position:absolute; inset:0; background:linear-gradient(90deg,transparent 49%,#7ea8df4d 50% 51%,transparent 52%),linear-gradient(transparent 49%,#7ea8df4d 50% 51%,transparent 52%); }
+  .window-left { left:5%; transform:perspective(500px) rotateY(14deg); } .window-right { right:5%; transform:perspective(500px) rotateY(-14deg); }
+  .wall-console { position:absolute; left:50%; top:13%; transform:translateX(-50%); width:27%; height:25%; border:1px solid #5378ab61; background:linear-gradient(145deg,#1b2d4a,#0a1321); box-shadow:inset 0 0 28px #1b81ef19; }
+  .wall-console::before { content:"NEXUS LIVE LINK"; position:absolute; inset:13% 10%; display:grid; place-items:center; font:600 clamp(8px,1vw,12px) var(--mono); letter-spacing:.18em; color:#8bc0ff; text-align:center; background:repeating-linear-gradient(0deg,#55a5ff0c 0 1px,transparent 1px 6px); border:1px solid #54a0f02b; text-shadow:0 0 12px #76b8ff; }
+  .floor { position:absolute; inset:50% 0 0; background:linear-gradient(90deg,#0a1220,#101b2e 50%,#0a1220); clip-path:polygon(26% 0,74% 0,100% 100%,0 100%); }
+  .floor::after { content:""; position:absolute; inset:0; background:repeating-linear-gradient(90deg,transparent 0 9.9%,#5a8dca1d 10% 10.15%),repeating-linear-gradient(0deg,transparent 0 15.9%,#5a8dca12 16% 16.15%); transform:perspective(260px) rotateX(53deg) scale(1.8); transform-origin:top; }
+  .table { position:absolute; z-index:3; left:50%; top:56%; width:43%; aspect-ratio:1.8; transform:translate(-50%,-50%); border-radius:50%; background:radial-gradient(ellipse at 45% 34%,#375477,#172536 55%,#070b11 74%); border:2px solid #4b7199; box-shadow:inset 0 7px 18px #83c5ff38,inset 0 -22px 28px #000b,0 24px 30px #000b,0 0 45px #247cf22b; }
+  .table::before { content:""; position:absolute; inset:9% 18%; border-radius:50%; border:1px solid #75b5f05c; box-shadow:0 0 20px #3984ef4f,inset 0 0 18px #2f86ff38; }
+  .table::after { content:""; position:absolute; left:50%; top:50%; width:28%; aspect-ratio:1; transform:translate(-50%,-50%); border-radius:50%; border:1px solid #56d9ff88; background:radial-gradient(circle,#71ddffba 0 5%,#2774c244 36%,transparent 70%); box-shadow:0 0 25px #3aa8ffb3; }
+  .table-copy { position:absolute; z-index:5; left:50%; top:56%; width:27%; transform:translate(-50%,-50%); text-align:center; pointer-events:none; font-family:var(--mono); }
+  .goal { font-size:clamp(9px,1.05vw,13px); font-weight:700; text-shadow:0 2px 8px #000; line-height:1.35; }
+  .progress { margin-top:6px; font-size:8px; color:#b0c9e9; letter-spacing:.14em; text-transform:uppercase; }
+  #seats { position:absolute; z-index:7; inset:0; }
+  .seat { --agent:#8ca0be; position:absolute; width:126px; text-align:center; transform:translate(-50%,-50%); filter:drop-shadow(0 12px 12px #0008); }
+  .seat[data-slot="0"] { left:50%; top:26%; } .seat[data-slot="1"] { left:83%; top:43%; } .seat[data-slot="2"] { left:72%; top:76%; } .seat[data-slot="3"] { left:28%; top:76%; } .seat[data-slot="4"] { left:17%; top:43%; }
+  .chair { margin:auto; width:60px; height:52px; border:2px solid color-mix(in srgb,var(--agent) 72%,#fff); border-radius:22px 22px 12px 12px; background:linear-gradient(145deg,color-mix(in srgb,var(--agent) 42%,#192235),#0a101b 75%); box-shadow:inset 0 4px 10px #ffffff21,0 0 18px color-mix(in srgb,var(--agent) 32%,transparent); position:relative; }
+  .chair::after { content:""; position:absolute; inset:auto 10px -14px; height:14px; border-left:2px solid #475773; border-right:2px solid #475773; }
+  .avatar { width:38px; height:38px; margin:-25px auto 8px; display:grid; place-items:center; border-radius:50%; border:2px solid var(--agent); color:#eaf4ff; background:#0a111d; box-shadow:0 0 0 4px #08101bdd,0 0 19px color-mix(in srgb,var(--agent) 50%,transparent); font:700 13px var(--mono); position:relative; }
+  .avatar.active { animation:pulse 1.7s ease-in-out infinite; } @keyframes pulse { 50% { box-shadow:0 0 0 5px #08101bdd,0 0 31px var(--agent); } }
+  .seat-name { font:700 11px var(--mono); color:var(--agent); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .seat-state { margin-top:3px; font:9px var(--mono); color:#b7c6db; text-transform:uppercase; letter-spacing:.08em; }
+  .speech-bubble { margin:7px auto 0; width:126px; padding:6px 8px; border:1px solid color-mix(in srgb,var(--agent) 35%,#26334d); border-radius:7px; background:#0a101dde; color:#c8d7ea; font-size:10px; line-height:1.32; backdrop-filter:blur(6px); max-height:44px; overflow:hidden; }
+  .footer-strip { width:min(1120px,100%); margin:16px auto 0; display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+  .chip { font:10px var(--mono); color:var(--dim); border:1px solid var(--line); border-radius:999px; padding:6px 10px; background:#0d1421aa; }
+  .empty-room-hint { position:absolute; inset:0; display:grid; place-items:center; font:12px var(--mono); color:var(--faint); }
+  @media (max-width:640px) { .room-shell { padding:16px 10px 50px; } .title { font-size:15px; } .scene { height:590px; border-radius:15px; } .seat { width:90px; } .seat[data-slot="0"]{top:23%}.seat[data-slot="1"]{left:83%;top:41%}.seat[data-slot="2"]{left:72%;top:73%}.seat[data-slot="3"]{left:28%;top:73%}.seat[data-slot="4"]{left:17%;top:41%} .speech-bubble{display:none}.table{width:58%;top:55%}.table-copy{width:38%;top:55%}.window{width:25%;}.top-actions .back-link{display:none} }
+</style>
 </head>
 <body>
-
-<div class="header">
-  <span class="title">NEX // CONFERENCE ROOM</span>
-  <div class="header-links">
-    <span class="live-badge" id="liveBadge">● LIVE</span>
-    <a class="back-link" href="/">← Board view</a>
-  </div>
-</div>
-
-<div class="room" id="room" aria-live="polite" aria-label="Live agent conference room — seats show each agent's current status and task">
-  <div class="table">
-    <div class="table-label">
-      <div class="table-goal" id="tableGoal">Standing by for a mission…</div>
-      <div class="table-sub" id="tableProgress">0% of current objective</div>
-    </div>
-  </div>
-  <div id="seats"></div>
-</div>
-
-<div class="footer-strip" id="footerStrip"></div>
-
+<main class="room-shell">
+  <header class="topbar">
+    <div><div class="eyebrow">Nexus Labs // Active Workspace</div><h1 class="title">CONFERENCE ROOM</h1></div>
+    <div class="top-actions"><span class="badge" id="liveBadge">● LIVE</span><a class="back-link" href="/">← Board view</a></div>
+  </header>
+  <section class="scene" aria-live="polite" aria-label="Live agent conference room">
+    <div class="ceiling"></div><div class="window window-left"></div><div class="window window-right"></div><div class="wall-console"></div><div class="floor"></div>
+    <div class="table"></div>
+    <div class="table-copy"><div class="goal" id="tableGoal">Standing by for a mission…</div><div class="progress" id="tableProgress">0% of current objective</div></div>
+    <div id="seats"></div>
+  </section>
+  <div class="footer-strip" id="footerStrip"></div>
+</main>
 <script type="module">
   import { safeText, startPolling, visualFor, currentTaskFor } from '/mission-engine.js';
-
-  const STATUS_PROGRESS = { idle: 5, planning: 22, building: 58, testing: 82, waiting_for_justin: 92, blocked: 45, complete: 100 };
-  const ACTIVE_STATES = new Set(['planning', 'building', 'testing']);
-
-  const seatsEl = document.getElementById('seats');
-  const tableGoalEl = document.getElementById('tableGoal');
-  const tableProgressEl = document.getElementById('tableProgress');
-  const liveBadgeEl = document.getElementById('liveBadge');
-  const footerEl = document.getElementById('footerStrip');
-
+  const STATUS_PROGRESS={idle:5,planning:22,building:58,testing:82,waiting_for_justin:92,blocked:45,complete:100};
+  const ACTIVE=new Set(['planning','building','testing']);
+  const seats=document.getElementById('seats'),goal=document.getElementById('tableGoal'),progressEl=document.getElementById('tableProgress'),live=document.getElementById('liveBadge'),footer=document.getElementById('footerStrip');
   function render(board) {
-    const tasks = board.tasks || [];
-    const agents = (board.agents || []).slice(0, 5); // 5 named seat slots; a 6th+ agent falls into the overflow seat
-
-    liveBadgeEl.textContent = board.disconnected ? '○ DISCONNECTED' : '● LIVE';
-    liveBadgeEl.classList.toggle('disconnected', Boolean(board.disconnected));
-
-    const open = tasks.filter((t) => t.status !== 'complete');
-    const activeGoal = open[0]?.title || tasks[0]?.title || (board.disconnected ? 'Telemetry disconnected' : 'Standing by for a mission…');
-    const progress = tasks.length
-      ? Math.round(tasks.reduce((sum, t) => sum + (STATUS_PROGRESS[t.status] || 0), 0) / tasks.length)
-      : 0;
-    tableGoalEl.textContent = activeGoal;
-    tableProgressEl.textContent = `${progress}% of current objective`;
-
-    if (agents.length === 0) {
-      seatsEl.innerHTML = '<div class="empty-room-hint">No agents seated right now.</div>';
-    } else {
-      seatsEl.innerHTML = agents.map((agent, index) => {
-        const visual = visualFor(agent);
-        const task = currentTaskFor(agent, tasks);
-        const statusPct = STATUS_PROGRESS[task?.status] || 0;
-        const bubble = task ? `<div class="speech-bubble">${safeText(task.title)}</div>` : '';
-        const activeClass = ACTIVE_STATES.has(task?.status) ? 'active' : '';
-
-        return `
-          <div class="seat" data-slot="${index}">
-            <div class="avatar ${activeClass}" style="--seat-color: ${visual.color}; background: ${visual.bg};">
-              ${visual.avatar}
-            </div>
-            <div class="seat-name">${visual.name}</div>
-            <div class="seat-state">${task?.status || 'idle'}</div>
-            ${bubble}
-          </div>
-        `;
-      }).join('');
-    }
-
-    footerEl.innerHTML = (board.agents || []).map((a) => {
-      const visual = visualFor(a);
-      return `<div class="chip" style="border-color: ${visual.color}44; color: ${visual.color};">● ${visual.name}</div>`;
-    }).join('');
+    const tasks=board.tasks||[], agents=(board.agents||[]).slice(0,5), open=tasks.filter(t=>t.status!=='complete');
+    live.textContent=board.disconnected?'○ DISCONNECTED':'● LIVE'; live.classList.toggle('disconnected',Boolean(board.disconnected));
+    goal.textContent=open[0]?.title||tasks[0]?.title||(board.disconnected?'Telemetry disconnected':'Standing by for a mission…');
+    const pct=tasks.length?Math.round(tasks.reduce((sum,t)=>sum+(STATUS_PROGRESS[t.status]||0),0)/tasks.length):0; progressEl.textContent=`${pct}% of current objective`;
+    seats.innerHTML=agents.length?agents.map((agent,index)=>{const visual=visualFor(agent),task=currentTaskFor(agent,tasks),status=task?.status||agent.status||'idle',name=agent.display_name||visual.label,initial=safeText(name.slice(0,1).toUpperCase()),bubble=task?`<div class="speech-bubble">${safeText(task.title)}</div>`:'';
+      return `<article class="seat" data-slot="${index}" style="--agent:${visual.color}"><div class="chair"></div><div class="avatar ${ACTIVE.has(status)?'active':''}">${initial}</div><div class="seat-name">${safeText(name)}</div><div class="seat-state">${safeText(status)}</div>${bubble}</article>`;}).join(''):'<div class="empty-room-hint">No agents seated right now.</div>';
+    footer.innerHTML=`<span class="chip">${tasks.filter(t=>t.status==='complete').length}/${tasks.length} tasks complete</span><span class="chip">${agents.length} agents seated</span>${(board.telemetry?.needs_approval||0)?`<span class="chip">Needs you · ${board.telemetry.needs_approval}</span>`:''}`;
   }
-
-  startPolling(render, 2000);
+  startPolling(render,{intervalMs:2000});
 </script>
-
-<!-- Import and auto-initialize Nex Chat Bar -->
-<script type="module">
-  import { createNexChatBar } from '/nex-chat-bar.js';
-  // Chat bar auto-initializes on import
-</script>
-
+<script type="module">import '/nex-chat-bar.js';</script>
 </body>
 </html>
