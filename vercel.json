@@ -24,5 +24,11 @@
       "source": "/api/oauth/:provider/callback",
       "destination": "/api/board"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/cleanup",
+      "schedule": "0 6 * * *"
+    }
   ]
 }
