@@ -1,12 +1,12 @@
 (() => {
   const route = location.pathname;
   const items = [
-    ['/nexus-space.html#command', 'Mission', 'command'],
-    ['/nexus-space.html#memory', 'Memory', 'memory'],
-    ['/nexus-space.html#queue', 'Approvals', 'queue'],
-    ['/nexus-space.html#tenants', 'Tenants', 'tenants'],
-    ['/nexus-space.html#connectors', 'Connectors', 'connectors'],
-    ['/nexus-space.html#conference', 'Rooms', 'conference'],
+    ['/#command', 'Mission', 'command'],
+    ['/#memory', 'Memory', 'memory'],
+    ['/#queue', 'Approvals', 'queue'],
+    ['/#tenants', 'Tenants', 'tenants'],
+    ['/#connectors', 'Connectors', 'connectors'],
+    ['/#conference', 'Rooms', 'conference'],
   ];
   const activePath = route === '/index.html' ? '/' : route;
   const activeScene = route === '/nexus-space.html' ? location.hash.replace(/^#/u, '') || 'command' : null;
