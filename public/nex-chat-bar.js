@@ -401,7 +401,14 @@ export function createNexChatBar() {
     try {
       const saved = JSON.parse(localStorage.getItem(positionKey));
       if (Number.isFinite(saved?.left) && Number.isFinite(saved?.top)) {
-        setDockPosition(saved.left, saved.top);
+        // Apply the raw position immediately so there's no visible flash at
+        // the default bottom-right spot, then re-clamp on the next frame
+        // once the element is connected and its real size is measurable.
+        container.style.left = `${saved.left}px`;
+        container.style.top = `${saved.top}px`;
+        container.style.right = 'auto';
+        container.style.bottom = 'auto';
+        requestAnimationFrame(() => setDockPosition(saved.left, saved.top));
       }
     } catch {
       // A default bottom-right dock is still available when storage is blocked.
@@ -585,10 +592,7 @@ export function createNexChatBar() {
     try { localStorage.setItem(positionKey, JSON.stringify(next)); } catch {}
   });
 
-  // Deferred to the next frame — createNexChatBar() returns the container
-  // before the caller appends it, so offsetWidth/offsetHeight (used for
-  // clamping) would read 0 if restored synchronously here.
-  requestAnimationFrame(() => restoreDockPosition());
+  restoreDockPosition();
 
   // Keep the room visible on phones. The bar expands only after the user taps it.
   if (window.matchMedia('(max-width: 640px)').matches) {
