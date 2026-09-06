@@ -314,28 +314,53 @@ export function createNexChatBar() {
     return div.innerHTML;
   }
 
-  function send() {
+  async function loadHistory() {
+    try {
+      const response = await fetch('/api/chat');
+      if (!response.ok) return;
+      const data = await response.json();
+      const messages = Array.isArray(data.messages) ? data.messages : [];
+      if (!messages.length) return;
+
+      messagesEl.innerHTML = '';
+      for (const message of messages) {
+        const type = message.role === 'user' ? 'nex-user'
+          : (message.role === 'assistant' ? 'nex-response' : 'nex-system');
+        addMessage(message.content, type);
+      }
+    } catch {
+      // The live chat is still usable when history cannot be loaded.
+    }
+  }
+
+  async function send() {
     const text = input.value.trim();
     if (!text) return;
 
     addMessage(text, 'nex-user');
     input.value = '';
+    input.disabled = true;
+    sendBtn.disabled = true;
 
-    // Post message to window.opener (parent context) or parent frame
-    if (window.opener) {
-      window.opener.postMessage(
-        { type: 'nex-message', content: text, timestamp: Date.now() },
-        '*'
-      );
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: text,
+          workspace: { active_view: window.location.pathname },
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Nex could not process that message.');
+      addMessage(data.reply || 'Nex completed the request without a text reply.', 'nex-response');
+    } catch (err) {
+      addMessage(err.message || 'Message failed to send. Try again.', 'nex-system');
+    } finally {
+      input.disabled = false;
+      sendBtn.disabled = false;
+      input.focus();
     }
-    
-    // Also dispatch as custom event for in-page listeners
-    window.dispatchEvent(new CustomEvent('nex-message', { detail: { content: text } }));
-
-    // Simulate a response (in real implementation, this would be a backend call)
-    setTimeout(() => {
-      addMessage(`Message received: "${text}". Queued for processing.`, 'nex-response');
-    }, 200);
   }
 
   sendBtn.addEventListener('click', send);
@@ -350,6 +375,7 @@ export function createNexChatBar() {
     container.classList.toggle('collapsed');
   });
 
+  loadHistory();
   return container;
 }
 
