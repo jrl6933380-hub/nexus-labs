@@ -27,6 +27,8 @@ const KV_URL = process.env.KV_REST_API_URL;
 const KV_TOKEN = process.env.KV_REST_API_TOKEN;
 const RECENT_KEY = 'nex:recent-conversation';
 const RECENT_LIMIT = 24; // ~12 exchanges
+function buildHandoffDirective(message){return /\b(make|build|add|fix|create|change|update)\b/i.test(String(message||''))?'\n\n## Handoff Gate\nBefore broad exploration or a multi-step build, call prepare_build_handoff with the goal, repo, likely files, and acceptance criteria. Use its returned packet as the bounded context pipe, then build and call return_handoff_result with evidence.':''}
+
 function normalizeClientContext(input) {
   const activeView = typeof input?.active_view === 'string' ? input.active_view.trim() : '';
   return {
@@ -200,7 +202,7 @@ export default async function handler(req, res) {
     const hyperfocusTrigger = detectHyperfocusTrigger(message);
     const messageForModel = hyperfocusTrigger
       ? `${message}\n\n${buildHyperfocusDirective(hyperfocusTrigger)}`
-      : message;
+      : message) + buildHandoffDirective(message);
 
     const {
       reply,
