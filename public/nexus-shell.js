@@ -1,15 +1,15 @@
 (() => {
   const route = location.pathname;
   const items = [
-    ['/nexus-space.html#command', 'Mission', 'command'],
-    ['/nexus-space.html#memory', 'Memory', 'memory'],
-    ['/nexus-space.html#queue', 'Approvals', 'queue'],
-    ['/nexus-space.html#tenants', 'Tenants', 'tenants'],
-    ['/nexus-space.html#connectors', 'Connectors', 'connectors'],
-    ['/nexus-space.html#conference', 'Rooms', 'conference'],
+    ['/#command', 'Mission', 'command'],
+    ['/#memory', 'Memory', 'memory'],
+    ['/#queue', 'Approvals', 'queue'],
+    ['/#tenants', 'Tenants', 'tenants'],
+    ['/#connectors', 'Connectors', 'connectors'],
+    ['/#conference', 'Rooms', 'conference'],
   ];
   const activePath = route === '/index.html' ? '/' : route;
-  const activeScene = route === '/nexus-space.html' ? location.hash.replace(/^#/u, '') || 'command' : null;
+  const activeScene = (activePath === '/' || route === '/nexus-space.html') ? location.hash.replace(/^#/u, '') || 'command' : null;
   const bar = document.createElement('header');
   bar.className = 'nexus-command-bar';
   bar.innerHTML = `
@@ -52,7 +52,7 @@
   // Mission Control already has the full-size Nex conversation column. Every
   // other shell-backed workspace gets the same compact chat bar, which shares
   // /api/chat history and reports location.pathname with every message.
-  const hasMissionControlChat = activePath === '/';
+  const hasMissionControlChat = activePath === '/' || activePath === '/mission-control.html';
   const isLoginScreen = activePath === '/room-login.html';
   if (!hasMissionControlChat && !isLoginScreen && !document.getElementById('nexChatBar')) {
     const nexChat = document.createElement('script');
