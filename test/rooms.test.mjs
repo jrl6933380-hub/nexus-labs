@@ -17,15 +17,15 @@ test('built-in Nexus rooms stay available without the remote registry', async ()
 
 test('room lookup accepts friendly names, slugs, and spoken aliases', async () => {
   const conference = await getRoom('conference room', { fetchRemote: false });
-  assert.equal(conference.url, '/conference-room.html');
+  assert.equal(conference.url, '/#conference');
   assert.deepEqual(await getRoom('war room', { fetchRemote: false }), conference);
 
-  assert.equal((await getRoom('board', { fetchRemote: false })).url, '/');
-  assert.equal((await getRoom('builder', { fetchRemote: false })).url, '/room.html');
-  assert.equal((await getRoom('memories', { fetchRemote: false })).url, '/memory.html');
-  assert.equal((await getRoom('approvals', { fetchRemote: false })).url, '/queue.html');
-  assert.equal((await getRoom('integrations', { fetchRemote: false })).url, '/connectors.html');
-  assert.equal((await getRoom('workspaces', { fetchRemote: false })).url, '/tenants.html');
+  assert.equal((await getRoom('board', { fetchRemote: false })).url, '/#command');
+  assert.equal((await getRoom('builder', { fetchRemote: false })).url, '/#builder');
+  assert.equal((await getRoom('memories', { fetchRemote: false })).url, '/#memory');
+  assert.equal((await getRoom('approvals', { fetchRemote: false })).url, '/#queue');
+  assert.equal((await getRoom('integrations', { fetchRemote: false })).url, '/#connectors');
+  assert.equal((await getRoom('workspaces', { fetchRemote: false })).url, '/#tenants');
 });
 
 test('room lookup fails closed for an unknown room', async () => {

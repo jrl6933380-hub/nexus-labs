@@ -9,7 +9,7 @@
     ['/#conference', 'Rooms', 'conference'],
   ];
   const activePath = route === '/index.html' ? '/' : route;
-  const activeScene = route === '/nexus-space.html' ? location.hash.replace(/^#/u, '') || 'command' : null;
+  const activeScene = (activePath === '/' || route === '/nexus-space.html') ? location.hash.replace(/^#/u, '') || 'command' : null;
   const bar = document.createElement('header');
   bar.className = 'nexus-command-bar';
   bar.innerHTML = `
@@ -52,7 +52,7 @@
   // Mission Control already has the full-size Nex conversation column. Every
   // other shell-backed workspace gets the same compact chat bar, which shares
   // /api/chat history and reports location.pathname with every message.
-  const hasMissionControlChat = activePath === '/';
+  const hasMissionControlChat = activePath === '/' || activePath === '/mission-control.html';
   const isLoginScreen = activePath === '/room-login.html';
   if (!hasMissionControlChat && !isLoginScreen && !document.getElementById('nexChatBar')) {
     const nexChat = document.createElement('script');
