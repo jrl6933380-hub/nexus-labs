@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   createWorkspace, getWorkspace, addArtifact, checkpointWorkspace, closeWorkspace,
-  createMemoryWorkspaceStore, buildSandboxCreateOptions,
+  createMemoryWorkspaceStore, buildSandboxCreateOptions, estimateSandboxCostCents,
 } from '../lib/workspaceManager.js';
 
 function scope() { return { tenant_id: 'tenant-a', project_id: 'project-a', task_id: 'task-a', agent_id: 'worker-a' }; }
@@ -63,4 +63,68 @@ test('a workspace created with an allowlist actually reaches Sandbox.create() wi
   const sandboxFactory = async (p) => { capturedOptions = buildSandboxCreateOptions(p); return { id: 'sb-3' }; };
   await createWorkspace({ ...scope(), network_allowlist: ['*.github.com'], public_preview: true }, { store, sandboxFactory });
   assert.deepEqual(capturedOptions.network.allowOut, ['*.github.com']);
+});
+
+// --- SECURITY: estimateSandboxCostCents / spend_cap_cents enforcement.
+// Before this, spend_cap_cents was validated and stored but nothing
+// ever checked actual or worst-case cost against it — decorative,
+// same as network_allowlist and max_commands were. Rates are E2B's
+// own documented per-second numbers, not a guess. ---
+
+test('estimateSandboxCostCents matches E2B\'s own worked example (~$0.109/hr for the default 2vCPU/512MB sandbox)', () => {
+  const oneHourCents = estimateSandboxCostCents(60 * 60 * 1000);
+  // E2B's docs give ~$0.109 for one hour; ceiling-rounded to the cent
+  // (the safe direction for a cost cap) that's 11 cents.
+  assert.equal(oneHourCents, 11);
+});
+
+test('estimateSandboxCostCents scales down correctly for a short duration', () => {
+  const fiveMinCents = estimateSandboxCostCents(5 * 60 * 1000);
+  assert.equal(fiveMinCents, 1); // E2B's own example: ~$0.009 for 5 minutes, ceil'd to 1 cent
+});
+
+test('estimateSandboxCostCents returns 0 for zero duration', () => {
+  assert.equal(estimateSandboxCostCents(0), 0);
+});
+
+test('createWorkspace rejects upfront when the requested timeout could exceed spend_cap_cents, before any sandbox is created', async () => {
+  const store = createMemoryWorkspaceStore();
+  let sandboxFactoryCalled = false;
+  await assert.rejects(
+    () => createWorkspace(
+      { ...scope(), timeout_ms: 60 * 60 * 1000, spend_cap_cents: 5 }, // 1hr costs ~11¢, cap is 5¢
+      { store, sandboxFactory: async () => { sandboxFactoryCalled = true; return {}; } },
+    ),
+    /could cost up to 11.*exceeding this workspace's spend_cap_cents of 5/,
+  );
+  assert.equal(sandboxFactoryCalled, false, 'the sandbox must never be created if the cap check fails');
+});
+
+test('createWorkspace succeeds when the requested timeout fits within spend_cap_cents', async () => {
+  const store = createMemoryWorkspaceStore();
+  const { workspace } = await createWorkspace(
+    { ...scope(), timeout_ms: 5 * 60 * 1000, spend_cap_cents: 5 }, // 5 min costs ~1¢, well under 5¢
+    { store, sandboxFactory: async () => ({ id: 'sb-4' }) },
+  );
+  assert.equal(workspace.policy.spend_cap_cents, 5);
+});
+
+test('spend_cap_cents of 0 (the default) means no cap — matches the network_allowlist=[] "no restriction" convention', async () => {
+  const store = createMemoryWorkspaceStore();
+  const { workspace } = await createWorkspace(
+    { ...scope(), timeout_ms: 60 * 60 * 1000 }, // no spend_cap_cents at all — must not be rejected
+    { store, sandboxFactory: async () => ({ id: 'sb-5' }) },
+  );
+  assert.equal(workspace.policy.spend_cap_cents, 0);
+});
+
+test('closeWorkspace records real elapsed-time cost on the workspace, feeding the audit trail', async () => {
+  const store = createMemoryWorkspaceStore();
+  const sandbox = { id: 'sb-6', async kill() {} };
+  let clock = 1_000_000;
+  const { workspace } = await createWorkspace({ ...scope() }, { store, sandboxFactory: async () => sandbox });
+  assert.equal(workspace.actual_cost_cents, 0, 'no cost recorded yet at creation time');
+  clock += 60 * 60 * 1000; // pretend one hour of real wall-clock elapsed
+  const closed = await closeWorkspace(workspace.id, scope(), { sandbox, now: () => clock }, { store });
+  assert.equal(closed.actual_cost_cents, 11); // same rate as the one-hour estimate test above
 });
