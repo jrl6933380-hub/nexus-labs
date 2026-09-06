@@ -72,8 +72,11 @@ function fakeDoc(initialHidden = false) {
   };
 }
 
+// NOTE: this Node version's mock-timers API takes a plain array of
+// timer names (['setInterval']), not { apis: [...] } — caught by
+// actually running these tests, not assumed from memory/docs.
 test('startPolling fires immediately and again on the interval', async (t) => {
-  t.mock.timers.enable({ apis: ['setInterval'] });
+  t.mock.timers.enable(['setInterval']);
   const calls = [];
   const doc = fakeDoc();
   const stop = startPolling((board) => calls.push(board), {
@@ -91,7 +94,7 @@ test('startPolling fires immediately and again on the interval', async (t) => {
 });
 
 test('startPolling skips a tick while the document is hidden', async (t) => {
-  t.mock.timers.enable({ apis: ['setInterval'] });
+  t.mock.timers.enable(['setInterval']);
   const calls = [];
   const doc = fakeDoc(true); // starts hidden
   const stop = startPolling((board) => calls.push(board), {
@@ -106,7 +109,7 @@ test('startPolling skips a tick while the document is hidden', async (t) => {
 });
 
 test('startPolling stop() prevents further ticks and removes its listener', async (t) => {
-  t.mock.timers.enable({ apis: ['setInterval'] });
+  t.mock.timers.enable(['setInterval']);
   const calls = [];
   const doc = fakeDoc();
   const stop = startPolling((board) => calls.push(board), {
