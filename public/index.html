@@ -980,6 +980,16 @@
           sessionTokens.output += data.usage.output_tokens || 0;
           updateTokenTotal();
         }
+
+        // Navigation only comes from Nex's server-side open_room tool result,
+        // never from model-written text. Keep it same-origin and use replace so
+        // "bring up" behaves like changing views, not opening a random tab.
+        if (data.navigation?.type === 'room'
+          && typeof data.navigation.url === 'string'
+          && data.navigation.url.startsWith('/')
+          && !data.navigation.url.startsWith('//')) {
+          setTimeout(() => window.location.replace(data.navigation.url), 180);
+        }
       }
     } catch (err) {
       clearTimeout(slowNotice);

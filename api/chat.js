@@ -199,6 +199,7 @@ export default async function handler(req, res) {
       model: answeredModel,
       provider,
       usage,
+      navigation,
       degraded,
     } = await askNex(messageForModel, runningHistory, forcedTier);
 
@@ -226,6 +227,7 @@ export default async function handler(req, res) {
       model: answeredModel,
       provider,
       usage,
+      navigation,
       degraded,
     });
   } catch (err) {
