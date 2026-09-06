@@ -277,35 +277,37 @@
       seatsEl.innerHTML = agents.map((agent, index) => {
         const visual = visualFor(agent);
         const task = currentTaskFor(agent, tasks);
-        const status = task?.status || agent.status || 'idle';
-        const isActive = ACTIVE_STATES.has(status);
-        const line = task?.title
-          ? task.title
-          : (agent.status === 'available_on_demand' ? 'Available, not assigned' : 'Idle');
+        const statusPct = STATUS_PROGRESS[task?.status] || 0;
+        const bubble = task ? `<div class="speech-bubble">${safeText(task.title)}</div>` : '';
+        const activeClass = ACTIVE_STATES.has(task?.status) ? 'active' : '';
+
         return `
           <div class="seat" data-slot="${index}">
-            <div class="avatar${isActive ? ' active' : ''}" style="--seat-color:${visual.color}; background:${visual.color};">
-              ${safeText((agent.display_name || visual.label || '?').slice(0, 1).toUpperCase())}
+            <div class="avatar ${activeClass}" style="--seat-color: ${visual.color}; background: ${visual.bg};">
+              ${visual.avatar}
             </div>
-            <div class="seat-name" style="color:${visual.color}">${safeText(agent.display_name || visual.label)}</div>
-            <div class="seat-state">${safeText(status)}</div>
-            <div class="speech-bubble">${safeText(line)}</div>
-          </div>`;
+            <div class="seat-name">${visual.name}</div>
+            <div class="seat-state">${task?.status || 'idle'}</div>
+            ${bubble}
+          </div>
+        `;
       }).join('');
     }
 
-    const completed = board.telemetry?.completed_tasks ?? tasks.filter((t) => t.status === 'complete').length;
-    const needsJustin = board.telemetry?.needs_approval ?? tasks.filter((t) => t.status === 'waiting_for_justin').length;
-    footerEl.innerHTML = `
-      <span class="chip">${completed}/${tasks.length} tasks complete</span>
-      <span class="chip">${agents.length} agent(s) seated</span>
-      ${needsJustin ? `<span class="chip" style="color:#E8A94D;border-color:#E8A94D44;">Needs you · ${needsJustin}</span>` : ''}
-    `;
+    footerEl.innerHTML = (board.agents || []).map((a) => {
+      const visual = visualFor(a);
+      return `<div class="chip" style="border-color: ${visual.color}44; color: ${visual.color};">● ${visual.name}</div>`;
+    }).join('');
   }
 
-  startPolling(render, { intervalMs: 8000 });
+  startPolling(render, 2000);
 </script>
 
-<script src="/nexus-shell.js"></script>
+<!-- Import and auto-initialize Nex Chat Bar -->
+<script type="module">
+  import { createNexChatBar } from '/nex-chat-bar.js';
+  // Chat bar auto-initializes on import
+</script>
+
 </body>
 </html>
