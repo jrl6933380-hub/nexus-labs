@@ -29,12 +29,30 @@ const RECENT_KEY = 'nex:recent-conversation';
 const RECENT_LIMIT = 24; // ~12 exchanges
 function buildHandoffDirective(message){return /\b(make|build|add|fix|create|change|update)\b/i.test(String(message||''))?'\n\n## Handoff Gate\nBefore broad exploration or a multi-step build, call prepare_build_handoff with the goal, repo, likely files, and acceptance criteria. Use its returned packet as the bounded context pipe, then build and call return_handoff_result with evidence.':''}
 
+function normalizeScreenSnapshot(input) {
+  if (!input || typeof input !== 'object') return null;
+  const clip = (value, limit) => typeof value === 'string' ? value.replace(/\s+/gu, ' ').trim().slice(0, limit) : '';
+  const list = (value, itemLimit, maxItems) => Array.isArray(value) ? value.map((item) => clip(item, itemLimit)).filter(Boolean).slice(0, maxItems) : [];
+  const title = clip(input.title, 180);
+  const viewportText = list(input.viewport_text, 240, 30);
+  const controls = list(input.controls, 180, 40);
+  const focused = clip(input.focused, 360);
+  const viewport = input.viewport && typeof input.viewport === 'object' ? {
+    width: Number.isFinite(input.viewport.width) ? Math.max(0, Math.min(input.viewport.width, 10000)) : null,
+    height: Number.isFinite(input.viewport.height) ? Math.max(0, Math.min(input.viewport.height, 10000)) : null,
+    scroll_y: Number.isFinite(input.viewport.scroll_y) ? Math.max(0, Math.min(input.viewport.scroll_y, 10000000)) : null,
+  } : null;
+  if (!title && !viewportText.length && !controls.length && !focused && !viewport) return null;
+  return { title, viewport_text: viewportText, controls, focused, viewport };
+}
+
 function normalizeClientContext(input) {
   const activeView = typeof input?.active_view === 'string' ? input.active_view.trim() : '';
   return {
     active_view: activeView.startsWith('/') && !activeView.startsWith('//')
       ? activeView.slice(0, 160)
       : null,
+    screen: normalizeScreenSnapshot(input?.screen),
   };
 }
 

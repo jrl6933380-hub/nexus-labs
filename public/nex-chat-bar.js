@@ -329,6 +329,48 @@ export function createNexChatBar() {
     return div.innerHTML;
   }
 
+  function shorten(value, limit) {
+    return String(value || '').replace(/\s+/gu, ' ').trim().slice(0, limit);
+  }
+
+  function isVisibleInViewport(element) {
+    const rect = element.getBoundingClientRect();
+    const style = window.getComputedStyle(element);
+    return rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.right > 0
+      && rect.top < window.innerHeight && rect.left < window.innerWidth
+      && style.visibility !== 'hidden' && style.display !== 'none';
+  }
+
+  function isPrivateControl(element) {
+    const signal = [element.type, element.name, element.id, element.autocomplete, element.getAttribute('aria-label'), element.placeholder].filter(Boolean).join(' ');
+    return /password|passcode|secret|token|api.?key|authorization|credit|card|cvv|ssn/i.test(signal);
+  }
+
+  function describeControl(element) {
+    const tag = element.tagName.toLowerCase();
+    const type = element.type ? ` type=${element.type}` : '';
+    const label = shorten(element.getAttribute('aria-label') || element.getAttribute('title') || element.placeholder || element.labels?.[0]?.innerText || element.innerText || element.name || element.id, 100);
+    const value = !isPrivateControl(element) && /^(input|textarea|select)$/i.test(tag) && element.value ? ` value="${shorten(element.value, 180)}"` : '';
+    return `<${tag}${type}>${label ? ` ${label}` : ''}${value}`;
+  }
+
+  function captureWorkspaceSnapshot() {
+    const inNexChat = (element) => element.closest('#nexChatBar');
+    const viewportText = [...document.querySelectorAll('h1,h2,h3,h4,p,li,dt,dd,th,td,label,[role="status"],[data-nex-context]')]
+      .filter((element) => !inNexChat(element) && isVisibleInViewport(element))
+      .map((element) => shorten(element.innerText || element.textContent, 240))
+      .filter(Boolean).filter((text, index, all) => all.indexOf(text) === index).slice(0, 30);
+    const controls = [...document.querySelectorAll('button,a,input,textarea,select,[role="button"],[contenteditable="true"]')]
+      .filter((element) => !inNexChat(element) && isVisibleInViewport(element))
+      .map(describeControl).filter(Boolean).slice(0, 40);
+    const focusedElement = document.activeElement;
+    const focused = focusedElement && !inNexChat(focusedElement) && !isPrivateControl(focusedElement) ? describeControl(focusedElement) : '';
+    return {
+      title: shorten(document.title, 180), viewport_text: viewportText, controls, focused,
+      viewport: { width: window.innerWidth, height: window.innerHeight, scroll_y: Math.round(window.scrollY) },
+    };
+  }
+
   async function loadHistory() {
     try {
       const response = await fetch('/api/chat');
@@ -363,7 +405,10 @@ export function createNexChatBar() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: text,
-          workspace: { active_view: window.location.pathname },
+          workspace: {
+            active_view: window.location.pathname,
+            screen: captureWorkspaceSnapshot(),
+          },
         }),
       });
       const data = await response.json().catch(() => ({}));
