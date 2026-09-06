@@ -83,6 +83,7 @@ export function createNexChatBar() {
       display: flex;
       flex-direction: column;
       height: 100%;
+      min-height: 0;
     }
 
     .nex-chat-header {
@@ -137,13 +138,18 @@ export function createNexChatBar() {
     }
 
     .nex-chat-messages {
-      flex: 1;
-      overflow-y: auto;
+      flex: 1 1 0;
+      height: 0;
+      overflow-y: scroll;
+      overflow-x: hidden;
       padding: 12px 16px;
       display: flex;
       flex-direction: column;
       gap: 8px;
       min-height: 0;
+      overscroll-behavior-y: contain;
+      -webkit-overflow-scrolling: touch;
+      touch-action: pan-y;
     }
 
     .nex-message {
@@ -276,7 +282,8 @@ export function createNexChatBar() {
     @media (max-width: 640px) {
       .nex-chat-bar-container {
         width: calc(100% - 20px);
-        max-height: min(500px, 70vh);
+        height: min(500px, 70vh);
+        max-height: 70vh;
         bottom: 10px;
         right: 10px;
         border-radius: 12px;
@@ -284,6 +291,11 @@ export function createNexChatBar() {
 
       .nex-chat-bar-container.collapsed {
         width: min(220px, calc(100% - 20px));
+        height: auto;
+      }
+
+      .nex-chat-messages {
+        min-height: 0;
       }
     }
   `;
