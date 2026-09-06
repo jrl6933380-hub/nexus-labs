@@ -417,6 +417,21 @@
   }
 
   .send-btn:hover { background: #4A8FFF; }
+  /* Direct room entrance below the chat composer — always available even if
+     Nex is busy, so navigation never depends on a model round-trip. */
+  .room-quick-link {
+    align-self: flex-start;
+    margin: 0 24px 16px;
+    color: #A879FF;
+    text-decoration: none;
+    font: 600 11px var(--mono);
+    border: 1px solid #A879FF55;
+    background: #A879FF0b;
+    border-radius: 7px;
+    padding: 8px 11px;
+  }
+  .room-quick-link:active { background: #A879FF22; }
+
   .send-btn:disabled { opacity: 0.5; cursor: default; }
 
   /* ===== RIGHT: Approval Queue ===== */
@@ -669,6 +684,7 @@
       <input class="chat-input" id="chatInput" type="text" placeholder="Message Nex..." />
       <button class="send-btn" id="sendBtn">Send</button>
     </div>
+    <a class="room-quick-link" href="/conference-room.html">◌ Open Conference Room</a>
   </div>
 
   <!-- RIGHT: Approval Queue -->
