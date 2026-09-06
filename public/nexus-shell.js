@@ -47,4 +47,16 @@
     .then((user) => { if (user?.username) document.getElementById('nexus-operator').textContent = user.username.slice(0, 2).toUpperCase(); })
     .catch(() => {});
   document.body.dataset.nexusScreen = items.find(([href]) => href === activePath)?.[1]?.toLowerCase() || 'workspace';
+
+  // Mission Control already has the full-size Nex conversation column. Every
+  // other shell-backed workspace gets the same compact chat bar, which shares
+  // /api/chat history and reports location.pathname with every message.
+  const hasMissionControlChat = activePath === '/';
+  const isLoginScreen = activePath === '/room-login.html';
+  if (!hasMissionControlChat && !isLoginScreen && !document.getElementById('nexChatBar')) {
+    const nexChat = document.createElement('script');
+    nexChat.type = 'module';
+    nexChat.src = '/nex-chat-bar.js';
+    document.body.appendChild(nexChat);
+  }
 })();
