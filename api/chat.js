@@ -200,7 +200,7 @@ export default async function handler(req, res) {
     // regex can't. The directive is never shown to Mr. Lopez or saved
     // to the visible transcript — only the message he actually typed is.
     const hyperfocusTrigger = detectHyperfocusTrigger(message);
-    const messageForModel = hyperfocusTrigger
+    const messageForModel = (hyperfocusTrigger
       ? `${message}\n\n${buildHyperfocusDirective(hyperfocusTrigger)}`
       : message) + buildHandoffDirective(message);
 
