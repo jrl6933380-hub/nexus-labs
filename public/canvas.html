@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Nexus // Canvas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #05070c; }
+  .notes-panel { padding: 14px; font: 13px/1.5 Inter, -apple-system, sans-serif; color: #e8eefb; height: 100%; box-sizing: border-box; }
+  .notes-panel textarea {
+    width: 100%; height: calc(100% - 10px); resize: none; border: none; outline: none;
+    background: transparent; color: #e8eefb; font: 13px/1.6 Inter, -apple-system, sans-serif;
+  }
+  .canvas-title-bar {
+    position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 10000;
+    font: 700 11px 'JetBrains Mono', monospace; letter-spacing: 0.1em; text-transform: uppercase;
+    color: #58d7ff; background: #111827e8; border: 1px solid #3c5a84; border-radius: 8px;
+    padding: 7px 16px; backdrop-filter: blur(12px);
+  }
+  .return-link {
+    position: fixed; top: 12px; left: 12px; z-index: 10000;
+    font: 700 10px 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.06em;
+    color: #91a0b9; text-decoration: none; background: #111827e8; border: 1px solid #26334d;
+    border-radius: 8px; padding: 8px 12px; backdrop-filter: blur(12px);
+  }
+  .return-link:hover { color: #58d7ff; border-color: #4b8dff77; }
+  #nexus-canvas-backdrop-control {
+    position: fixed; left: 12px; bottom: 12px; z-index: 10000; display: flex; gap: 6px;
+    background: #111827e8; border: 1px solid #3c5a84; border-radius: 10px; padding: 9px;
+    backdrop-filter: blur(12px); box-shadow: 0 16px 40px #000a; font: 12px Inter, sans-serif;
+  }
+  #nexus-canvas-backdrop-control input {
+    width: 220px; background: #ffffff08; border: 1px solid #26334d; border-radius: 6px;
+    color: #e8eefb; padding: 6px 9px; font: 11px 'JetBrains Mono', monospace;
+  }
+  #nexus-canvas-backdrop-control input::placeholder { color: #5e6b81; }
+  #nexus-canvas-backdrop-control button {
+    background: #4b8dff18; border: 1px solid #4b8dff77; color: #58d7ff; border-radius: 6px;
+    padding: 6px 12px; font: 700 9px 'JetBrains Mono', monospace; text-transform: uppercase;
+    letter-spacing: 0.06em; cursor: pointer;
+  }
+  #nexus-canvas-backdrop-control button:hover { background: #4b8dff32; }
+</style>
+</head>
+<body>
+<script type="module">
+  import { mountCanvas } from '/canvas-engine.js';
+
+  const params = new URLSearchParams(location.search);
+  const canvasId = params.get('id');
+  const canvasName = params.get('name') || canvasId;
+
+  if (!canvasId) {
+    document.body.innerHTML = '<p style="color:#e8eefb;font:13px Inter,sans-serif;padding:20px;">No canvas id given — open this page as /canvas.html?id=your-venture-slug</p>';
+    throw new Error('missing canvas id');
+  }
+
+  // Ensure the canvas exists (idempotent — a canvas that already
+  // exists is returned unchanged, never reset) before mounting, so
+  // visiting a brand-new id for the first time provisions it on the
+  // spot instead of just showing an empty error state.
+  await fetch('/api/board', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'create_canvas', id: canvasId, name: canvasName }),
+  }).catch(() => {});
+
+  document.title = `Nexus // ${canvasName}`;
+
+  const titleBar = document.createElement('div');
+  titleBar.className = 'canvas-title-bar';
+  titleBar.textContent = canvasName;
+  document.body.appendChild(titleBar);
+
+  const returnLink = document.createElement('a');
+  returnLink.className = 'return-link';
+  returnLink.href = '/';
+  returnLink.textContent = '← Dashboard';
+  document.body.appendChild(returnLink);
+
+  const canvas = mountCanvas({ canvasId });
+
+  // Every new venture canvas starts with one blank notes panel — a
+  // real, usable starting point rather than an empty room with
+  // nothing to do. More panel types are a natural next step once this
+  // shape is confirmed to work.
+  const notesWrap = document.createElement('div');
+  notesWrap.className = 'notes-panel';
+  const textarea = document.createElement('textarea');
+  textarea.placeholder = 'Notes for this venture…';
+  notesWrap.appendChild(textarea);
+  canvas.addPanel({ id: 'notes', title: 'NOTES', content: notesWrap, x: 80, y: 100, w: 420, h: 320 });
+
+  const control = document.createElement('div');
+  control.id = 'nexus-canvas-backdrop-control';
+  control.innerHTML = `
+    <input type="text" id="backdropUrlInput" placeholder="Backdrop image URL…" />
+    <button id="backdropApplyBtn">Set backdrop</button>
+  `;
+  document.body.appendChild(control);
+  document.getElementById('backdropApplyBtn').addEventListener('click', () => {
+    const input = document.getElementById('backdropUrlInput');
+    canvas.setBackdropUrl(input.value.trim() || null);
+  });
+</script>
+</body>
+</html>
