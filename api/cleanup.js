@@ -3,6 +3,11 @@
 
 import { readBoard, postMessage } from '../lib/board.js';
 import { createCleanupService } from '../lib/cleanupAgent.js';
+import { listCrashes } from '../lib/crashFeed.js';
+import { getDefaultBranch, listPullRequests, listPullRequestFiles } from '../lib/github.js';
+
+const OWNER = process.env.NEXUS_REPO_OWNER || 'jrl6933380-hub';
+const REPO = process.env.NEXUS_REPO_NAME || 'nexus-labs';
 
 function isAuthorized(req) {
   const secret = process.env.CRON_SECRET;
@@ -15,7 +20,14 @@ export default async function handler(req, res) {
   if (!isAuthorized(req)) return res.status(401).json({ error: 'Unauthorized' });
 
   try {
-    const cleaner = createCleanupService({ readBoard, postMessage });
+    const cleaner = createCleanupService({
+      readBoard,
+      postMessage,
+      github: { getDefaultBranch, listPullRequests, listPullRequestFiles },
+      listCrashes,
+      owner: OWNER,
+      repo: REPO,
+    });
     return res.status(200).json({ cleanup: await cleaner.sweep() });
   } catch (err) {
     console.error('cleanup sweep failed:', err.message);
