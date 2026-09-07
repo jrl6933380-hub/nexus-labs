@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Nexus Canvas</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #05070c; }
+  .board-summary { padding: 14px; font: 13px/1.5 -apple-system, sans-serif; color: #cfd6e4; }
+  .board-summary h4 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: #8891a3; }
+  .board-summary .stat-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .board-summary .messages { margin-top: 10px; }
+  .board-summary .message { padding: 6px 0; font-size: 12px; color: #a9b2c3; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .board-summary .message .from { color: #4de8a0; font-weight: 600; }
+  .board-summary .empty { color: #5b6577; font-style: italic; }
+</style>
+</head>
+<body>
+<script type="module">
+  import { mountCanvas } from '/canvas-engine.js';
+
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = String(text ?? '');
+    return div.innerHTML;
+  }
+
+  const canvas = mountCanvas();
+
+  // First real panel: a live board summary, proving a panel on the
+  // canvas can show real, safely-escaped live data — not a
+  // placeholder. Board view (task counts, recent messages) is the
+  // most existing/central piece of functionality to prove first;
+  // more panels (Nex chat, agent list) are natural follow-ups once
+  // this shape is confirmed to work end to end.
+  const summaryBody = document.createElement('div');
+  summaryBody.className = 'board-summary';
+  summaryBody.innerHTML = '<span class="empty">Loading board…</span>';
+  canvas.addPanel({
+    id: 'board-summary',
+    title: 'BOARD',
+    content: summaryBody,
+    x: 80,
+    y: 80,
+    w: 380,
+    h: 360,
+  });
+
+  async function refreshBoardSummary() {
+    try {
+      const res = await fetch('/api/board', { headers: { Accept: 'application/json' }, cache: 'no-store' });
+      if (!res.ok) return;
+      const data = await res.json();
+      const t = data.telemetry || {};
+      const messages = (data.messages || []).slice(0, 5);
+      summaryBody.innerHTML = `
+        <h4>Live board</h4>
+        <div class="stat-row"><span>Total tasks</span><span>${escapeHtml(t.total_tasks ?? 0)}</span></div>
+        <div class="stat-row"><span>Completed</span><span>${escapeHtml(t.completed_tasks ?? 0)}</span></div>
+        <div class="stat-row"><span>Needs approval</span><span>${escapeHtml(t.needs_approval ?? 0)}</span></div>
+        <div class="stat-row"><span>Active agents</span><span>${escapeHtml(t.active_agents ?? 0)}</span></div>
+        <div class="messages">
+          <h4>Recent messages</h4>
+          ${messages.length
+            ? messages.map((m) => `<div class="message"><span class="from">${escapeHtml(m.from)}</span>: ${escapeHtml(m.message)}</div>`).join('')
+            : '<span class="empty">No messages yet.</span>'}
+        </div>
+      `;
+    } catch {
+      // Keep showing the last good render rather than blanking the panel.
+    }
+  }
+
+  refreshBoardSummary();
+  setInterval(refreshBoardSummary, 4000);
+</script>
+</body>
+</html>
