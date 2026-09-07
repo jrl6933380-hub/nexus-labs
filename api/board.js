@@ -24,6 +24,7 @@ import {
   markBlocked,
   attachResult,
   completeTask,
+  deleteTask,
   postMessage,
 } from '../lib/board.js';
 import { listAgents } from '../lib/agents.js';
@@ -91,6 +92,7 @@ async function handleBoard(req, res) {
     if (action === 'mark_blocked') return res.status(200).json({ task: await markBlocked(params) });
     if (action === 'attach_result') return res.status(200).json({ task: await attachResult(params) });
     if (action === 'complete_task') return res.status(200).json({ task: await completeTask(params) });
+    if (action === 'delete_task') return res.status(200).json({ deleted: await deleteTask(params) });
     if (action === 'post_message') return res.status(200).json({ message: await postMessage(params) });
     if (action === 'acquire_nex_role') return res.status(200).json({ lease: await acquireNexRole(params) });
     if (action === 'renew_nex_role') return res.status(200).json({ lease: await renewNexRole(params) });
