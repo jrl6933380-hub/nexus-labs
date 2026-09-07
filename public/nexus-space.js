@@ -29,6 +29,25 @@ function sceneFromLocation() {
   return scenes[key] ? key : 'command';
 }
 
+// Resolve any reference (a scene key, a room slug like "connector-bay", or a
+// "/#connectors"-style URL) to a real scene key. A room's real url carries
+// the exact scene key in its hash, so that's checked first and trusted
+// exactly — the old substring-only match on the human-readable slug quietly
+// failed for "connector-bay" (no "connectors" substring) and "tenant-hub"
+// (no "tenants" substring), both silently falling back to Command Deck
+// instead of actually switching. Substring matching is kept as a fallback
+// so direct calls like NexusSpace.open('conference') still work.
+function sceneKeyFromReference(reference) {
+  const raw = String(reference || '').toLowerCase();
+  const hashMatch = raw.match(/#([a-z]+)$/u);
+  if (hashMatch && scenes[hashMatch[1]]) return hashMatch[1];
+  const bySubstring = Object.keys(scenes).find((scene) => raw.includes(scene));
+  if (bySubstring) return bySubstring;
+  if (raw.includes('approval')) return 'queue';
+  if (raw.includes('room')) return 'conference';
+  return 'command';
+}
+
 function renderBoard(board) {
   state.board = board || { tasks:[], agents:[], telemetry:{} };
   const tasks = Array.isArray(state.board.tasks) ? state.board.tasks : [];
@@ -76,14 +95,13 @@ function openScene(key, push) {
   if (push && location.hash !== '#' + next) history.pushState({ scene:next }, '', '#' + next);
 }
 
-window.NexusSpace = { open:(reference) => {
-  const raw = String(reference || '').toLowerCase();
-  const key = Object.keys(scenes).find((scene) => raw.includes(scene)) || (raw.includes('approval') ? 'queue' : raw.includes('room') ? 'conference' : 'command');
-  openScene(key, true);
-}};
+window.NexusSpace = { open:(reference) => openScene(sceneKeyFromReference(reference), true) };
 window.addEventListener('popstate', () => openScene(sceneFromLocation(), false));
 window.addEventListener('nexus:navigate', (event) => {
-  const room = event.detail?.room || event.detail?.url || '';
+  // Prefer the room's real url — its hash IS the exact scene key — over the
+  // human-readable slug, which is what silently broke Connector Bay and
+  // Tenant Hub above.
+  const room = event.detail?.url || event.detail?.room || '';
   window.NexusSpace.open(room);
 });
 openScene(sceneFromLocation(), false);
