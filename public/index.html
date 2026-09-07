@@ -1,16 +1,196 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#070a11">
-  <title>Nexus // Visual Space</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/nexus-space.css">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Nexus // Canvas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #05070c; }
+  .board-summary, .agent-list, .room-list { padding: 14px; font: 13px/1.5 Inter, -apple-system, sans-serif; color: #e8eefb; }
+  .board-summary h4, .agent-list h4, .room-list h4 {
+    margin: 0 0 8px; font: 600 9px 'JetBrains Mono', monospace; text-transform: uppercase;
+    letter-spacing: 0.16em; color: #5e6b81;
+  }
+  .board-summary .stat-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #ffffff0a; font-size: 12px; }
+  .board-summary .stat-row span:last-child { font: 700 12px 'JetBrains Mono', monospace; color: #58d7ff; }
+  .board-summary .messages { margin-top: 12px; }
+  .board-summary .message { padding: 6px 0; font-size: 11px; color: #91a0b9; border-bottom: 1px solid #ffffff0a; }
+  .board-summary .message .from { color: #58edb0; font-weight: 700; }
+  .board-summary .empty, .agent-list .empty { color: #5e6b81; font-style: italic; font-size: 11px; }
+  .agent-list .agent-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid #ffffff0a; }
+  .agent-list .agent-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .agent-list .agent-dot.online { background: #58edb0; box-shadow: 0 0 8px #58edb0b0; }
+  .agent-list .agent-dot.busy { background: #ffc56b; box-shadow: 0 0 8px #ffc56bb0; }
+  .agent-list .agent-dot.available_on_demand { background: #4b8dff; box-shadow: 0 0 8px #4b8dffb0; }
+  .agent-list .agent-dot.offline, .agent-list .agent-dot.disabled { background: #3c4a63; }
+  .agent-list .agent-name { font-weight: 600; font-size: 12px; }
+  .agent-list .agent-status { margin-left: auto; font: 600 9px 'JetBrains Mono', monospace; color: #5e6b81; text-transform: uppercase; letter-spacing: 0.05em; }
+  .room-list a.room-link {
+    display: block;
+    padding: 9px 11px;
+    margin-bottom: 6px;
+    border-radius: 8px;
+    background: #ffffff03;
+    border: 1px solid #26334d;
+    color: #e8eefb;
+    text-decoration: none;
+    font: 700 10px 'JetBrains Mono', monospace;
+    letter-spacing: 0.04em;
+    transition: 0.18s;
+  }
+  .room-list a.room-link:hover { background: #4b8dff14; border-color: #4b8dff77; color: #58d7ff; }
+  .room-list a.room-link small { display: block; font: 400 10px Inter, sans-serif; color: #91a0b9; margin-top: 3px; letter-spacing: 0; text-transform: none; }
+
+  #nexus-canvas-backdrop-control {
+    position: fixed;
+    left: 12px;
+    bottom: 12px;
+    z-index: 10000;
+    display: flex;
+    gap: 6px;
+    background: #111827e8;
+    border: 1px solid #3c5a84;
+    border-radius: 10px;
+    padding: 9px;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 16px 40px #000a;
+    font: 12px Inter, sans-serif;
+  }
+  #nexus-canvas-backdrop-control input {
+    width: 220px;
+    background: #ffffff08;
+    border: 1px solid #26334d;
+    border-radius: 6px;
+    color: #e8eefb;
+    padding: 6px 9px;
+    font: 11px 'JetBrains Mono', monospace;
+  }
+  #nexus-canvas-backdrop-control input::placeholder { color: #5e6b81; }
+  #nexus-canvas-backdrop-control button {
+    background: #4b8dff18;
+    border: 1px solid #4b8dff77;
+    color: #58d7ff;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font: 700 9px 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: 0.18s;
+  }
+  #nexus-canvas-backdrop-control button:hover { background: #4b8dff32; }
+</style>
 </head>
-<body data-scene="command">
-  <main id="nexusSpace" class="nexus-space" aria-live="polite"></main>
-  <script type="module" src="/nexus-space.js"></script>
+<body>
+<script type="module">
+  import { mountCanvas } from '/canvas-engine.js';
+  import '/nex-chat-bar.js';
+
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = String(text ?? '');
+    return div.innerHTML;
+  }
+
+  const canvas = mountCanvas();
+
+  // Room list — until "rooms" become real saved views on this same
+  // canvas, this is the bridge: real links to each existing room's own
+  // detail page, so nothing already built is unreachable from here.
+  // Kept in sync by hand with the `scenes` registry in nexus-space.js
+  // (same duplication already present between that file and
+  // lib/rooms.js) — a shared source is a good later cleanup, not a
+  // blocker for this bridge working today.
+  const ROOMS = [
+    { nav: 'Mission', title: 'Command Deck', detail: '/mission-control.html' },
+    { nav: 'Conference', title: 'Conference Room', detail: '/conference-room.html' },
+    { nav: 'Builder', title: 'Room Builder', detail: '/room.html' },
+    { nav: 'Memory', title: 'Memory Archive', detail: '/memory.html' },
+    { nav: 'Approvals', title: 'Approval Queue', detail: '/queue.html' },
+    { nav: 'Connectors', title: 'Connector Bay', detail: '/connectors.html' },
+    { nav: 'Tenants', title: 'Tenant Hub', detail: '/tenants.html' },
+  ];
+
+  const roomBody = document.createElement('div');
+  roomBody.className = 'room-list';
+  roomBody.innerHTML = `
+    <h4>Rooms</h4>
+    ${ROOMS.map((r) => `<a class="room-link" href="${escapeHtml(r.detail)}">${escapeHtml(r.nav)}<small>${escapeHtml(r.title)}</small></a>`).join('')}
+  `;
+  canvas.addPanel({ id: 'room-list', title: 'ROOMS', content: roomBody, x: 80, y: 460, w: 260, h: 340 });
+
+  // Board summary panel — task counts + recent messages.
+  const summaryBody = document.createElement('div');
+  summaryBody.className = 'board-summary';
+  summaryBody.innerHTML = '<span class="empty">Loading board…</span>';
+  canvas.addPanel({ id: 'board-summary', title: 'BOARD', content: summaryBody, x: 380, y: 80, w: 380, h: 360 });
+
+  // Agent list panel — who's online right now.
+  const agentBody = document.createElement('div');
+  agentBody.className = 'agent-list';
+  agentBody.innerHTML = '<span class="empty">Loading agents…</span>';
+  canvas.addPanel({ id: 'agent-list', title: 'AGENTS', content: agentBody, x: 780, y: 80, w: 300, h: 280 });
+
+  async function refreshLiveData() {
+    try {
+      const res = await fetch('/api/board', { headers: { Accept: 'application/json' }, cache: 'no-store' });
+      if (!res.ok) return;
+      const data = await res.json();
+
+      const t = data.telemetry || {};
+      const messages = (data.messages || []).slice(0, 5);
+      summaryBody.innerHTML = `
+        <h4>Live board</h4>
+        <div class="stat-row"><span>Total tasks</span><span>${escapeHtml(t.total_tasks ?? 0)}</span></div>
+        <div class="stat-row"><span>Completed</span><span>${escapeHtml(t.completed_tasks ?? 0)}</span></div>
+        <div class="stat-row"><span>Needs approval</span><span>${escapeHtml(t.needs_approval ?? 0)}</span></div>
+        <div class="stat-row"><span>Active agents</span><span>${escapeHtml(t.active_agents ?? 0)}</span></div>
+        <div class="messages">
+          <h4>Recent messages</h4>
+          ${messages.length
+            ? messages.map((m) => `<div class="message"><span class="from">${escapeHtml(m.from)}</span>: ${escapeHtml(m.message)}</div>`).join('')
+            : '<span class="empty">No messages yet.</span>'}
+        </div>
+      `;
+
+      const agents = data.agents || [];
+      agentBody.innerHTML = `
+        <h4>Agents</h4>
+        ${agents.length
+          ? agents.map((a) => `
+              <div class="agent-row">
+                <span class="agent-dot ${escapeHtml(a.status)}"></span>
+                <span class="agent-name">${escapeHtml(a.display_name)}</span>
+                <span class="agent-status">${escapeHtml(a.status)}</span>
+              </div>
+            `).join('')
+          : '<span class="empty">No agents registered.</span>'}
+      `;
+    } catch {
+      // Keep showing the last good render rather than blanking the panels.
+    }
+  }
+
+  refreshLiveData();
+  setInterval(refreshLiveData, 4000);
+
+  // Backdrop control — the one manual control on this page. Not a
+  // canvas panel itself (it's a tool, not content), so it stays fixed
+  // in the corner rather than being draggable/resizable like the
+  // content panels above it.
+  const control = document.createElement('div');
+  control.id = 'nexus-canvas-backdrop-control';
+  control.innerHTML = `
+    <input type="text" id="backdropUrlInput" placeholder="Backdrop image URL…" />
+    <button id="backdropApplyBtn">Set backdrop</button>
+  `;
+  document.body.appendChild(control);
+  document.getElementById('backdropApplyBtn').addEventListener('click', () => {
+    const input = document.getElementById('backdropUrlInput');
+    canvas.setBackdropUrl(input.value.trim() || null);
+  });
+</script>
 </body>
 </html>
