@@ -3,38 +3,45 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-<title>Nexus Canvas</title>
+<title>Nexus // Canvas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   html, body { margin: 0; padding: 0; height: 100%; background: #05070c; }
-  .board-summary, .agent-list, .room-list { padding: 14px; font: 13px/1.5 -apple-system, sans-serif; color: #cfd6e4; }
-  .board-summary h4, .agent-list h4, .room-list h4 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: #8891a3; }
-  .board-summary .stat-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
-  .board-summary .messages { margin-top: 10px; }
-  .board-summary .message { padding: 6px 0; font-size: 12px; color: #a9b2c3; border-bottom: 1px solid rgba(255,255,255,0.04); }
-  .board-summary .message .from { color: #4de8a0; font-weight: 600; }
-  .board-summary .empty, .agent-list .empty { color: #5b6577; font-style: italic; }
-  .agent-list .agent-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .board-summary, .agent-list, .room-list { padding: 14px; font: 13px/1.5 Inter, -apple-system, sans-serif; color: #e8eefb; }
+  .board-summary h4, .agent-list h4, .room-list h4 {
+    margin: 0 0 8px; font: 600 9px 'JetBrains Mono', monospace; text-transform: uppercase;
+    letter-spacing: 0.16em; color: #5e6b81;
+  }
+  .board-summary .stat-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #ffffff0a; font-size: 12px; }
+  .board-summary .stat-row span:last-child { font: 700 12px 'JetBrains Mono', monospace; color: #58d7ff; }
+  .board-summary .messages { margin-top: 12px; }
+  .board-summary .message { padding: 6px 0; font-size: 11px; color: #91a0b9; border-bottom: 1px solid #ffffff0a; }
+  .board-summary .message .from { color: #58edb0; font-weight: 700; }
+  .board-summary .empty, .agent-list .empty { color: #5e6b81; font-style: italic; font-size: 11px; }
+  .agent-list .agent-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid #ffffff0a; }
   .agent-list .agent-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-  .agent-list .agent-dot.online { background: #4de8a0; box-shadow: 0 0 8px rgba(77,232,160,0.7); }
-  .agent-list .agent-dot.busy { background: #ffb020; box-shadow: 0 0 8px rgba(255,176,32,0.7); }
-  .agent-list .agent-dot.available_on_demand { background: #2e7fff; box-shadow: 0 0 8px rgba(46,127,255,0.6); }
-  .agent-list .agent-dot.offline, .agent-list .agent-dot.disabled { background: #3a4256; }
-  .agent-list .agent-name { font-weight: 600; }
-  .agent-list .agent-status { margin-left: auto; font-size: 11px; color: #8891a3; text-transform: uppercase; letter-spacing: 0.03em; }
+  .agent-list .agent-dot.online { background: #58edb0; box-shadow: 0 0 8px #58edb0b0; }
+  .agent-list .agent-dot.busy { background: #ffc56b; box-shadow: 0 0 8px #ffc56bb0; }
+  .agent-list .agent-dot.available_on_demand { background: #4b8dff; box-shadow: 0 0 8px #4b8dffb0; }
+  .agent-list .agent-dot.offline, .agent-list .agent-dot.disabled { background: #3c4a63; }
+  .agent-list .agent-name { font-weight: 600; font-size: 12px; }
+  .agent-list .agent-status { margin-left: auto; font: 600 9px 'JetBrains Mono', monospace; color: #5e6b81; text-transform: uppercase; letter-spacing: 0.05em; }
   .room-list a.room-link {
     display: block;
-    padding: 8px 10px;
+    padding: 9px 11px;
     margin-bottom: 6px;
-    border-radius: 6px;
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.06);
-    color: #cfd6e4;
+    border-radius: 8px;
+    background: #ffffff03;
+    border: 1px solid #26334d;
+    color: #e8eefb;
     text-decoration: none;
-    font-weight: 600;
-    font-size: 12px;
+    font: 700 10px 'JetBrains Mono', monospace;
+    letter-spacing: 0.04em;
+    transition: 0.18s;
   }
-  .room-list a.room-link:hover { background: rgba(46,127,255,0.14); border-color: rgba(46,127,255,0.4); }
-  .room-list a.room-link small { display: block; font-weight: 400; color: #8891a3; margin-top: 2px; }
+  .room-list a.room-link:hover { background: #4b8dff14; border-color: #4b8dff77; color: #58d7ff; }
+  .room-list a.room-link small { display: block; font: 400 10px Inter, sans-serif; color: #91a0b9; margin-top: 3px; letter-spacing: 0; text-transform: none; }
 
   #nexus-canvas-backdrop-control {
     position: fixed;
@@ -43,31 +50,37 @@
     z-index: 10000;
     display: flex;
     gap: 6px;
-    background: rgba(10, 14, 20, 0.92);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
-    padding: 8px;
-    font: 12px -apple-system, sans-serif;
+    background: #111827e8;
+    border: 1px solid #3c5a84;
+    border-radius: 10px;
+    padding: 9px;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 16px 40px #000a;
+    font: 12px Inter, sans-serif;
   }
   #nexus-canvas-backdrop-control input {
     width: 220px;
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.12);
-    border-radius: 5px;
-    color: #cfd6e4;
-    padding: 5px 8px;
-    font: inherit;
+    background: #ffffff08;
+    border: 1px solid #26334d;
+    border-radius: 6px;
+    color: #e8eefb;
+    padding: 6px 9px;
+    font: 11px 'JetBrains Mono', monospace;
   }
+  #nexus-canvas-backdrop-control input::placeholder { color: #5e6b81; }
   #nexus-canvas-backdrop-control button {
-    background: rgba(46,127,255,0.18);
-    border: 1px solid #2e7fff;
-    color: #bcd4ff;
-    border-radius: 5px;
-    padding: 5px 10px;
-    font: inherit;
+    background: #4b8dff18;
+    border: 1px solid #4b8dff77;
+    color: #58d7ff;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font: 700 9px 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
     cursor: pointer;
+    transition: 0.18s;
   }
-  #nexus-canvas-backdrop-control button:hover { background: rgba(46,127,255,0.3); }
+  #nexus-canvas-backdrop-control button:hover { background: #4b8dff32; }
 </style>
 </head>
 <body>
