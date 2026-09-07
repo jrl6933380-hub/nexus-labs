@@ -1,16 +1,220 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#070a11">
-  <title>Nexus // Visual Space</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/nexus-space.css">
+<meta charset="UTF-8">
+<title>Dad Joke Roller</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+    font-family: 'Comic Sans MS', 'Trebuchet MS', sans-serif;
+  }
+
+  body {
+    background: linear-gradient(
+      270deg,
+      #ff0000, #ff9900, #ffee00, #33ff00, #00ffee, #0066ff, #cc00ff, #ff0000
+    );
+    background-size: 1400% 1400%;
+    animation: rainbow 20s ease infinite;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+
+  @keyframes rainbow {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  h1 {
+    color: white;
+    text-shadow: 2px 2px 6px rgba(0,0,0,0.4);
+    font-size: 2.5rem;
+    margin-bottom: 0.2em;
+    letter-spacing: 1px;
+  }
+
+  .subtitle {
+    color: white;
+    text-shadow: 1px 1px 4px rgba(0,0,0,0.4);
+    margin-bottom: 2rem;
+    font-size: 1.1rem;
+    opacity: 0.9;
+  }
+
+  .track {
+    position: relative;
+    width: 100%;
+    height: 140px;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    box-sizing: border-box;
+  }
+
+  .joke-bubble {
+    position: absolute;
+    white-space: nowrap;
+    background: rgba(255,255,255,0.92);
+    color: #222;
+    padding: 20px 34px;
+    border-radius: 50px;
+    font-size: 1.4rem;
+    font-weight: bold;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+    left: 100%;
+    animation: roll linear;
+    animation-fill-mode: forwards;
+  }
+
+  @keyframes roll {
+    from { transform: translateX(0); }
+    to { transform: translateX(-220vw); }
+  }
+
+  .controls {
+    margin-top: 2.5rem;
+    display: flex;
+    gap: 1rem;
+  }
+
+  button {
+    background: white;
+    border: none;
+    padding: 14px 28px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    border-radius: 40px;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  button:hover {
+    transform: translateY(-3px) scale(1.05);
+    box-shadow: 0 8px 18px rgba(0,0,0,0.4);
+  }
+
+  button:active {
+    transform: translateY(0) scale(0.98);
+  }
+
+  #rollBtn {
+    background: #222;
+    color: white;
+  }
+
+  .emoji {
+    margin-right: 10px;
+  }
+</style>
 </head>
-<body data-scene="command">
-  <main id="nexusSpace" class="nexus-space" aria-live="polite"></main>
-  <script type="module" src="/nexus-space.js"></script>
+<body>
+
+  <h1>😂 The Dad Joke Roller 😂</h1>
+  <div class="subtitle">Jokes roll by on their own — or roll a new one yourself!</div>
+
+  <div class="track" id="track"></div>
+
+  <div class="controls">
+    <button id="rollBtn">🎲 Roll a Dad Joke</button>
+    <button id="pauseBtn">⏸ Pause Rolling</button>
+  </div>
+
+<script>
+  const jokes = [
+    "I'm afraid for the calendar. Its days are numbered.",
+    "Why don't skeletons fight each other? They don't have the guts.",
+    "I used to hate facial hair, but then it grew on me.",
+    "What do you call a fish with no eyes? A fsh.",
+    "I only know 25 letters of the alphabet. I don't know y.",
+    "Why did the scarecrow win an award? He was outstanding in his field.",
+    "I'm reading a book on anti-gravity. It's impossible to put down.",
+    "Did you hear about the claustrophobic astronaut? He just needed a little space.",
+    "Why couldn't the bicycle stand up by itself? It was two tired.",
+    "I told my wife she was drawing her eyebrows too high. She looked surprised.",
+    "What do you call a factory that makes okay products? A satisfactory.",
+    "I used to be a banker, but I lost interest.",
+    "Why don't eggs tell jokes? They'd crack each other up.",
+    "I'm on a seafood diet. I see food and I eat it.",
+    "How do you organize a space party? You planet.",
+    "Why did the golfer bring two pairs of pants? In case he got a hole in one.",
+    "What's the best thing about Switzerland? I don't know, but the flag is a big plus.",
+    "I invented a new word: Plagiarism.",
+    "Why can't you give Elsa a balloon? Because she'll let it go.",
+    "Did you hear about the guy who invented the knock-knock joke? He won the 'no-bell' prize.",
+    "What did the ocean say to the beach? Nothing, it just waved.",
+    "Why did the coffee file a police report? It got mugged.",
+    "I'm friends with 25 letters of the alphabet, but I don't know y.",
+    "What do you call cheese that isn't yours? Nacho cheese.",
+    "How does a penguin build its house? Igloos it together.",
+    "Why did the math book look so sad? It had too many problems.",
+    "What do you call a bear with no teeth? A gummy bear.",
+    "I would tell you a chemistry joke, but I know I wouldn't get a reaction.",
+    "Why was the broom late? It swept in.",
+    "What do you call a can opener that doesn't work? A can't opener."
+  ];
+
+  const track = document.getElementById('track');
+  const rollBtn = document.getElementById('rollBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+  let autoTimer = null;
+  let paused = false;
+
+  function spawnJoke(text) {
+    const bubble = document.createElement('div');
+    bubble.className = 'joke-bubble';
+    bubble.innerHTML = '<span class="emoji">👨</span>' + text;
+
+    // random vertical position within track
+    const top = Math.random() * 70;
+    bubble.style.top = top + 'px';
+
+    // random duration for variety
+    const duration = 12 + Math.random() * 6;
+    bubble.style.animationDuration = duration + 's';
+
+    track.appendChild(bubble);
+
+    bubble.addEventListener('animationend', () => {
+      bubble.remove();
+    });
+  }
+
+  function randomJoke() {
+    return jokes[Math.floor(Math.random() * jokes.length)];
+  }
+
+  function rollOne() {
+    spawnJoke(randomJoke());
+  }
+
+  function startAuto() {
+    if (autoTimer) clearInterval(autoTimer);
+    autoTimer = setInterval(() => {
+      if (!paused) rollOne();
+    }, 2200);
+  }
+
+  rollBtn.addEventListener('click', rollOne);
+
+  pauseBtn.addEventListener('click', () => {
+    paused = !paused;
+    pauseBtn.textContent = paused ? '▶ Resume Rolling' : '⏸ Pause Rolling';
+  });
+
+  // kick things off with a few jokes right away
+  for (let i = 0; i < 3; i++) {
+    setTimeout(rollOne, i * 700);
+  }
+  startAuto();
+</script>
+
 </body>
 </html>
