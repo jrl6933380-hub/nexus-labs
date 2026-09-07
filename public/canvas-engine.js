@@ -1,13 +1,16 @@
 // /public/canvas-engine.js
-// The single persistent Nexus canvas. One full-viewport backdrop,
-// panels that live on top of it as draggable/resizable objects.
-// Position/size and the backdrop are shared, live state (see
+// The single persistent Nexus canvas — now generalized to MANY
+// canvases, each addressable by id (defaults to 'dashboard', the
+// original homepage canvas, so existing callers that don't pass an
+// id keep working unchanged). One full-viewport backdrop, panels
+// that live on top of it as draggable/resizable objects. Position/
+// size and the backdrop are shared, live state per canvas (see
 // lib/canvasState.js) — a change made in one browser shows up in any
-// other one open on the canvas within one poll interval, no reload
-// needed. This deliberately does NOT touch DOM at import time (unlike
-// nex-chat-bar.js's auto-init) so canvas-geometry.js's pure functions
-// stay importable under Node for tests without this file dragging a
-// `document` reference in with it.
+// other one open on the SAME canvas within one poll interval, no
+// reload needed. This deliberately does NOT touch DOM at import time
+// (unlike nex-chat-bar.js's auto-init) so canvas-geometry.js's pure
+// functions stay importable under Node for tests without this file
+// dragging a `document` reference in with it.
 //
 // Visual theme matches nexus-space.css exactly (same color tokens,
 // grid+vignette atmosphere, JetBrains Mono panel headers) so a page
@@ -19,6 +22,7 @@
 import { clampPosition, finalizeResize } from './canvas-geometry.js';
 
 const POLL_INTERVAL_MS = 4000;
+const DEFAULT_CANVAS_ID = 'dashboard';
 
 function injectStyles() {
   if (document.getElementById('nexus-canvas-styles')) return;
@@ -119,9 +123,9 @@ function injectStyles() {
   document.head.appendChild(style);
 }
 
-async function fetchCanvasState() {
+async function fetchCanvasState(canvasId) {
   try {
-    const res = await fetch('/api/board', { headers: { Accept: 'application/json' }, cache: 'no-store' });
+    const res = await fetch(`/api/board?canvas_id=${encodeURIComponent(canvasId)}`, { headers: { Accept: 'application/json' }, cache: 'no-store' });
     if (!res.ok) return null;
     const data = await res.json();
     return data?.canvas || null;
@@ -142,9 +146,14 @@ function postCanvasAction(action, params) {
   });
 }
 
-export function mountCanvas() {
+export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
   injectStyles();
 
+  // Root/backdrop/atmosphere elements are per-page (one canvas visible
+  // at a time in one browser tab), so they're safe to reuse by fixed
+  // id even though the DATA behind them (fetched/posted below) is now
+  // scoped by canvasId — two different pages each calling mountCanvas
+  // with different ids never collide because each runs in its own tab.
   let root = document.getElementById('nexus-canvas-root');
   if (!root) {
     root = document.createElement('div');
@@ -201,7 +210,7 @@ export function mountCanvas() {
   }
 
   async function poll() {
-    const state = await fetchCanvasState();
+    const state = await fetchCanvasState(canvasId);
     if (!state) return;
     applyBackdrop(state.backdrop_url);
     for (const [id, rect] of Object.entries(state.panels || {})) {
@@ -242,7 +251,7 @@ export function mountCanvas() {
     }
 
     function persist(rect) {
-      postCanvasAction('set_canvas_panel_layout', { id, x: rect.x, y: rect.y, w: rect.w, h: rect.h });
+      postCanvasAction('set_canvas_panel_layout', { canvas_id: canvasId, id, x: rect.x, y: rect.y, w: rect.w, h: rect.h });
     }
 
     // Drag — same pointer-capture pattern as the existing Nex chat
@@ -308,12 +317,12 @@ export function mountCanvas() {
 
   function setBackdropUrl(url) {
     applyBackdrop(url);
-    return postCanvasAction('set_canvas_backdrop', { url });
+    return postCanvasAction('set_canvas_backdrop', { canvas_id: canvasId, url });
   }
 
   function destroy() {
     clearInterval(pollTimer);
   }
 
-  return { root, addPanel, setBackdropUrl, destroy };
+  return { root, canvasId, addPanel, setBackdropUrl, destroy };
 }
