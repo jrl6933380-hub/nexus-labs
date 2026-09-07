@@ -27,13 +27,16 @@ test('fans out layout and design lanes, then locks reviewer until both have evid
 });
 
 test('only a passing review creates the final ready-for-Nex handoff', async () => {
-  const { service } = fakeService();
+  const { service, tasks } = fakeService();
   const run = await service.start({ goal: 'Build a room', owner: 'jrl6933380-hub', repo: 'nexus-labs' });
   await service.submitLaneResult({ pipeline_id: run.id, lane: 'layout', summary: 'layout' });
   await service.submitLaneResult({ pipeline_id: run.id, lane: 'design', summary: 'design' });
   const blocked = await service.submitReview({ pipeline_id: run.id, decision: 'needs_changes', summary: 'fix contrast', corrections: ['Increase contrast'] });
-  assert.equal(blocked.status, 'needs_changes');
+  assert.equal(blocked.status, 'lanes_running');
   assert.equal(blocked.final_handoff, null);
+  assert.equal(blocked.review_task_id, null);
+  assert.equal(tasks.get(blocked.lane_task_ids.layout).status, 'building');
+  assert.match(tasks.get(blocked.lane_task_ids.design).last_note, /Increase contrast/);
 });
 
 test('passing review returns both lane results and QA evidence to Nex', async () => {
