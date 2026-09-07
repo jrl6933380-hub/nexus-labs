@@ -6,18 +6,60 @@
 <title>Nexus Canvas</title>
 <style>
   html, body { margin: 0; padding: 0; height: 100%; background: #05070c; }
-  .board-summary { padding: 14px; font: 13px/1.5 -apple-system, sans-serif; color: #cfd6e4; }
-  .board-summary h4 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: #8891a3; }
+  .board-summary, .agent-list { padding: 14px; font: 13px/1.5 -apple-system, sans-serif; color: #cfd6e4; }
+  .board-summary h4, .agent-list h4 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: #8891a3; }
   .board-summary .stat-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
   .board-summary .messages { margin-top: 10px; }
   .board-summary .message { padding: 6px 0; font-size: 12px; color: #a9b2c3; border-bottom: 1px solid rgba(255,255,255,0.04); }
   .board-summary .message .from { color: #4de8a0; font-weight: 600; }
-  .board-summary .empty { color: #5b6577; font-style: italic; }
+  .board-summary .empty, .agent-list .empty { color: #5b6577; font-style: italic; }
+  .agent-list .agent-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .agent-list .agent-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .agent-list .agent-dot.online { background: #4de8a0; box-shadow: 0 0 8px rgba(77,232,160,0.7); }
+  .agent-list .agent-dot.busy { background: #ffb020; box-shadow: 0 0 8px rgba(255,176,32,0.7); }
+  .agent-list .agent-dot.available_on_demand { background: #2e7fff; box-shadow: 0 0 8px rgba(46,127,255,0.6); }
+  .agent-list .agent-dot.offline, .agent-list .agent-dot.disabled { background: #3a4256; }
+  .agent-list .agent-name { font-weight: 600; }
+  .agent-list .agent-status { margin-left: auto; font-size: 11px; color: #8891a3; text-transform: uppercase; letter-spacing: 0.03em; }
+
+  #nexus-canvas-backdrop-control {
+    position: fixed;
+    left: 12px;
+    bottom: 12px;
+    z-index: 10000;
+    display: flex;
+    gap: 6px;
+    background: rgba(10, 14, 20, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 8px;
+    font: 12px -apple-system, sans-serif;
+  }
+  #nexus-canvas-backdrop-control input {
+    width: 220px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 5px;
+    color: #cfd6e4;
+    padding: 5px 8px;
+    font: inherit;
+  }
+  #nexus-canvas-backdrop-control button {
+    background: rgba(46,127,255,0.18);
+    border: 1px solid #2e7fff;
+    color: #bcd4ff;
+    border-radius: 5px;
+    padding: 5px 10px;
+    font: inherit;
+    cursor: pointer;
+  }
+  #nexus-canvas-backdrop-control button:hover { background: rgba(46,127,255,0.3); }
 </style>
 </head>
 <body>
 <script type="module">
   import { mountCanvas } from '/canvas-engine.js';
+  import '/nex-chat-bar.js';
 
   function escapeHtml(text) {
     const div = document.createElement('div');
@@ -27,30 +69,24 @@
 
   const canvas = mountCanvas();
 
-  // First real panel: a live board summary, proving a panel on the
-  // canvas can show real, safely-escaped live data — not a
-  // placeholder. Board view (task counts, recent messages) is the
-  // most existing/central piece of functionality to prove first;
-  // more panels (Nex chat, agent list) are natural follow-ups once
-  // this shape is confirmed to work end to end.
+  // Board summary panel — task counts + recent messages.
   const summaryBody = document.createElement('div');
   summaryBody.className = 'board-summary';
   summaryBody.innerHTML = '<span class="empty">Loading board…</span>';
-  canvas.addPanel({
-    id: 'board-summary',
-    title: 'BOARD',
-    content: summaryBody,
-    x: 80,
-    y: 80,
-    w: 380,
-    h: 360,
-  });
+  canvas.addPanel({ id: 'board-summary', title: 'BOARD', content: summaryBody, x: 80, y: 80, w: 380, h: 360 });
 
-  async function refreshBoardSummary() {
+  // Agent list panel — who's online right now.
+  const agentBody = document.createElement('div');
+  agentBody.className = 'agent-list';
+  agentBody.innerHTML = '<span class="empty">Loading agents…</span>';
+  canvas.addPanel({ id: 'agent-list', title: 'AGENTS', content: agentBody, x: 480, y: 80, w: 300, h: 280 });
+
+  async function refreshLiveData() {
     try {
       const res = await fetch('/api/board', { headers: { Accept: 'application/json' }, cache: 'no-store' });
       if (!res.ok) return;
       const data = await res.json();
+
       const t = data.telemetry || {};
       const messages = (data.messages || []).slice(0, 5);
       summaryBody.innerHTML = `
@@ -66,13 +102,43 @@
             : '<span class="empty">No messages yet.</span>'}
         </div>
       `;
+
+      const agents = data.agents || [];
+      agentBody.innerHTML = `
+        <h4>Agents</h4>
+        ${agents.length
+          ? agents.map((a) => `
+              <div class="agent-row">
+                <span class="agent-dot ${escapeHtml(a.status)}"></span>
+                <span class="agent-name">${escapeHtml(a.display_name)}</span>
+                <span class="agent-status">${escapeHtml(a.status)}</span>
+              </div>
+            `).join('')
+          : '<span class="empty">No agents registered.</span>'}
+      `;
     } catch {
-      // Keep showing the last good render rather than blanking the panel.
+      // Keep showing the last good render rather than blanking the panels.
     }
   }
 
-  refreshBoardSummary();
-  setInterval(refreshBoardSummary, 4000);
+  refreshLiveData();
+  setInterval(refreshLiveData, 4000);
+
+  // Backdrop control — the one manual control on this page. Not a
+  // canvas panel itself (it's a tool, not content), so it stays fixed
+  // in the corner rather than being draggable/resizable like the
+  // content panels above it.
+  const control = document.createElement('div');
+  control.id = 'nexus-canvas-backdrop-control';
+  control.innerHTML = `
+    <input type="text" id="backdropUrlInput" placeholder="Backdrop image URL…" />
+    <button id="backdropApplyBtn">Set backdrop</button>
+  `;
+  document.body.appendChild(control);
+  document.getElementById('backdropApplyBtn').addEventListener('click', () => {
+    const input = document.getElementById('backdropUrlInput');
+    canvas.setBackdropUrl(input.value.trim() || null);
+  });
 </script>
 </body>
 </html>
