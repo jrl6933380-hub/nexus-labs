@@ -53,6 +53,7 @@ import { tenantMeter } from '../lib/tenantMetering.js';
 import { createOAuthState, verifyOAuthState } from '../lib/oauthState.js';
 import { requireProvider } from '../lib/oauthProviders.js';
 import { storeTenantCredential, deleteTenantCredential } from '../lib/tenantCredentials.js';
+import { getCanvasState, setBackdrop, setPanelLayout, deletePanelLayout } from '../lib/canvasState.js';
 
 // This must exactly match the Authorization Callback URL / Redirect
 // URL registered with GitHub and Vercel — deriving it from the
@@ -62,7 +63,7 @@ const NEXUS_PUBLIC_URL = process.env.NEXUS_PUBLIC_URL || 'https://nexus-labs-sig
 
 async function handleBoard(req, res) {
   if (req.method === 'GET') {
-    const [board, agents, nex_role, crashes] = await Promise.all([readBoard(), listAgents(), getNexRoleLease(), listCrashes({ limit: 200 })]);
+    const [board, agents, nex_role, crashes, canvas] = await Promise.all([readBoard(), listAgents(), getNexRoleLease(), listCrashes({ limit: 200 }), getCanvasState()]);
     const tasks = board.tasks || [];
     const tasksByStatus = tasks.reduce((counts, task) => {
       counts[task.status] = (counts[task.status] || 0) + 1;
@@ -79,7 +80,7 @@ async function handleBoard(req, res) {
       workspace_status: process.env.E2B_API_KEY ? 'configured' : 'not_configured',
       observed_at: Date.now(),
     };
-    return res.status(200).json({ ...board, agents, nex_role, crashes, telemetry });
+    return res.status(200).json({ ...board, agents, nex_role, crashes, canvas, telemetry });
   }
 
   if (req.method === 'POST') {
@@ -102,6 +103,9 @@ async function handleBoard(req, res) {
     if (action === 'checkpoint_execution') return res.status(200).json({ pointer: await checkpointExecution(params) });
     if (action === 'get_execution_resume') return res.status(200).json({ pointer: await getExecutionResume(params.run_id) });
     if (action === 'list_execution_events') return res.status(200).json({ events: await listExecutionEvents(params.run_id, params.limit) });
+    if (action === 'set_canvas_backdrop') return res.status(200).json({ canvas: await setBackdrop(params) });
+    if (action === 'set_canvas_panel_layout') return res.status(200).json({ canvas: await setPanelLayout(params) });
+    if (action === 'delete_canvas_panel_layout') return res.status(200).json({ canvas: await deletePanelLayout(params) });
 
     return res.status(400).json({ error: `Unknown action: ${action}` });
   }
