@@ -53,7 +53,15 @@ import { tenantMeter } from '../lib/tenantMetering.js';
 import { createOAuthState, verifyOAuthState } from '../lib/oauthState.js';
 import { requireProvider } from '../lib/oauthProviders.js';
 import { storeTenantCredential, deleteTenantCredential } from '../lib/tenantCredentials.js';
-import { getCanvasState, setBackdrop, setPanelLayout, deletePanelLayout } from '../lib/canvasState.js';
+import {
+  getCanvasState,
+  setBackdrop,
+  setPanelLayout,
+  deletePanelLayout,
+  createCanvas,
+  deleteCanvas,
+  listCanvases,
+} from '../lib/canvasState.js';
 
 // This must exactly match the Authorization Callback URL / Redirect
 // URL registered with GitHub and Vercel — deriving it from the
@@ -63,7 +71,11 @@ const NEXUS_PUBLIC_URL = process.env.NEXUS_PUBLIC_URL || 'https://nexus-labs-sig
 
 async function handleBoard(req, res) {
   if (req.method === 'GET') {
-    const [board, agents, nex_role, crashes, canvas] = await Promise.all([readBoard(), listAgents(), getNexRoleLease(), listCrashes({ limit: 200 }), getCanvasState()]);
+    // canvas_id is optional — omitted defaults to the 'dashboard'
+    // canvas (the homepage), so every existing caller that doesn't
+    // know canvases are now plural keeps working unchanged.
+    const canvasId = req.query?.canvas_id;
+    const [board, agents, nex_role, crashes, canvas] = await Promise.all([readBoard(), listAgents(), getNexRoleLease(), listCrashes({ limit: 200 }), getCanvasState(canvasId)]);
     const tasks = board.tasks || [];
     const tasksByStatus = tasks.reduce((counts, task) => {
       counts[task.status] = (counts[task.status] || 0) + 1;
@@ -106,6 +118,9 @@ async function handleBoard(req, res) {
     if (action === 'set_canvas_backdrop') return res.status(200).json({ canvas: await setBackdrop(params) });
     if (action === 'set_canvas_panel_layout') return res.status(200).json({ canvas: await setPanelLayout(params) });
     if (action === 'delete_canvas_panel_layout') return res.status(200).json({ canvas: await deletePanelLayout(params) });
+    if (action === 'create_canvas') return res.status(200).json({ canvas: await createCanvas(params) });
+    if (action === 'delete_canvas') return res.status(200).json({ deleted: await deleteCanvas(params) });
+    if (action === 'list_canvases') return res.status(200).json({ canvases: await listCanvases() });
 
     return res.status(400).json({ error: `Unknown action: ${action}` });
   }
