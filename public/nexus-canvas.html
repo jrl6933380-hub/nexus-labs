@@ -6,8 +6,8 @@
 <title>Nexus Canvas</title>
 <style>
   html, body { margin: 0; padding: 0; height: 100%; background: #05070c; }
-  .board-summary, .agent-list { padding: 14px; font: 13px/1.5 -apple-system, sans-serif; color: #cfd6e4; }
-  .board-summary h4, .agent-list h4 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: #8891a3; }
+  .board-summary, .agent-list, .room-list { padding: 14px; font: 13px/1.5 -apple-system, sans-serif; color: #cfd6e4; }
+  .board-summary h4, .agent-list h4, .room-list h4 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: #8891a3; }
   .board-summary .stat-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
   .board-summary .messages { margin-top: 10px; }
   .board-summary .message { padding: 6px 0; font-size: 12px; color: #a9b2c3; border-bottom: 1px solid rgba(255,255,255,0.04); }
@@ -21,6 +21,20 @@
   .agent-list .agent-dot.offline, .agent-list .agent-dot.disabled { background: #3a4256; }
   .agent-list .agent-name { font-weight: 600; }
   .agent-list .agent-status { margin-left: auto; font-size: 11px; color: #8891a3; text-transform: uppercase; letter-spacing: 0.03em; }
+  .room-list a.room-link {
+    display: block;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    color: #cfd6e4;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 12px;
+  }
+  .room-list a.room-link:hover { background: rgba(46,127,255,0.14); border-color: rgba(46,127,255,0.4); }
+  .room-list a.room-link small { display: block; font-weight: 400; color: #8891a3; margin-top: 2px; }
 
   #nexus-canvas-backdrop-control {
     position: fixed;
@@ -69,17 +83,42 @@
 
   const canvas = mountCanvas();
 
+  // Room list — until "rooms" become real saved views on this same
+  // canvas, this is the bridge: real links to each existing room's own
+  // detail page, so nothing already built is unreachable from here.
+  // Kept in sync by hand with the `scenes` registry in nexus-space.js
+  // (same duplication already present between that file and
+  // lib/rooms.js) — a shared source is a good later cleanup, not a
+  // blocker for this bridge working today.
+  const ROOMS = [
+    { nav: 'Mission', title: 'Command Deck', detail: '/mission-control.html' },
+    { nav: 'Conference', title: 'Conference Room', detail: '/conference-room.html' },
+    { nav: 'Builder', title: 'Room Builder', detail: '/room.html' },
+    { nav: 'Memory', title: 'Memory Archive', detail: '/memory.html' },
+    { nav: 'Approvals', title: 'Approval Queue', detail: '/queue.html' },
+    { nav: 'Connectors', title: 'Connector Bay', detail: '/connectors.html' },
+    { nav: 'Tenants', title: 'Tenant Hub', detail: '/tenants.html' },
+  ];
+
+  const roomBody = document.createElement('div');
+  roomBody.className = 'room-list';
+  roomBody.innerHTML = `
+    <h4>Rooms</h4>
+    ${ROOMS.map((r) => `<a class="room-link" href="${escapeHtml(r.detail)}">${escapeHtml(r.nav)}<small>${escapeHtml(r.title)}</small></a>`).join('')}
+  `;
+  canvas.addPanel({ id: 'room-list', title: 'ROOMS', content: roomBody, x: 80, y: 460, w: 260, h: 340 });
+
   // Board summary panel — task counts + recent messages.
   const summaryBody = document.createElement('div');
   summaryBody.className = 'board-summary';
   summaryBody.innerHTML = '<span class="empty">Loading board…</span>';
-  canvas.addPanel({ id: 'board-summary', title: 'BOARD', content: summaryBody, x: 80, y: 80, w: 380, h: 360 });
+  canvas.addPanel({ id: 'board-summary', title: 'BOARD', content: summaryBody, x: 380, y: 80, w: 380, h: 360 });
 
   // Agent list panel — who's online right now.
   const agentBody = document.createElement('div');
   agentBody.className = 'agent-list';
   agentBody.innerHTML = '<span class="empty">Loading agents…</span>';
-  canvas.addPanel({ id: 'agent-list', title: 'AGENTS', content: agentBody, x: 480, y: 80, w: 300, h: 280 });
+  canvas.addPanel({ id: 'agent-list', title: 'AGENTS', content: agentBody, x: 780, y: 80, w: 300, h: 280 });
 
   async function refreshLiveData() {
     try {
