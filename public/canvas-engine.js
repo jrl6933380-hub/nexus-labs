@@ -8,6 +8,13 @@
 // nex-chat-bar.js's auto-init) so canvas-geometry.js's pure functions
 // stay importable under Node for tests without this file dragging a
 // `document` reference in with it.
+//
+// Visual theme matches nexus-space.css exactly (same color tokens,
+// grid+vignette atmosphere, JetBrains Mono panel headers) so a page
+// using this engine looks like the rest of Nexus by default, not a
+// generic dark-glass placeholder — a custom backdrop image (set via
+// setBackdropUrl) layers on top of this same atmosphere rather than
+// replacing it outright.
 
 import { clampPosition, finalizeResize } from './canvas-geometry.js';
 
@@ -22,25 +29,46 @@ function injectStyles() {
       position: fixed;
       inset: 0;
       overflow: hidden;
-      background: #05070c;
+      background: radial-gradient(ellipse 70% 52% at 50% 0, #245bb433, transparent 72%),
+                  linear-gradient(180deg, #111b2d 0, #080c15 55%, #05070c 100%);
+      font-family: Inter, -apple-system, sans-serif;
+    }
+    #nexus-canvas-atmosphere-grid {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      opacity: 0.32;
+      pointer-events: none;
+      background-image: linear-gradient(#5680bc10 1px, transparent 1px),
+                         linear-gradient(90deg, #5680bc10 1px, transparent 1px);
+      background-size: 42px 42px;
+    }
+    #nexus-canvas-atmosphere-vignette {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background: radial-gradient(ellipse at center, transparent 42%, #020409ca 100%);
     }
     #nexus-canvas-backdrop {
       position: absolute;
       inset: 0;
+      z-index: 1;
       background-size: cover;
       background-position: center;
       background-repeat: no-repeat;
       transition: background-image 400ms ease;
-      z-index: 0;
     }
     .nexus-canvas-panel {
       position: absolute;
+      z-index: 2;
       display: flex;
       flex-direction: column;
-      background: rgba(10, 14, 20, 0.92);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 10px;
-      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+      background: #111827cc;
+      border: 1px solid #3c5a84;
+      border-radius: 14px;
+      box-shadow: 0 30px 90px #000b, inset 0 1px #b8d9ff2e;
+      backdrop-filter: blur(14px);
       overflow: hidden;
       min-width: 200px;
       min-height: 120px;
@@ -49,14 +77,16 @@ function injectStyles() {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 8px 12px;
-      background: rgba(255, 255, 255, 0.04);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      padding: 10px 14px;
+      background: linear-gradient(90deg, #4b8dff14, transparent);
+      border-bottom: 1px solid #26334d;
       cursor: grab;
       touch-action: none;
       user-select: none;
-      font: 600 12px/1.2 -apple-system, sans-serif;
-      color: #cfd6e4;
+      font: 700 10px 'JetBrains Mono', monospace;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #58d7ff;
       flex-shrink: 0;
     }
     .nexus-canvas-panel-body {
@@ -64,6 +94,7 @@ function injectStyles() {
       min-height: 0;
       overflow: auto;
       position: relative;
+      color: #e8eefb;
     }
     .nexus-canvas-resize-handle {
       position: absolute;
@@ -81,8 +112,8 @@ function injectStyles() {
       bottom: 4px;
       width: 8px;
       height: 8px;
-      border-right: 2px solid rgba(255, 255, 255, 0.25);
-      border-bottom: 2px solid rgba(255, 255, 255, 0.25);
+      border-right: 2px solid #58d7ff77;
+      border-bottom: 2px solid #58d7ff77;
     }
   `;
   document.head.appendChild(style);
@@ -119,6 +150,20 @@ export function mountCanvas() {
     root = document.createElement('div');
     root.id = 'nexus-canvas-root';
     document.body.appendChild(root);
+  }
+
+  // Atmosphere layers (grid + vignette) sit behind the backdrop image
+  // so the on-brand look shows through when no custom backdrop is
+  // set, and stays visible at the edges even when one is.
+  if (!document.getElementById('nexus-canvas-atmosphere-grid')) {
+    const grid = document.createElement('div');
+    grid.id = 'nexus-canvas-atmosphere-grid';
+    root.appendChild(grid);
+  }
+  if (!document.getElementById('nexus-canvas-atmosphere-vignette')) {
+    const vignette = document.createElement('div');
+    vignette.id = 'nexus-canvas-atmosphere-vignette';
+    root.appendChild(vignette);
   }
 
   let backdrop = document.getElementById('nexus-canvas-backdrop');
