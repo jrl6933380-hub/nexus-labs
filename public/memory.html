@@ -1,248 +1,147 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
 <title>Nexus // Memory</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --bg: #0A0E14;
-    --panel: #12192A;
-    --border: #1F2B42;
-    --blue: #2E7FFF;
-    --blue-dim: #2E7FFF33;
-    --cyan: #4DD8E8;
-    --text: #E4E9F2;
-    --text-dim: #8891A3;
-    --text-faint: #5B6577;
-    --amber: #E8A94D;
-    --red: #E85D5D;
-    --mono: 'JetBrains Mono', monospace;
-    --sans: 'Inter', -apple-system, sans-serif;
-  }
-
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--sans);
-    min-height: 100vh;
-    background-image:
-      linear-gradient(var(--border) 1px, transparent 1px),
-      linear-gradient(90deg, var(--border) 1px, transparent 1px);
-    background-size: 48px 48px;
-    padding: 24px 16px 60px;
-  }
-
-  .header {
-    max-width: 700px;
-    margin: 0 auto 20px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .title {
-    font-family: var(--mono);
-    font-size: 20px;
-    font-weight: 700;
-  }
-
-  .back-link {
-    font-family: var(--mono);
-    font-size: 12px;
-    color: var(--text-dim);
-    text-decoration: none;
-    border: 1px solid var(--border);
-    padding: 6px 12px;
-    border-radius: 6px;
-  }
-
-  .container { max-width: 700px; margin: 0 auto; }
-
-  .add-panel {
-    background: rgba(18,25,42,0.6);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 16px;
-    margin-bottom: 24px;
-  }
-
+  html, body { margin: 0; padding: 0; height: 100%; background: #05070c; }
+  .add-panel, .memory-list-panel { padding: 14px; font: 13px/1.5 Inter, -apple-system, sans-serif; color: #e8eefb; height: 100%; box-sizing: border-box; overflow-y: auto; }
   .add-panel textarea {
-    width: 100%;
-    background: rgba(255,255,255,0.03);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 10px;
-    color: var(--text);
-    font-family: var(--sans);
-    font-size: 14px;
-    resize: vertical;
-    min-height: 60px;
-    outline: none;
-    margin-bottom: 10px;
+    width: 100%; min-height: 70px; resize: vertical; box-sizing: border-box;
+    background: #ffffff08; border: 1px solid #26334d; border-radius: 8px;
+    padding: 10px; color: #e8eefb; font: 13px Inter, sans-serif; outline: none; margin-bottom: 10px;
   }
-
-  .add-row {
-    display: flex;
-    gap: 8px;
+  .add-panel textarea:focus { border-color: #4b8dff77; }
+  .add-row { display: flex; gap: 8px; }
+  .add-row select {
+    background: #ffffff08; border: 1px solid #26334d; border-radius: 8px; color: #e8eefb;
+    font: 11px 'JetBrains Mono', monospace; padding: 0 10px;
   }
-
-  select {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text);
-    font-family: var(--mono);
-    font-size: 12px;
-    padding: 0 10px;
-  }
-
-  .add-btn {
-    background: var(--blue);
-    color: #06090F;
-    border: none;
-    border-radius: 8px;
-    padding: 0 18px;
-    font-family: var(--mono);
-    font-weight: 600;
-    font-size: 13px;
+  .add-row button {
+    background: #4b8dff18; border: 1px solid #4b8dff77; color: #58d7ff; border-radius: 8px;
+    flex: 1; font: 700 11px 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.05em;
     cursor: pointer;
-    flex: 1;
   }
-
-  .section-label {
-    font-family: var(--mono);
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--text-faint);
-    margin: 20px 0 10px;
-  }
-
+  .add-row button:hover { background: #4b8dff32; }
+  .memory-list-panel h4 { margin: 0 0 8px; font: 600 9px 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.16em; color: #5e6b81; }
   .memory-card {
-    background: rgba(255,255,255,0.02);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 12px 14px;
-    margin-bottom: 8px;
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 10px;
+    background: #ffffff03; border: 1px solid #26334d; border-radius: 8px; padding: 10px 12px;
+    margin-bottom: 8px; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;
   }
-
-  .memory-content {
-    font-size: 14px;
-    line-height: 1.5;
-  }
-
-  .memory-meta {
-    font-family: var(--mono);
-    font-size: 10px;
-    color: var(--text-faint);
-    margin-top: 6px;
-  }
-
+  .memory-content { font-size: 13px; line-height: 1.5; }
+  .memory-meta { font: 400 10px 'JetBrains Mono', monospace; color: #5e6b81; margin-top: 6px; }
   .delete-btn {
-    background: transparent;
-    border: 1px solid var(--border);
-    color: var(--red);
-    border-radius: 6px;
-    padding: 5px 9px;
-    font-size: 12px;
-    cursor: pointer;
-    flex-shrink: 0;
+    background: transparent; border: 1px solid #ff4b4b44; color: #ff8585; border-radius: 6px;
+    padding: 5px 9px; font-size: 11px; cursor: pointer; flex-shrink: 0;
   }
+  .delete-btn:hover { border-color: #ff4b4b; }
+  .empty-hint { font: 400 11px 'JetBrains Mono', monospace; color: #5e6b81; padding: 6px 0; }
 
-  .delete-btn:hover { border-color: var(--red); }
-
-  .empty-hint {
-    font-family: var(--mono);
-    font-size: 12px;
-    color: var(--text-faint);
-    padding: 10px 2px;
+  .canvas-title-bar {
+    position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 10000;
+    font: 700 11px 'JetBrains Mono', monospace; letter-spacing: 0.1em; text-transform: uppercase;
+    color: #58d7ff; background: #111827e8; border: 1px solid #3c5a84; border-radius: 8px;
+    padding: 7px 16px; backdrop-filter: blur(12px);
   }
+  .return-link {
+    position: fixed; top: 12px; left: 12px; z-index: 10000;
+    font: 700 10px 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.06em;
+    color: #91a0b9; text-decoration: none; background: #111827e8; border: 1px solid #26334d;
+    border-radius: 8px; padding: 8px 12px; backdrop-filter: blur(12px);
+  }
+  .return-link:hover { color: #58d7ff; border-color: #4b8dff77; }
 </style>
-<link rel="stylesheet" href="/nexus-stark.css">
 </head>
 <body>
+<script type="module">
+  import { mountCanvas } from '/canvas-engine.js';
+  import '/nex-chat-bar.js';
 
-<div class="header">
-  <span class="title">NEX // MEMORY</span>
-  <a class="back-link" href="/">← Back to chat</a>
-</div>
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = String(text ?? '');
+    return div.innerHTML;
+  }
 
-<div class="container">
-  <div class="add-panel">
+  const titleBar = document.createElement('div');
+  titleBar.className = 'canvas-title-bar';
+  titleBar.textContent = 'Memory Archive';
+  document.body.appendChild(titleBar);
+
+  const returnLink = document.createElement('a');
+  returnLink.className = 'return-link';
+  returnLink.href = '/';
+  returnLink.textContent = '← Dashboard';
+  document.body.appendChild(returnLink);
+
+  // This room now lives on its own persistent canvas (canvas_id:
+  // 'memory') instead of a static page — same live-editable,
+  // draggable/resizable surface as the main dashboard, just scoped to
+  // this room's own layout and backdrop.
+  const canvas = mountCanvas({ canvasId: 'memory' });
+
+  // Add Memory panel
+  const addBody = document.createElement('div');
+  addBody.className = 'add-panel';
+  addBody.innerHTML = `
     <textarea id="new-content" placeholder="Add something manually for Nex to remember..."></textarea>
     <div class="add-row">
       <select id="new-category" aria-label="Memory category">
         <option value="fact">Fact</option>
         <option value="project">Project</option>
       </select>
-      <button class="add-btn" id="add-btn">Save memory</button>
+      <button id="add-btn">Save memory</button>
     </div>
-  </div>
+  `;
+  canvas.addPanel({ id: 'add-memory', title: 'ADD MEMORY', content: addBody, x: 80, y: 80, w: 380, h: 220 });
 
-  <div class="section-label">Facts</div>
-  <div id="facts-list"></div>
+  // Facts panel
+  const factsBody = document.createElement('div');
+  factsBody.className = 'memory-list-panel';
+  factsBody.innerHTML = '<h4>Facts</h4><div class="empty-hint">Loading…</div>';
+  canvas.addPanel({ id: 'facts', title: 'FACTS', content: factsBody, x: 480, y: 80, w: 340, h: 400 });
 
-  <div class="section-label">Projects</div>
-  <div id="projects-list"></div>
-</div>
-
-<script>
-  const factsList = document.getElementById('facts-list');
-  const projectsList = document.getElementById('projects-list');
-  const newContent = document.getElementById('new-content');
-  const newCategory = document.getElementById('new-category');
-  const addBtn = document.getElementById('add-btn');
+  // Projects panel
+  const projectsBody = document.createElement('div');
+  projectsBody.className = 'memory-list-panel';
+  projectsBody.innerHTML = '<h4>Projects</h4><div class="empty-hint">Loading…</div>';
+  canvas.addPanel({ id: 'projects', title: 'PROJECTS', content: projectsBody, x: 840, y: 80, w: 340, h: 400 });
 
   function renderCard(memory) {
-    const card = document.createElement('div');
-    card.className = 'memory-card';
     const date = new Date(memory.created_at || Date.now()).toLocaleDateString();
-    card.innerHTML = `
-      <div>
-        <div class="memory-content"></div>
-        <div class="memory-meta">${date}</div>
+    return `
+      <div class="memory-card">
+        <div>
+          <div class="memory-content">${escapeHtml(memory.content)}</div>
+          <div class="memory-meta">${escapeHtml(date)}</div>
+        </div>
+        <button class="delete-btn" data-id="${escapeHtml(memory.id)}">Delete</button>
       </div>
-      <button class="delete-btn">Delete</button>
     `;
-    card.querySelector('.memory-content').innerText = memory.content;
-    card.querySelector('.delete-btn').addEventListener('click', () => deleteMemory(memory.id));
-    return card;
   }
 
   async function loadMemories() {
-    factsList.innerHTML = '';
-    projectsList.innerHTML = '';
     try {
       const res = await fetch('/api/memory');
       const data = await res.json();
       const memories = data.memories || [];
-
       const facts = memories.filter((m) => m.category !== 'project');
       const projects = memories.filter((m) => m.category === 'project');
 
-      if (facts.length === 0) {
-        factsList.innerHTML = '<div class="empty-hint">Nothing saved yet.</div>';
-      } else {
-        facts.forEach((m) => factsList.appendChild(renderCard(m)));
-      }
+      factsBody.innerHTML = '<h4>Facts</h4>' + (facts.length ? facts.map(renderCard).join('') : '<div class="empty-hint">Nothing saved yet.</div>');
+      projectsBody.innerHTML = '<h4>Projects</h4>' + (projects.length ? projects.map(renderCard).join('') : '<div class="empty-hint">Nothing saved yet.</div>');
 
-      if (projects.length === 0) {
-        projectsList.innerHTML = '<div class="empty-hint">Nothing saved yet.</div>';
-      } else {
-        projects.forEach((m) => projectsList.appendChild(renderCard(m)));
-      }
+      [factsBody, projectsBody].forEach((panel) => {
+        panel.querySelectorAll('.delete-btn').forEach((btn) => {
+          btn.addEventListener('click', () => deleteMemory(btn.dataset.id));
+        });
+      });
     } catch (err) {
-      factsList.innerHTML = '<div class="empty-hint">Couldn\'t load memories.</div>';
+      factsBody.innerHTML = '<h4>Facts</h4><div class="empty-hint">Couldn\'t load memories.</div>';
+      projectsBody.innerHTML = '<h4>Projects</h4><div class="empty-hint">Couldn\'t load memories.</div>';
     }
   }
 
@@ -255,28 +154,29 @@
     }
   }
 
-  addBtn.addEventListener('click', async () => {
-    const content = newContent.value.trim();
+  document.getElementById('add-btn').addEventListener('click', async () => {
+    const contentField = document.getElementById('new-content');
+    const categoryField = document.getElementById('new-category');
+    const content = contentField.value.trim();
     if (!content) return;
-    addBtn.disabled = true;
+    const btn = document.getElementById('add-btn');
+    btn.disabled = true;
     try {
       await fetch('/api/memory', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, category: newCategory.value }),
+        body: JSON.stringify({ content, category: categoryField.value }),
       });
-      newContent.value = '';
+      contentField.value = '';
       loadMemories();
     } catch (err) {
       alert('Failed to save.');
     } finally {
-      addBtn.disabled = false;
+      btn.disabled = false;
     }
   });
 
   loadMemories();
 </script>
-
-<script src="/nexus-shell.js"></script>
 </body>
 </html>
