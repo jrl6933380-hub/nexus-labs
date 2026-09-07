@@ -1,15 +1,6 @@
 (() => {
   const route = location.pathname;
-  const items = [
-    ['/#command', 'Mission', 'command'],
-    ['/#memory', 'Memory', 'memory'],
-    ['/#queue', 'Approvals', 'queue'],
-    ['/#tenants', 'Tenants', 'tenants'],
-    ['/#connectors', 'Connectors', 'connectors'],
-    ['/#conference', 'Rooms', 'conference'],
-  ];
   const activePath = route === '/index.html' ? '/' : route;
-  const activeScene = (activePath === '/' || route === '/nexus-space.html') ? location.hash.replace(/^#/u, '') || 'command' : null;
   const bar = document.createElement('header');
   bar.className = 'nexus-command-bar';
   bar.innerHTML = `
@@ -19,7 +10,14 @@
   const dock = document.createElement('nav');
   dock.className = 'nexus-dock';
   dock.setAttribute('aria-label', 'Nexus workspace');
-  dock.innerHTML = items.map(([href,label,scene]) => `<a href="${href}" class="${activeScene ? (activeScene === scene ? 'active' : '') : ''}">${label}</a>`).join('');
+  // Every room used to be its own scene on the home page's
+  // scene-switcher, so this dock listed all of them as hash links.
+  // The home page is now the single Nexus canvas (rooms are reached
+  // from its ROOMS panel, not from hash routes), so every one of
+  // those links pointed at "/#something" that no longer does
+  // anything — clicking any of them just landed back on the canvas
+  // regardless of which one was clicked. One honest link instead.
+  dock.innerHTML = '<a href="/">← Return to Dashboard</a>';
   document.body.prepend(bar);
   document.body.appendChild(dock);
 
@@ -47,7 +45,7 @@
     .then((response) => response.ok ? response.json() : null)
     .then((user) => { if (user?.username) document.getElementById('nexus-operator').textContent = user.username.slice(0, 2).toUpperCase(); })
     .catch(() => {});
-  document.body.dataset.nexusScreen = activeScene || 'workspace';
+  document.body.dataset.nexusScreen = 'workspace';
 
   // Mission Control already has the full-size Nex conversation column. Every
   // other shell-backed workspace gets the same compact chat bar, which shares
