@@ -23,6 +23,7 @@ import { clampPosition, finalizeResize } from './canvas-geometry.js';
 
 const POLL_INTERVAL_MS = 4000;
 const DEFAULT_CANVAS_ID = 'dashboard';
+const MOBILE_BREAKPOINT_PX = 720;
 
 function injectStyles() {
   if (document.getElementById('nexus-canvas-styles')) return;
@@ -119,6 +120,43 @@ function injectStyles() {
       border-right: 2px solid #58d7ff77;
       border-bottom: 2px solid #58d7ff77;
     }
+    .nexus-canvas-mobile-panels {
+      display: none;
+      position: fixed;
+      left: max(12px, env(safe-area-inset-left));
+      bottom: max(14px, env(safe-area-inset-bottom));
+      z-index: 5;
+      max-width: calc(100vw - 24px);
+      gap: 7px;
+      padding: 7px;
+      overflow-x: auto;
+      border: 1px solid #3c5a84;
+      border-radius: 12px;
+      background: #0a1020e8;
+      box-shadow: 0 12px 34px #0009;
+      backdrop-filter: blur(14px);
+      -webkit-overflow-scrolling: touch;
+    }
+    .nexus-canvas-mobile-panel-button {
+      flex: 0 0 auto;
+      min-height: 36px;
+      border: 1px solid #314665;
+      border-radius: 8px;
+      padding: 7px 10px;
+      color: #9bb3d5;
+      background: #121b2de6;
+      font: 700 10px 'JetBrains Mono', monospace;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .nexus-canvas-mobile-panel-button.active { color: #07101a; border-color: #58d7ff; background: #58d7ff; }
+    @media (max-width: 720px) {
+      .nexus-canvas-panel { border-radius: 12px; min-width: 0; }
+      .nexus-canvas-panel-header { min-height: 44px; padding: 12px 14px; font-size: 11px; }
+      .nexus-canvas-resize-handle { display: none; }
+      .nexus-canvas-mobile-panels { display: flex; }
+      .nexus-build-feedback { top: auto; right: 10px; bottom: 76px; width: min(310px, calc(100vw - 20px)); }
+    }
     .nexus-build-feedback {
       position: fixed;
       right: 18px;
@@ -182,6 +220,10 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
     document.body.appendChild(root);
   }
   root.dataset.canvasId = canvasId;
+  const mobilePanelDock = document.createElement('nav');
+  mobilePanelDock.className = 'nexus-canvas-mobile-panels';
+  mobilePanelDock.setAttribute('aria-label', 'Canvas panels');
+  root.appendChild(mobilePanelDock);
   let feedbackHud = root.querySelector('.nexus-build-feedback');
   const feedbackItems = [];
   if (!feedbackHud) {
@@ -235,21 +277,62 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
     root.appendChild(backdrop);
   }
 
-  const panels = new Map(); // id -> { el, dragging, resizing }
+  const panels = new Map(); // id -> { el, dragging, resizing, title, mobileButton }
+  let activeMobilePanelId = null;
 
   function applyBackdrop(url) {
     backdrop.style.backgroundImage = url ? `url("${url}")` : 'none';
   }
 
   function viewport() {
-    return { width: window.innerWidth, height: window.innerHeight };
+    const visual = window.visualViewport;
+    return { width: visual?.width || window.innerWidth, height: visual?.height || window.innerHeight };
+  }
+
+  function isMobileViewport() {
+    return viewport().width <= MOBILE_BREAKPOINT_PX;
+  }
+
+  function displayRect(rect) {
+    if (!isMobileViewport()) return rect;
+    const view = viewport();
+    // Desktop layouts are intentionally not persisted over from a phone.
+    // On a narrow screen each panel becomes a usable workspace, not a tiny
+    // clipped desktop window with an unreachable resize handle.
+    return { x: 8, y: 8, w: Math.max(1, view.width - 16), h: Math.max(1, view.height - 16) };
   }
 
   function applyRect(el, rect) {
-    el.style.left = `${rect.x}px`;
-    el.style.top = `${rect.y}px`;
-    el.style.width = `${rect.w}px`;
-    el.style.height = `${rect.h}px`;
+    const displayed = displayRect(rect);
+    el.style.left = `${displayed.x}px`;
+    el.style.top = `${displayed.y}px`;
+    el.style.width = `${displayed.w}px`;
+    el.style.height = `${displayed.h}px`;
+  }
+
+  function refreshMobilePanels() {
+    const mobile = isMobileViewport();
+    mobilePanelDock.hidden = !mobile || panels.size < 2;
+    for (const [id, entry] of panels) {
+      if (mobile) {
+        applyRect(entry.el, entry.remoteRect);
+        entry.el.hidden = id !== activeMobilePanelId;
+      } else {
+        applyRect(entry.el, entry.remoteRect);
+        entry.el.hidden = false;
+      }
+      entry.mobileButton?.classList.toggle('active', id === activeMobilePanelId);
+    }
+  }
+
+  function currentPanelRect(el) {
+    const rect = el.getBoundingClientRect();
+    return { x: rect.left, y: rect.top, w: rect.width, h: rect.height };
+  }
+
+  function activateMobilePanel(id) {
+    activeMobilePanelId = id;
+    refreshMobilePanels();
   }
 
   // Called on every poll for panels the current tab isn't actively
@@ -259,6 +342,7 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
   function syncPanelFromRemote(id, remoteRect) {
     const entry = panels.get(id);
     if (!entry || entry.dragging || entry.resizing) return;
+    entry.remoteRect = remoteRect;
     applyRect(entry.el, remoteRect);
   }
 
@@ -295,8 +379,17 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
     el.appendChild(handle);
 
     root.appendChild(el);
-    const entry = { el, dragging: false, resizing: false };
+    const entry = { el, dragging: false, resizing: false, title, remoteRect: { x, y, w, h } };
     panels.set(id, entry);
+    if (!activeMobilePanelId) activeMobilePanelId = id;
+    const mobileButton = document.createElement('button');
+    mobileButton.type = 'button';
+    mobileButton.className = 'nexus-canvas-mobile-panel-button';
+    mobileButton.textContent = title;
+    mobileButton.addEventListener('click', () => activateMobilePanel(id));
+    mobilePanelDock.appendChild(mobileButton);
+    entry.mobileButton = mobileButton;
+    refreshMobilePanels();
 
     function currentRect() {
       const r = el.getBoundingClientRect();
@@ -313,6 +406,8 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
     let drag = null;
     header.addEventListener('pointerdown', (event) => {
       if (event.button !== 0) return;
+      event.preventDefault();
+      if (isMobileViewport()) return;
       const rect = currentRect();
       drag = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, rect };
       entry.dragging = true;
@@ -332,7 +427,9 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
       if (header.hasPointerCapture(event.pointerId)) header.releasePointerCapture(event.pointerId);
       header.style.cursor = 'grab';
       entry.dragging = false;
-      persist(currentRect());
+      const persisted = currentRect();
+      entry.remoteRect = persisted;
+      persist(persisted);
       drag = null;
     }
     header.addEventListener('pointerup', endDrag);
@@ -343,6 +440,7 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
     let resize = null;
     handle.addEventListener('pointerdown', (event) => {
       if (event.button !== 0) return;
+      event.preventDefault();
       event.stopPropagation();
       resize = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, rect: currentRect() };
       entry.resizing = true;
@@ -359,7 +457,9 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
       if (!resize || event.pointerId !== resize.pointerId) return;
       if (handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId);
       entry.resizing = false;
-      persist(currentRect());
+      const persisted = currentRect();
+      entry.remoteRect = persisted;
+      persist(persisted);
       resize = null;
     }
     handle.addEventListener('pointerup', endResize);
@@ -376,6 +476,9 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
   function destroy() {
     clearInterval(pollTimer);
   }
+
+  window.addEventListener('resize', refreshMobilePanels);
+  window.visualViewport?.addEventListener('resize', refreshMobilePanels);
 
   return { root, canvasId, addPanel, setBackdropUrl, destroy };
 }
