@@ -41,11 +41,13 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, '..', 'public');
 const pages = fs.readdirSync(publicDir).filter((file) => file.endsWith('.html'));
+const pageUrl = (file) => file === 'canvas.html' ? '/canvas.html?id=mobile-test' : `/${file}`;
 
 for (const file of pages) {
   test.describe(file, () => {
     test(`${file} has no serious/critical WCAG 2 A/AA violations`, async ({ page }) => {
-      await page.goto(`/${file}`);
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      await page.goto(pageUrl(file));
       const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
       const seriousOrWorse = results.violations.filter((v) => ['serious', 'critical'].includes(v.impact));
       if (seriousOrWorse.length > 0) {
@@ -61,14 +63,14 @@ for (const file of pages) {
     });
 
     test(`${file} declares a mobile viewport`, async ({ page }) => {
-      await page.goto(`/${file}`);
+      await page.goto(pageUrl(file));
       const viewport = await page.locator('meta[name="viewport"]').getAttribute('content').catch(() => null);
       expect(viewport, `${file} is missing <meta name="viewport">`).not.toBeNull();
     });
 
     test(`${file} has no horizontal overflow at a 375px mobile width`, async ({ page }) => {
       await page.setViewportSize({ width: 375, height: 667 });
-      await page.goto(`/${file}`);
+      await page.goto(pageUrl(file));
       const { scrollWidth, clientWidth } = await page.evaluate(() => ({
         scrollWidth: document.documentElement.scrollWidth,
         clientWidth: document.documentElement.clientWidth,
@@ -97,7 +99,7 @@ test.describe('mobile canvas room interactions', () => {
       await page.route('**/api/room-auth', (route) => route.fulfill({ json: { username: 'mobile-test' } }));
       await page.route('**/api/tenants**', (route) => route.fulfill({ json: { tenants: [] } }));
       await page.route('**/api/board**', (route) => route.fulfill({ status: 503, json: { error: 'test offline' } }));
-      await page.goto(`/${file}`);
+      await page.goto(pageUrl(file));
       await expect(page.locator('.nexus-canvas-panel')).toHaveCount(expectedPanels);
       const panel = page.locator('.nexus-canvas-panel:visible').first();
       await expect(panel).toBeVisible();
