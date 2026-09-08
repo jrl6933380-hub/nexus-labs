@@ -163,6 +163,7 @@ function injectStyles() {
       .nexus-build-feedback { top: auto; right: 10px; bottom: 128px; max-width: min(190px, calc(100vw - 20px)); }
     }
     .nexus-build-feedback {
+      box-sizing: border-box;
       position: fixed;
       right: 18px;
       top: 18px;
