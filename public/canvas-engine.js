@@ -154,23 +154,21 @@ function injectStyles() {
       text-transform: uppercase;
     }
     .nexus-canvas-mobile-panel-button.active { color: #07101a; border-color: #58d7ff; background: #58d7ff; }
-    @media (max-width: 720px) {
-      .nexus-canvas-panel { border-radius: 12px; min-width: 0; }
-      .nexus-canvas-panel-header { min-height: 44px; padding: 12px 14px; font-size: 11px; }
-      .nexus-canvas-panel-header::after { content: 'PHONE WORKSPACE'; color: #91a0b9; font: 600 9px 'JetBrains Mono', monospace; letter-spacing: .08em; }
-      .nexus-canvas-resize-handle { display: none; }
-      .nexus-canvas-mobile-panels { display: flex; }
-      .nexus-build-feedback { top: auto; right: 10px; bottom: 128px; width: min(240px, calc(100vw - 20px)); }
-    }
     .nexus-build-feedback {
+      box-sizing: border-box;
       position: fixed;
       right: 18px;
       top: 18px;
       z-index: 4;
-      width: min(240px, calc(100vw - 36px));
-      padding: 8px 10px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      width: auto;
+      max-width: min(200px, calc(100vw - 36px));
+      min-height: 32px;
+      padding: 7px 10px;
       border: 1px solid #3c5a84;
-      border-radius: 12px;
+      border-radius: 999px;
       background: #0a1020e8;
       box-shadow: 0 18px 50px #000a;
       backdrop-filter: blur(14px);
@@ -178,11 +176,19 @@ function injectStyles() {
       color: #dce9ff;
       pointer-events: none;
     }
-    .nexus-build-feedback-title { color: #58d7ff; font: 700 9px 'JetBrains Mono', monospace; letter-spacing: .13em; margin-bottom: 6px; }
-    .nexus-build-feedback-row { padding: 2px 0; font-size: 10px; }
-    .nexus-build-feedback-row.running { color: #f0c866; }
-    .nexus-build-feedback-row.complete { color: #78e6b0; }
-    .nexus-build-feedback-row.failed { color: #ff8293; }
+    .nexus-build-feedback[hidden] { display: none; }
+    .nexus-build-feedback-dot { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: #f0c866; box-shadow: 0 0 10px #f0c866aa; }
+    .nexus-build-feedback-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 9px 'JetBrains Mono', monospace; letter-spacing: .04em; color: #dce9ff; }
+    .nexus-build-feedback.complete .nexus-build-feedback-dot { background: #78e6b0; box-shadow: 0 0 10px #78e6b0aa; }
+    .nexus-build-feedback.failed .nexus-build-feedback-dot { background: #ff8293; box-shadow: 0 0 10px #ff8293aa; }
+    @media (max-width: 720px) {
+      .nexus-canvas-panel { border-radius: 12px; min-width: 0; }
+      .nexus-canvas-panel-header { min-height: 44px; padding: 12px 14px; font-size: 11px; }
+      .nexus-canvas-panel-header::after { content: 'PHONE WORKSPACE'; color: #91a0b9; font: 600 9px 'JetBrains Mono', monospace; letter-spacing: .08em; }
+      .nexus-canvas-resize-handle { display: none; }
+      .nexus-canvas-mobile-panels { display: flex; }
+      .nexus-build-feedback { top: auto; right: 10px; bottom: 128px; max-width: min(190px, calc(100vw - 20px)); }
+    }
   `;
   document.head.appendChild(style);
 }
@@ -230,7 +236,7 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
   mobilePanelDock.setAttribute('aria-label', 'Canvas panels');
   root.appendChild(mobilePanelDock);
   let feedbackHud = root.querySelector('.nexus-build-feedback');
-  const feedbackItems = [];
+  let feedbackHideTimer = null;
   if (!feedbackHud) {
     feedbackHud = document.createElement('aside');
     feedbackHud.className = 'nexus-build-feedback';
@@ -238,26 +244,30 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
     feedbackHud.setAttribute('aria-label', 'Live build feedback');
     root.appendChild(feedbackHud);
   }
-  const renderFeedback = () => {
+  const renderFeedback = (item = null) => {
     feedbackHud.replaceChildren();
-    const title = document.createElement('div');
-    title.className = 'nexus-build-feedback-title';
-    title.textContent = 'LIVE BUILD';
-    feedbackHud.appendChild(title);
-    feedbackItems.slice(-6).forEach((item) => {
-      const row = document.createElement('div');
-      row.className = `nexus-build-feedback-row ${item.state}`;
-      row.textContent = `${item.state === 'running' ? '◌' : item.state === 'failed' ? '×' : '✓'} ${item.label}`;
-      feedbackHud.appendChild(row);
-    });
+    feedbackHud.classList.remove('running', 'complete', 'failed');
+    if (!item) {
+      feedbackHud.hidden = true;
+      return;
+    }
+    feedbackHud.hidden = false;
+    feedbackHud.classList.add(item.state || 'running');
+    const dot = document.createElement('span');
+    dot.className = 'nexus-build-feedback-dot';
+    const label = document.createElement('span');
+    label.className = 'nexus-build-feedback-label';
+    label.textContent = `NEX · ${item.label}`;
+    feedbackHud.append(dot, label);
   };
   window.addEventListener('nexus:build-feedback', (event) => {
     const item = event.detail;
     if (!item?.label) return;
-    const open = feedbackItems.find((existing) => existing.tool === item.tool && existing.state === 'running');
-    if (open && item.state !== 'running') Object.assign(open, item);
-    else feedbackItems.push(item);
-    renderFeedback();
+    clearTimeout(feedbackHideTimer);
+    renderFeedback(item);
+    if (item.state && item.state !== 'running') {
+      feedbackHideTimer = setTimeout(() => renderFeedback(), 3000);
+    }
   });
   renderFeedback();
 
