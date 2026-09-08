@@ -637,7 +637,7 @@ export function createNexChatBar() {
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
         body: JSON.stringify({
           message: text,
           workspace: {
@@ -646,8 +646,32 @@ export function createNexChatBar() {
           },
         }),
       });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || 'Nex could not process that message.');
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Nex could not process that message.');
+      }
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('Nex could not start the live build stream.');
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let data = null;
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split('\n\n');
+        buffer = events.pop() || '';
+        for (const raw of events) {
+          const type = raw.match(/^event: (.+)$/m)?.[1];
+          const payload = raw.match(/^data: (.+)$/m)?.[1];
+          if (!type || !payload) continue;
+          const eventData = JSON.parse(payload);
+          if (type === 'stage') window.dispatchEvent(new CustomEvent('nexus:build-feedback', { detail: eventData }));
+          else if (type === 'result') data = eventData;
+          else if (type === 'error') throw new Error(eventData.error || 'Nex could not process that message.');
+        }
+      }
+      if (!data) throw new Error('Nex did not return a response.');
       const replyText = data.reply || 'Nex completed the request without a text reply.';
       addMessage(replyText, 'nex-response');
       speak(replyText);

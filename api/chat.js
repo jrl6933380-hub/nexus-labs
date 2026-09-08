@@ -135,6 +135,10 @@ export default async function handler(req, res) {
 
   const { message, model, workspace } = req.body;
   if (!message) return res.status(400).json({ error: 'Missing message' });
+  const wantsBuildStream = String(req.headers.accept || '').includes('text/event-stream');
+  const sendBuildEvent = (event, payload) => {
+    if (wantsBuildStream) res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
+  };
 
   // model is an optional tier override from the model picker: 'cheap',
   // 'standard', or 'heavy'. Anything else (including 'auto', missing,
@@ -142,6 +146,13 @@ export default async function handler(req, res) {
   const forcedTier = MODEL_TIERS[model] ? model : null;
 
   try {
+    if (wantsBuildStream) {
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.flushHeaders?.();
+      sendBuildEvent('stage', { state: 'running', tool: 'planning', label: 'Planning build' });
+    }
     // Deliberate test hook — send this exact phrase to force a real error,
     // useful for confirming Sentry (or any error monitoring) is actually working.
     if (message.trim() === 'TEST_SENTRY_ERROR') {
@@ -230,7 +241,7 @@ export default async function handler(req, res) {
       usage,
       navigation,
       degraded,
-    } = await askNex(messageForModel, runningHistory, forcedTier, normalizeClientContext(workspace));
+    } = await askNex(messageForModel, runningHistory, forcedTier, normalizeClientContext(workspace), (stage) => sendBuildEvent('stage', stage));
 
     // If the message sent to the model was augmented with an internal
     // hyperfocus directive, restore Mr. Lopez's original text in the
@@ -251,18 +262,28 @@ export default async function handler(req, res) {
     ];
     await saveRecent(finalHistory);
 
-    return res.status(200).json({
+    const response = {
       reply,
       model: answeredModel,
       provider,
       usage,
       navigation,
       degraded,
-    });
+    };
+    if (wantsBuildStream) {
+      sendBuildEvent('stage', { state: 'complete', tool: 'planning', label: 'Build response ready' });
+      sendBuildEvent('result', response);
+      return res.end();
+    }
+    return res.status(200).json(response);
   } catch (err) {
     console.error('Nex chat handler crashed:', err);
     Sentry.captureException(err);
     await Sentry.flush(2000); // wait for Sentry to actually send before the function ends
+    if (wantsBuildStream) {
+      sendBuildEvent('error', { error: 'Internal system error processing your message.' });
+      return res.end();
+    }
     return res.status(500).json({ error: 'Internal system error processing your message.' });
   }
 }
