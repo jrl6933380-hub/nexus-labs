@@ -1,142 +1,66 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
 <title>Nexus // Approvals</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --bg: #0A0E14;
-    --panel: #12192A;
-    --border: #1F2B42;
-    --blue: #2E7FFF;
-    --cyan: #4DD8E8;
-    --text: #E4E9F2;
-    --text-dim: #8891A3;
-    --text-faint: #5B6577;
-    --amber: #E8A94D;
-    --red: #E85D5D;
-    --mono: 'JetBrains Mono', monospace;
-    --sans: 'Inter', -apple-system, sans-serif;
-  }
-
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--sans);
-    min-height: 100vh;
-    background-image:
-      linear-gradient(var(--border) 1px, transparent 1px),
-      linear-gradient(90deg, var(--border) 1px, transparent 1px);
-    background-size: 48px 48px;
-    padding: 24px 16px 60px;
-  }
-
-  .header {
-    max-width: 700px;
-    margin: 0 auto 20px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .title {
-    font-family: var(--mono);
-    font-size: 20px;
-    font-weight: 700;
-  }
-
-  .back-link {
-    font-family: var(--mono);
-    font-size: 12px;
-    color: var(--text-dim);
-    text-decoration: none;
-    border: 1px solid var(--border);
-    padding: 6px 12px;
-    border-radius: 6px;
-  }
-
-  .container { max-width: 700px; margin: 0 auto; }
-
+  html, body { margin: 0; padding: 0; height: 100%; background: #05070c; }
+  .queue-panel { padding: 14px; font: 13px/1.5 Inter, -apple-system, sans-serif; color: #e8eefb; height: 100%; box-sizing: border-box; overflow-y: auto; }
   .queue-item {
-    background: rgba(255,255,255,0.02);
-    border: 1px solid var(--border);
-    border-left: 3px solid var(--amber);
-    border-radius: 8px;
-    padding: 14px;
-    margin-bottom: 12px;
+    background: #ffffff03; border: 1px solid #26334d; border-left: 3px solid #ffc56b;
+    border-radius: 8px; padding: 12px; margin-bottom: 10px;
   }
-
-  .queue-item-title {
-    font-family: var(--mono);
-    font-size: 13px;
-    font-weight: 600;
-    margin-bottom: 6px;
-  }
-
-  .queue-item-desc {
-    font-size: 13px;
-    color: var(--text-dim);
-    line-height: 1.5;
-    margin-bottom: 12px;
-  }
-
-  .queue-actions {
-    display: flex;
-    gap: 8px;
-  }
-
+  .queue-item-title { font: 700 12px 'JetBrains Mono', monospace; margin-bottom: 6px; }
+  .queue-item-desc { font-size: 12px; color: #91a0b9; line-height: 1.5; margin-bottom: 10px; }
+  .queue-actions { display: flex; gap: 8px; }
   .btn-run, .btn-skip {
-    font-family: var(--mono);
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    padding: 8px 14px;
-    border-radius: 6px;
-    cursor: pointer;
-    border: 1px solid transparent;
-    text-transform: uppercase;
-    flex: 1;
+    font: 700 10px 'JetBrains Mono', monospace; letter-spacing: 0.04em; padding: 7px 12px;
+    border-radius: 6px; cursor: pointer; border: 1px solid transparent; text-transform: uppercase; flex: 1;
   }
+  .btn-run { background: #4b8dff; color: #06090f; }
+  .btn-skip { background: transparent; border-color: #26334d; color: #91a0b9; }
+  .empty-hint { font: 400 11px 'JetBrains Mono', monospace; color: #5e6b81; padding: 10px 2px; line-height: 1.6; }
 
-  .btn-run {
-    background: var(--blue);
-    color: #06090F;
+  .canvas-title-bar {
+    position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 10000;
+    font: 700 11px 'JetBrains Mono', monospace; letter-spacing: 0.1em; text-transform: uppercase;
+    color: #58d7ff; background: #111827e8; border: 1px solid #3c5a84; border-radius: 8px;
+    padding: 7px 16px; backdrop-filter: blur(12px);
   }
-
-  .btn-skip {
-    background: transparent;
-    border-color: var(--border);
-    color: var(--text-dim);
+  .return-link {
+    position: fixed; top: 12px; left: 12px; z-index: 10000;
+    font: 700 10px 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.06em;
+    color: #91a0b9; text-decoration: none; background: #111827e8; border: 1px solid #26334d;
+    border-radius: 8px; padding: 8px 12px; backdrop-filter: blur(12px);
   }
-
-  .empty-hint {
-    font-family: var(--mono);
-    font-size: 12px;
-    color: var(--text-faint);
-    padding: 10px 2px;
-    line-height: 1.6;
-  }
+  .return-link:hover { color: #58d7ff; border-color: #4b8dff77; }
 </style>
-<link rel="stylesheet" href="/nexus-stark.css">
 </head>
 <body>
+<script type="module">
+  import { mountCanvas } from '/canvas-engine.js';
+  import '/nex-chat-bar.js';
 
-<div class="header">
-  <span class="title">NEX // QUEUE</span>
-  <a class="back-link" href="/">← Back to chat</a>
-</div>
+  const titleBar = document.createElement('div');
+  titleBar.className = 'canvas-title-bar';
+  titleBar.textContent = 'Approval Queue';
+  document.body.appendChild(titleBar);
 
-<div class="container" id="queue-list">
-  <div class="empty-hint">Loading...</div>
-</div>
+  const returnLink = document.createElement('a');
+  returnLink.className = 'return-link';
+  returnLink.href = '/';
+  returnLink.textContent = '← Dashboard';
+  document.body.appendChild(returnLink);
 
-<script>
-  const queueList = document.getElementById('queue-list');
+  const canvas = mountCanvas({ canvasId: 'queue' });
+
+  const queueBody = document.createElement('div');
+  queueBody.className = 'queue-panel';
+  queueBody.innerHTML = '<div class="empty-hint">Loading…</div>';
+  canvas.addPanel({ id: 'queue-list', title: 'PENDING APPROVALS', content: queueBody, x: 80, y: 80, w: 460, h: 460 });
 
   function renderQueueItem(item) {
     const el = document.createElement('div');
@@ -152,11 +76,10 @@
     `;
     // Falls back to name/repo when the queued item isn't a plain file
     // edit (create_repo, commit_repo_files, etc. don't have .path) —
-    // matches the fallback already used on the main dashboard, this
-    // page was missing it and would show "undefined" for those items.
+    // matches the fallback already used on the main dashboard.
     const itemLabel = item.input && item.input.path
       ? `${label} — ${item.input.path}`
-      : `${label} — ${item.input && (item.input.name || item.input.repo) || ''}`;
+      : `${label} — ${(item.input && (item.input.name || item.input.repo)) || ''}`;
     el.querySelector('.queue-item-title').innerText = itemLabel;
     el.querySelector('.queue-item-desc').innerText = item.description;
     el.querySelector('.btn-run').addEventListener('click', () => handleQueueAction(item.id, 'approve', el));
@@ -170,14 +93,14 @@
       const data = await res.json();
       const items = data.items || [];
 
-      queueList.innerHTML = '';
+      queueBody.innerHTML = '';
       if (items.length === 0) {
-        queueList.innerHTML = '<div class="empty-hint">Nothing waiting on you right now.<br><br>When Nex proposes a file change, it\'ll show up here for you to approve or reject.</div>';
+        queueBody.innerHTML = '<div class="empty-hint">Nothing waiting on you right now.<br><br>When Nex proposes a file change, it\'ll show up here for you to approve or reject.</div>';
         return;
       }
-      items.forEach((item) => queueList.appendChild(renderQueueItem(item)));
+      items.forEach((item) => queueBody.appendChild(renderQueueItem(item)));
     } catch (err) {
-      queueList.innerHTML = '<div class="empty-hint">Couldn\'t load the queue.</div>';
+      queueBody.innerHTML = '<div class="empty-hint">Couldn\'t load the queue.</div>';
     }
   }
 
@@ -205,7 +128,5 @@
   loadQueue();
   setInterval(loadQueue, 8000);
 </script>
-
-<script src="/nexus-shell.js"></script>
 </body>
 </html>
