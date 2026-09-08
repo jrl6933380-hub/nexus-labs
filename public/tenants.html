@@ -1,203 +1,89 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
 <title>Nexus // Tenants</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --bg: #0A0E14;
-    --panel: #12192A;
-    --border: #1F2B42;
-    --blue: #2E7FFF;
-    --cyan: #4DD8E8;
-    --text: #E4E9F2;
-    --text-dim: #8891A3;
-    --text-faint: #5B6577;
-    --red: #E85D5D;
-    --green: #4DE8A0;
-    --mono: 'JetBrains Mono', monospace;
-    --sans: 'Inter', -apple-system, sans-serif;
-  }
-
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--sans);
-    min-height: 100vh;
-    padding: 32px 18px 80px;
-  }
-
-  .wrap { max-width: 640px; margin: 0 auto; }
-
-  .eyebrow {
-    font-family: var(--mono);
-    font-size: 11px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--cyan);
-    margin-bottom: 10px;
-  }
-
-  h1 {
-    font-family: var(--mono);
-    font-size: 26px;
-    font-weight: 700;
-    margin-bottom: 10px;
-  }
-
-  .tagline {
-    color: var(--text-dim);
-    font-size: 14.5px;
-    line-height: 1.55;
-    margin-bottom: 28px;
-    max-width: 480px;
-  }
-
-  .banner {
-    border-radius: 10px;
-    padding: 12px 14px;
-    font-size: 13px;
-    margin-bottom: 20px;
-    font-family: var(--mono);
-  }
-
-  .banner-success { background: #4DE8A01c; color: var(--green); border: 1px solid #4DE8A044; }
-  .banner-error { background: #E85D5D1c; color: var(--red); border: 1px solid #E85D5D44; }
-
-  .panel {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 20px;
-    margin-bottom: 24px;
-  }
-
-  .panel h2 {
-    font-family: var(--mono);
-    font-size: 13px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    margin-bottom: 14px;
-    color: var(--text-dim);
-  }
-
+  html, body { margin: 0; padding: 0; height: 100%; background: #05070c; }
+  .tenants-panel { padding: 14px; font: 13px/1.5 Inter, -apple-system, sans-serif; color: #e8eefb; height: 100%; box-sizing: border-box; overflow-y: auto; }
+  .banner { border-radius: 8px; padding: 10px 12px; font-size: 12px; margin-bottom: 14px; font-family: 'JetBrains Mono', monospace; }
+  .banner-success { background: #58edb01c; color: #58edb0; border: 1px solid #58edb044; }
+  .banner-error { background: #ff4b4b1c; color: #ff8585; border: 1px solid #ff4b4b44; }
   form { display: flex; flex-direction: column; gap: 10px; }
-
   input, select {
-    padding: 10px 12px;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    background: var(--bg);
-    color: var(--text);
-    font-size: 14px;
-    font-family: var(--sans);
+    padding: 9px 11px; border-radius: 8px; border: 1px solid #26334d; background: #ffffff08;
+    color: #e8eefb; font-size: 13px; font-family: Inter, sans-serif;
   }
-
   button[type="submit"] {
-    margin-top: 4px;
-    padding: 10px;
-    border-radius: 8px;
-    border: none;
-    background: var(--blue);
-    color: #06090F;
-    font-family: var(--mono);
-    font-size: 12px;
-    font-weight: 700;
-    cursor: pointer;
+    margin-top: 4px; padding: 9px; border-radius: 8px; border: none; background: #4b8dff;
+    color: #06090f; font: 700 11px 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer;
   }
-
   button[type="submit"]:disabled { opacity: 0.5; cursor: default; }
-
-  .error { font-size: 12px; color: var(--red); min-height: 16px; }
-
-  .card {
-    background: rgba(255,255,255,0.02);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 16px;
-    margin-bottom: 12px;
-  }
-
-  .card-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 6px;
-  }
-
-  .card-name { font-family: var(--mono); font-size: 15px; font-weight: 700; }
-
-  .badge {
-    font-family: var(--mono);
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    padding: 3px 8px;
-    border-radius: 5px;
-  }
-
-  .badge-hosted { background: #4DE8A01c; color: var(--green); }
-  .badge-byo { background: #2E7FFF1c; color: var(--blue); }
-  .badge-connected { background: #4DE8A01c; color: var(--green); }
-
-  .meta { font-family: var(--mono); font-size: 11.5px; color: var(--text-faint); line-height: 1.7; }
-
-  .usage-bar {
-    height: 5px;
-    border-radius: 3px;
-    background: rgba(255,255,255,0.06);
-    margin: 6px 0 2px;
-    overflow: hidden;
-  }
-
-  .usage-fill { height: 100%; background: var(--green); }
-  .usage-fill.low { background: #E8A94D; }
-  .usage-fill.empty { background: var(--red); }
-
+  .error { font-size: 11px; color: #ff8585; min-height: 16px; }
+  .card { background: #ffffff03; border: 1px solid #26334d; border-radius: 10px; padding: 14px; margin-bottom: 10px; }
+  .card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .card-name { font: 700 13px 'JetBrains Mono', monospace; }
+  .badge { font: 700 9px 'JetBrains Mono', monospace; letter-spacing: 0.05em; text-transform: uppercase; padding: 3px 8px; border-radius: 5px; }
+  .badge-hosted { background: #58edb01c; color: #58edb0; }
+  .badge-byo { background: #4b8dff1c; color: #4b8dff; }
+  .meta { font: 400 10px 'JetBrains Mono', monospace; color: #5e6b81; line-height: 1.7; }
+  .usage-bar { height: 5px; border-radius: 3px; background: #ffffff0f; margin: 6px 0 2px; overflow: hidden; }
+  .usage-fill { height: 100%; background: #58edb0; }
+  .usage-fill.low { background: #ffc56b; }
+  .usage-fill.empty { background: #ff4b4b; }
   .card-actions { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
-
   .export-btn, .connect-btn {
-    font-family: var(--mono);
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.03em;
-    background: none;
-    color: var(--cyan);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 6px 10px;
-    cursor: pointer;
+    font: 700 10px 'JetBrains Mono', monospace; letter-spacing: 0.03em; background: none; color: #58d7ff;
+    border: 1px solid #26334d; border-radius: 6px; padding: 6px 10px; cursor: pointer;
   }
-
-  .connect-btn.done { color: var(--green); border-color: #4DE8A044; cursor: default; }
-
+  .connect-btn.done { color: #58edb0; border-color: #58edb044; cursor: default; }
   .export-btn:active, .connect-btn:active { opacity: 0.7; }
+  .empty { color: #5e6b81; font-size: 12px; }
+  h4 { margin: 0 0 10px; font: 600 9px 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.16em; color: #5e6b81; }
 
-  .empty { color: var(--text-faint); font-size: 13px; }
+  .canvas-title-bar {
+    position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 10000;
+    font: 700 11px 'JetBrains Mono', monospace; letter-spacing: 0.1em; text-transform: uppercase;
+    color: #58d7ff; background: #111827e8; border: 1px solid #3c5a84; border-radius: 8px;
+    padding: 7px 16px; backdrop-filter: blur(12px);
+  }
+  .return-link {
+    position: fixed; top: 12px; left: 12px; z-index: 10000;
+    font: 700 10px 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.06em;
+    color: #91a0b9; text-decoration: none; background: #111827e8; border: 1px solid #26334d;
+    border-radius: 8px; padding: 8px 12px; backdrop-filter: blur(12px);
+  }
+  .return-link:hover { color: #58d7ff; border-color: #4b8dff77; }
 </style>
-<link rel="stylesheet" href="/nexus-stark.css">
 </head>
 <body>
+<script type="module">
+  import { mountCanvas } from '/canvas-engine.js';
+  import '/nex-chat-bar.js';
 
-<div class="wrap">
-  <div class="eyebrow">Nexus Labs</div>
-  <h1>Tenants</h1>
-  <p class="tagline">
-    Isolated projects — hosted (no GitHub/Vercel account needed) or
-    BYO (bring your own connected accounts). Each tenant only shows
-    up here for the account that created it.
-  </p>
+  const nextPath = '/tenants.html';
 
-  <div id="oauth-banner"></div>
+  const titleBar = document.createElement('div');
+  titleBar.className = 'canvas-title-bar';
+  titleBar.textContent = 'Tenant Hub';
+  document.body.appendChild(titleBar);
 
-  <div class="panel">
-    <h2>New tenant</h2>
+  const returnLink = document.createElement('a');
+  returnLink.className = 'return-link';
+  returnLink.href = '/';
+  returnLink.textContent = '← Dashboard';
+  document.body.appendChild(returnLink);
+
+  const canvas = mountCanvas({ canvasId: 'tenants' });
+
+  const createBody = document.createElement('div');
+  createBody.className = 'tenants-panel';
+  createBody.innerHTML = `
+    <div id="oauth-banner"></div>
+    <h4>New tenant</h4>
     <form id="create-form">
       <input type="text" id="tenant-name" placeholder="Tenant name" required>
       <select id="tenant-mode" aria-label="Tenant mode">
@@ -207,16 +93,13 @@
       <div class="error" id="create-error"></div>
       <button type="submit" id="create-submit">Create tenant</button>
     </form>
-  </div>
+  `;
+  canvas.addPanel({ id: 'tenants-create', title: 'NEW TENANT', content: createBody, x: 80, y: 80, w: 360, h: 300 });
 
-  <div class="panel">
-    <h2>Your tenants</h2>
-    <div id="tenant-list"><div class="empty">Loading…</div></div>
-  </div>
-</div>
-
-<script>
-  const nextPath = '/tenants.html';
+  const listBody = document.createElement('div');
+  listBody.className = 'tenants-panel';
+  listBody.innerHTML = '<h4>Your tenants</h4><div id="tenant-list"><div class="empty">Loading…</div></div>';
+  canvas.addPanel({ id: 'tenants-list', title: 'YOUR TENANTS', content: listBody, x: 480, y: 80, w: 420, h: 480 });
 
   const OAUTH_ERROR_MESSAGES = {
     github_denied: 'GitHub connection was cancelled.',
@@ -288,7 +171,7 @@
   async function renderTenants(tenants) {
     const list = document.getElementById('tenant-list');
     if (!tenants.length) {
-      list.innerHTML = '<div class="empty">No tenants yet — create one above.</div>';
+      list.innerHTML = '<div class="empty">No tenants yet — create one on the left.</div>';
       return;
     }
 
@@ -397,7 +280,5 @@
   showOAuthBanner();
   loadTenants();
 </script>
-
-<script src="/nexus-shell.js"></script>
 </body>
 </html>
