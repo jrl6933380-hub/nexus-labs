@@ -124,7 +124,7 @@ function injectStyles() {
       display: none;
       position: fixed;
       left: max(12px, env(safe-area-inset-left));
-      bottom: max(14px, env(safe-area-inset-bottom));
+      bottom: max(76px, calc(env(safe-area-inset-bottom) + 62px));
       z-index: 5;
       max-width: calc(100vw - 24px);
       gap: 7px;
@@ -153,9 +153,10 @@ function injectStyles() {
     @media (max-width: 720px) {
       .nexus-canvas-panel { border-radius: 12px; min-width: 0; }
       .nexus-canvas-panel-header { min-height: 44px; padding: 12px 14px; font-size: 11px; }
+      .nexus-canvas-panel-header::after { content: 'PHONE WORKSPACE'; color: #91a0b9; font: 600 9px 'JetBrains Mono', monospace; letter-spacing: .08em; }
       .nexus-canvas-resize-handle { display: none; }
       .nexus-canvas-mobile-panels { display: flex; }
-      .nexus-build-feedback { top: auto; right: 10px; bottom: 76px; width: min(310px, calc(100vw - 20px)); }
+      .nexus-build-feedback { top: auto; right: 10px; bottom: 128px; width: min(310px, calc(100vw - 20px)); }
     }
     .nexus-build-feedback {
       position: fixed;
@@ -299,7 +300,10 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
     // Desktop layouts are intentionally not persisted over from a phone.
     // On a narrow screen each panel becomes a usable workspace, not a tiny
     // clipped desktop window with an unreachable resize handle.
-    return { x: 8, y: 8, w: Math.max(1, view.width - 16), h: Math.max(1, view.height - 16) };
+    // Keep a clear strip for the collapsed Nex dock at the bottom. When
+    // the user expands chat it intentionally overlays the workspace, but
+    // the normal phone state must never hide the panel's own controls.
+    return { x: 8, y: 8, w: Math.max(1, view.width - 16), h: Math.max(1, view.height - 92) };
   }
 
   function applyRect(el, rect) {
