@@ -62,6 +62,7 @@ import {
   deleteCanvas,
   listCanvases,
 } from '../lib/canvasState.js';
+import { maybeCheckSystemStatus } from '../lib/systemMonitor.js';
 
 // This must exactly match the Authorization Callback URL / Redirect
 // URL registered with GitHub and Vercel — deriving it from the
@@ -92,7 +93,12 @@ async function handleBoard(req, res) {
       workspace_status: process.env.E2B_API_KEY ? 'configured' : 'not_configured',
       observed_at: Date.now(),
     };
-    return res.status(200).json({ ...board, agents, nex_role, crashes, canvas, telemetry });
+    // Non-blocking: returns whatever status is already known (possibly
+    // null on a cold start) and, at most every few minutes, kicks off a
+    // fresh background check that a later poll will pick up. Never adds
+    // latency to this response — see lib/systemMonitor.js.
+    const system_status = maybeCheckSystemStatus();
+    return res.status(200).json({ ...board, agents, nex_role, crashes, canvas, telemetry, system_status });
   }
 
   if (req.method === 'POST') {
