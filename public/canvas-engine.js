@@ -103,10 +103,14 @@ function injectStyles() {
     }
     .nexus-canvas-resize-handle {
       position: absolute;
+      z-index: 1;
       width: 16px;
       height: 16px;
       right: 0;
       bottom: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
       cursor: se-resize;
       touch-action: none;
     }
@@ -120,40 +124,6 @@ function injectStyles() {
       border-right: 2px solid #58d7ff77;
       border-bottom: 2px solid #58d7ff77;
     }
-    .nexus-canvas-mobile-panels {
-      display: none;
-      position: fixed;
-      left: max(12px, env(safe-area-inset-left));
-      bottom: max(76px, calc(env(safe-area-inset-bottom) + 62px));
-      z-index: 5;
-      max-width: calc(100vw - 24px);
-      gap: 7px;
-      padding: 7px;
-      overflow-x: auto;
-      border: 1px solid #3c5a84;
-      border-radius: 12px;
-      background: #0a1020e8;
-      box-shadow: 0 12px 34px #0009;
-      backdrop-filter: blur(14px);
-      -webkit-overflow-scrolling: touch;
-    }
-    /* The mobile media rule enables this dock, but one-panel rooms mark
-       it hidden. Keep that state authoritative so an empty blue strip
-       can never cover the workspace. */
-    .nexus-canvas-mobile-panels[hidden] { display: none !important; }
-    .nexus-canvas-mobile-panel-button {
-      flex: 0 0 auto;
-      min-height: 36px;
-      border: 1px solid #314665;
-      border-radius: 8px;
-      padding: 7px 10px;
-      color: #9bb3d5;
-      background: #121b2de6;
-      font: 700 10px 'JetBrains Mono', monospace;
-      letter-spacing: .06em;
-      text-transform: uppercase;
-    }
-    .nexus-canvas-mobile-panel-button.active { color: #07101a; border-color: #58d7ff; background: #58d7ff; }
     .nexus-build-feedback {
       box-sizing: border-box;
       position: fixed;
@@ -185,9 +155,9 @@ function injectStyles() {
       .nexus-canvas-panel { border-radius: 12px; min-width: 0; }
       .nexus-canvas-panel-header { min-height: 44px; padding: 12px 14px; font-size: 11px; }
       .nexus-canvas-panel-header::after { content: 'PHONE WORKSPACE'; color: #91a0b9; font: 600 9px 'JetBrains Mono', monospace; letter-spacing: .08em; }
-      .nexus-canvas-resize-handle { display: none; }
-      .nexus-canvas-mobile-panels { display: flex; }
-      .nexus-build-feedback { top: auto; right: 10px; bottom: 128px; max-width: min(190px, calc(100vw - 20px)); }
+      .nexus-canvas-resize-handle { display: block; width: 44px; height: 44px; }
+      .nexus-canvas-resize-handle::after { right: 9px; bottom: 9px; width: 10px; height: 10px; border-color: #58d7ffcc; }
+      .nexus-build-feedback { top: auto; right: 10px; bottom: 76px; max-width: min(190px, calc(100vw - 20px)); }
     }
   `;
   document.head.appendChild(style);
@@ -231,10 +201,6 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
     document.body.appendChild(root);
   }
   root.dataset.canvasId = canvasId;
-  const mobilePanelDock = document.createElement('nav');
-  mobilePanelDock.className = 'nexus-canvas-mobile-panels';
-  mobilePanelDock.setAttribute('aria-label', 'Canvas panels');
-  root.appendChild(mobilePanelDock);
   let feedbackHud = root.querySelector('.nexus-build-feedback');
   let feedbackHideTimer = null;
   if (!feedbackHud) {
@@ -292,8 +258,8 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
     root.appendChild(backdrop);
   }
 
-  const panels = new Map(); // id -> { el, dragging, resizing, title, mobileButton }
-  let activeMobilePanelId = null;
+  const panels = new Map(); // id -> { el, dragging, resizing, title, remoteRect, mobileRect }
+  let topPanelZ = 2;
 
   function applyBackdrop(url) {
     backdrop.style.backgroundImage = url ? `url("${url}")` : 'none';
@@ -311,7 +277,7 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
   function interactionViewport() {
     const view = viewport();
     if (!isMobileViewport()) return view;
-    const bottomInset = panels.size >= 2 ? 140 : 76;
+    const bottomInset = 76;
     return { width: view.width, height: Math.max(160, view.height - bottomInset) };
   }
 
@@ -332,29 +298,21 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
     el.style.height = `${displayed.h}px`;
   }
 
-  function refreshMobilePanels() {
+  function refreshPanels() {
     const mobile = isMobileViewport();
-    mobilePanelDock.hidden = !mobile || panels.size < 2;
-    for (const [id, entry] of panels) {
+    for (const entry of panels.values()) {
       if (mobile) {
         applyRect(entry.el, entry.mobileRect || entry.remoteRect);
-        entry.el.hidden = id !== activeMobilePanelId;
       } else {
         applyRect(entry.el, entry.remoteRect);
-        entry.el.hidden = false;
       }
-      entry.mobileButton?.classList.toggle('active', id === activeMobilePanelId);
+      entry.el.hidden = false;
     }
   }
 
   function currentPanelRect(el) {
     const rect = el.getBoundingClientRect();
     return { x: rect.left, y: rect.top, w: rect.width, h: rect.height };
-  }
-
-  function activateMobilePanel(id) {
-    activeMobilePanelId = id;
-    refreshMobilePanels();
   }
 
   // Called on every poll for panels the current tab isn't actively
@@ -396,8 +354,10 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
     if (content instanceof Node) body.appendChild(content);
     el.appendChild(body);
 
-    const handle = document.createElement('div');
+    const handle = document.createElement('button');
+    handle.type = 'button';
     handle.className = 'nexus-canvas-resize-handle';
+    handle.setAttribute('aria-label', `Resize ${title}`);
     el.appendChild(handle);
 
     root.appendChild(el);
@@ -409,15 +369,11 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
     }
     const entry = { el, dragging: false, resizing: false, title, remoteRect: { x, y, w, h }, mobileRect };
     panels.set(id, entry);
-    if (!activeMobilePanelId) activeMobilePanelId = id;
-    const mobileButton = document.createElement('button');
-    mobileButton.type = 'button';
-    mobileButton.className = 'nexus-canvas-mobile-panel-button';
-    mobileButton.textContent = title;
-    mobileButton.addEventListener('click', () => activateMobilePanel(id));
-    mobilePanelDock.appendChild(mobileButton);
-    entry.mobileButton = mobileButton;
-    refreshMobilePanels();
+    el.addEventListener('pointerdown', () => {
+      topPanelZ += 1;
+      el.style.zIndex = String(topPanelZ);
+    });
+    refreshPanels();
 
     function currentRect() {
       const r = el.getBoundingClientRect();
@@ -490,8 +446,13 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
       if (handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId);
       entry.resizing = false;
       const persisted = currentRect();
-      entry.remoteRect = persisted;
-      persist(persisted);
+      if (isMobileViewport()) {
+        entry.mobileRect = persisted;
+        try { localStorage.setItem(`nexus-mobile-panel:${canvasId}:${id}`, JSON.stringify(persisted)); } catch {}
+      } else {
+        entry.remoteRect = persisted;
+        persist(persisted);
+      }
       resize = null;
     }
     handle.addEventListener('pointerup', endResize);
@@ -509,8 +470,8 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
     clearInterval(pollTimer);
   }
 
-  window.addEventListener('resize', refreshMobilePanels);
-  window.visualViewport?.addEventListener('resize', refreshMobilePanels);
+  window.addEventListener('resize', refreshPanels);
+  window.visualViewport?.addEventListener('resize', refreshPanels);
 
   return { root, canvasId, addPanel, setBackdropUrl, destroy };
 }
