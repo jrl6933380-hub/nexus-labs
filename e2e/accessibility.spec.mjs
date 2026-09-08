@@ -131,3 +131,19 @@ test.describe('mobile canvas room interactions', () => {
     });
   }
 });
+
+test('live build feedback stays a one-line mobile status pill', async ({ page }) => {
+  await page.setViewportSize({ width: 393, height: 852 });
+  await page.route('**/api/board**', (route) => route.fulfill({ status: 503, json: { error: 'test offline' } }));
+  await page.goto('/index.html');
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('nexus:build-feedback', {
+    detail: { state: 'running', tool: 'testing', label: 'Running client preview tests' },
+  })));
+  const pill = page.locator('.nexus-build-feedback');
+  await expect(pill).toBeVisible();
+  await expect(pill).toContainText('NEX · Running client preview tests');
+  const box = await pill.boundingBox();
+  expect(box.width).toBeLessThanOrEqual(200);
+  expect(box.height).toBeLessThanOrEqual(44);
+  await expect(pill.locator('.nexus-build-feedback-label')).toHaveCount(1);
+});
