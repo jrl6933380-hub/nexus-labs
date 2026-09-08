@@ -7,7 +7,22 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root {
+  html, body { margin: 0; padding: 0; height: 100%; background: #05070c; }
+
+  /* Room Builder is a chat + live-build-preview tool, not a set of
+     independent widgets — its whole point is one big live canvas
+     where a generated page renders full-size next to the chat that's
+     building it. Splitting that into several small draggable panels
+     (like Memory/Queue/Tenants) would make it worse to use. So this
+     migration puts the ENTIRE existing builder UI into one large
+     panel on its own canvas (canvas_id: 'room-builder') — it's still
+     genuinely "on a canvas" (draggable, resizable, on-brand), just as
+     one cohesive block rather than fragmented pieces. Everything
+     below this comment is the original room.html content, unchanged
+     except height calcs that assumed being the whole page and are now
+     relative to the panel instead of the viewport.
+  */
+  .room-builder-wrap {
     --bg: #0A0E14;
     --panel: #12192A;
     --border: #1F2B42;
@@ -20,16 +35,16 @@
     --red: #E85D5D;
     --mono: 'JetBrains Mono', monospace;
     --sans: 'Inter', -apple-system, sans-serif;
-  }
 
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  body {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
     background: var(--bg);
     color: var(--text);
     font-family: var(--sans);
-    min-height: 100vh;
   }
+
+  .room-builder-wrap * { box-sizing: border-box; }
 
   .header {
     padding: 14px 16px;
@@ -40,6 +55,7 @@
     position: relative;
     flex-wrap: wrap;
     gap: 8px;
+    flex-shrink: 0;
   }
 
   .title { font-family: var(--mono); font-size: 15px; font-weight: 700; }
@@ -123,8 +139,7 @@
   .room {
     display: grid;
     grid-template-columns: minmax(240px, 280px) minmax(0, 1fr);
-    height: calc(100vh - 109px);
-    height: calc(100dvh - 109px);
+    flex: 1;
     min-height: 0;
   }
 
@@ -276,8 +291,7 @@
     .room {
       grid-template-columns: 1fr;
       grid-template-rows: minmax(0, 1fr) auto;
-      height: calc(100dvh - 173px);
-      min-height: 300px;
+      min-height: 200px;
     }
 
     .canvas {
@@ -296,13 +310,13 @@
       z-index: 10;
     }
 
-    .room.chat-open .chat-panel {
+    .room-builder-wrap.chat-open .chat-panel {
       height: min(44dvh, 380px);
     }
 
     .chat-toolbar { display: flex; }
     .chat-history { display: none; padding: 10px; }
-    .room.chat-open .chat-history { display: flex; }
+    .room-builder-wrap.chat-open .chat-history { display: flex; }
 
     .input-row { padding: 8px; }
     .chat-input { min-width: 0; padding: 10px; }
@@ -313,48 +327,80 @@
   @media (prefers-reduced-motion: reduce) {
     .chat-panel { transition: none; }
   }
+
+  .canvas-title-bar {
+    position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 10000;
+    font: 700 11px 'JetBrains Mono', monospace; letter-spacing: 0.1em; text-transform: uppercase;
+    color: #58d7ff; background: #111827e8; border: 1px solid #3c5a84; border-radius: 8px;
+    padding: 7px 16px; backdrop-filter: blur(12px);
+  }
+  .return-link {
+    position: fixed; top: 12px; left: 12px; z-index: 10000;
+    font: 700 10px 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.06em;
+    color: #91a0b9; text-decoration: none; background: #111827e8; border: 1px solid #26334d;
+    border-radius: 8px; padding: 8px 12px; backdrop-filter: blur(12px);
+  }
+  .return-link:hover { color: #58d7ff; border-color: #4b8dff77; }
 </style>
-<link rel="stylesheet" href="/nexus-stark.css">
 </head>
 <body>
+<script type="module">
+  import { mountCanvas } from '/canvas-engine.js';
 
-<div class="header">
-  <span class="title">NEX // ROOM</span>
-  <div class="header-actions">
-    <span id="whoami"></span>
-    <button class="history-btn" id="import-btn">Import Home</button>
-    <button class="history-btn push-btn" id="push-btn" disabled>Push Design</button>
-    <button class="history-btn" id="history-btn">History</button>
-    <button class="back-link" id="logout-btn">Logout</button>
-    <a class="back-link" href="/">← Back to chat</a>
-  </div>
-  <div id="history-panel">
-    <div id="history-list" class="history-empty">Loading…</div>
-  </div>
-</div>
+  const titleBar = document.createElement('div');
+  titleBar.className = 'canvas-title-bar';
+  titleBar.textContent = 'Room Builder';
+  document.body.appendChild(titleBar);
 
-<div class="room">
-  <aside class="chat-panel">
-    <div class="chat-toolbar">
-      <button class="chat-toggle" id="chat-toggle" type="button" aria-expanded="false">
-        CHAT <span class="chat-toggle-label" id="chat-toggle-label">Open log</span>
-      </button>
-      <span class="chat-status" id="chat-status">READY</span>
+  const returnLink = document.createElement('a');
+  returnLink.className = 'return-link';
+  returnLink.href = '/';
+  returnLink.textContent = '← Dashboard';
+  document.body.appendChild(returnLink);
+
+  const canvas = mountCanvas({ canvasId: 'room-builder' });
+
+  const wrap = document.createElement('div');
+  wrap.className = 'room-builder-wrap';
+  wrap.innerHTML = `
+    <div class="header">
+      <span class="title">NEX // ROOM</span>
+      <div class="header-actions">
+        <span id="whoami"></span>
+        <button class="history-btn" id="import-btn">Import Home</button>
+        <button class="history-btn push-btn" id="push-btn" disabled>Push Design</button>
+        <button class="history-btn" id="history-btn">History</button>
+        <button class="back-link" id="logout-btn">Logout</button>
+      </div>
+      <div id="history-panel">
+        <div id="history-list" class="history-empty">Loading…</div>
+      </div>
     </div>
-    <div class="chat-history" id="chat-history"></div>
-    <div class="input-row">
-      <input class="chat-input" id="chat-input" placeholder="Tell Nex what to build...">
-      <button class="send-btn" id="send-btn">Send</button>
+
+    <div class="room">
+      <aside class="chat-panel">
+        <div class="chat-toolbar">
+          <button class="chat-toggle" id="chat-toggle" type="button" aria-expanded="false">
+            CHAT <span class="chat-toggle-label" id="chat-toggle-label">Open log</span>
+          </button>
+          <span class="chat-status" id="chat-status">READY</span>
+        </div>
+        <div class="chat-history" id="chat-history"></div>
+        <div class="input-row">
+          <input class="chat-input" id="chat-input" placeholder="Tell Nex what to build...">
+          <button class="send-btn" id="send-btn">Send</button>
+        </div>
+      </aside>
+
+      <main class="canvas">
+        <div class="canvas-empty" id="canvas-empty">Ask for anything — a website, a game, a tool, whatever you can think of. It'll build here.</div>
+        <iframe id="canvas-frame" sandbox="allow-scripts allow-forms" title="Live build canvas"></iframe>
+      </main>
     </div>
-  </aside>
+  `;
 
-  <main class="canvas">
-    <div class="canvas-empty" id="canvas-empty">Ask for anything — a website, a game, a tool, whatever you can think of. It'll build here.</div>
-    <iframe id="canvas-frame" sandbox="allow-scripts allow-forms" title="Live build canvas"></iframe>
-  </main>
-</div>
+  canvas.addPanel({ id: 'room-builder', title: 'BUILDER', content: wrap, x: 60, y: 60, w: 900, h: 640 });
 
-<script>
   // ---- Auth gate: bounce to login if there's no valid session ----
   // Runs before anything else renders meaningfully. A 401 here means
   // no session cookie or an expired one — send to the login page
@@ -476,20 +522,19 @@
   const chatHistory = document.getElementById('chat-history');
   const chatInput = document.getElementById('chat-input');
   const sendBtn = document.getElementById('send-btn');
-  const room = document.querySelector('.room');
   const chatToggle = document.getElementById('chat-toggle');
   const chatToggleLabel = document.getElementById('chat-toggle-label');
   const chatStatus = document.getElementById('chat-status');
   const mobileLayout = window.matchMedia('(max-width: 720px)');
 
   function setChatOpen(open) {
-    room.classList.toggle('chat-open', open);
+    wrap.classList.toggle('chat-open', open);
     chatToggle.setAttribute('aria-expanded', String(open));
     chatToggleLabel.innerText = open ? 'Hide log' : 'Open log';
   }
 
   chatToggle.addEventListener('click', () => {
-    setChatOpen(!room.classList.contains('chat-open'));
+    setChatOpen(!wrap.classList.contains('chat-open'));
   });
 
   setChatOpen(!mobileLayout.matches);
@@ -710,7 +755,5 @@
     }
   });
 </script>
-
-<script src="/nexus-shell.js"></script>
 </body>
 </html>
