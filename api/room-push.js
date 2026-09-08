@@ -19,6 +19,19 @@ function stripSafetyShim(html) {
   return html.replace(/<!-- NEXUS_SAFETY_SHIM_START -->[\s\S]*?<!-- NEXUS_SAFETY_SHIM_END -->\n?/i, '');
 }
 
+function stripLiveEditWidget(html) {
+  return html.replace(/<!-- NEXUS_LIVE_EDIT_WIDGET_START -->[\s\S]*?<!-- NEXUS_LIVE_EDIT_WIDGET_END -->\n?/i, '');
+}
+
+export function prepareNexusHomePush(html) {
+  if (typeof html !== 'string' || !/<!-- NEXUS_SAFETY_SHIM_START -->/i.test(html)) {
+    throw new Error('Import the Nexus homepage before opening a design PR.');
+  }
+  const cleaned = stripLiveEditWidget(stripSafetyShim(html)).trim();
+  if (!cleaned.toLowerCase().includes('<!doctype')) throw new Error('Missing or invalid html.');
+  return cleaned;
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
@@ -34,7 +47,12 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing or invalid html.' });
   }
 
-  const cleaned = stripSafetyShim(html);
+  let cleaned;
+  try {
+    cleaned = prepareNexusHomePush(html);
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
   const branchName = `room-push/${username}-${Date.now()}`;
 
   try {

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Nexus // Room</title>
+<title>Nexus — Web Builder</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -341,6 +341,132 @@
     border-radius: 8px; padding: 8px 12px; backdrop-filter: blur(12px);
   }
   .return-link:hover { color: #58d7ff; border-color: #4b8dff77; }
+
+  /* Launch-grade builder cockpit. The inherited rules above preserve the
+     original behavior; these rules establish the product hierarchy and
+     phone-first working surface without changing the canvas engine. */
+  .room-builder-wrap {
+    --bg: #0b1018;
+    --panel: #111822;
+    --panel-raised: #18212e;
+    --border: rgba(148,163,184,.18);
+    --blue: #5db8ff;
+    --cyan: #82d5ff;
+    --text: #f4f7fb;
+    --text-dim: #a0abba;
+    --text-faint: #748094;
+    --amber: #f2ba63;
+  }
+  .header {
+    min-height: 58px; padding: 10px 12px 10px 16px; gap: 10px;
+    flex-wrap: nowrap; background: rgba(11,16,24,.96);
+  }
+  .builder-brand { display: grid; min-width: 0; gap: 1px; }
+  .title { font-family: var(--sans); font-size: 14px; font-weight: 680; letter-spacing: .01em; }
+  .project-state { color: var(--text-faint); font: 500 11px/1.2 var(--sans); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .header-actions { flex-wrap: nowrap; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .header-actions::-webkit-scrollbar { display: none; }
+  .back-link, .history-btn {
+    min-height: 36px; padding: 7px 11px; border-radius: 9px; white-space: nowrap;
+    color: var(--text-dim); font: 600 12px var(--sans); background: rgba(255,255,255,.025);
+  }
+  .back-link:hover, .history-btn:hover, .back-link:focus-visible, .history-btn:focus-visible {
+    color: var(--text); border-color: rgba(148,163,184,.34); outline: none;
+  }
+  .history-btn.primary { color: #d9efff; border-color: rgba(93,184,255,.4); background: rgba(93,184,255,.1); }
+  .history-btn[hidden] { display: none; }
+  .usage-pill {
+    display: inline-flex; align-items: center; min-height: 34px; padding: 0 10px;
+    border: 1px solid var(--border); border-radius: 999px; color: var(--text-dim);
+    font: 600 11px var(--sans); white-space: nowrap;
+  }
+  #whoami { display: none; }
+  #history-panel {
+    top: 62px; right: 12px; width: min(340px, calc(100% - 24px)); max-height: min(520px, 72vh);
+    padding: 8px; border-radius: 13px; background: rgba(17,24,34,.98);
+    box-shadow: 0 24px 70px rgba(0,0,0,.55);
+  }
+  .history-item { padding: 11px; border-radius: 10px; border-bottom: 1px solid var(--border); }
+  .history-item .label { font-size: 13px; font-weight: 600; }
+  .history-item .meta { margin-top: 3px; font-size: 11px; }
+  .room { grid-template-columns: minmax(280px, 330px) minmax(0, 1fr); }
+  .chat-panel { background: var(--panel); }
+  .chat-toolbar { display: flex; min-height: 46px; padding: 7px 10px 7px 14px; }
+  .chat-heading { color: var(--text); font: 650 12px var(--sans); }
+  .chat-tools { display: flex; align-items: center; gap: 8px; }
+  .chat-toggle { display: none; }
+  .chat-status { color: var(--text-dim); font: 600 10px var(--mono); }
+  .voice-btn, .mic-btn {
+    min-width: 38px; height: 34px; padding: 0 9px; border: 1px solid var(--border);
+    border-radius: 9px; background: rgba(255,255,255,.025); color: var(--text-dim);
+    font: 650 10px var(--sans); cursor: pointer;
+  }
+  .voice-btn[aria-pressed="true"] { color: #88e0b9; border-color: rgba(86,214,160,.4); background: rgba(86,214,160,.08); }
+  .mic-btn.listening { color: #ff9aa7; border-color: rgba(255,124,140,.5); background: rgba(255,124,140,.08); }
+  .chat-history { padding: 16px; gap: 10px; }
+  .bubble { padding: 10px 12px; border-radius: 12px; font-size: 14px; line-height: 1.5; }
+  .bubble.user { background: #bce2ff; color: #07101a; }
+  .bubble.nex { background: rgba(255,255,255,.035); }
+  .input-row { align-items: flex-end; padding: 10px; }
+  .chat-input {
+    min-height: 42px; max-height: 112px; resize: none; padding: 10px 11px; border-radius: 10px;
+    font-size: 14px; line-height: 1.4; background: #0a0f16;
+  }
+  .send-btn { min-height: 42px; padding: 10px 14px; border-radius: 10px; color: #07101a; font: 700 12px var(--sans); }
+  .canvas { display: flex; flex-direction: column; background: #090e15; }
+  .preview-toolbar {
+    display: flex; align-items: center; gap: 8px; min-height: 46px; padding: 6px 10px;
+    border-bottom: 1px solid var(--border); background: var(--panel); overflow-x: auto; scrollbar-width: none;
+  }
+  .preview-toolbar::-webkit-scrollbar { display: none; }
+  .preview-label { margin-right: auto; color: var(--text); font: 650 12px var(--sans); white-space: nowrap; }
+  .device-switcher { display: flex; gap: 3px; padding: 3px; border: 1px solid var(--border); border-radius: 9px; background: #0a0f16; }
+  .device-btn, .preview-action {
+    height: 30px; padding: 0 9px; border: 0; border-radius: 7px; background: transparent;
+    color: var(--text-dim); font: 600 10px var(--sans); cursor: pointer; white-space: nowrap;
+  }
+  .device-btn[aria-pressed="true"] { background: var(--panel-raised); color: var(--text); }
+  .preview-action { border: 1px solid var(--border); }
+  .device-btn:focus-visible, .preview-action:focus-visible, .voice-btn:focus-visible, .mic-btn:focus-visible {
+    outline: 2px solid rgba(93,184,255,.62); outline-offset: 2px;
+  }
+  .preview-stage { position: relative; flex: 1; min-height: 0; display: flex; justify-content: center; padding: 12px; overflow: auto; }
+  #canvas-frame {
+    flex: 0 0 auto; width: 100%; height: 100%; min-height: 320px; border-radius: 10px;
+    background: #fff; box-shadow: 0 14px 40px rgba(0,0,0,.34); transition: width .2s ease;
+  }
+  .canvas[data-viewport="tablet"] #canvas-frame { width: min(768px, 100%); }
+  .canvas[data-viewport="phone"] #canvas-frame { width: min(390px, 100%); }
+  .canvas-empty { inset: 0; color: var(--text-dim); font-size: 14px; }
+  .canvas-empty-inner { max-width: 420px; }
+  .canvas-empty strong { display: block; color: var(--text); font-size: 18px; margin-bottom: 7px; }
+  .canvas-empty span { display: block; line-height: 1.55; }
+
+  @media (max-width: 720px) {
+    .header { min-height: 50px; padding: 7px 8px 7px 12px; }
+    .builder-brand { min-width: 104px; }
+    .title { font-size: 13px; }
+    .project-state { font-size: 10px; }
+    .usage-pill { display: none; }
+    .header-actions { margin-left: auto; }
+    .back-link, .history-btn { min-height: 36px; padding: 7px 10px; }
+    .room { grid-template-rows: minmax(0, 1fr) auto; }
+    .chat-panel { height: 112px; }
+    .room-builder-wrap.chat-open .chat-panel { height: min(48dvh, 410px); }
+    .chat-toggle { display: inline-flex; font-family: var(--sans); font-size: 12px; letter-spacing: 0; text-transform: none; }
+    .chat-toggle::before { box-shadow: none; }
+    .chat-heading { display: none; }
+    .chat-history { padding: 12px; }
+    .bubble { font-size: 14px; }
+    .input-row { padding: 8px; }
+    .chat-input { font-size: 16px; }
+    .preview-toolbar { min-height: 42px; padding: 5px 7px; }
+    .preview-label { display: none; }
+    .device-switcher { margin-right: auto; }
+    .preview-stage { padding: 7px; }
+    #canvas-frame { min-height: 260px; border-radius: 7px; }
+    .canvas-empty { inset: 0; padding: 24px; }
+  }
 </style>
 </head>
 <body>
@@ -364,13 +490,19 @@
   wrap.className = 'room-builder-wrap';
   wrap.innerHTML = `
     <div class="header">
-      <span class="title">NEX // ROOM</span>
+      <div class="builder-brand">
+        <span class="title">Web Builder</span>
+        <span class="project-state" id="project-state">New project</span>
+      </div>
       <div class="header-actions">
+        <span class="usage-pill" id="usage-pill">Usage —</span>
+        <button class="history-btn" id="new-btn" type="button">New</button>
         <span id="whoami"></span>
-        <button class="history-btn" id="import-btn">Import Home</button>
-        <button class="history-btn push-btn" id="push-btn" disabled>Push Design</button>
-        <button class="history-btn" id="history-btn">History</button>
-        <button class="back-link" id="logout-btn">Logout</button>
+        <button class="history-btn" id="import-btn" type="button">Import Nexus</button>
+        <button class="history-btn" id="export-btn" type="button" disabled>Export</button>
+        <button class="history-btn push-btn" id="push-btn" type="button" hidden disabled>Open PR</button>
+        <button class="history-btn primary" id="history-btn" type="button">Projects</button>
+        <button class="back-link" id="logout-btn" type="button">Sign out</button>
       </div>
       <div id="history-panel">
         <div id="history-list" class="history-empty">Loading…</div>
@@ -381,20 +513,37 @@
       <aside class="chat-panel">
         <div class="chat-toolbar">
           <button class="chat-toggle" id="chat-toggle" type="button" aria-expanded="false">
-            CHAT <span class="chat-toggle-label" id="chat-toggle-label">Open log</span>
+            Nex <span class="chat-toggle-label" id="chat-toggle-label">Open conversation</span>
           </button>
-          <span class="chat-status" id="chat-status">READY</span>
+          <span class="chat-heading">Build with Nex</span>
+          <div class="chat-tools">
+            <span class="chat-status" id="chat-status" role="status" aria-live="polite">Ready</span>
+            <button class="voice-btn" id="voice-btn" type="button" aria-label="Toggle spoken build updates" aria-pressed="false">Audio</button>
+          </div>
         </div>
         <div class="chat-history" id="chat-history"></div>
         <div class="input-row">
-          <input class="chat-input" id="chat-input" placeholder="Tell Nex what to build...">
-          <button class="send-btn" id="send-btn">Send</button>
+          <textarea class="chat-input" id="chat-input" rows="1" aria-label="Describe what to build or change" placeholder="Describe what to build or change…"></textarea>
+          <button class="mic-btn" id="mic-btn" type="button" aria-label="Speak to Nex">Mic</button>
+          <button class="send-btn" id="send-btn" type="button">Build</button>
         </div>
       </aside>
 
-      <main class="canvas">
-        <div class="canvas-empty" id="canvas-empty">Ask for anything — a website, a game, a tool, whatever you can think of. It'll build here.</div>
-        <iframe id="canvas-frame" sandbox="allow-scripts allow-forms" title="Live build canvas"></iframe>
+      <main class="canvas" data-viewport="responsive">
+        <div class="preview-toolbar">
+          <span class="preview-label">Live preview</span>
+          <div class="device-switcher" role="group" aria-label="Preview size">
+            <button class="device-btn" type="button" data-viewport="responsive" aria-pressed="true">Fit</button>
+            <button class="device-btn" type="button" data-viewport="tablet" aria-pressed="false">Tablet</button>
+            <button class="device-btn" type="button" data-viewport="phone" aria-pressed="false">Phone</button>
+          </div>
+          <button class="preview-action" id="refresh-btn" type="button" disabled>Refresh</button>
+          <button class="preview-action" id="open-preview-btn" type="button" disabled>Open</button>
+        </div>
+        <div class="preview-stage">
+          <div class="canvas-empty" id="canvas-empty"><div class="canvas-empty-inner"><strong>Build your first project</strong><span>Describe the site or tool you want. Nex will create it here, save every version, and keep editing from your next request.</span></div></div>
+          <iframe id="canvas-frame" sandbox="allow-scripts allow-forms" title="Live project preview"></iframe>
+        </div>
       </main>
     </div>
   `;
@@ -431,20 +580,119 @@
     }
   });
 
-  // ---- State: just the last-built HTML, so follow-up requests can edit it ----
+  // ---- Project state: the current document plus enough local metadata to
+  // drive safe actions and a clear phone-first workflow. ----
   let currentHtml = '';
+  let currentLabel = 'New project';
 
   const frame = document.getElementById('canvas-frame');
   const emptyState = document.getElementById('canvas-empty');
   const pushBtn = document.getElementById('push-btn');
+  const exportBtn = document.getElementById('export-btn');
+  const openPreviewBtn = document.getElementById('open-preview-btn');
+  const refreshBtn = document.getElementById('refresh-btn');
+  const projectState = document.getElementById('project-state');
+  const usagePill = document.getElementById('usage-pill');
 
-  function renderHtml(html) {
+  function isNexusImport(html) {
+    return /<!-- NEXUS_SAFETY_SHIM_START -->/i.test(html);
+  }
+
+  function renderHtml(html, { label } = {}) {
     currentHtml = html;
+    currentLabel = label || currentLabel || 'Untitled project';
     frame.srcdoc = html;
     frame.classList.add('visible');
     emptyState.style.display = 'none';
-    pushBtn.disabled = false;
+    projectState.innerText = currentLabel;
+    exportBtn.disabled = false;
+    openPreviewBtn.disabled = false;
+    refreshBtn.disabled = false;
+    // Opening a PR changes the real Nexus homepage and therefore appears only
+    // for an imported, visibly sandboxed Nexus copy — never for an ordinary
+    // customer project generated from scratch.
+    pushBtn.hidden = !isNexusImport(html);
+    pushBtn.disabled = pushBtn.hidden;
   }
+
+  function resetProject() {
+    currentHtml = '';
+    currentLabel = 'New project';
+    projectState.innerText = currentLabel;
+    frame.srcdoc = '';
+    frame.classList.remove('visible');
+    emptyState.style.display = '';
+    exportBtn.disabled = true;
+    openPreviewBtn.disabled = true;
+    refreshBtn.disabled = true;
+    pushBtn.hidden = true;
+    pushBtn.disabled = true;
+  }
+
+  function stripLiveEditWidget(html) {
+    return html.replace(/<!-- NEXUS_LIVE_EDIT_WIDGET_START -->[\s\S]*?<!-- NEXUS_LIVE_EDIT_WIDGET_END -->\n?/i, '');
+  }
+
+  function portableHtml() {
+    return stripSafetyShim(stripLiveEditWidget(currentHtml));
+  }
+
+  function projectBlobUrl() {
+    return URL.createObjectURL(new Blob([portableHtml()], { type: 'text/html;charset=utf-8' }));
+  }
+
+  document.getElementById('new-btn').addEventListener('click', () => {
+    if (currentHtml && !window.confirm('Start a new project? Your saved versions will stay in Projects.')) return;
+    resetProject();
+    addBubble('nex', 'New project ready. What should we build?');
+    setChatOpen(true);
+    chatInput.focus();
+  });
+
+  exportBtn.addEventListener('click', () => {
+    if (!currentHtml) return;
+    const url = projectBlobUrl();
+    const download = document.createElement('a');
+    download.href = url;
+    download.download = 'nexus-project.html';
+    download.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+
+  openPreviewBtn.addEventListener('click', () => {
+    if (!currentHtml) return;
+    const url = projectBlobUrl();
+    window.open(url, '_blank', 'noopener,noreferrer');
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  });
+
+  refreshBtn.addEventListener('click', () => {
+    if (!currentHtml) return;
+    frame.srcdoc = currentHtml;
+  });
+
+  document.querySelectorAll('.device-btn').forEach((button) => {
+    button.addEventListener('click', () => {
+      document.querySelector('.canvas').dataset.viewport = button.dataset.viewport;
+      document.querySelectorAll('.device-btn').forEach((candidate) => {
+        candidate.setAttribute('aria-pressed', String(candidate === button));
+      });
+    });
+  });
+
+  async function refreshUsage() {
+    try {
+      const res = await fetch('/api/room-usage', { headers: { Accept: 'application/json' }, cache: 'no-store' });
+      if (!res.ok) return;
+      const { usage } = await res.json();
+      usagePill.innerText = `${usage.remaining} credits left`;
+      usagePill.title = `${usage.consumed} used of ${usage.limit} this period`;
+    } catch {
+      usagePill.innerText = 'Usage unavailable';
+    }
+  }
+
+  refreshUsage();
 
   // ---- History panel -------------------------------------------
   const historyBtn = document.getElementById('history-btn');
@@ -501,7 +749,7 @@
       const res = await fetch('/api/room-history?id=' + encodeURIComponent(id));
       const data = await res.json();
       if (data.build) {
-        renderHtml(data.build.html);
+        renderHtml(data.build.html, { label: data.build.label || 'Saved project' });
         addBubble('nex', `Loaded "${data.build.label}" from history.`);
         historyPanel.classList.remove('open');
         historyBtn.classList.remove('active');
@@ -530,7 +778,7 @@
   function setChatOpen(open) {
     wrap.classList.toggle('chat-open', open);
     chatToggle.setAttribute('aria-expanded', String(open));
-    chatToggleLabel.innerText = open ? 'Hide log' : 'Open log';
+    chatToggleLabel.innerText = open ? 'Hide conversation' : 'Open conversation';
   }
 
   chatToggle.addEventListener('click', () => {
@@ -549,10 +797,85 @@
     return el;
   }
 
-  addBubble('nex', 'Tell me what to build — a website, a game, a tool, anything. Try: "build a landing page for a coffee shop called Rise & Grind"');
-  addBubble('nex', 'Everything you build here is saved automatically — check History any time to pick up an old one.');
-  addBubble('nex', 'Every page you build also gets its own chat bubble in the corner, so you (or anyone you show it to) can keep editing it from inside the page itself.');
-  addBubble('nex', 'Tap "Import Home" to pull in a safe copy of the real Nexus Labs home page and redesign it right here — nothing you do to it is live. Like what you see? "Push Design" opens a real PR for review, same as everything else.');
+  // Voice uses the browser's built-in speech APIs and remains opt-in. No
+  // recording or transcript is stored outside the normal build request.
+  const micBtn = document.getElementById('mic-btn');
+  const voiceBtn = document.getElementById('voice-btn');
+  const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const speechOutputSupported = 'speechSynthesis' in window;
+  let voiceEnabled = false;
+  let recognition = null;
+
+  try { voiceEnabled = localStorage.getItem('nexus-room-voice-v1') === 'true'; } catch {}
+
+  function updateVoiceButton() {
+    voiceBtn.setAttribute('aria-pressed', String(voiceEnabled));
+    voiceBtn.innerText = voiceEnabled ? 'Audio on' : 'Audio';
+  }
+
+  function speakUpdate(text) {
+    if (!voiceEnabled || !speechOutputSupported) return;
+    window.speechSynthesis.cancel();
+    const message = new SpeechSynthesisUtterance(text);
+    message.rate = 1.02;
+    window.speechSynthesis.speak(message);
+  }
+
+  if (speechOutputSupported) {
+    updateVoiceButton();
+    voiceBtn.addEventListener('click', () => {
+      voiceEnabled = !voiceEnabled;
+      try { localStorage.setItem('nexus-room-voice-v1', String(voiceEnabled)); } catch {}
+      if (!voiceEnabled) window.speechSynthesis.cancel();
+      updateVoiceButton();
+    });
+  } else {
+    voiceBtn.remove();
+  }
+
+  if (SpeechRecognitionImpl) {
+    recognition = new SpeechRecognitionImpl();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+    recognition.addEventListener('start', () => {
+      micBtn.classList.add('listening');
+      micBtn.innerText = 'Listening';
+      chatStatus.innerText = 'Listening';
+    });
+    recognition.addEventListener('end', () => {
+      micBtn.classList.remove('listening');
+      micBtn.innerText = 'Mic';
+      if (!sendBtn.disabled) chatStatus.innerText = 'Ready';
+    });
+    recognition.addEventListener('error', () => {
+      micBtn.classList.remove('listening');
+      micBtn.innerText = 'Mic';
+      chatStatus.innerText = 'Ready';
+    });
+    recognition.addEventListener('result', (event) => {
+      let transcript = '';
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        transcript += event.results[index][0].transcript;
+      }
+      chatInput.value = transcript;
+      chatInput.dispatchEvent(new Event('input'));
+    });
+    micBtn.addEventListener('click', () => {
+      if (speechOutputSupported) window.speechSynthesis.cancel();
+      recognition.start();
+    });
+  } else {
+    micBtn.remove();
+  }
+
+  chatInput.addEventListener('input', () => {
+    chatInput.style.height = 'auto';
+    chatInput.style.height = `${Math.min(chatInput.scrollHeight, 112)}px`;
+  });
+
+  addBubble('nex', 'Describe the project you want. I’ll build the first working version here, save it automatically, and make focused edits from each follow-up.');
+  addBubble('nex', 'Try: “Build a polished one-page site for an insured painting company with a quote form.”');
 
   // ---- Import / Push -------------------------------------------
   // Import: fetch the ACTUAL live public/index.html (same-origin, so
@@ -602,23 +925,23 @@
     try {
       const res = await fetch('/index.html');
       const raw = await res.text();
-      renderHtml(injectSafetyShim(raw));
-      addBubble('nex', 'Imported a safe copy of the real home page — network calls are disabled so nothing here is live. Ask for whatever changes you want, then "Push Design" when you like it.');
+      renderHtml(injectSafetyShim(raw), { label: 'Nexus homepage redesign' });
+      addBubble('nex', 'Imported a safe Nexus homepage copy. Network calls are disabled here. Make your changes, then Open PR when it is ready for review.');
     } catch (err) {
       addBubble('nex', "Couldn't import the home page.");
     }
   });
 
   pushBtn.addEventListener('click', async () => {
-    if (!currentHtml || pushBtn.disabled) return;
+    if (!currentHtml || pushBtn.disabled || !isNexusImport(currentHtml)) return;
     pushBtn.disabled = true;
-    addBubble('user', 'Push this design');
+    addBubble('user', 'Open a PR for this Nexus design');
     const pushingBubble = addBubble('nex', 'Opening a PR with this design…');
     try {
       const res = await fetch('/api/room-push', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ html: stripSafetyShim(currentHtml) }),
+        body: JSON.stringify({ html: currentHtml }),
       });
       const data = await res.json();
       if (!res.ok || data.error) {
@@ -641,7 +964,7 @@
     const message = (typeof messageOverride === 'string' ? messageOverride : chatInput.value).trim();
     if (!message || sendBtn.disabled) return;
     setChatOpen(true);
-    chatStatus.innerText = 'BUILDING';
+    chatStatus.innerText = 'Building';
     addBubble('user', message);
     chatInput.value = '';
     sendBtn.disabled = true;
@@ -705,8 +1028,8 @@
             gotHtml = true;
             generatedHtml = event.html;
             clearTimeout(slowNotice);
-            renderHtml(generatedHtml);
-            chatStatus.innerText = 'READY';
+            renderHtml(generatedHtml, { label: message.slice(0, 64) });
+            chatStatus.innerText = 'Ready';
             if (mobileLayout.matches) setChatOpen(false);
           } else if (event.action === 'progress') {
             buildingBubble.innerText = event.message || 'Still building…';
@@ -717,6 +1040,7 @@
             buildingBubble.innerText = gotHtml
               ? 'Done — take a look.' + saveNote
               : "Didn't get a page back — try rephrasing that.";
+            if (gotHtml) speakUpdate('Your build is ready.');
           } else if (event.action === 'error') {
             clearTimeout(slowNotice);
             buildingBubble.innerText = 'Ran into an issue: ' + event.message;
@@ -732,15 +1056,21 @@
       }
     } finally {
       clearTimeout(clientTimeout);
-      chatStatus.innerText = 'READY';
+      chatStatus.innerText = 'Ready';
       sendBtn.disabled = false;
       chatInput.disabled = false;
       chatInput.focus();
+      refreshUsage();
     }
   }
 
   sendBtn.addEventListener('click', () => sendMessage());
-  chatInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
+  chatInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
 
   // ---- Live-edit widget bridge -------------------------------------------
   // The chat bubble injected into every generated page (see
