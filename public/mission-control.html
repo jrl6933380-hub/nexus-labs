@@ -7,10 +7,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root {
+  html, body { margin: 0; padding: 0; height: 100%; background: #05070c; }
+
+  .cd-panel {
     --bg: #0A0E14;
     --panel: #12192A;
-    --panel-raised: #17203570;
     --border: #1F2B42;
     --blue: #2E7FFF;
     --blue-dim: #2E7FFF33;
@@ -23,632 +24,185 @@
     --green: #4DE8A0;
     --mono: 'JetBrains Mono', monospace;
     --sans: 'Inter', -apple-system, sans-serif;
-  }
 
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  body {
-    background: var(--bg);
+    height: 100%;
+    display: flex;
+    flex-direction: column;
     color: var(--text);
     font-family: var(--sans);
-    height: 100vh;
-    overflow: hidden;
-    background-image:
-      linear-gradient(var(--border) 1px, transparent 1px),
-      linear-gradient(90deg, var(--border) 1px, transparent 1px);
-    background-size: 48px 48px;
-    background-position: center center;
-    background-attachment: fixed;
-    position: relative;
   }
+  .cd-panel * { box-sizing: border-box; }
 
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background: radial-gradient(ellipse 80% 60% at 50% 0%, #2E7FFF14 0%, transparent 60%);
-    pointer-events: none;
-    z-index: 0;
-  }
+  /* ===== Identity/Projects panel ===== */
+  .nex-id { padding: 18px; border-bottom: 1px solid var(--border); }
+  .nex-name-row { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+  .nex-name { font-family: var(--mono); font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+  .pulse-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 0 0 var(--cyan); animation: pulse 2.4s infinite; flex-shrink: 0; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 #4DD8E866; } 70% { box-shadow: 0 0 0 8px #4DD8E800; } 100% { box-shadow: 0 0 0 0 #4DD8E800; } }
+  .nex-pulse-line { height: 2px; width: 100%; background: linear-gradient(90deg, var(--cyan), transparent 70%); background-size: 200% 100%; animation: sweep 3s ease-in-out infinite; margin-top: 10px; opacity: 0.7; }
+  @keyframes sweep { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  .nex-status { font-family: var(--mono); font-size: 11px; color: var(--text-faint); display: flex; align-items: center; gap: 6px; }
+  .quick-link { display: inline-block; margin-top: 8px; margin-right: 8px; font-family: var(--mono); font-size: 11px; text-decoration: none; border: 1px solid var(--border); padding: 6px 10px; border-radius: 6px; }
+  .section-label { font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); padding: 16px 4px 8px; }
+  .id-body { padding: 0 14px 14px; overflow-y: auto; flex: 1; }
+  .project-card { background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 8px; }
+  .project-name { font-family: var(--mono); font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+  .status-badge { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 10px; font-weight: 500; letter-spacing: 0.03em; padding: 3px 7px; border-radius: 4px; text-transform: uppercase; }
+  .status-live { background: #4DD8E81c; color: var(--cyan); }
+  .empty-hint { font-family: var(--mono); font-size: 11.5px; color: var(--text-faint); line-height: 1.6; padding: 8px 4px; }
 
-  .app {
-    display: grid;
-    grid-template-columns: 260px 1fr 300px;
-    height: 100vh;
-    position: relative;
-    z-index: 1;
-  }
-
-  /* ===== Shared panel styling ===== */
-  .panel {
-    background: rgba(18, 25, 42, 0.55);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-right: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  .panel-header {
-    padding: 20px 18px 14px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .panel-title {
-    font-family: var(--mono);
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--text-faint);
-  }
-
-  .panel-body {
-    flex: 1;
-    overflow-y: auto;
-    padding: 14px;
-  }
-
-  /* ===== LEFT: Identity + Projects ===== */
-  .nex-id {
-    padding: 22px 18px 18px;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .nex-name-row {
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-    margin-bottom: 4px;
-  }
-
-  .nex-name {
-    font-family: var(--mono);
-    font-size: 22px;
-    font-weight: 700;
-    letter-spacing: -0.01em;
-  }
-
-  .pulse-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--cyan);
-    box-shadow: 0 0 0 0 var(--cyan);
-    animation: pulse 2.4s infinite;
-    flex-shrink: 0;
-  }
-
-  @keyframes pulse {
-    0% { box-shadow: 0 0 0 0 #4DD8E866; }
-    70% { box-shadow: 0 0 0 8px #4DD8E800; }
-    100% { box-shadow: 0 0 0 0 #4DD8E800; }
-  }
-
-  .nex-pulse-line {
-    height: 2px;
-    width: 100%;
-    background: linear-gradient(90deg, var(--cyan), transparent 70%);
-    background-size: 200% 100%;
-    animation: sweep 3s ease-in-out infinite;
-    margin-top: 10px;
-    opacity: 0.7;
-  }
-
-  @keyframes sweep {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
-  }
-
-  .nex-status {
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--text-faint);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .section-label {
-    font-family: var(--mono);
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--text-faint);
-    padding: 16px 4px 8px;
-  }
-
-  .project-card {
-    background: rgba(255,255,255,0.02);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 12px 12px;
-    margin-bottom: 8px;
-    cursor: pointer;
-    transition: border-color 0.15s ease, background 0.15s ease;
-  }
-
-  .project-card:hover {
-    border-color: #2E7FFF55;
-    background: rgba(46,127,255,0.05);
-  }
-
-  .project-name {
-    font-family: var(--mono);
-    font-size: 13px;
-    font-weight: 600;
-    margin-bottom: 6px;
-  }
-
-  .status-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font-family: var(--mono);
-    font-size: 10px;
-    font-weight: 500;
-    letter-spacing: 0.03em;
-    padding: 3px 7px;
-    border-radius: 4px;
-    text-transform: uppercase;
-  }
-
-  .status-draft {
-    background: #5B657722;
-    color: var(--text-dim);
-  }
-
-  .status-review {
-    background: #E8A94D1c;
-    color: var(--amber);
-  }
-
-  .status-live {
-    background: #4DD8E81c;
-    color: var(--cyan);
-  }
-
-  .empty-hint {
-    font-family: var(--mono);
-    font-size: 11.5px;
-    color: var(--text-faint);
-    line-height: 1.6;
-    padding: 8px 4px;
-  }
-
-  /* ===== CENTER: Chat ===== */
-  .chat-panel {
-    display: flex;
-    flex-direction: column;
-    background: rgba(10, 14, 20, 0.3);
-  }
-
-  .chat-header {
-    padding: 18px 24px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .chat-header-left {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .avatar {
-    width: 34px;
-    height: 34px;
-    border-radius: 8px;
-    background: linear-gradient(135deg, var(--blue), var(--cyan));
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-family: var(--mono);
-    font-weight: 700;
-    font-size: 14px;
-    color: #06090F;
-  }
-
-  .chat-header-title {
-    font-family: var(--mono);
-    font-size: 14px;
-    font-weight: 600;
-  }
-
-  .chat-header-sub {
-    font-size: 11px;
-    color: var(--text-faint);
-    font-family: var(--mono);
-  }
-
-  .token-total {
-    font-family: var(--mono);
-    font-size: 10.5px;
-    color: var(--text-faint);
-    text-align: right;
-    white-space: nowrap;
-  }
-
-  .chat-scroll {
-    flex: 1;
-    overflow-y: auto;
-    padding: 24px;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
-
-  .msg {
-    max-width: 72%;
-    padding: 12px 14px;
-    border-radius: 10px;
-    font-size: 14px;
-    line-height: 1.55;
-  }
-
-  .msg-nex {
-    align-self: flex-start;
-    background: rgba(255,255,255,0.03);
-    border: 1px solid var(--border);
-    border-top-left-radius: 3px;
-  }
-
-  .msg-user {
-    align-self: flex-end;
-    background: var(--blue-dim);
-    border: 1px solid #2E7FFF44;
-    border-top-right-radius: 3px;
-  }
-
-  .msg-sender {
-    font-family: var(--mono);
-    font-size: 10px;
-    color: var(--text-faint);
-    margin-bottom: 5px;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-  }
-
-  .msg-meta {
-    font-family: var(--mono);
-    font-size: 10px;
-    color: var(--text-faint);
-    margin-top: 6px;
-    opacity: 0.75;
-  }
-
-  .msg-meta .model-tag {
-    color: var(--cyan);
-  }
-
-  .thinking-dots::after {
-    content: '';
-    animation: dots 1.2s steps(4, end) infinite;
-  }
-
-  @keyframes dots {
-    0% { content: ''; }
-    25% { content: '.'; }
-    50% { content: '..'; }
-    75% { content: '...'; }
-    100% { content: ''; }
-  }
-
-  /* ===== Model picker — sits in its own small row above the input,
-     like a chat toolbar. Auto is the default; picking Haiku/Sonnet/
-     Opus forces that tier for the next message instead of letting
-     classifyTier decide. ===== */
-  .model-picker-row {
-    padding: 10px 24px 0;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .model-picker-label {
-    font-family: var(--mono);
-    font-size: 10px;
-    color: var(--text-faint);
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-  }
-
-  .model-select {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 5px 8px;
-    color: var(--text);
-    font-family: var(--mono);
-    font-size: 11.5px;
-    outline: none;
-  }
-
-  .model-select:focus {
-    border-color: var(--blue);
-  }
-
-  .chat-input-row {
-    padding: 10px 24px 22px;
-    border-top: 1px solid var(--border);
-    display: flex;
-    gap: 10px;
-  }
-
-  .chat-input {
-    flex: 1;
-    background: rgba(255,255,255,0.03);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 12px 14px;
-    color: var(--text);
-    font-family: var(--sans);
-    font-size: 14px;
-    outline: none;
-    transition: border-color 0.15s ease;
-  }
-
-  .chat-input:focus {
-    border-color: var(--blue);
-  }
-
-  .chat-input::placeholder {
-    color: var(--text-faint);
-  }
-
-  .send-btn {
-    background: var(--blue);
-    color: #06090F;
-    border: none;
-    border-radius: 8px;
-    padding: 0 20px;
-    font-family: var(--mono);
-    font-weight: 600;
-    font-size: 13px;
-    cursor: pointer;
-    transition: background 0.15s ease;
-  }
-
+  /* ===== Mission/Chat panel ===== */
+  .chat-header { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+  .chat-header-left { display: flex; align-items: center; gap: 10px; }
+  .avatar { width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, var(--blue), var(--cyan)); display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-weight: 700; font-size: 13px; color: #06090F; }
+  .chat-header-title { font-family: var(--mono); font-size: 13px; font-weight: 600; }
+  .chat-header-sub { font-size: 10px; color: var(--text-faint); font-family: var(--mono); }
+  .token-total { font-family: var(--mono); font-size: 10px; color: var(--text-faint); text-align: right; white-space: nowrap; }
+  .chat-scroll { flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+  .msg { max-width: 82%; padding: 10px 13px; border-radius: 10px; font-size: 13px; line-height: 1.5; }
+  .msg-nex { align-self: flex-start; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-top-left-radius: 3px; }
+  .msg-user { align-self: flex-end; background: var(--blue-dim); border: 1px solid #2E7FFF44; border-top-right-radius: 3px; }
+  .msg-sender { font-family: var(--mono); font-size: 10px; color: var(--text-faint); margin-bottom: 5px; letter-spacing: 0.05em; text-transform: uppercase; }
+  .msg-meta { font-family: var(--mono); font-size: 10px; color: var(--text-faint); margin-top: 6px; opacity: 0.75; }
+  .msg-meta .model-tag { color: var(--cyan); }
+  .thinking-dots::after { content: ''; animation: dots 1.2s steps(4, end) infinite; }
+  @keyframes dots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } 100% { content: ''; } }
+  .model-picker-row { padding: 8px 18px 0; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .model-picker-label { font-family: var(--mono); font-size: 10px; color: var(--text-faint); letter-spacing: 0.05em; text-transform: uppercase; }
+  .model-select { background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; color: var(--text); font-family: var(--mono); font-size: 11px; outline: none; }
+  .model-select:focus { border-color: var(--blue); }
+  .chat-input-row { padding: 8px 18px 12px; border-top: 1px solid var(--border); display: flex; gap: 10px; flex-shrink: 0; }
+  .chat-input { flex: 1; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 8px; padding: 11px 13px; color: var(--text); font-family: var(--sans); font-size: 13px; outline: none; }
+  .chat-input:focus { border-color: var(--blue); }
+  .chat-input::placeholder { color: var(--text-faint); }
+  .send-btn { background: var(--blue); color: #06090F; border: none; border-radius: 8px; padding: 0 18px; font-family: var(--mono); font-weight: 600; font-size: 12px; cursor: pointer; }
   .send-btn:hover { background: #4A8FFF; }
-  /* Direct room entrance below the chat composer — always available even if
-     Nex is busy, so navigation never depends on a model round-trip. */
-  .room-quick-link {
-    align-self: flex-start;
-    margin: 0 24px 16px;
-    color: #A879FF;
-    text-decoration: none;
-    font: 600 11px var(--mono);
-    border: 1px solid #A879FF55;
-    background: #A879FF0b;
-    border-radius: 7px;
-    padding: 8px 11px;
-  }
+  .send-btn:disabled { opacity: 0.5; cursor: default; }
+  .room-quick-link { align-self: flex-start; margin: 0 18px 12px; color: #A879FF; text-decoration: none; font: 600 11px var(--mono); border: 1px solid #A879FF55; background: #A879FF0b; border-radius: 7px; padding: 8px 11px; flex-shrink: 0; }
   .room-quick-link:active { background: #A879FF22; }
 
-  .send-btn:disabled { opacity: 0.5; cursor: default; }
-
-  /* ===== RIGHT: Approval Queue ===== */
-  .queue-panel {
-    border-right: none;
-    border-left: 1px solid var(--border);
-  }
-
-  .queue-item {
-    background: rgba(255,255,255,0.02);
-    border: 1px solid var(--border);
-    border-left: 2px solid var(--amber);
-    border-radius: 6px;
-    padding: 12px;
-    margin-bottom: 10px;
-  }
-
-  .queue-item-title {
-    font-family: var(--mono);
-    font-size: 12px;
-    font-weight: 600;
-    margin-bottom: 5px;
-  }
-
-  .queue-item-desc {
-    font-size: 12px;
-    color: var(--text-dim);
-    line-height: 1.5;
-    margin-bottom: 10px;
-  }
-
-  .queue-actions {
-    display: flex;
-    gap: 8px;
-  }
-
-  .btn-run, .btn-skip {
-    font-family: var(--mono);
-    font-size: 10.5px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    padding: 6px 10px;
-    border-radius: 5px;
-    cursor: pointer;
-    border: 1px solid transparent;
-    text-transform: uppercase;
-  }
-
-  .btn-run {
-    background: var(--blue);
-    color: #06090F;
-  }
-
-  .btn-run:hover { background: #4A8FFF; }
-
-  .btn-skip {
-    background: transparent;
-    border-color: var(--border);
-    color: var(--text-dim);
-  }
-
-  .btn-skip:hover { border-color: var(--text-faint); }
-
-
-  /* ===== MISSION ORBIT: human view of the same board state agents use ===== */
-  .mission-board {
-    width: min(760px, 100%);
-    margin: 0 auto 8px;
-    padding: 18px;
-    border: 1px solid #2E7FFF38;
-    border-radius: 18px;
-    background: linear-gradient(145deg, rgba(18,25,42,.88), rgba(10,14,20,.74));
-    box-shadow: 0 24px 70px #0008, inset 0 1px 0 #ffffff08;
-  }
+  /* ===== Mission Orbit ===== */
+  .mission-board { width: 100%; margin: 0 auto 8px; padding: 16px; border: 1px solid #2E7FFF38; border-radius: 16px; background: linear-gradient(145deg, rgba(18,25,42,.88), rgba(10,14,20,.74)); box-shadow: 0 20px 60px #0008, inset 0 1px 0 #ffffff08; }
   .mission-top { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; }
   .mission-kicker { font:600 9px var(--mono); letter-spacing:.18em; color:var(--cyan); text-transform:uppercase; }
-  .mission-title { font:600 15px var(--mono); margin-top:5px; }
+  .mission-title { font:600 14px var(--mono); margin-top:5px; }
   .mission-live { font:600 9px var(--mono); color:var(--green); border:1px solid #4DE8A044; background:#4DE8A00d; padding:5px 8px; border-radius:999px; white-space:nowrap; }
-  .mission-core { display:grid; grid-template-columns:220px 1fr; align-items:center; gap:22px; }
-  .goal-orbit-wrap { position:relative; width:210px; height:210px; margin:auto; filter:drop-shadow(0 0 26px #2E7FFF22); }
-  .goal-orbit { position:absolute; inset:10px; border-radius:50%; background:conic-gradient(var(--cyan) 0 22%, var(--blue) 22% 46%, #A879FF 46% 66%, var(--green) 66% 78%, #1F2B42 78% 100%); animation:orbitGlow 3s ease-in-out infinite; }
-  .goal-orbit::after { content:''; position:absolute; inset:15px; border-radius:50%; background:radial-gradient(circle at 50% 40%, #172035, #0A0E14 68%); border:1px solid #2E7FFF32; box-shadow:inset 0 0 35px #000; }
-  @keyframes orbitGlow { 0%,100% { box-shadow:0 0 20px #2E7FFF18; } 50% { box-shadow:0 0 42px #4DD8E82e; } }
-  .goal-center { position:absolute; z-index:2; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:45px; pointer-events:none; }
-  .goal-percent { font:700 31px var(--mono); letter-spacing:-.06em; color:#fff; }
+  .mission-core { display:grid; grid-template-columns:170px 1fr; align-items:center; gap:18px; }
+  .goal-orbit-wrap { position:relative; width:160px; height:160px; margin:auto; filter:drop-shadow(0 0 20px #2E7FFF22); }
+  .goal-orbit { position:absolute; inset:8px; border-radius:50%; background:conic-gradient(var(--cyan) 0 22%, var(--blue) 22% 46%, #A879FF 46% 66%, var(--green) 66% 78%, #1F2B42 78% 100%); animation:orbitGlow 3s ease-in-out infinite; }
+  .goal-orbit::after { content:''; position:absolute; inset:12px; border-radius:50%; background:radial-gradient(circle at 50% 40%, #172035, #0A0E14 68%); border:1px solid #2E7FFF32; box-shadow:inset 0 0 30px #000; }
+  @keyframes orbitGlow { 0%,100% { box-shadow:0 0 16px #2E7FFF18; } 50% { box-shadow:0 0 32px #4DD8E82e; } }
+  .goal-center { position:absolute; z-index:2; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:34px; pointer-events:none; }
+  .goal-percent { font:700 24px var(--mono); letter-spacing:-.06em; color:#fff; }
   .goal-label { font:600 8px var(--mono); letter-spacing:.12em; color:var(--text-faint); text-transform:uppercase; margin-top:5px; line-height:1.5; }
-  .orbit-label { position:absolute; z-index:3; width:9px; height:9px; border-radius:50%; border:2px solid #0A0E14; box-shadow:0 0 12px currentColor; }
-  .orbit-nex { top:13px; left:101px; background:var(--cyan); color:var(--cyan); }
-  .orbit-gpt { top:90px; right:8px; background:var(--blue); color:var(--blue); }
-  .orbit-claude { bottom:10px; left:94px; background:#A879FF; color:#A879FF; }
-  .orbit-e2b { top:89px; left:7px; background:var(--green); color:var(--green); }
+  .orbit-label { position:absolute; z-index:3; width:8px; height:8px; border-radius:50%; border:2px solid #0A0E14; box-shadow:0 0 10px currentColor; }
+  .orbit-nex { top:10px; left:76px; background:var(--cyan); color:var(--cyan); }
+  .orbit-gpt { top:68px; right:6px; background:var(--blue); color:var(--blue); }
+  .orbit-claude { bottom:8px; left:71px; background:#A879FF; color:#A879FF; }
+  .orbit-e2b { top:68px; left:6px; background:var(--green); color:var(--green); }
   .agent-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
-  .agent-card { padding:10px; border:1px solid var(--border); border-radius:9px; background:#ffffff03; min-width:0; }
+  .agent-card { padding:9px; border:1px solid var(--border); border-radius:9px; background:#ffffff03; min-width:0; cursor: pointer; }
   .agent-head { display:flex; align-items:center; justify-content:space-between; gap:6px; }
   .agent-name { font:600 11px var(--mono); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .agent-state { font:600 8px var(--mono); color:var(--text-faint); text-transform:uppercase; }
   .agent-bar { height:3px; background:var(--border); border-radius:3px; margin-top:8px; overflow:hidden; }
   .agent-fill { display:block; height:100%; border-radius:3px; }
   .agent-task { font-size:10px; color:var(--text-dim); margin-top:7px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .mission-detail { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 12px; }
+  .mission-detail-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .mission-detail strong { display: block; font-family: var(--mono); font-size: 12px; }
+  .mission-detail span { font-family: var(--mono); font-size: 10px; color: var(--text-faint); }
+  .mission-detail p { margin: 3px 0 0; font-size: 11px; color: var(--text-dim); }
+  .mission-evidence { color: var(--text-faint) !important; }
+  .mission-detail-hint { margin-left: auto; font: 500 9px var(--mono); color: var(--text-faint); white-space: nowrap; }
   .mission-footer { display:flex; gap:8px; align-items:center; margin-top:14px; padding-top:12px; border-top:1px solid var(--border); overflow-x:auto; }
   .mission-chip { font:500 8px var(--mono); color:var(--text-dim); border:1px solid var(--border); border-radius:999px; padding:5px 8px; white-space:nowrap; }
   .mission-chip.needs-you { color:var(--amber); border-color:#E8A94D44; background:#E8A94D0b; }
-  .mission-error { color:var(--text-faint); font:500 10px var(--mono); }
-  @media(max-width:620px) {
-    .chat-scroll { padding:138px 14px 18px; }
-    .mission-board { padding:14px 12px; border-radius:15px; }
-    .mission-core { grid-template-columns:1fr; gap:12px; }
-    .goal-orbit-wrap { width:190px; height:190px; }
-    .goal-orbit-wrap .orbit-nex { left:91px; }
-    .goal-orbit-wrap .orbit-claude { left:84px; }
-    .agent-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
-    .mission-title { font-size:12px; }
-    .goal-percent { font-size:28px; }
-  }
+
+  /* ===== Queue panel ===== */
+  .queue-body { padding: 14px; overflow-y: auto; flex: 1; }
+  .queue-item { background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-left: 2px solid var(--amber); border-radius: 6px; padding: 12px; margin-bottom: 10px; }
+  .queue-item-title { font-family: var(--mono); font-size: 12px; font-weight: 600; margin-bottom: 5px; }
+  .queue-item-desc { font-size: 12px; color: var(--text-dim); line-height: 1.5; margin-bottom: 10px; }
+  .queue-actions { display: flex; gap: 8px; }
+  .btn-run, .btn-skip { font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em; padding: 6px 10px; border-radius: 5px; cursor: pointer; border: 1px solid transparent; text-transform: uppercase; flex: 1; }
+  .btn-run { background: var(--blue); color: #06090F; }
+  .btn-run:hover { background: #4A8FFF; }
+  .btn-skip { background: transparent; border-color: var(--border); color: var(--text-dim); }
+  .btn-skip:hover { border-color: var(--text-faint); }
 
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
-  /* ===== Mobile chips (Memory + Queue + Connectors + Conference Room)
-     — shown when the side panels are hidden below 900px, so all stay
-     reachable. ===== */
-  .mobile-chips {
-    display: none;
+  .canvas-title-bar {
+    position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 10000;
+    font: 700 11px 'JetBrains Mono', monospace; letter-spacing: 0.1em; text-transform: uppercase;
+    color: #58d7ff; background: #111827e8; border: 1px solid #3c5a84; border-radius: 8px;
+    padding: 7px 16px; backdrop-filter: blur(12px);
   }
-
-  @media (max-width: 900px) {
-    .app { grid-template-columns: 1fr; }
-    .panel:not(.chat-panel) { display: none; }
-    .mobile-chips {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      position: fixed;
-      top: 14px;
-      right: 14px;
-      z-index: 10;
-    }
-    .mobile-chip {
-      font-family: var(--mono);
-      font-size: 11px;
-      color: var(--cyan);
-      text-decoration: none;
-      border: 1px solid var(--border);
-      padding: 6px 10px;
-      border-radius: 6px;
-      background: rgba(18,25,42,0.85);
-      text-align: right;
-    }
-    .mobile-chip.queue-chip {
-      color: var(--amber);
-    }
-    .mobile-chip.connectors-chip {
-      color: var(--green);
-    }
-    .mobile-chip.room-chip {
-      color: #A879FF;
-    }
+  .return-link {
+    position: fixed; top: 12px; left: 12px; z-index: 10000;
+    font: 700 10px 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.06em;
+    color: #91a0b9; text-decoration: none; background: #111827e8; border: 1px solid #26334d;
+    border-radius: 8px; padding: 8px 12px; backdrop-filter: blur(12px);
   }
+  .return-link:hover { color: #58d7ff; border-color: #4b8dff77; }
 </style>
-<link rel="stylesheet" href="/nexus-stark.css">
 </head>
-<body class="app-shell">
+<body>
+<script type="module">
+  import { mountCanvas } from '/canvas-engine.js';
 
-<div class="mobile-chips">
-  <a href="/memory.html" class="mobile-chip">Memory →</a>
-  <a href="/queue.html" class="mobile-chip queue-chip" id="queue-chip">Queue →</a>
-  <a href="/connectors.html" class="mobile-chip connectors-chip">Connectors →</a>
-  <a href="/conference-room.html" class="mobile-chip room-chip">Conference Room →</a>
-</div>
+  const titleBar = document.createElement('div');
+  titleBar.className = 'canvas-title-bar';
+  titleBar.textContent = 'Command Deck';
+  document.body.appendChild(titleBar);
 
-<div class="app">
+  const returnLink = document.createElement('a');
+  returnLink.className = 'return-link';
+  returnLink.href = '/';
+  returnLink.textContent = '← Dashboard';
+  document.body.appendChild(returnLink);
 
-  <!-- LEFT: Identity + Projects -->
-  <div class="panel">
+  const canvas = mountCanvas({ canvasId: 'command-deck' });
+
+  // Three panels — this room's own layout already had three distinct
+  // sections (identity/projects, chat+mission board, approval queue),
+  // so unlike Room Builder this maps naturally onto separate canvas
+  // panels instead of one big block.
+  const idBody = document.createElement('div');
+  idBody.className = 'cd-panel';
+  idBody.innerHTML = `
     <div class="nex-id">
-      <div class="nex-name-row">
-        <span class="nex-name">NEX</span>
-        <span class="pulse-dot"></span>
-      </div>
+      <div class="nex-name-row"><span class="nex-name">NEX</span><span class="pulse-dot"></span></div>
       <div class="nex-status">operator: mr. lopez</div>
       <div class="nex-pulse-line"></div>
-      <a href="/memory.html" style="display:inline-block; margin-top:14px; font-family:var(--mono); font-size:11px; color:var(--cyan); text-decoration:none; border:1px solid var(--border); padding:6px 10px; border-radius:6px;">View Memory →</a>
-      <a href="/queue.html" style="display:inline-block; margin-top:8px; margin-left:8px; font-family:var(--mono); font-size:11px; color:var(--amber); text-decoration:none; border:1px solid var(--border); padding:6px 10px; border-radius:6px;">View Queue →</a>
-      <a href="/connectors.html" style="display:inline-block; margin-top:8px; font-family:var(--mono); font-size:11px; color:var(--green); text-decoration:none; border:1px solid var(--border); padding:6px 10px; border-radius:6px;">View Connectors →</a>
-      <a href="/conference-room.html" style="display:inline-block; margin-top:8px; margin-left:8px; font-family:var(--mono); font-size:11px; color:#A879FF; text-decoration:none; border:1px solid var(--border); padding:6px 10px; border-radius:6px;">Conference Room →</a>
+      <a href="/memory.html" class="quick-link" style="color:var(--cyan);">Memory →</a>
+      <a href="/queue.html" class="quick-link" style="color:var(--amber);">Queue →</a>
+      <a href="/connectors.html" class="quick-link" style="color:var(--green);">Connectors →</a>
+      <a href="/conference-room.html" class="quick-link" style="color:#A879FF;">Conference →</a>
     </div>
-
-    <div class="panel-body">
+    <div class="id-body">
       <div class="section-label">Projects</div>
       <div class="empty-hint">No projects yet.<br>First client project will show up here.</div>
-
-      <div class="section-label" style="margin-top: 24px;">System</div>
-      <div class="project-card" style="cursor: default;">
-        <div class="project-name" style="font-size: 12px; margin-bottom: 4px;">Identity</div>
-        <span class="status-badge status-live">Loaded</span>
-      </div>
-      <div class="project-card" style="cursor: default;">
-        <div class="project-name" style="font-size: 12px; margin-bottom: 4px;">Capabilities</div>
-        <span class="status-badge status-live">GitHub + Memory</span>
-      </div>
+      <div class="section-label" style="margin-top: 20px;">System</div>
+      <div class="project-card"><div class="project-name">Identity</div><span class="status-badge status-live">Loaded</span></div>
+      <div class="project-card"><div class="project-name">Capabilities</div><span class="status-badge status-live">GitHub + Memory</span></div>
     </div>
-  </div>
+  `;
+  canvas.addPanel({ id: 'identity', title: 'IDENTITY', content: idBody, x: 60, y: 60, w: 300, h: 520 });
 
-  <!-- CENTER: Chat -->
-  <div class="panel chat-panel">
+  const chatBody = document.createElement('div');
+  chatBody.className = 'cd-panel';
+  chatBody.innerHTML = `
     <div class="chat-header">
       <div class="chat-header-left">
         <div class="avatar">N</div>
-        <div>
-          <div class="chat-header-title">Nex</div>
-          <div class="chat-header-sub">online · standing by</div>
-        </div>
+        <div><div class="chat-header-title">Nex</div><div class="chat-header-sub">online · standing by</div></div>
       </div>
       <div class="token-total" id="tokenTotal">0 tokens this session</div>
     </div>
-
     <div class="chat-scroll" id="chatScroll">
       <section class="mission-board" id="missionBoard">
         <div class="mission-top">
@@ -669,7 +223,6 @@
       </section>
       <div class="empty-hint" id="historyLoading">Loading conversation...</div>
     </div>
-
     <div class="model-picker-row">
       <span class="model-picker-label">Model:</span>
       <select class="model-select" id="modelSelect">
@@ -679,26 +232,18 @@
         <option value="heavy">Opus</option>
       </select>
     </div>
-
     <div class="chat-input-row">
       <input class="chat-input" id="chatInput" type="text" placeholder="Message Nex..." />
       <button class="send-btn" id="sendBtn">Send</button>
     </div>
     <a class="room-quick-link" href="/conference-room.html">◌ Open Conference Room</a>
-  </div>
+  `;
+  canvas.addPanel({ id: 'mission-chat', title: 'MISSION CHAT', content: chatBody, x: 400, y: 60, w: 520, h: 700 });
 
-  <!-- RIGHT: Approval Queue -->
-  <div class="panel queue-panel">
-    <div class="panel-header">
-      <span class="panel-title">Approval Queue</span>
-    </div>
-    <div class="panel-body" id="queue-list">
-      <div class="empty-hint">Nothing waiting on you right now.<br><br>When Nex proposes a fix or action on live work, it'll show up here for you to run or skip.</div>
-    </div>
-  </div>
-
-</div>
-<script>
+  const queueBody = document.createElement('div');
+  queueBody.className = 'cd-panel';
+  queueBody.innerHTML = `<div class="queue-body" id="queue-list"><div class="empty-hint">Nothing waiting on you right now.<br><br>When Nex proposes a fix or action on live work, it'll show up here for you to run or skip.</div></div>`;
+  canvas.addPanel({ id: 'queue', title: 'APPROVAL QUEUE', content: queueBody, x: 960, y: 60, w: 340, h: 520 });
 
   const AGENT_VISUALS = {
     nex: { color: '#4DD8E8', label: 'Nex' },
@@ -708,6 +253,7 @@
     e2b: { color: '#4DE8A0', label: 'E2B' },
   };
   const STATUS_PROGRESS = { idle: 5, planning: 22, building: 58, testing: 82, waiting_for_justin: 92, blocked: 45, complete: 100 };
+
   async function requireMissionSession() {
     const next = encodeURIComponent(`${window.location.pathname}${window.location.hash}`);
     try {
@@ -716,23 +262,6 @@
       return true;
     } catch { window.location.href = `/room-login.html?next=${next}`; return false; }
   }
-
-  const demoBoard = {
-    tasks: [
-      { title: 'Dynamic agent registry', owner: 'chatgpt', status: 'complete' },
-      { title: 'Agent Board backend', owner: 'claude', status: 'complete' },
-      { title: 'Coordinate active mission', owner: 'nex', status: 'building' },
-      { title: 'Validate preview build', owner: 'e2b', status: 'testing' },
-      { title: 'Review sandbox PR', owner: null, status: 'waiting_for_justin' },
-    ],
-    agents: [
-      { id: 'nex', display_name: 'Nex', status: 'online', mode: 'permanent' },
-      { id: 'chatgpt', display_name: 'ChatGPT', status: 'online', mode: 'subscription_connector' },
-      { id: 'claude', display_name: 'Claude', status: 'available_on_demand', mode: 'subscription_connector' },
-      { id: 'e2b', display_name: 'E2B', status: 'online', mode: 'api' },
-    ],
-    demo: true,
-  };
 
   const disconnectedBoard = {
     tasks: [],
@@ -763,7 +292,6 @@
       card.classList.toggle('selected', active);
       card.setAttribute('aria-pressed', active ? 'true' : 'false');
     });
-    document.getElementById('goalOrbitControl').style.setProperty('--selected-agent-color', visual.color);
     const evidence = task?.result || task?.blocked_reason || (agent.lease_expires_at ? `Lease expires ${new Date(agent.lease_expires_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'No active lease');
     detail.innerHTML = `<span class="mission-detail-dot" style="background:${visual.color};box-shadow:0 0 12px ${visual.color}"></span>
       <div><strong>${safeText(agent.display_name || visual.label)}</strong><span>${safeText(status)} · ${safeText(agent.provider || 'nexus')}</span>
@@ -773,7 +301,7 @@
 
   function renderMissionBoard(board) {
     const tasks = board.tasks || [];
-    const agents = board.agents && board.agents.length ? board.agents : (board.disconnected ? [] : demoBoard.agents);
+    const agents = board.agents || [];
     missionAgents = agents.slice(0, 6);
     missionTasks = tasks;
     const open = tasks.filter((task) => task.status !== 'complete');
@@ -783,7 +311,7 @@
 
     document.getElementById('missionTitle').textContent = activeGoal;
     document.getElementById('goalPercent').textContent = progress + '%';
-    document.getElementById('missionLive').textContent = board.disconnected ? '○ DISCONNECTED' : (board.demo ? '◉ SANDBOX DEMO' : '● LIVE STATE');
+    document.getElementById('missionLive').textContent = board.disconnected ? '○ DISCONNECTED' : '● LIVE STATE';
     document.getElementById('missionLive').style.color = board.disconnected ? 'var(--red)' : '';
 
     const palette = agents.map((agent) => (AGENT_VISUALS[agent.id] || { color:'#8891A3' }).color);
@@ -821,7 +349,6 @@
     const needsJustin = board.telemetry?.needs_approval ?? tasks.filter((task) => task.status === 'waiting_for_justin').length;
     const crashCount = board.telemetry?.open_crash_count ?? 0;
     const activeAgents = board.telemetry?.active_agents ?? agents.filter((agent) => ['online', 'busy'].includes(agent.status)).length;
-    const workspaceStatus = board.telemetry?.workspace_status === 'configured' ? 'Workspace configured' : 'Workspace unavailable';
     document.getElementById('missionFooter').innerHTML =
       `<span class="mission-chip">${completed}/${tasks.length} tasks complete</span>
        <span class="mission-chip">${activeAgents}/${agents.length} agents active</span>
@@ -842,9 +369,6 @@
     }
   }
 
-  // The board is the source of truth. Refreshing this small snapshot keeps
-  // the orbit honest without implying an agent is working when its lease
-  // has expired. Pause while hidden to save phone battery.
   let missionPollTimer;
   function startMissionPolling() {
     clearInterval(missionPollTimer);
@@ -866,13 +390,9 @@
   const chatInput = document.getElementById('chatInput');
   const sendBtn = document.getElementById('sendBtn');
   const queueList = document.getElementById('queue-list');
-  const queueChip = document.getElementById('queue-chip');
   const modelSelect = document.getElementById('modelSelect');
   const tokenTotalEl = document.getElementById('tokenTotal');
 
-  // Friendly display names for the raw model strings the API returns —
-  // mirrors MODEL_DISPLAY_NAMES in lib/nexBrain.js, just client-side
-  // so the badge can show "Sonnet" instead of "claude-sonnet-5".
   const MODEL_LABELS = {
     'claude-haiku-4-5-20251001': 'Haiku',
     'claude-sonnet-5': 'Sonnet',
@@ -882,7 +402,6 @@
     'nex-safe': 'Nex Safe Mode',
   };
 
-  // Remember the model choice across page loads/navigation.
   const savedModel = localStorage.getItem('nex-model-choice');
   if (savedModel) modelSelect.value = savedModel;
   modelSelect.addEventListener('change', () => {
@@ -902,8 +421,6 @@
     const content = allowHtml ? String(text || '') : safeText(String(text ?? ''));
     let html = `<div class="msg-sender">${sender === 'nex' ? 'Nex' : 'Mr. Lopez'}</div>${content}`;
 
-    // Who-answered + token badge — only for real Nex replies, not the
-    // "thinking..." placeholder or user messages.
     if (sender === 'nex' && meta && meta.model) {
       const label = MODEL_LABELS[meta.model] || meta.model;
       const usage = meta.usage;
@@ -917,12 +434,6 @@
     return msg;
   }
 
-  // Fetches whatever conversation is already saved and renders it,
-  // instead of always showing the same hardcoded greeting. This is
-  // what makes navigating back from Memory/Queue/Connectors actually
-  // feel like returning to the same chat, instead of starting fresh —
-  // the conversation was never lost, this page just never asked for it
-  // before.
   async function loadHistory() {
     const loadingEl = document.getElementById('historyLoading');
     try {
@@ -933,15 +444,13 @@
       if (loadingEl) loadingEl.remove();
 
       if (messages.length === 0) {
-        addMessage('nex', "Hey Mr. Lopez. I'm up and I know who I am — just don't have any real capabilities wired in yet. Once we build the first one, it'll show up here and in the queue on the right.");
+        addMessage('nex', "Hey Mr. Lopez. I'm up and I know who I am — just don't have any real capabilities wired in yet. Once we build the first one, it'll show up here and in the queue.");
         return;
       }
 
       messages.forEach((msg) => {
         const sender = msg.role === 'assistant' ? 'nex' : 'user';
         addMessage(sender, msg.content, msg);
-        // Rebuild the running token total from stored history, so it
-        // reflects the whole saved conversation, not just this page load.
         if (sender === 'nex' && msg.usage) {
           sessionTokens.input += msg.usage.input_tokens || 0;
           sessionTokens.output += msg.usage.output_tokens || 0;
@@ -962,14 +471,8 @@
     chatInput.value = '';
     sendBtn.disabled = true;
 
-    // Animated "thinking" indicator — the dots keep moving via CSS
-    // animation on .thinking-dots, so it stays visibly alive even
-    // during longer replies (e.g. when Nex calls a tool, which means
-    // two Claude API calls happening in sequence behind the scenes).
     const thinkingMsg = addMessage('nex', '<span class="thinking-dots">Thinking</span>', null, true);
 
-    // Reassure the user it's still working if it's taking a while —
-    // swaps the label after a few seconds without resetting the dots.
     const slowNotice = setTimeout(() => {
       const label = thinkingMsg.querySelector('.thinking-dots');
       if (label) label.textContent = 'Still working on it';
@@ -999,9 +502,6 @@
           updateTokenTotal();
         }
 
-        // Navigation only comes from Nex's server-side open_room tool result,
-        // never from model-written text. Keep it same-origin and use replace so
-        // "bring up" behaves like changing views, not opening a random tab.
         if (data.navigation?.type === 'room'
           && typeof data.navigation.url === 'string'
           && data.navigation.url.startsWith('/')
@@ -1015,7 +515,7 @@
     }
 
     sendBtn.disabled = false;
-    loadQueue(); // a new message may have just proposed something new
+    loadQueue();
   }
 
   function renderQueueItem(item) {
@@ -1032,7 +532,7 @@
     `;
     const itemLabel = item.input && item.input.path
       ? `${label} — ${item.input.path}`
-      : `${label} — ${item.input && (item.input.name || item.input.repo) || ''}`;
+      : `${label} — ${(item.input && (item.input.name || item.input.repo)) || ''}`;
     el.querySelector('.queue-item-title').innerText = itemLabel;
     el.querySelector('.queue-item-desc').innerText = item.description;
     el.querySelector('.btn-run').addEventListener('click', () => handleQueueAction(item.id, 'approve', el));
@@ -1045,10 +545,6 @@
       const res = await fetch('/api/queue');
       const data = await res.json();
       const items = data.items || [];
-
-      if (queueChip) {
-        queueChip.textContent = items.length > 0 ? `Queue (${items.length}) →` : 'Queue →';
-      }
 
       queueList.innerHTML = '';
       if (items.length === 0) {
@@ -1096,7 +592,5 @@
     setInterval(loadQueue, 10000);
   });
 </script>
-
-<script src="/nexus-shell.js"></script>
 </body>
 </html>
