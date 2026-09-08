@@ -82,6 +82,8 @@ function injectStyles() {
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 10px;
+      box-sizing: border-box;
       padding: 10px 14px;
       background: linear-gradient(90deg, #4b8dff14, transparent);
       border-bottom: 1px solid #26334d;
@@ -94,6 +96,51 @@ function injectStyles() {
       color: #58d7ff;
       flex-shrink: 0;
     }
+    .nexus-canvas-panel-title-group {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-width: 0;
+      flex: 1;
+    }
+    .nexus-canvas-panel-title {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .nexus-canvas-panel-context { display: none; }
+    .nexus-canvas-panel-toggle {
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      width: 30px;
+      height: 30px;
+      padding: 0;
+      border: 1px solid #3c5a84;
+      border-radius: 8px;
+      background: #0b1324cc;
+      color: #a9eaff;
+      box-shadow: inset 0 1px #b8d9ff18;
+      cursor: pointer;
+      font: 700 18px/1 'JetBrains Mono', monospace;
+      touch-action: manipulation;
+    }
+    .nexus-canvas-panel-toggle:hover,
+    .nexus-canvas-panel-toggle:focus-visible {
+      border-color: #58d7ff;
+      background: #14223a;
+      outline: none;
+    }
+    .nexus-canvas-panel.is-collapsed {
+      min-height: 0;
+      height: auto !important;
+    }
+    .nexus-canvas-panel.is-collapsed .nexus-canvas-panel-header { border-bottom: 0; }
+    .nexus-canvas-panel.is-collapsed .nexus-canvas-panel-context,
+    .nexus-canvas-panel.is-collapsed .nexus-canvas-panel-body,
+    .nexus-canvas-panel.is-collapsed .nexus-canvas-resize-handle { display: none; }
     .nexus-canvas-panel-body {
       flex: 1;
       min-height: 0;
@@ -153,8 +200,9 @@ function injectStyles() {
     .nexus-build-feedback.failed .nexus-build-feedback-dot { background: #ff8293; box-shadow: 0 0 10px #ff8293aa; }
     @media (max-width: 720px) {
       .nexus-canvas-panel { border-radius: 12px; min-width: 0; }
-      .nexus-canvas-panel-header { min-height: 44px; padding: 12px 14px; font-size: 11px; }
-      .nexus-canvas-panel-header::after { content: 'PHONE WORKSPACE'; color: #91a0b9; font: 600 9px 'JetBrains Mono', monospace; letter-spacing: .08em; }
+      .nexus-canvas-panel-header { min-height: 48px; padding: 4px 8px 4px 14px; font-size: 11px; }
+      .nexus-canvas-panel-context { display: inline; color: #91a0b9; font: 600 9px 'JetBrains Mono', monospace; letter-spacing: .08em; white-space: nowrap; }
+      .nexus-canvas-panel-toggle { width: 40px; height: 40px; border-radius: 10px; }
       .nexus-canvas-resize-handle { display: block; width: 44px; height: 44px; }
       .nexus-canvas-resize-handle::after { right: 9px; bottom: 9px; width: 10px; height: 10px; border-color: #58d7ffcc; }
       .nexus-build-feedback { top: auto; right: 10px; bottom: 76px; max-width: min(190px, calc(100vw - 20px)); }
@@ -275,23 +323,26 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
   }
 
   function interactionViewport() {
-    const view = viewport();
-    if (!isMobileViewport()) return view;
-    const bottomInset = 76;
-    return { width: view.width, height: Math.max(160, view.height - bottomInset) };
+    // The canvas itself owns the entire visual viewport. Floating UI such
+    // as the Nex dock can overlap momentarily, but must never create an
+    // invisible floor that prevents a panel from using the screen below it.
+    return viewport();
   }
 
-  function displayRect(rect) {
+  function displayRect(rect, el) {
     if (!isMobileViewport()) return rect;
     const view = interactionViewport();
     const w = Math.min(Math.max(200, Number(rect.w) || 360), Math.max(200, view.width - 32));
     const h = Math.min(Math.max(120, Number(rect.h) || 280), Math.max(120, Math.floor(view.height * 0.78)));
-    const position = clampPosition({ x: Number(rect.x) || 8, y: Number(rect.y) || 8, w, h }, view);
+    const collapsedHeight = el?.classList.contains('is-collapsed')
+      ? Math.max(40, el.querySelector('.nexus-canvas-panel-header')?.getBoundingClientRect().height || 40)
+      : h;
+    const position = clampPosition({ x: Number(rect.x) || 8, y: Number(rect.y) || 8, w, h: collapsedHeight }, view);
     return { ...position, w, h };
   }
 
   function applyRect(el, rect) {
-    const displayed = displayRect(rect);
+    const displayed = displayRect(rect, el);
     el.style.left = `${displayed.x}px`;
     el.style.top = `${displayed.y}px`;
     el.style.width = `${displayed.w}px`;
@@ -346,13 +397,32 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
 
     const header = document.createElement('div');
     header.className = 'nexus-canvas-panel-header';
-    header.innerHTML = `<span>${title}</span>`;
+    const titleGroup = document.createElement('div');
+    titleGroup.className = 'nexus-canvas-panel-title-group';
+    const titleLabel = document.createElement('span');
+    titleLabel.className = 'nexus-canvas-panel-title';
+    titleLabel.textContent = title;
+    const contextLabel = document.createElement('span');
+    contextLabel.className = 'nexus-canvas-panel-context';
+    contextLabel.textContent = 'Phone workspace';
+    titleGroup.append(titleLabel, contextLabel);
+    header.appendChild(titleGroup);
     el.appendChild(header);
 
     const body = document.createElement('div');
     body.className = 'nexus-canvas-panel-body';
+    body.id = `nexus-panel-body-${canvasId}-${id}`.replace(/[^a-zA-Z0-9_-]/g, '-');
     if (content instanceof Node) body.appendChild(content);
     el.appendChild(body);
+
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'nexus-canvas-panel-toggle';
+    toggle.setAttribute('aria-controls', body.id);
+    const toggleIcon = document.createElement('span');
+    toggleIcon.setAttribute('aria-hidden', 'true');
+    toggle.appendChild(toggleIcon);
+    header.appendChild(toggle);
 
     const handle = document.createElement('button');
     handle.type = 'button';
@@ -362,13 +432,29 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
 
     root.appendChild(el);
     let mobileRect = null;
+    let collapsed = false;
     try {
       mobileRect = JSON.parse(localStorage.getItem(`nexus-mobile-panel:${canvasId}:${id}`));
+      collapsed = localStorage.getItem(`nexus-panel-collapsed:${canvasId}:${id}`) === '1';
     } catch {
       // Safe clamping still works when storage is unavailable.
     }
-    const entry = { el, dragging: false, resizing: false, title, remoteRect: { x, y, w, h }, mobileRect };
+    const entry = { el, dragging: false, resizing: false, collapsed, title, remoteRect: { x, y, w, h }, mobileRect };
     panels.set(id, entry);
+    el.classList.toggle('is-collapsed', collapsed);
+
+    function updateToggle() {
+      toggleIcon.textContent = entry.collapsed ? '+' : '\u2212';
+      toggle.setAttribute('aria-expanded', String(!entry.collapsed));
+      toggle.setAttribute('aria-label', `${entry.collapsed ? 'Restore' : 'Minimize'} ${title}`);
+      toggle.title = `${entry.collapsed ? 'Restore' : 'Minimize'} ${title}`;
+    }
+
+    function expandedRect() {
+      return isMobileViewport() ? (entry.mobileRect || entry.remoteRect) : entry.remoteRect;
+    }
+
+    updateToggle();
     el.addEventListener('pointerdown', () => {
       topPanelZ += 1;
       el.style.zIndex = String(topPanelZ);
@@ -383,6 +469,36 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
     function persist(rect) {
       postCanvasAction('set_canvas_panel_layout', { canvas_id: canvasId, id, x: rect.x, y: rect.y, w: rect.w, h: rect.h });
     }
+
+    function saveFinishedRect(visibleRect) {
+      const rect = entry.collapsed
+        ? { ...expandedRect(), x: visibleRect.x, y: visibleRect.y, w: visibleRect.w }
+        : visibleRect;
+      if (isMobileViewport()) {
+        entry.mobileRect = rect;
+        try { localStorage.setItem(`nexus-mobile-panel:${canvasId}:${id}`, JSON.stringify(rect)); } catch {}
+      } else {
+        entry.remoteRect = rect;
+        persist(rect);
+      }
+    }
+
+    toggle.addEventListener('pointerdown', (event) => {
+      event.stopPropagation();
+    });
+    toggle.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!entry.collapsed) saveFinishedRect(currentRect());
+      entry.collapsed = !entry.collapsed;
+      el.classList.toggle('is-collapsed', entry.collapsed);
+      updateToggle();
+      try {
+        if (entry.collapsed) localStorage.setItem(`nexus-panel-collapsed:${canvasId}:${id}`, '1');
+        else localStorage.removeItem(`nexus-panel-collapsed:${canvasId}:${id}`);
+      } catch {}
+      applyRect(el, expandedRect());
+    });
 
     // Drag — same pointer-capture pattern as the existing Nex chat
     // dock (public/nex-chat-bar.js), generalized to persist to the
@@ -410,14 +526,7 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
       if (header.hasPointerCapture(event.pointerId)) header.releasePointerCapture(event.pointerId);
       header.style.cursor = 'grab';
       entry.dragging = false;
-      const persisted = currentRect();
-      if (isMobileViewport()) {
-        entry.mobileRect = persisted;
-        try { localStorage.setItem(`nexus-mobile-panel:${canvasId}:${id}`, JSON.stringify(persisted)); } catch {}
-      } else {
-        entry.remoteRect = persisted;
-        persist(persisted);
-      }
+      saveFinishedRect(currentRect());
       drag = null;
     }
     header.addEventListener('pointerup', endDrag);
@@ -445,14 +554,7 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
       if (!resize || event.pointerId !== resize.pointerId) return;
       if (handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId);
       entry.resizing = false;
-      const persisted = currentRect();
-      if (isMobileViewport()) {
-        entry.mobileRect = persisted;
-        try { localStorage.setItem(`nexus-mobile-panel:${canvasId}:${id}`, JSON.stringify(persisted)); } catch {}
-      } else {
-        entry.remoteRect = persisted;
-        persist(persisted);
-      }
+      saveFinishedRect(currentRect());
       resize = null;
     }
     handle.addEventListener('pointerup', endResize);

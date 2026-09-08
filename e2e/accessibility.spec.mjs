@@ -165,6 +165,53 @@ test.describe('mobile canvas room interactions', () => {
     expect(Math.abs(after.width - before.width)).toBeGreaterThan(5);
     expect(Math.abs(after.height - before.height)).toBeGreaterThan(5);
   });
+
+  test('panels can use the full phone height below the old reserved dock strip', async ({ page }) => {
+    await page.route('**/api/board**', (route) => {
+      if (route.request().method() === 'POST') return route.fulfill({ json: { canvas: { id: 'dashboard' } } });
+      return route.fulfill({ status: 503, json: { error: 'test offline' } });
+    });
+    await page.goto('/index.html');
+    const panel = page.locator('.nexus-canvas-panel').first();
+    await panel.locator('.nexus-canvas-panel-header').evaluate((element) => {
+      element.setPointerCapture = () => {};
+      element.hasPointerCapture = () => false;
+      element.releasePointerCapture = () => {};
+      const box = element.getBoundingClientRect();
+      const init = { pointerId: 21, pointerType: 'touch', isPrimary: true, button: 0, buttons: 1, clientX: box.left + 20, clientY: box.top + 20 };
+      element.dispatchEvent(new PointerEvent('pointerdown', { ...init, bubbles: true }));
+      element.dispatchEvent(new PointerEvent('pointermove', { ...init, clientY: init.clientY + 2000, bubbles: true }));
+      element.dispatchEvent(new PointerEvent('pointerup', { ...init, buttons: 0, clientY: init.clientY + 2000, bubbles: true }));
+    });
+    const box = await panel.boundingBox();
+    expect(box.y + box.height).toBeGreaterThan(820);
+    expect(box.y + box.height).toBeLessThanOrEqual(844.5);
+  });
+
+  test('every board minimizes to its name bar and restores its full size', async ({ page }) => {
+    await page.route('**/api/board**', (route) => {
+      if (route.request().method() === 'POST') return route.fulfill({ json: { canvas: { id: 'dashboard' } } });
+      return route.fulfill({ status: 503, json: { error: 'test offline' } });
+    });
+    await page.goto('/index.html');
+    const panel = page.locator('.nexus-canvas-panel').first();
+    const toggle = panel.locator('.nexus-canvas-panel-toggle');
+    const before = await panel.boundingBox();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await toggle.click();
+    const minimized = await panel.boundingBox();
+    await expect(panel).toHaveClass(/is-collapsed/);
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(panel.locator('.nexus-canvas-panel-body')).toBeHidden();
+    expect(minimized.height).toBeLessThan(70);
+    // Chromium can report the panel's border-box two physical pixels wider
+    // after the first style/layout flush; the content width must stay stable.
+    expect(Math.abs(minimized.width - before.width)).toBeLessThanOrEqual(2.5);
+    await toggle.click();
+    const restored = await panel.boundingBox();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(Math.abs(restored.height - before.height)).toBeLessThanOrEqual(2.5);
+  });
 });
 
 test('live build feedback stays a one-line mobile status pill', async ({ page }) => {
