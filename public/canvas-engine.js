@@ -222,266 +222,285 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
   if (!root) {
     root = document.createElement('div');
     root.id = 'nexus-canvas-root';
-    root.innerHTML = `
-      <div id="nexus-canvas-atmosphere-grid"></div>
-      <div id="nexus-canvas-atmosphere-vignette"></div>
-      <div id="nexus-canvas-backdrop"></div>
-      <div id="nexus-canvas-panels"></div>
-      <div id="nexus-canvas-mobile-panels" class="nexus-canvas-mobile-panels" hidden></div>
-      <div id="nexus-build-feedback" class="nexus-build-feedback" style="opacity: 0; transition: opacity 300ms ease;"></div>
-    `;
-    document.body.insertBefore(root, document.body.firstChild);
+    document.body.appendChild(root);
+  }
+  root.dataset.canvasId = canvasId;
+  const mobilePanelDock = document.createElement('nav');
+  mobilePanelDock.className = 'nexus-canvas-mobile-panels';
+  mobilePanelDock.setAttribute('aria-label', 'Canvas panels');
+  root.appendChild(mobilePanelDock);
+  let feedbackHud = root.querySelector('.nexus-build-feedback');
+  const feedbackItems = [];
+  if (!feedbackHud) {
+    feedbackHud = document.createElement('aside');
+    feedbackHud.className = 'nexus-build-feedback';
+    feedbackHud.setAttribute('aria-live', 'polite');
+    feedbackHud.setAttribute('aria-label', 'Live build feedback');
+    root.appendChild(feedbackHud);
+  }
+  const renderFeedback = () => {
+    feedbackHud.replaceChildren();
+    const title = document.createElement('div');
+    title.className = 'nexus-build-feedback-title';
+    title.textContent = 'LIVE BUILD';
+    feedbackHud.appendChild(title);
+    feedbackItems.slice(-6).forEach((item) => {
+      const row = document.createElement('div');
+      row.className = `nexus-build-feedback-row ${item.state}`;
+      row.textContent = `${item.state === 'running' ? '◌' : item.state === 'failed' ? '×' : '✓'} ${item.label}`;
+      feedbackHud.appendChild(row);
+    });
+  };
+  window.addEventListener('nexus:build-feedback', (event) => {
+    const item = event.detail;
+    if (!item?.label) return;
+    const open = feedbackItems.find((existing) => existing.tool === item.tool && existing.state === 'running');
+    if (open && item.state !== 'running') Object.assign(open, item);
+    else feedbackItems.push(item);
+    renderFeedback();
+  });
+  renderFeedback();
+
+  // Atmosphere layers (grid + vignette) sit behind the backdrop image
+  // so the on-brand look shows through when no custom backdrop is
+  // set, and stays visible at the edges even when one is.
+  if (!document.getElementById('nexus-canvas-atmosphere-grid')) {
+    const grid = document.createElement('div');
+    grid.id = 'nexus-canvas-atmosphere-grid';
+    root.appendChild(grid);
+  }
+  if (!document.getElementById('nexus-canvas-atmosphere-vignette')) {
+    const vignette = document.createElement('div');
+    vignette.id = 'nexus-canvas-atmosphere-vignette';
+    root.appendChild(vignette);
   }
 
-  // Panel and backdrop management — these are keyed by canvasId so
-  // two canvases (e.g., two tabs on different pages) stay independent
-  // even though they share the same root/atmosphere/feedback elements.
-  const panels = new Map();
-  const state = { canvasId, backdrop: '', feedback: null };
+  let backdrop = document.getElementById('nexus-canvas-backdrop');
+  if (!backdrop) {
+    backdrop = document.createElement('div');
+    backdrop.id = 'nexus-canvas-backdrop';
+    root.appendChild(backdrop);
+  }
+
+  const panels = new Map(); // id -> { el, dragging, resizing, title, mobileButton }
+  let activeMobilePanelId = null;
+
+  function applyBackdrop(url) {
+    backdrop.style.backgroundImage = url ? `url("${url}")` : 'none';
+  }
+
+  function viewport() {
+    const visual = window.visualViewport;
+    return { width: visual?.width || window.innerWidth, height: visual?.height || window.innerHeight };
+  }
+
+  function isMobileViewport() {
+    return viewport().width <= MOBILE_BREAKPOINT_PX;
+  }
+
+  function interactionViewport() {
+    const view = viewport();
+    if (!isMobileViewport()) return view;
+    const bottomInset = panels.size >= 2 ? 140 : 76;
+    return { width: view.width, height: Math.max(160, view.height - bottomInset) };
+  }
+
+  function displayRect(rect) {
+    if (!isMobileViewport()) return rect;
+    const view = interactionViewport();
+    const w = Math.min(Math.max(200, Number(rect.w) || 360), Math.max(200, view.width - 16));
+    const h = Math.min(Math.max(120, Number(rect.h) || 280), Math.max(120, view.height - 16));
+    const position = clampPosition({ x: Number(rect.x) || 8, y: Number(rect.y) || 8, w, h }, view);
+    return { ...position, w, h };
+  }
+
+  function applyRect(el, rect) {
+    const displayed = displayRect(rect);
+    el.style.left = `${displayed.x}px`;
+    el.style.top = `${displayed.y}px`;
+    el.style.width = `${displayed.w}px`;
+    el.style.height = `${displayed.h}px`;
+  }
+
+  function refreshMobilePanels() {
+    const mobile = isMobileViewport();
+    mobilePanelDock.hidden = !mobile || panels.size < 2;
+    for (const [id, entry] of panels) {
+      if (mobile) {
+        applyRect(entry.el, entry.mobileRect || entry.remoteRect);
+        entry.el.hidden = id !== activeMobilePanelId;
+      } else {
+        applyRect(entry.el, entry.remoteRect);
+        entry.el.hidden = false;
+      }
+      entry.mobileButton?.classList.toggle('active', id === activeMobilePanelId);
+    }
+  }
+
+  function currentPanelRect(el) {
+    const rect = el.getBoundingClientRect();
+    return { x: rect.left, y: rect.top, w: rect.width, h: rect.height };
+  }
+
+  function activateMobilePanel(id) {
+    activeMobilePanelId = id;
+    refreshMobilePanels();
+  }
+
+  // Called on every poll for panels the current tab isn't actively
+  // dragging/resizing right now — this is how one browser's edit shows
+  // up live in another without either fighting the user's own in-
+  // progress gesture.
+  function syncPanelFromRemote(id, remoteRect) {
+    const entry = panels.get(id);
+    if (!entry || entry.dragging || entry.resizing) return;
+    entry.remoteRect = remoteRect;
+    applyRect(entry.el, isMobileViewport() && entry.mobileRect ? entry.mobileRect : remoteRect);
+  }
 
   async function poll() {
-    const canvasState = await fetchCanvasState(canvasId);
-    if (!canvasState) return;
-
-    // Backdrop — apply new backdrop image if it changed.
-    if (canvasState.backdrop && canvasState.backdrop !== state.backdrop) {
-      state.backdrop = canvasState.backdrop;
-      const backdropEl = document.getElementById('nexus-canvas-backdrop');
-      if (canvasState.backdrop.startsWith('http')) {
-        backdropEl.style.backgroundImage = `url('${canvasState.backdrop}')`;
-      } else {
-        backdropEl.style.backgroundImage = 'none';
-      }
-    }
-
-    // Feedback box — activity/building/running status.
-    const feedbackEl = document.getElementById('nexus-build-feedback');
-    if (canvasState.feedback && JSON.stringify(canvasState.feedback) !== JSON.stringify(state.feedback)) {
-      state.feedback = canvasState.feedback;
-      if (canvasState.feedback.rows && canvasState.feedback.rows.length) {
-        feedbackEl.innerHTML = `
-          <div class="nexus-build-feedback-title">${canvasState.feedback.title || 'ACTIVITY'}</div>
-          ${canvasState.feedback.rows.map(r => `<div class="nexus-build-feedback-row ${r.status || ''}">${r.text}</div>`).join('')}
-        `;
-        feedbackEl.style.opacity = '1';
-      } else {
-        feedbackEl.style.opacity = '0';
-      }
-    }
-
-    // Panels — add, update, remove based on canvas state.
-    const incomingIds = new Set(canvasState.panels?.map(p => p.id) || []);
-    const currentIds = new Set(panels.keys());
-
-    // Remove panels no longer in state
-    for (const id of currentIds) {
-      if (!incomingIds.has(id)) {
-        panels.get(id).remove();
-        panels.delete(id);
-      }
-    }
-
-    // Add or update panels
-    for (const panelDef of canvasState.panels || []) {
-      if (panels.has(panelDef.id)) {
-        // Update existing panel position/size
-        const panel = panels.get(panelDef.id);
-        panel.style.left = panelDef.x + 'px';
-        panel.style.top = panelDef.y + 'px';
-        panel.style.width = panelDef.w + 'px';
-        panel.style.height = panelDef.h + 'px';
-      } else {
-        // Create new panel
-        const panel = document.createElement('div');
-        panel.className = 'nexus-canvas-panel';
-        panel.style.left = panelDef.x + 'px';
-        panel.style.top = panelDef.y + 'px';
-        panel.style.width = panelDef.w + 'px';
-        panel.style.height = panelDef.h + 'px';
-        panel.innerHTML = `
-          <div class="nexus-canvas-panel-header">${panelDef.title || 'PANEL'}</div>
-          <div class="nexus-canvas-panel-body"></div>
-          <div class="nexus-canvas-resize-handle"></div>
-        `;
-        const panelsContainer = document.getElementById('nexus-canvas-panels');
-        panelsContainer.appendChild(panel);
-        panels.set(panelDef.id, panel);
-
-        // Make draggable and resizable
-        const header = panel.querySelector('.nexus-canvas-panel-header');
-        const body = panel.querySelector('.nexus-canvas-panel-body');
-        const handle = panel.querySelector('.nexus-canvas-resize-handle');
-
-        if (panelDef.content) {
-          body.appendChild(panelDef.content);
-        }
-
-        let isDragging = false;
-        let dragOffsetX = 0;
-        let dragOffsetY = 0;
-
-        header.addEventListener('mousedown', (e) => {
-          isDragging = true;
-          dragOffsetX = e.clientX - panel.offsetLeft;
-          dragOffsetY = e.clientY - panel.offsetTop;
-        });
-
-        document.addEventListener('mousemove', (e) => {
-          if (isDragging) {
-            let newX = e.clientX - dragOffsetX;
-            let newY = e.clientY - dragOffsetY;
-            [newX, newY] = clampPosition(newX, newY, panel.offsetWidth, panel.offsetHeight);
-            panel.style.left = newX + 'px';
-            panel.style.top = newY + 'px';
-            postCanvasAction('movePanel', { canvasId, panelId: panelDef.id, x: newX, y: newY });
-          }
-        });
-
-        document.addEventListener('mouseup', () => {
-          isDragging = false;
-        });
-
-        // Resize handling
-        if (handle) {
-          let isResizing = false;
-          let resizeStartX = 0;
-          let resizeStartY = 0;
-          let resizeStartW = 0;
-          let resizeStartH = 0;
-
-          handle.addEventListener('mousedown', (e) => {
-            isResizing = true;
-            resizeStartX = e.clientX;
-            resizeStartY = e.clientY;
-            resizeStartW = panel.offsetWidth;
-            resizeStartH = panel.offsetHeight;
-          });
-
-          document.addEventListener('mousemove', (e) => {
-            if (isResizing) {
-              let deltaX = e.clientX - resizeStartX;
-              let deltaY = e.clientY - resizeStartY;
-              let newW = Math.max(200, resizeStartW + deltaX);
-              let newH = Math.max(120, resizeStartH + deltaY);
-              [newW, newH] = finalizeResize(newW, newH);
-              panel.style.width = newW + 'px';
-              panel.style.height = newH + 'px';
-              postCanvasAction('resizePanel', { canvasId, panelId: panelDef.id, w: newW, h: newH });
-            }
-          });
-
-          document.addEventListener('mouseup', () => {
-            isResizing = false;
-          });
-        }
-      }
-    }
-
-    // Mobile panels dock — tab to switch between panels on small screens
-    const mobileDocsEl = document.getElementById('nexus-canvas-mobile-panels');
-    const showMobileDock = (canvasState.panels || []).length > 1;
-    if (showMobileDock && window.innerWidth <= MOBILE_BREAKPOINT_PX) {
-      mobileDocsEl.innerHTML = (canvasState.panels || []).map(p => `
-        <button class="nexus-canvas-mobile-panel-button" data-panel-id="${p.id}">${p.title || 'Panel'}</button>
-      `).join('');
-      mobileDocsEl.removeAttribute('hidden');
-
-      mobileDocsEl.querySelectorAll('button').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          const panelId = e.currentTarget.dataset.panelId;
-          const panel = panels.get(panelId);
-          if (panel) {
-            mobileDocsEl.querySelectorAll('button').forEach(b => b.classList.remove('active'));
-            e.currentTarget.classList.add('active');
-            panels.forEach(p => p.style.display = 'none');
-            panel.style.display = 'flex';
-          }
-        });
-      });
-
-      // Show the first panel by default
-      const firstBtn = mobileDocsEl.querySelector('button');
-      if (firstBtn) {
-        firstBtn.click();
-      }
-    } else {
-      mobileDocsEl.setAttribute('hidden', '');
-      panels.forEach(p => p.style.display = 'flex');
+    const state = await fetchCanvasState(canvasId);
+    if (!state) return;
+    applyBackdrop(state.backdrop_url);
+    for (const [id, rect] of Object.entries(state.panels || {})) {
+      syncPanelFromRemote(id, rect);
     }
   }
 
-  // Kick off polling and return the canvas API
-  let pollInterval = setInterval(poll, POLL_INTERVAL_MS);
   poll();
+  const pollTimer = setInterval(poll, POLL_INTERVAL_MS);
 
-  return {
-    addPanel(def) {
-      const content = def.content || document.createElement('div');
-      postCanvasAction('addPanel', {
-        canvasId,
-        panelId: def.id,
-        title: def.title || 'Panel',
-        x: def.x || 0,
-        y: def.y || 0,
-        w: def.w || 300,
-        h: def.h || 200,
-      });
-      // Optimistically add it locally
-      if (!panels.has(def.id)) {
-        const panel = document.createElement('div');
-        panel.className = 'nexus-canvas-panel';
-        panel.style.left = (def.x || 0) + 'px';
-        panel.style.top = (def.y || 0) + 'px';
-        panel.style.width = (def.w || 300) + 'px';
-        panel.style.height = (def.h || 200) + 'px';
-        panel.innerHTML = `
-          <div class="nexus-canvas-panel-header">${def.title || 'PANEL'}</div>
-          <div class="nexus-canvas-panel-body"></div>
-          <div class="nexus-canvas-resize-handle"></div>
-        `;
-        panel.querySelector('.nexus-canvas-panel-body').appendChild(content);
-        document.getElementById('nexus-canvas-panels').appendChild(panel);
-        panels.set(def.id, panel);
-      }
-    },
+  function addPanel({ id, title, content, x = 80, y = 80, w = 360, h = 280 }) {
+    const el = document.createElement('div');
+    el.className = 'nexus-canvas-panel';
+    el.dataset.panelId = id;
+    applyRect(el, { x, y, w, h });
 
-    removePanel(id) {
-      postCanvasAction('removePanel', { canvasId, panelId: id });
-      if (panels.has(id)) {
-        panels.get(id).remove();
-        panels.delete(id);
-      }
-    },
+    const header = document.createElement('div');
+    header.className = 'nexus-canvas-panel-header';
+    header.innerHTML = `<span>${title}</span>`;
+    el.appendChild(header);
 
-    setBackdropUrl(url) {
-      postCanvasAction('setBackdrop', { canvasId, backdropUrl: url });
-      const backdropEl = document.getElementById('nexus-canvas-backdrop');
-      if (url.startsWith('http')) {
-        backdropEl.style.backgroundImage = `url('${url}')`;
+    const body = document.createElement('div');
+    body.className = 'nexus-canvas-panel-body';
+    if (content instanceof Node) body.appendChild(content);
+    el.appendChild(body);
+
+    const handle = document.createElement('div');
+    handle.className = 'nexus-canvas-resize-handle';
+    el.appendChild(handle);
+
+    root.appendChild(el);
+    let mobileRect = null;
+    try {
+      mobileRect = JSON.parse(localStorage.getItem(`nexus-mobile-panel:${canvasId}:${id}`));
+    } catch {
+      // Safe clamping still works when storage is unavailable.
+    }
+    const entry = { el, dragging: false, resizing: false, title, remoteRect: { x, y, w, h }, mobileRect };
+    panels.set(id, entry);
+    if (!activeMobilePanelId) activeMobilePanelId = id;
+    const mobileButton = document.createElement('button');
+    mobileButton.type = 'button';
+    mobileButton.className = 'nexus-canvas-mobile-panel-button';
+    mobileButton.textContent = title;
+    mobileButton.addEventListener('click', () => activateMobilePanel(id));
+    mobilePanelDock.appendChild(mobileButton);
+    entry.mobileButton = mobileButton;
+    refreshMobilePanels();
+
+    function currentRect() {
+      const r = el.getBoundingClientRect();
+      return { x: r.left, y: r.top, w: r.width, h: r.height };
+    }
+
+    function persist(rect) {
+      postCanvasAction('set_canvas_panel_layout', { canvas_id: canvasId, id, x: rect.x, y: rect.y, w: rect.w, h: rect.h });
+    }
+
+    // Drag — same pointer-capture pattern as the existing Nex chat
+    // dock (public/nex-chat-bar.js), generalized to persist to the
+    // shared canvas store on release instead of localStorage.
+    let drag = null;
+    header.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      const rect = currentRect();
+      drag = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, rect };
+      entry.dragging = true;
+      header.setPointerCapture(event.pointerId);
+      header.style.cursor = 'grabbing';
+    });
+    header.addEventListener('pointermove', (event) => {
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      const dx = event.clientX - drag.startX;
+      const dy = event.clientY - drag.startY;
+      const next = clampPosition({ x: drag.rect.x + dx, y: drag.rect.y + dy, w: drag.rect.w, h: drag.rect.h }, interactionViewport());
+      el.style.left = `${next.x}px`;
+      el.style.top = `${next.y}px`;
+    });
+    function endDrag(event) {
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      if (header.hasPointerCapture(event.pointerId)) header.releasePointerCapture(event.pointerId);
+      header.style.cursor = 'grab';
+      entry.dragging = false;
+      const persisted = currentRect();
+      if (isMobileViewport()) {
+        entry.mobileRect = persisted;
+        try { localStorage.setItem(`nexus-mobile-panel:${canvasId}:${id}`, JSON.stringify(persisted)); } catch {}
       } else {
-        backdropEl.style.backgroundImage = 'none';
+        entry.remoteRect = persisted;
+        persist(persisted);
       }
-      state.backdrop = url;
-    },
+      drag = null;
+    }
+    header.addEventListener('pointerup', endDrag);
+    header.addEventListener('pointercancel', endDrag);
 
-    setFeedback(title, rows) {
-      // rows is an array of { text, status?: 'running'|'complete'|'failed' }
-      postCanvasAction('setFeedback', { canvasId, feedback: { title, rows } });
-      const feedbackEl = document.getElementById('nexus-build-feedback');
-      if (rows && rows.length) {
-        feedbackEl.innerHTML = `
-          <div class="nexus-build-feedback-title">${title || 'ACTIVITY'}</div>
-          ${rows.map(r => `<div class="nexus-build-feedback-row ${r.status || ''}">${r.text}</div>`).join('')}
-        `;
-        feedbackEl.style.opacity = '1';
-      } else {
-        feedbackEl.style.opacity = '0';
-      }
-      state.feedback = { title, rows };
-    },
+    // Resize — bottom-right handle only for v1; finalizeResize already
+    // supports all 8 compass points if more handles get added later.
+    let resize = null;
+    handle.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      resize = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, rect: currentRect() };
+      entry.resizing = true;
+      handle.setPointerCapture(event.pointerId);
+    });
+    handle.addEventListener('pointermove', (event) => {
+      if (!resize || event.pointerId !== resize.pointerId) return;
+      const dx = event.clientX - resize.startX;
+      const dy = event.clientY - resize.startY;
+      const next = finalizeResize({ startRect: resize.rect, dx, dy, handle: 'se' }, viewport());
+      applyRect(el, next);
+    });
+    function endResize(event) {
+      if (!resize || event.pointerId !== resize.pointerId) return;
+      if (handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId);
+      entry.resizing = false;
+      const persisted = currentRect();
+      entry.remoteRect = persisted;
+      persist(persisted);
+      resize = null;
+    }
+    handle.addEventListener('pointerup', endResize);
+    handle.addEventListener('pointercancel', endResize);
 
-    stopPolling() {
-      clearInterval(pollInterval);
-    },
-  };
+    return { el, body };
+  }
+
+  function setBackdropUrl(url) {
+    applyBackdrop(url);
+    return postCanvasAction('set_canvas_backdrop', { canvas_id: canvasId, url });
+  }
+
+  function destroy() {
+    clearInterval(pollTimer);
+  }
+
+  window.addEventListener('resize', refreshMobilePanels);
+  window.visualViewport?.addEventListener('resize', refreshMobilePanels);
+
+  return { root, canvasId, addPanel, setBackdropUrl, destroy };
 }
