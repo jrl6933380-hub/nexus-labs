@@ -308,8 +308,8 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
   function displayRect(rect) {
     if (!isMobileViewport()) return rect;
     const view = interactionViewport();
-    const w = Math.min(Math.max(200, Number(rect.w) || 360), Math.max(200, view.width - 16));
-    const h = Math.min(Math.max(120, Number(rect.h) || 280), Math.max(120, view.height - 16));
+    const w = Math.min(Math.max(200, Number(rect.w) || 360), Math.max(200, view.width - 32));
+    const h = Math.min(Math.max(120, Number(rect.h) || 280), Math.max(120, Math.floor(view.height * 0.78)));
     const position = clampPosition({ x: Number(rect.x) || 8, y: Number(rect.y) || 8, w, h }, view);
     return { ...position, w, h };
   }
