@@ -106,6 +106,8 @@ test.describe('mobile canvas room interactions', () => {
       });
       await page.goto(pageUrl(file));
       await expect(page.locator('.nexus-canvas-panel'), `${file} page errors: ${pageErrors.join(' | ')}; body: ${(await page.locator('body').innerText()).slice(0, 240)}`).toHaveCount(expectedPanels);
+      await expect(page.locator('.nexus-canvas-panel:visible')).toHaveCount(expectedPanels);
+      await expect(page.locator('.nexus-canvas-mobile-panels')).toHaveCount(0);
       const panel = page.locator('.nexus-canvas-panel:visible').first();
       await expect(panel).toBeVisible();
       const before = await panel.boundingBox();
@@ -130,6 +132,39 @@ test.describe('mobile canvas room interactions', () => {
       expect(Math.abs(after.y - before.y)).toBeGreaterThan(5);
     });
   }
+
+  test('the Agents panel has a working touch resize grip and no mobile switcher buttons', async ({ page }) => {
+    await page.route('**/api/board**', (route) => {
+      if (route.request().method() === 'POST') return route.fulfill({ json: { canvas: { id: 'dashboard' } } });
+      return route.fulfill({ status: 503, json: { error: 'test offline' } });
+    });
+    await page.goto('/index.html');
+    const panel = page.locator('.nexus-canvas-panel[data-panel-id="agent-list"]');
+    const handle = panel.locator('.nexus-canvas-resize-handle');
+    await expect(panel).toBeVisible();
+    await expect(handle).toBeVisible();
+    const handleBox = await handle.boundingBox();
+    expect(handleBox.width).toBeGreaterThanOrEqual(44);
+    expect(handleBox.height).toBeGreaterThanOrEqual(44);
+    await expect(page.locator('.nexus-canvas-mobile-panel-button')).toHaveCount(0);
+    const before = await panel.boundingBox();
+    await handle.evaluate((element) => {
+      element.setPointerCapture = () => {};
+      element.hasPointerCapture = () => false;
+      element.releasePointerCapture = () => {};
+      const box = element.getBoundingClientRect();
+      const init = {
+        pointerId: 11, pointerType: 'touch', isPrimary: true,
+        button: 0, buttons: 1, clientX: box.left + 8, clientY: box.top + 8,
+      };
+      element.dispatchEvent(new PointerEvent('pointerdown', { ...init, bubbles: true }));
+      element.dispatchEvent(new PointerEvent('pointermove', { ...init, clientX: init.clientX - 40, clientY: init.clientY - 30, bubbles: true }));
+      element.dispatchEvent(new PointerEvent('pointerup', { ...init, buttons: 0, clientX: init.clientX - 40, clientY: init.clientY - 30, bubbles: true }));
+    });
+    const after = await panel.boundingBox();
+    expect(Math.abs(after.width - before.width)).toBeGreaterThan(5);
+    expect(Math.abs(after.height - before.height)).toBeGreaterThan(5);
+  });
 });
 
 test('live build feedback stays a one-line mobile status pill', async ({ page }) => {
