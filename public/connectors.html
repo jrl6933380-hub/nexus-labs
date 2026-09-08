@@ -59,7 +59,7 @@
   returnLink.textContent = '← Dashboard';
   document.body.appendChild(returnLink);
 
-  const canvas = mountCanvas({ canvasId: 'connectors' });
+  const canvas = mountCanvas({ canvasId: 'connectors', canvasTitle: 'Connector Bay' });
 
   const body = document.createElement('div');
   body.className = 'connectors-panel';
@@ -93,7 +93,7 @@
       <p class="card-desc">Payments and billing — for you, or for the businesses you build sites for.</p>
     </div>
   `;
-  canvas.addPanel({ id: 'connectors-list', title: 'CONNECTORS', content: body, x: 80, y: 80, w: 420, h: 520 });
+  canvas.addPanel({ id: 'connectors-list', title: 'Connectors', content: body, x: 80, y: 80, w: 420, h: 520 });
 
   document.getElementById('copy-github').addEventListener('click', (event) => {
     const text = document.getElementById('url-github').innerText;

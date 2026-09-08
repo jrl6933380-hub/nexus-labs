@@ -77,7 +77,7 @@
   returnLink.textContent = '← Dashboard';
   document.body.appendChild(returnLink);
 
-  const canvas = mountCanvas({ canvasId: 'tenants' });
+  const canvas = mountCanvas({ canvasId: 'tenants', canvasTitle: 'Tenant Hub' });
 
   const createBody = document.createElement('div');
   createBody.className = 'tenants-panel';
@@ -94,12 +94,12 @@
       <button type="submit" id="create-submit">Create tenant</button>
     </form>
   `;
-  canvas.addPanel({ id: 'tenants-create', title: 'NEW TENANT', content: createBody, x: 80, y: 80, w: 360, h: 300 });
+  canvas.addPanel({ id: 'tenants-create', title: 'New Tenant', content: createBody, x: 80, y: 80, w: 360, h: 300 });
 
   const listBody = document.createElement('div');
   listBody.className = 'tenants-panel';
   listBody.innerHTML = '<h4>Your tenants</h4><div id="tenant-list"><div class="empty">Loading…</div></div>';
-  canvas.addPanel({ id: 'tenants-list', title: 'YOUR TENANTS', content: listBody, x: 480, y: 80, w: 420, h: 480 });
+  canvas.addPanel({ id: 'tenants-list', title: 'Your Tenants', content: listBody, x: 480, y: 80, w: 420, h: 480 });
 
   const OAUTH_ERROR_MESSAGES = {
     github_denied: 'GitHub connection was cancelled.',

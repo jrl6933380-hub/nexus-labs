@@ -15,12 +15,11 @@ export function createNexChatBar() {
         <div class="nex-chat-title">
           <span class="nex-drag-grip" aria-hidden="true">⠿</span>
           <span class="nex-orb" aria-hidden="true"></span>
-          <span>NEX</span>
-          <span class="nex-status">online</span>
+          <span>Nex</span>
+          <span class="nex-status">Operational</span>
         </div>
         <div class="nex-chat-actions">
-          <span class="nex-drag-label">drag</span>
-          <button class="nex-voice-toggle" id="nexVoiceToggle" aria-label="Toggle spoken replies" title="Toggle spoken replies">🔇</button>
+          <button class="nex-voice-toggle" id="nexVoiceToggle" aria-label="Toggle spoken replies" title="Toggle spoken replies"><span aria-hidden="true">Audio</span></button>
           <button class="nex-chat-toggle" aria-label="Toggle chat" title="Open or minimize Nex chat">
             <span class="nex-toggle-icon">⌃</span>
           </button>
@@ -43,7 +42,7 @@ export function createNexChatBar() {
           autocomplete="off"
         />
         <button class="nex-mic-btn" id="nexMic" aria-label="Speak to Nex" title="Tap to speak">
-          <span>🎤</span>
+          <span aria-hidden="true">Mic</span>
         </button>
         <button class="nex-chat-send" id="nexSend" aria-label="Send message" title="Send">
           <span>→</span>
@@ -55,13 +54,13 @@ export function createNexChatBar() {
   const style = document.createElement('style');
   style.textContent = `
     :root {
-      --nex-bg: #0A0E14;
-      --nex-panel: #12192A;
-      --nex-border: #1F2B42;
-      --nex-text: #E4E9F2;
-      --nex-text-dim: #CDD7E6;
-      --nex-text-faint: #CDD7E6;
-      --nex-accent: #2E7FFF;
+      --nex-bg: rgba(12, 17, 25, .97);
+      --nex-panel: #151c28;
+      --nex-border: rgba(148, 163, 184, .2);
+      --nex-text: #F4F7FB;
+      --nex-text-dim: #A0ABBA;
+      --nex-text-faint: #738094;
+      --nex-accent: #5DB8FF;
       --nex-mono: 'JetBrains Mono', monospace;
       --nex-sans: 'Inter', -apple-system, sans-serif;
     }
@@ -76,8 +75,9 @@ export function createNexChatBar() {
       flex-direction: column;
       background: var(--nex-bg);
       border: 1px solid var(--nex-border);
-      border-radius: 12px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      border-radius: 16px;
+      box-shadow: 0 24px 70px rgba(0, 0, 0, .52), inset 0 1px 0 rgba(255, 255, 255, .035);
+      backdrop-filter: blur(18px) saturate(110%);
       font-family: var(--nex-sans);
       transition: width 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
       color: var(--nex-text);
@@ -88,8 +88,8 @@ export function createNexChatBar() {
     .nex-chat-bar-container.collapsed {
       width: 196px;
       max-height: none;
-      border-color: rgba(46, 127, 255, 0.45);
-      box-shadow: 0 12px 34px rgba(0, 0, 0, 0.68), 0 0 20px rgba(46, 127, 255, 0.14);
+      border-color: rgba(148, 163, 184, .26);
+      box-shadow: 0 14px 38px rgba(0, 0, 0, .42);
     }
 
     .nex-chat-bar-container.collapsed .nex-chat-wrapper > div:not(.nex-chat-header) {
@@ -120,7 +120,7 @@ export function createNexChatBar() {
       align-items: center;
       padding: 12px 16px;
       border-bottom: 1px solid var(--nex-border);
-      background: linear-gradient(135deg, rgba(46, 127, 255, 0.14), rgba(77, 232, 160, 0.05));
+      background: linear-gradient(90deg, rgba(93, 184, 255, .07), transparent 72%);
       flex-shrink: 0;
       cursor: grab;
       touch-action: none;
@@ -131,11 +131,10 @@ export function createNexChatBar() {
       display: flex;
       align-items: center;
       gap: 8px;
-      font-family: var(--nex-mono);
+      font-family: var(--nex-sans);
       font-size: 13px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
+      font-weight: 650;
+      letter-spacing: .01em;
     }
 
     .nex-chat-actions {
@@ -176,7 +175,7 @@ export function createNexChatBar() {
 
     .nex-status,
     .nex-drag-label {
-      color: var(--nex-text-faint);
+      color: #56d6a0;
       font-size: 9px;
       font-family: var(--nex-mono);
       font-weight: 600;
@@ -197,10 +196,18 @@ export function createNexChatBar() {
       display: grid;
       place-items: center;
       padding: 0;
-      border: 1px solid rgba(136, 145, 163, 0.25);
+      border: 1px solid var(--nex-border);
       border-radius: 8px;
       transition: color 0.2s, transform 0.2s, border-color 0.2s, background 0.2s;
       font-family: var(--nex-mono);
+    }
+
+    .nex-voice-toggle {
+      width: auto;
+      min-width: 46px;
+      padding: 0 8px;
+      font: 650 9px var(--nex-sans);
+      letter-spacing: .01em;
     }
 
     .nex-chat-toggle:hover,
@@ -211,9 +218,9 @@ export function createNexChatBar() {
     }
 
     .nex-voice-toggle.active {
-      color: #4DE8A0;
-      border-color: rgba(77, 232, 160, 0.5);
-      background: rgba(77, 232, 160, 0.1);
+      color: #56d6a0;
+      border-color: rgba(86, 214, 160, .42);
+      background: rgba(86, 214, 160, .08);
     }
 
     .nex-chat-bar-container.collapsed .nex-toggle-icon {
@@ -236,10 +243,10 @@ export function createNexChatBar() {
     }
 
     .nex-message {
-      font-size: 12px;
-      line-height: 1.4;
-      padding: 8px 10px;
-      border-radius: 6px;
+      font-size: 13px;
+      line-height: 1.5;
+      padding: 10px 11px;
+      border-radius: 10px;
       animation: nex-message-in 0.3s ease-out;
     }
 
@@ -255,13 +262,13 @@ export function createNexChatBar() {
     }
 
     .nex-message.nex-system {
-      background: rgba(46, 127, 255, 0.08);
+      background: rgba(93, 184, 255, .06);
       border-left: 2px solid var(--nex-accent);
       color: var(--nex-text-dim);
     }
 
     .nex-message.nex-user {
-      background: rgba(46, 127, 255, 0.15);
+      background: rgba(93, 184, 255, .11);
       border-left: 2px solid var(--nex-accent);
       color: var(--nex-text);
       align-self: flex-end;
@@ -269,8 +276,8 @@ export function createNexChatBar() {
     }
 
     .nex-message.nex-response {
-      background: rgba(77, 232, 160, 0.08);
-      border-left: 2px solid #4DE8A0;
+      background: rgba(86, 214, 160, .065);
+      border-left: 2px solid #56d6a0;
       color: var(--nex-text);
       align-self: flex-start;
       max-width: 85%;
@@ -302,11 +309,11 @@ export function createNexChatBar() {
       flex: 1;
       background: rgba(255, 255, 255, 0.04);
       border: 1px solid var(--nex-border);
-      border-radius: 6px;
+      border-radius: 10px;
       padding: 8px 12px;
       color: var(--nex-text);
-      font-family: var(--nex-mono);
-      font-size: 12px;
+      font-family: var(--nex-sans);
+      font-size: 13px;
       transition: all 0.2s;
     }
 
@@ -324,11 +331,11 @@ export function createNexChatBar() {
     .nex-mic-btn {
       background: rgba(255, 255, 255, 0.04);
       border: 1px solid var(--nex-border);
-      border-radius: 6px;
+      border-radius: 10px;
       color: var(--nex-text-dim);
       cursor: pointer;
-      font-size: 13px;
-      padding: 8px 10px;
+      font: 650 10px var(--nex-sans);
+      padding: 8px 9px;
       transition: all 0.2s;
       flex-shrink: 0;
     }
@@ -353,11 +360,11 @@ export function createNexChatBar() {
     .nex-chat-send {
       background: linear-gradient(135deg, rgba(46, 127, 255, 0.2), rgba(46, 127, 255, 0.08));
       border: 1px solid var(--nex-accent);
-      border-radius: 6px;
+      border-radius: 10px;
       color: var(--nex-accent);
       cursor: pointer;
       font-family: var(--nex-mono);
-      font-size: 13px;
+      font-size: 15px;
       font-weight: 600;
       padding: 8px 12px;
       transition: all 0.2s;
@@ -545,14 +552,15 @@ export function createNexChatBar() {
   // Voice output — Web Speech API's SpeechSynthesis. Off by default and
   // persisted once toggled: auto-speaking every reply the moment the
   // dock loads would be a jarring surprise on first use, not a delight,
-  // so this is opt-in via the 🔇/🔊 button in the header.
+  // so this is opt-in via the Audio button in the header.
   const voiceOutputKey = 'nex-voice-output-v1';
   let voiceEnabled = localStorage.getItem(voiceOutputKey) === 'true';
   const speechSupported = 'speechSynthesis' in window;
 
   function updateVoiceToggleUI() {
-    voiceToggle.textContent = voiceEnabled ? '🔊' : '🔇';
+    voiceToggle.querySelector('span').textContent = voiceEnabled ? 'Audio on' : 'Audio';
     voiceToggle.classList.toggle('active', voiceEnabled);
+    voiceToggle.setAttribute('aria-pressed', String(voiceEnabled));
   }
 
   if (speechSupported) {

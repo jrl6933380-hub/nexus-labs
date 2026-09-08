@@ -80,7 +80,7 @@
   returnLink.textContent = '← Dashboard';
   document.body.appendChild(returnLink);
 
-  const canvas = mountCanvas({ canvasId });
+  const canvas = mountCanvas({ canvasId, canvasTitle: canvasName });
 
   // Every new venture canvas starts with one blank notes panel — a
   // real, usable starting point rather than an empty room with
@@ -91,13 +91,16 @@
   const textarea = document.createElement('textarea');
   textarea.placeholder = 'Notes for this venture…';
   notesWrap.appendChild(textarea);
-  canvas.addPanel({ id: 'notes', title: 'NOTES', content: notesWrap, x: 80, y: 100, w: 420, h: 320 });
+  canvas.addPanel({ id: 'notes', title: 'Notes', content: notesWrap, x: 80, y: 100, w: 420, h: 320 });
 
-  const control = document.createElement('div');
+  const control = document.createElement('details');
   control.id = 'nexus-canvas-backdrop-control';
   control.innerHTML = `
-    <input type="text" id="backdropUrlInput" placeholder="Backdrop image URL…" />
-    <button id="backdropApplyBtn">Set backdrop</button>
+    <summary>Appearance</summary>
+    <div class="nexus-appearance-fields">
+      <input type="url" id="backdropUrlInput" aria-label="Backdrop image URL" placeholder="Backdrop image URL…" />
+      <button id="backdropApplyBtn" type="button">Apply</button>
+    </div>
   `;
   document.body.appendChild(control);
   document.getElementById('backdropApplyBtn').addEventListener('click', () => {

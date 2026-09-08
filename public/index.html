@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-<title>Nexus // Canvas</title>
+<title>Nexus — Venture Factory</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -86,6 +86,41 @@
     transition: 0.18s;
   }
   #nexus-canvas-backdrop-control button:hover { background: #4b8dff32; }
+
+  .board-summary, .agent-list, .room-list { padding: 18px; font-size: 14px; line-height: 1.5; }
+  .board-summary h4, .agent-list h4, .room-list h4 {
+    margin: 0 0 12px; color: var(--nx-muted); font: 600 10px var(--nx-mono);
+    letter-spacing: .1em;
+  }
+  .room-list { display: grid; gap: 8px; }
+  .room-list a.room-link {
+    position: relative; display: grid; gap: 2px; min-height: 44px; box-sizing: border-box;
+    margin: 0; padding: 11px 38px 11px 12px; border: 1px solid var(--nx-line);
+    border-radius: 11px; background: rgba(255,255,255,.025); color: var(--nx-text);
+    font: 650 13px var(--nx-sans); letter-spacing: 0;
+  }
+  .room-list a.room-link::after { content: '→'; position: absolute; right: 13px; top: 50%; translate: 0 -50%; color: var(--nx-faint); }
+  .room-list a.room-link:hover, .room-list a.room-link:focus-visible {
+    border-color: rgba(93,184,255,.42); background: rgba(93,184,255,.07); color: #d9efff; outline: none;
+  }
+  .room-list a.room-link small { margin: 0; color: var(--nx-muted); font: 400 11px var(--nx-sans); }
+  .metric-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .metric-card { min-width: 0; padding: 12px; border: 1px solid var(--nx-line); border-radius: 11px; background: rgba(255,255,255,.025); }
+  .metric-card span { display: block; color: var(--nx-muted); font-size: 11px; white-space: nowrap; }
+  .metric-card strong { display: block; margin-top: 4px; color: var(--nx-text); font: 650 22px/1.1 var(--nx-sans); }
+  .board-summary .messages { margin-top: 18px; }
+  .board-summary .message { padding: 9px 0; color: var(--nx-muted); font-size: 12px; line-height: 1.45; border-color: var(--nx-line); }
+  .board-summary .message .from { color: var(--nx-text); font-weight: 650; }
+  .board-summary .alert-banner { margin-bottom: 14px; padding: 11px 12px; border-radius: 11px; font-size: 12px; }
+  .agent-list .agent-row { gap: 10px; min-height: 38px; padding: 7px 0; border-color: var(--nx-line); }
+  .agent-list .agent-dot { width: 7px; height: 7px; box-shadow: none !important; }
+  .agent-list .agent-name { color: var(--nx-text); font-size: 13px; }
+  .agent-list .agent-status { color: var(--nx-muted); font: 500 9px var(--nx-mono); letter-spacing: .05em; }
+  .board-summary .empty, .agent-list .empty { color: var(--nx-muted); font-size: 12px; }
+  @media (max-width: 720px) {
+    .board-summary, .agent-list, .room-list { padding: 16px; }
+    .room-list a.room-link { min-height: 50px; }
+  }
 </style>
 </head>
 <body>
@@ -99,7 +134,7 @@
     return div.innerHTML;
   }
 
-  const canvas = mountCanvas();
+  const canvas = mountCanvas({ canvasTitle: 'Venture Factory' });
 
   // Room list — until "rooms" become real saved views on this same
   // canvas, this is the bridge: real links to each existing room's own
@@ -122,21 +157,21 @@
   roomBody.className = 'room-list';
   roomBody.innerHTML = `
     <h4>Rooms</h4>
-    ${ROOMS.map((r) => `<a class="room-link" href="${escapeHtml(r.detail)}">${escapeHtml(r.nav)}<small>${escapeHtml(r.title)}</small></a>`).join('')}
+    ${ROOMS.map((r) => `<a class="room-link" href="${escapeHtml(r.detail)}">${escapeHtml(r.title)}<small>${escapeHtml(r.nav)}</small></a>`).join('')}
   `;
-  canvas.addPanel({ id: 'room-list', title: 'ROOMS', content: roomBody, x: 80, y: 460, w: 260, h: 340 });
 
   // Board summary panel — task counts + recent messages.
   const summaryBody = document.createElement('div');
   summaryBody.className = 'board-summary';
   summaryBody.innerHTML = '<span class="empty">Loading board…</span>';
-  canvas.addPanel({ id: 'board-summary', title: 'BOARD', content: summaryBody, x: 380, y: 80, w: 380, h: 360 });
+  canvas.addPanel({ id: 'board-summary', title: 'Operations', content: summaryBody, x: 380, y: 80, w: 380, h: 360 });
 
   // Agent list panel — who's online right now.
   const agentBody = document.createElement('div');
   agentBody.className = 'agent-list';
   agentBody.innerHTML = '<span class="empty">Loading agents…</span>';
-  canvas.addPanel({ id: 'agent-list', title: 'AGENTS', content: agentBody, x: 780, y: 80, w: 300, h: 280 });
+  canvas.addPanel({ id: 'agent-list', title: 'Agent Network', content: agentBody, x: 780, y: 80, w: 300, h: 280 });
+  canvas.addPanel({ id: 'room-list', title: 'Spaces', content: roomBody, x: 80, y: 460, w: 280, h: 360 });
 
   // Builds a short, human summary of a system_status object (from
   // lib/systemMonitor.js, which piggybacks on this same poll) without
@@ -168,10 +203,12 @@
       summaryBody.innerHTML = `
         ${alertSummary ? `<div class="alert-banner"><strong>Needs attention</strong>${escapeHtml(alertSummary)}</div>` : ''}
         <h4>Live board</h4>
-        <div class="stat-row"><span>Total tasks</span><span>${escapeHtml(t.total_tasks ?? 0)}</span></div>
-        <div class="stat-row"><span>Completed</span><span>${escapeHtml(t.completed_tasks ?? 0)}</span></div>
-        <div class="stat-row"><span>Needs approval</span><span>${escapeHtml(t.needs_approval ?? 0)}</span></div>
-        <div class="stat-row"><span>Active agents</span><span>${escapeHtml(t.active_agents ?? 0)}</span></div>
+        <div class="metric-grid">
+          <div class="metric-card"><span>Total tasks</span><strong>${escapeHtml(t.total_tasks ?? 0)}</strong></div>
+          <div class="metric-card"><span>Completed</span><strong>${escapeHtml(t.completed_tasks ?? 0)}</strong></div>
+          <div class="metric-card"><span>Needs approval</span><strong>${escapeHtml(t.needs_approval ?? 0)}</strong></div>
+          <div class="metric-card"><span>Active agents</span><strong>${escapeHtml(t.active_agents ?? 0)}</strong></div>
+        </div>
         <div class="messages">
           <h4>Recent messages</h4>
           ${messages.length
@@ -205,11 +242,14 @@
   // canvas panel itself (it's a tool, not content), so it stays fixed
   // in the corner rather than being draggable/resizable like the
   // content panels above it.
-  const control = document.createElement('div');
+  const control = document.createElement('details');
   control.id = 'nexus-canvas-backdrop-control';
   control.innerHTML = `
-    <input type="text" id="backdropUrlInput" placeholder="Backdrop image URL…" />
-    <button id="backdropApplyBtn">Set backdrop</button>
+    <summary>Appearance</summary>
+    <div class="nexus-appearance-fields">
+      <input type="url" id="backdropUrlInput" aria-label="Backdrop image URL" placeholder="Backdrop image URL…" />
+      <button id="backdropApplyBtn" type="button">Apply</button>
+    </div>
   `;
   document.body.appendChild(control);
   document.getElementById('backdropApplyBtn').addEventListener('click', () => {

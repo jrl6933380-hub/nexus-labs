@@ -165,7 +165,7 @@
   returnLink.textContent = '← Dashboard';
   document.body.appendChild(returnLink);
 
-  const canvas = mountCanvas({ canvasId: 'command-deck' });
+  const canvas = mountCanvas({ canvasId: 'command-deck', canvasTitle: 'Command Deck' });
 
   // Three panels — this room's own layout already had three distinct
   // sections (identity/projects, chat+mission board, approval queue),
@@ -191,7 +191,7 @@
       <div class="project-card"><div class="project-name">Capabilities</div><span class="status-badge status-live">GitHub + Memory</span></div>
     </div>
   `;
-  canvas.addPanel({ id: 'identity', title: 'IDENTITY', content: idBody, x: 60, y: 60, w: 300, h: 520 });
+  canvas.addPanel({ id: 'identity', title: 'Identity', content: idBody, x: 60, y: 60, w: 300, h: 520 });
 
   const chatBody = document.createElement('div');
   chatBody.className = 'cd-panel';
@@ -238,12 +238,12 @@
     </div>
     <a class="room-quick-link" href="/conference-room.html">◌ Open Conference Room</a>
   `;
-  canvas.addPanel({ id: 'mission-chat', title: 'MISSION CHAT', content: chatBody, x: 400, y: 60, w: 520, h: 700 });
+  canvas.addPanel({ id: 'mission-chat', title: 'Mission Chat', content: chatBody, x: 400, y: 60, w: 520, h: 700 });
 
   const queueBody = document.createElement('div');
   queueBody.className = 'cd-panel';
   queueBody.innerHTML = `<div class="queue-body" id="queue-list"><div class="empty-hint">Nothing waiting on you right now.<br><br>When Nex proposes a fix or action on live work, it'll show up here for you to run or skip.</div></div>`;
-  canvas.addPanel({ id: 'queue', title: 'APPROVAL QUEUE', content: queueBody, x: 960, y: 60, w: 340, h: 520 });
+  canvas.addPanel({ id: 'queue', title: 'Approval Queue', content: queueBody, x: 960, y: 60, w: 340, h: 520 });
 
   const AGENT_VISUALS = {
     nex: { color: '#4DD8E8', label: 'Nex' },

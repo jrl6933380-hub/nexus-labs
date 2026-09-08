@@ -358,7 +358,7 @@
   returnLink.textContent = '← Dashboard';
   document.body.appendChild(returnLink);
 
-  const canvas = mountCanvas({ canvasId: 'room-builder' });
+  const canvas = mountCanvas({ canvasId: 'room-builder', canvasTitle: 'Room Builder' });
 
   const wrap = document.createElement('div');
   wrap.className = 'room-builder-wrap';
@@ -399,7 +399,7 @@
     </div>
   `;
 
-  canvas.addPanel({ id: 'room-builder', title: 'BUILDER', content: wrap, x: 60, y: 60, w: 900, h: 640 });
+  canvas.addPanel({ id: 'room-builder', title: 'Room Builder', content: wrap, x: 60, y: 60, w: 900, h: 640 });
 
   // ---- Auth gate: bounce to login if there's no valid session ----
   // Runs before anything else renders meaningfully. A 401 here means
