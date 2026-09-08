@@ -154,14 +154,6 @@ function injectStyles() {
       text-transform: uppercase;
     }
     .nexus-canvas-mobile-panel-button.active { color: #07101a; border-color: #58d7ff; background: #58d7ff; }
-    @media (max-width: 720px) {
-      .nexus-canvas-panel { border-radius: 12px; min-width: 0; }
-      .nexus-canvas-panel-header { min-height: 44px; padding: 12px 14px; font-size: 11px; }
-      .nexus-canvas-panel-header::after { content: 'PHONE WORKSPACE'; color: #91a0b9; font: 600 9px 'JetBrains Mono', monospace; letter-spacing: .08em; }
-      .nexus-canvas-resize-handle { display: none; }
-      .nexus-canvas-mobile-panels { display: flex; }
-      .nexus-build-feedback { top: auto; right: 10px; bottom: 128px; max-width: min(190px, calc(100vw - 20px)); }
-    }
     .nexus-build-feedback {
       box-sizing: border-box;
       position: fixed;
@@ -189,6 +181,14 @@ function injectStyles() {
     .nexus-build-feedback-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 9px 'JetBrains Mono', monospace; letter-spacing: .04em; color: #dce9ff; }
     .nexus-build-feedback.complete .nexus-build-feedback-dot { background: #78e6b0; box-shadow: 0 0 10px #78e6b0aa; }
     .nexus-build-feedback.failed .nexus-build-feedback-dot { background: #ff8293; box-shadow: 0 0 10px #ff8293aa; }
+    @media (max-width: 720px) {
+      .nexus-canvas-panel { border-radius: 12px; min-width: 0; }
+      .nexus-canvas-panel-header { min-height: 44px; padding: 12px 14px; font-size: 11px; }
+      .nexus-canvas-panel-header::after { content: 'PHONE WORKSPACE'; color: #91a0b9; font: 600 9px 'JetBrains Mono', monospace; letter-spacing: .08em; }
+      .nexus-canvas-resize-handle { display: none; }
+      .nexus-canvas-mobile-panels { display: flex; }
+      .nexus-build-feedback { top: auto; right: 10px; bottom: 128px; max-width: min(190px, calc(100vw - 20px)); }
+    }
   `;
   document.head.appendChild(style);
 }
