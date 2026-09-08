@@ -119,6 +119,27 @@ function injectStyles() {
       border-right: 2px solid #58d7ff77;
       border-bottom: 2px solid #58d7ff77;
     }
+    .nexus-build-feedback {
+      position: fixed;
+      right: 18px;
+      top: 18px;
+      z-index: 4;
+      width: min(310px, calc(100vw - 36px));
+      padding: 12px 14px;
+      border: 1px solid #3c5a84;
+      border-radius: 12px;
+      background: #0a1020e8;
+      box-shadow: 0 18px 50px #000a;
+      backdrop-filter: blur(14px);
+      font: 12px Inter, sans-serif;
+      color: #dce9ff;
+      pointer-events: none;
+    }
+    .nexus-build-feedback-title { color: #58d7ff; font: 700 10px 'JetBrains Mono', monospace; letter-spacing: .13em; margin-bottom: 8px; }
+    .nexus-build-feedback-row { padding: 3px 0; }
+    .nexus-build-feedback-row.running { color: #f0c866; }
+    .nexus-build-feedback-row.complete { color: #78e6b0; }
+    .nexus-build-feedback-row.failed { color: #ff8293; }
   `;
   document.head.appendChild(style);
 }
@@ -160,6 +181,38 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
     root.id = 'nexus-canvas-root';
     document.body.appendChild(root);
   }
+  root.dataset.canvasId = canvasId;
+  let feedbackHud = root.querySelector('.nexus-build-feedback');
+  const feedbackItems = [];
+  if (!feedbackHud) {
+    feedbackHud = document.createElement('aside');
+    feedbackHud.className = 'nexus-build-feedback';
+    feedbackHud.setAttribute('aria-live', 'polite');
+    feedbackHud.setAttribute('aria-label', 'Live build feedback');
+    root.appendChild(feedbackHud);
+  }
+  const renderFeedback = () => {
+    feedbackHud.replaceChildren();
+    const title = document.createElement('div');
+    title.className = 'nexus-build-feedback-title';
+    title.textContent = 'LIVE BUILD';
+    feedbackHud.appendChild(title);
+    feedbackItems.slice(-6).forEach((item) => {
+      const row = document.createElement('div');
+      row.className = `nexus-build-feedback-row ${item.state}`;
+      row.textContent = `${item.state === 'running' ? '◌' : item.state === 'failed' ? '×' : '✓'} ${item.label}`;
+      feedbackHud.appendChild(row);
+    });
+  };
+  window.addEventListener('nexus:build-feedback', (event) => {
+    const item = event.detail;
+    if (!item?.label) return;
+    const open = feedbackItems.find((existing) => existing.tool === item.tool && existing.state === 'running');
+    if (open && item.state !== 'running') Object.assign(open, item);
+    else feedbackItems.push(item);
+    renderFeedback();
+  });
+  renderFeedback();
 
   // Atmosphere layers (grid + vignette) sit behind the backdrop image
   // so the on-brand look shows through when no custom backdrop is
