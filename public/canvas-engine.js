@@ -137,6 +137,10 @@ function injectStyles() {
       backdrop-filter: blur(14px);
       -webkit-overflow-scrolling: touch;
     }
+    /* The mobile media rule enables this dock, but one-panel rooms mark
+       it hidden. Keep that state authoritative so an empty blue strip
+       can never cover the workspace. */
+    .nexus-canvas-mobile-panels[hidden] { display: none !important; }
     .nexus-canvas-mobile-panel-button {
       flex: 0 0 auto;
       min-height: 36px;
