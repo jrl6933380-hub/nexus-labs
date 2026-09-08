@@ -55,12 +55,12 @@
   returnLink.textContent = '← Dashboard';
   document.body.appendChild(returnLink);
 
-  const canvas = mountCanvas({ canvasId: 'queue' });
+  const canvas = mountCanvas({ canvasId: 'queue', canvasTitle: 'Approval Queue' });
 
   const queueBody = document.createElement('div');
   queueBody.className = 'queue-panel';
   queueBody.innerHTML = '<div class="empty-hint">Loading…</div>';
-  canvas.addPanel({ id: 'queue-list', title: 'PENDING APPROVALS', content: queueBody, x: 80, y: 80, w: 460, h: 460 });
+  canvas.addPanel({ id: 'queue-list', title: 'Pending Approvals', content: queueBody, x: 80, y: 80, w: 460, h: 460 });
 
   function renderQueueItem(item) {
     const el = document.createElement('div');

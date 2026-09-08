@@ -19,7 +19,7 @@
 // setBackdropUrl) layers on top of this same atmosphere rather than
 // replacing it outright.
 
-import { clampPosition, finalizeResize } from './canvas-geometry.js';
+import { clampPosition, defaultMobileRect, finalizeResize } from './canvas-geometry.js';
 
 const POLL_INTERVAL_MS = 4000;
 const DEFAULT_CANVAS_ID = 'dashboard';
@@ -30,30 +30,50 @@ function injectStyles() {
   const style = document.createElement('style');
   style.id = 'nexus-canvas-styles';
   style.textContent = `
+    :root {
+      --nx-ink: #070a0f;
+      --nx-surface: rgba(16, 22, 32, .94);
+      --nx-surface-raised: rgba(22, 29, 42, .96);
+      --nx-line: rgba(148, 163, 184, .18);
+      --nx-line-strong: rgba(148, 163, 184, .32);
+      --nx-text: #f4f7fb;
+      --nx-muted: #a0abba;
+      --nx-faint: #6f7b8d;
+      --nx-accent: #5db8ff;
+      --nx-success: #56d6a0;
+      --nx-warning: #f2ba63;
+      --nx-danger: #ff7c8c;
+      --nx-radius: 16px;
+      --nx-sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --nx-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
     #nexus-canvas-root {
       position: fixed;
       inset: 0;
       overflow: hidden;
-      background: radial-gradient(ellipse 70% 52% at 50% 0, #245bb433, transparent 72%),
-                  linear-gradient(180deg, #111b2d 0, #080c15 55%, #05070c 100%);
-      font-family: Inter, -apple-system, sans-serif;
+      color: var(--nx-text);
+      background: radial-gradient(ellipse 62% 46% at 52% -10%, rgba(54, 113, 175, .19), transparent 70%),
+                  linear-gradient(155deg, #0c1119 0%, var(--nx-ink) 54%, #05070b 100%);
+      font-family: var(--nx-sans);
+      isolation: isolate;
     }
     #nexus-canvas-atmosphere-grid {
       position: absolute;
       inset: 0;
       z-index: 0;
-      opacity: 0.32;
+      opacity: .38;
       pointer-events: none;
-      background-image: linear-gradient(#5680bc10 1px, transparent 1px),
-                         linear-gradient(90deg, #5680bc10 1px, transparent 1px);
-      background-size: 42px 42px;
+      background-image: linear-gradient(rgba(148, 163, 184, .035) 1px, transparent 1px),
+                         linear-gradient(90deg, rgba(148, 163, 184, .035) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: linear-gradient(to bottom, black, transparent 86%);
     }
     #nexus-canvas-atmosphere-vignette {
       position: absolute;
       inset: 0;
       z-index: 0;
       pointer-events: none;
-      background: radial-gradient(ellipse at center, transparent 42%, #020409ca 100%);
+      background: radial-gradient(ellipse at 50% 42%, transparent 38%, rgba(0, 0, 0, .65) 100%);
     }
     #nexus-canvas-backdrop {
       position: absolute;
@@ -62,21 +82,52 @@ function injectStyles() {
       background-size: cover;
       background-position: center;
       background-repeat: no-repeat;
-      transition: background-image 400ms ease;
+      transition: background-image 260ms ease;
     }
+    .nexus-canvas-brand {
+      position: fixed;
+      top: max(14px, env(safe-area-inset-top));
+      left: 16px;
+      z-index: 3;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 34px;
+      color: var(--nx-text);
+      pointer-events: none;
+      text-shadow: 0 2px 18px #000;
+    }
+    .nexus-canvas-brand-mark {
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      border: 1px solid rgba(93, 184, 255, .46);
+      border-radius: 9px;
+      background: linear-gradient(145deg, rgba(93, 184, 255, .2), rgba(93, 184, 255, .04));
+      color: #bce2ff;
+      font: 700 12px var(--nx-mono);
+    }
+    .nexus-canvas-brand-copy { display: grid; gap: 1px; }
+    .nexus-canvas-brand-name { font: 650 13px/1.1 var(--nx-sans); letter-spacing: .01em; }
+    .nexus-canvas-brand-context { color: var(--nx-muted); font: 500 9px/1.1 var(--nx-mono); letter-spacing: .12em; text-transform: uppercase; }
+    .nexus-canvas-panel:focus-within,
+    .nexus-canvas-panel:hover { border-color: var(--nx-line-strong); }
+    .nexus-canvas-panel:focus-within { box-shadow: 0 24px 70px rgba(0, 0, 0, .5), 0 0 0 1px rgba(93, 184, 255, .2); }
     .nexus-canvas-panel {
       position: absolute;
       z-index: 2;
       display: flex;
       flex-direction: column;
-      background: #111827cc;
-      border: 1px solid #3c5a84;
-      border-radius: 14px;
-      box-shadow: 0 30px 90px #000b, inset 0 1px #b8d9ff2e;
-      backdrop-filter: blur(14px);
+      background: var(--nx-surface);
+      border: 1px solid var(--nx-line);
+      border-radius: var(--nx-radius);
+      box-shadow: 0 24px 70px rgba(0, 0, 0, .48), inset 0 1px rgba(255, 255, 255, .035);
+      backdrop-filter: blur(18px) saturate(112%);
       overflow: hidden;
       min-width: 200px;
       min-height: 120px;
+      transition: border-color 160ms ease, box-shadow 160ms ease;
     }
     .nexus-canvas-panel-header {
       display: flex;
@@ -84,16 +135,17 @@ function injectStyles() {
       justify-content: space-between;
       gap: 10px;
       box-sizing: border-box;
-      padding: 10px 14px;
-      background: linear-gradient(90deg, #4b8dff14, transparent);
-      border-bottom: 1px solid #26334d;
+      min-height: 48px;
+      padding: 8px 9px 8px 16px;
+      background: linear-gradient(90deg, rgba(93, 184, 255, .055), transparent 62%);
+      border-bottom: 1px solid var(--nx-line);
       cursor: grab;
       touch-action: none;
       user-select: none;
-      font: 700 10px 'JetBrains Mono', monospace;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: #58d7ff;
+      font: 650 12px var(--nx-sans);
+      letter-spacing: .015em;
+      text-transform: none;
+      color: var(--nx-text);
       flex-shrink: 0;
     }
     .nexus-canvas-panel-title-group {
@@ -115,23 +167,23 @@ function injectStyles() {
       display: grid;
       place-items: center;
       flex: 0 0 auto;
-      width: 30px;
-      height: 30px;
+      width: 32px;
+      height: 32px;
       padding: 0;
-      border: 1px solid #3c5a84;
-      border-radius: 8px;
-      background: #0b1324cc;
-      color: #a9eaff;
-      box-shadow: inset 0 1px #b8d9ff18;
+      border: 1px solid transparent;
+      border-radius: 9px;
+      background: transparent;
+      color: var(--nx-muted);
       cursor: pointer;
-      font: 700 18px/1 'JetBrains Mono', monospace;
+      font: 500 18px/1 var(--nx-mono);
       touch-action: manipulation;
     }
     .nexus-canvas-panel-toggle:hover,
     .nexus-canvas-panel-toggle:focus-visible {
-      border-color: #58d7ff;
-      background: #14223a;
-      outline: none;
+      border-color: var(--nx-line-strong);
+      background: rgba(255, 255, 255, .055);
+      color: var(--nx-text);
+      outline: 2px solid transparent;
     }
     .nexus-canvas-panel.is-collapsed {
       min-height: 0;
@@ -146,7 +198,8 @@ function injectStyles() {
       min-height: 0;
       overflow: auto;
       position: relative;
-      color: #e8eefb;
+      color: var(--nx-text);
+      scrollbar-color: rgba(160, 171, 186, .36) transparent;
     }
     .nexus-canvas-resize-handle {
       position: absolute;
@@ -168,8 +221,8 @@ function injectStyles() {
       bottom: 4px;
       width: 8px;
       height: 8px;
-      border-right: 2px solid #58d7ff77;
-      border-bottom: 2px solid #58d7ff77;
+      border-right: 2px solid rgba(160, 171, 186, .58);
+      border-bottom: 2px solid rgba(160, 171, 186, .58);
     }
     .nexus-build-feedback {
       box-sizing: border-box;
@@ -184,28 +237,104 @@ function injectStyles() {
       max-width: min(200px, calc(100vw - 36px));
       min-height: 32px;
       padding: 7px 10px;
-      border: 1px solid #3c5a84;
+      border: 1px solid var(--nx-line);
       border-radius: 999px;
-      background: #0a1020e8;
-      box-shadow: 0 18px 50px #000a;
-      backdrop-filter: blur(14px);
-      font: 11px Inter, sans-serif;
-      color: #dce9ff;
+      background: rgba(13, 18, 27, .92);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, .45);
+      backdrop-filter: blur(18px);
+      font: 12px var(--nx-sans);
+      color: var(--nx-text);
       pointer-events: none;
     }
     .nexus-build-feedback[hidden] { display: none; }
-    .nexus-build-feedback-dot { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: #f0c866; box-shadow: 0 0 10px #f0c866aa; }
-    .nexus-build-feedback-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 9px 'JetBrains Mono', monospace; letter-spacing: .04em; color: #dce9ff; }
-    .nexus-build-feedback.complete .nexus-build-feedback-dot { background: #78e6b0; box-shadow: 0 0 10px #78e6b0aa; }
-    .nexus-build-feedback.failed .nexus-build-feedback-dot { background: #ff8293; box-shadow: 0 0 10px #ff8293aa; }
+    .nexus-build-feedback-dot { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: var(--nx-warning); }
+    .nexus-build-feedback-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 10px var(--nx-mono); letter-spacing: .02em; color: var(--nx-text); }
+    .nexus-build-feedback.complete .nexus-build-feedback-dot { background: var(--nx-success); }
+    .nexus-build-feedback.failed .nexus-build-feedback-dot { background: var(--nx-danger); }
+
+    .canvas-title-bar,
+    .return-link,
+    #nexus-canvas-backdrop-control {
+      box-sizing: border-box;
+      border: 1px solid var(--nx-line) !important;
+      background: rgba(13, 18, 27, .88) !important;
+      box-shadow: 0 12px 34px rgba(0, 0, 0, .3) !important;
+      backdrop-filter: blur(18px) !important;
+    }
+    .canvas-title-bar {
+      color: var(--nx-text) !important;
+      border-radius: 999px !important;
+      font: 600 11px var(--nx-sans) !important;
+      letter-spacing: .02em !important;
+      text-transform: none !important;
+      padding: 9px 15px !important;
+    }
+    .return-link {
+      color: var(--nx-muted) !important;
+      border-radius: 10px !important;
+      font: 600 11px var(--nx-sans) !important;
+      letter-spacing: 0 !important;
+      text-transform: none !important;
+      padding: 9px 12px !important;
+    }
+    .return-link:hover, .return-link:focus-visible { color: var(--nx-text) !important; border-color: var(--nx-line-strong) !important; outline: none; }
+    #nexus-canvas-backdrop-control {
+      left: 16px !important;
+      bottom: max(16px, env(safe-area-inset-bottom)) !important;
+      display: block !important;
+      padding: 0 !important;
+      border-radius: 12px !important;
+      font: 12px var(--nx-sans) !important;
+    }
+    #nexus-canvas-backdrop-control summary {
+      list-style: none;
+      cursor: pointer;
+      color: var(--nx-muted);
+      padding: 10px 13px;
+      font-weight: 600;
+      user-select: none;
+    }
+    #nexus-canvas-backdrop-control summary::-webkit-details-marker { display: none; }
+    #nexus-canvas-backdrop-control summary::before { content: '◐'; margin-right: 8px; color: var(--nx-accent); }
+    #nexus-canvas-backdrop-control[open] summary { border-bottom: 1px solid var(--nx-line); color: var(--nx-text); }
+    .nexus-appearance-fields { display: flex; gap: 8px; padding: 10px; }
+    #nexus-canvas-backdrop-control input {
+      box-sizing: border-box;
+      width: min(240px, calc(100vw - 142px)) !important;
+      border: 1px solid var(--nx-line) !important;
+      border-radius: 9px !important;
+      background: rgba(255, 255, 255, .035) !important;
+      color: var(--nx-text) !important;
+      padding: 9px 10px !important;
+      font: 12px var(--nx-sans) !important;
+    }
+    #nexus-canvas-backdrop-control button {
+      border: 1px solid rgba(93, 184, 255, .34) !important;
+      border-radius: 9px !important;
+      background: rgba(93, 184, 255, .1) !important;
+      color: #bce2ff !important;
+      padding: 8px 11px !important;
+      font: 650 11px var(--nx-sans) !important;
+      letter-spacing: 0 !important;
+      text-transform: none !important;
+    }
+    #nexus-canvas-backdrop-control input:focus-visible,
+    #nexus-canvas-backdrop-control button:focus-visible { outline: 2px solid rgba(93, 184, 255, .6); outline-offset: 2px; }
     @media (max-width: 720px) {
-      .nexus-canvas-panel { border-radius: 12px; min-width: 0; }
-      .nexus-canvas-panel-header { min-height: 48px; padding: 4px 8px 4px 14px; font-size: 11px; }
-      .nexus-canvas-panel-context { display: inline; color: #91a0b9; font: 600 9px 'JetBrains Mono', monospace; letter-spacing: .08em; white-space: nowrap; }
+      .nexus-canvas-brand { top: max(10px, env(safe-area-inset-top)); left: 12px; }
+      .nexus-canvas-brand-copy { display: none; }
+      .nexus-canvas-panel { border-radius: 14px; min-width: 0; }
+      .nexus-canvas-panel-header { min-height: 50px; padding: 5px 6px 5px 15px; font-size: 12px; }
       .nexus-canvas-panel-toggle { width: 40px; height: 40px; border-radius: 10px; }
       .nexus-canvas-resize-handle { display: block; width: 44px; height: 44px; }
-      .nexus-canvas-resize-handle::after { right: 9px; bottom: 9px; width: 10px; height: 10px; border-color: #58d7ffcc; }
-      .nexus-build-feedback { top: auto; right: 10px; bottom: 76px; max-width: min(190px, calc(100vw - 20px)); }
+      .nexus-canvas-resize-handle::after { right: 9px; bottom: 9px; width: 10px; height: 10px; border-color: var(--nx-accent); }
+      .nexus-build-feedback { top: max(10px, env(safe-area-inset-top)); right: 10px; max-width: min(190px, calc(100vw - 62px)); }
+      #nexus-canvas-backdrop-control { left: 12px !important; bottom: max(12px, env(safe-area-inset-bottom)) !important; }
+      .canvas-title-bar { top: max(10px, env(safe-area-inset-top)) !important; max-width: 48vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .return-link { top: max(10px, env(safe-area-inset-top)) !important; left: 12px !important; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #nexus-canvas-backdrop, .nexus-canvas-panel { transition: none; }
     }
   `;
   document.head.appendChild(style);
@@ -234,7 +363,7 @@ function postCanvasAction(action, params) {
   });
 }
 
-export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
+export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Venture Factory' } = {}) {
   injectStyles();
 
   // Root/backdrop/atmosphere elements are per-page (one canvas visible
@@ -249,6 +378,22 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
     document.body.appendChild(root);
   }
   root.dataset.canvasId = canvasId;
+  let brand = root.querySelector('.nexus-canvas-brand');
+  if (!brand) {
+    brand = document.createElement('div');
+    brand.className = 'nexus-canvas-brand';
+    brand.setAttribute('aria-label', `Nexus — ${canvasTitle}`);
+    brand.innerHTML = `
+      <span class="nexus-canvas-brand-mark" aria-hidden="true">N</span>
+      <span class="nexus-canvas-brand-copy">
+        <span class="nexus-canvas-brand-name">Nexus</span>
+        <span class="nexus-canvas-brand-context"></span>
+      </span>
+    `;
+    root.appendChild(brand);
+  }
+  brand.querySelector('.nexus-canvas-brand-context').textContent = canvasTitle;
+  brand.hidden = Boolean(document.querySelector('.return-link'));
   let feedbackHud = root.querySelector('.nexus-build-feedback');
   let feedbackHideTimer = null;
   if (!feedbackHud) {
@@ -329,9 +474,14 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
     return viewport();
   }
 
-  function displayRect(rect, el) {
+  function displayRect(rect, el, panelIndex = 0, useDefaultMobilePlacement = false) {
     if (!isMobileViewport()) return rect;
     const view = interactionViewport();
+    if (useDefaultMobilePlacement) {
+      const initial = defaultMobileRect(rect, view, panelIndex);
+      if (!el?.classList.contains('is-collapsed')) return initial;
+      return { ...initial, h: Math.max(50, el.querySelector('.nexus-canvas-panel-header')?.getBoundingClientRect().height || 50) };
+    }
     const w = Math.min(Math.max(200, Number(rect.w) || 360), Math.max(200, view.width - 32));
     const h = Math.min(Math.max(120, Number(rect.h) || 280), Math.max(120, Math.floor(view.height * 0.78)));
     const collapsedHeight = el?.classList.contains('is-collapsed')
@@ -341,8 +491,8 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
     return { ...position, w, h };
   }
 
-  function applyRect(el, rect) {
-    const displayed = displayRect(rect, el);
+  function applyRect(el, rect, panelIndex = 0, useDefaultMobilePlacement = false) {
+    const displayed = displayRect(rect, el, panelIndex, useDefaultMobilePlacement);
     el.style.left = `${displayed.x}px`;
     el.style.top = `${displayed.y}px`;
     el.style.width = `${displayed.w}px`;
@@ -351,13 +501,15 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
 
   function refreshPanels() {
     const mobile = isMobileViewport();
+    let panelIndex = 0;
     for (const entry of panels.values()) {
       if (mobile) {
-        applyRect(entry.el, entry.mobileRect || entry.remoteRect);
+        applyRect(entry.el, entry.mobileRect || entry.remoteRect, panelIndex, !entry.mobileRect);
       } else {
         applyRect(entry.el, entry.remoteRect);
       }
       entry.el.hidden = false;
+      panelIndex += 1;
     }
   }
 
@@ -374,7 +526,8 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
     const entry = panels.get(id);
     if (!entry || entry.dragging || entry.resizing) return;
     entry.remoteRect = remoteRect;
-    applyRect(entry.el, isMobileViewport() && entry.mobileRect ? entry.mobileRect : remoteRect);
+    const panelIndex = [...panels.keys()].indexOf(id);
+    applyRect(entry.el, isMobileViewport() && entry.mobileRect ? entry.mobileRect : remoteRect, panelIndex, isMobileViewport() && !entry.mobileRect);
   }
 
   async function poll() {
@@ -402,10 +555,7 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
     const titleLabel = document.createElement('span');
     titleLabel.className = 'nexus-canvas-panel-title';
     titleLabel.textContent = title;
-    const contextLabel = document.createElement('span');
-    contextLabel.className = 'nexus-canvas-panel-context';
-    contextLabel.textContent = 'Phone workspace';
-    titleGroup.append(titleLabel, contextLabel);
+    titleGroup.append(titleLabel);
     header.appendChild(titleGroup);
     el.appendChild(header);
 
@@ -434,7 +584,7 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
     let mobileRect = null;
     let collapsed = false;
     try {
-      mobileRect = JSON.parse(localStorage.getItem(`nexus-mobile-panel:${canvasId}:${id}`));
+      mobileRect = JSON.parse(localStorage.getItem(`nexus-mobile-panel-v2:${canvasId}:${id}`));
       collapsed = localStorage.getItem(`nexus-panel-collapsed:${canvasId}:${id}`) === '1';
     } catch {
       // Safe clamping still works when storage is unavailable.
@@ -476,7 +626,7 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID } = {}) {
         : visibleRect;
       if (isMobileViewport()) {
         entry.mobileRect = rect;
-        try { localStorage.setItem(`nexus-mobile-panel:${canvasId}:${id}`, JSON.stringify(rect)); } catch {}
+        try { localStorage.setItem(`nexus-mobile-panel-v2:${canvasId}:${id}`, JSON.stringify(rect)); } catch {}
       } else {
         entry.remoteRect = rect;
         persist(rect);

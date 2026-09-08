@@ -81,7 +81,7 @@
   // 'memory') instead of a static page — same live-editable,
   // draggable/resizable surface as the main dashboard, just scoped to
   // this room's own layout and backdrop.
-  const canvas = mountCanvas({ canvasId: 'memory' });
+  const canvas = mountCanvas({ canvasId: 'memory', canvasTitle: 'Memory Archive' });
 
   // Add Memory panel
   const addBody = document.createElement('div');
@@ -96,19 +96,19 @@
       <button id="add-btn">Save memory</button>
     </div>
   `;
-  canvas.addPanel({ id: 'add-memory', title: 'ADD MEMORY', content: addBody, x: 80, y: 80, w: 380, h: 220 });
+  canvas.addPanel({ id: 'add-memory', title: 'Add Memory', content: addBody, x: 80, y: 80, w: 380, h: 220 });
 
   // Facts panel
   const factsBody = document.createElement('div');
   factsBody.className = 'memory-list-panel';
   factsBody.innerHTML = '<h4>Facts</h4><div class="empty-hint">Loading…</div>';
-  canvas.addPanel({ id: 'facts', title: 'FACTS', content: factsBody, x: 480, y: 80, w: 340, h: 400 });
+  canvas.addPanel({ id: 'facts', title: 'Facts', content: factsBody, x: 480, y: 80, w: 340, h: 400 });
 
   // Projects panel
   const projectsBody = document.createElement('div');
   projectsBody.className = 'memory-list-panel';
   projectsBody.innerHTML = '<h4>Projects</h4><div class="empty-hint">Loading…</div>';
-  canvas.addPanel({ id: 'projects', title: 'PROJECTS', content: projectsBody, x: 840, y: 80, w: 340, h: 400 });
+  canvas.addPanel({ id: 'projects', title: 'Projects', content: projectsBody, x: 840, y: 80, w: 340, h: 400 });
 
   function renderCard(memory) {
     const date = new Date(memory.created_at || Date.now()).toLocaleDateString();

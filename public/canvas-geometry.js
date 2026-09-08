@@ -8,6 +8,29 @@
 export const MIN_PANEL_W = 200;
 export const MIN_PANEL_H = 120;
 
+// Gives every panel an immediately reachable title bar on a phone. Desktop
+// layouts often place several panels beyond the mobile viewport's right edge;
+// clamping each one independently used to put them at the same x/y and made
+// the lower panels appear "stuck" behind the first. A short vertical cascade
+// keeps the freeform canvas while exposing every window on first load.
+export function defaultMobileRect(rect, viewport, panelIndex = 0) {
+  const width = Math.max(MIN_PANEL_W, viewport.width - 24);
+  const height = Math.min(
+    Math.max(MIN_PANEL_H, Number(rect.h) || 280),
+    Math.max(MIN_PANEL_H, Math.floor(viewport.height * 0.72)),
+  );
+  const visibleHeaderStep = 56;
+  const availableTop = Math.max(68, viewport.height - 168);
+  const y = Math.min(72 + (Math.max(0, panelIndex) * visibleHeaderStep), availableTop);
+
+  return {
+    x: 12,
+    y,
+    w: width,
+    h: height,
+  };
+}
+
 // Keeps a panel's top-left corner on screen — same idea as the
 // existing Nex chat dock's keepOnScreen, generalized to any panel
 // size instead of one hardcoded container.

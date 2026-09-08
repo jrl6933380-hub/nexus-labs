@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-const { clampPosition, clampSize, resizeFromHandle, finalizeResize } = await import('../public/canvas-geometry.js');
+const { clampPosition, clampSize, defaultMobileRect, resizeFromHandle, finalizeResize } = await import('../public/canvas-geometry.js');
 
 const viewport = { width: 1000, height: 800 };
 
@@ -28,6 +28,18 @@ test('clampSize enforces the minimum panel size', () => {
 test('clampSize never exceeds the viewport', () => {
   const result = clampSize({ w: 5000, h: 5000 }, viewport);
   assert.deepEqual(result, { w: 984, h: 784 });
+});
+
+test('defaultMobileRect exposes each panel header in a vertical cascade', () => {
+  const phone = { width: 390, height: 844 };
+  assert.deepEqual(defaultMobileRect({ w: 380, h: 360 }, phone, 0), { x: 12, y: 72, w: 366, h: 360 });
+  assert.deepEqual(defaultMobileRect({ w: 300, h: 280 }, phone, 1), { x: 12, y: 128, w: 366, h: 280 });
+  assert.deepEqual(defaultMobileRect({ w: 260, h: 700 }, phone, 2), { x: 12, y: 184, w: 366, h: 607 });
+});
+
+test('defaultMobileRect keeps later headers reachable on a short viewport', () => {
+  const phone = { width: 360, height: 480 };
+  assert.equal(defaultMobileRect({ h: 300 }, phone, 20).y, 312);
 });
 
 test('resizeFromHandle "se" grows width and height, keeps x/y fixed', () => {
