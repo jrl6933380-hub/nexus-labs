@@ -135,7 +135,12 @@ export default async function handler(req, res) {
 
   const { message, model, workspace } = req.body;
   if (!message) return res.status(400).json({ error: 'Missing message' });
-  const wantsBuildStream = String(req.headers.accept || '').includes('text/event-stream');
+  // Control commands return their own immediate JSON payloads before a
+  // normal Nex turn begins. Keep them on that established contract; the
+  // live stream is only for ordinary chat/build work.
+  const wantsBuildStream = String(req.headers.accept || '').includes('text/event-stream')
+    && !isDisengageCommand(message)
+    && !isEngageCommand(message);
   const sendBuildEvent = (event, payload) => {
     if (wantsBuildStream) res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
   };
