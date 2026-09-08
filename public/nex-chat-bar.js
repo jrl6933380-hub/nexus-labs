@@ -59,8 +59,8 @@ export function createNexChatBar() {
       --nex-panel: #12192A;
       --nex-border: #1F2B42;
       --nex-text: #E4E9F2;
-      --nex-text-dim: #8891A3;
-      --nex-text-faint: #9BA8BC;
+      --nex-text-dim: #CDD7E6;
+      --nex-text-faint: #CDD7E6;
       --nex-accent: #2E7FFF;
       --nex-mono: 'JetBrains Mono', monospace;
       --nex-sans: 'Inter', -apple-system, sans-serif;

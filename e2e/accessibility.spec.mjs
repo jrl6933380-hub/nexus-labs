@@ -98,7 +98,10 @@ test.describe('mobile canvas room interactions', () => {
     test(`${file} keeps panels visible, bounded, and touch-draggable`, async ({ page }) => {
       await page.route('**/api/room-auth', (route) => route.fulfill({ json: { username: 'mobile-test' } }));
       await page.route('**/api/tenants**', (route) => route.fulfill({ json: { tenants: [] } }));
-      await page.route('**/api/board**', (route) => route.fulfill({ status: 503, json: { error: 'test offline' } }));
+      await page.route('**/api/board**', (route) => {
+        if (route.request().method() === 'POST') return route.fulfill({ json: { canvas: { id: 'mobile-test' } } });
+        return route.fulfill({ status: 503, json: { error: 'test offline' } });
+      });
       await page.goto(pageUrl(file));
       await expect(page.locator('.nexus-canvas-panel')).toHaveCount(expectedPanels);
       const panel = page.locator('.nexus-canvas-panel:visible').first();
