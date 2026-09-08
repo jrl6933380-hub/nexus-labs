@@ -20,6 +20,7 @@ export function createNexChatBar() {
         </div>
         <div class="nex-chat-actions">
           <span class="nex-drag-label">drag</span>
+          <button class="nex-voice-toggle" id="nexVoiceToggle" aria-label="Toggle spoken replies" title="Toggle spoken replies">🔇</button>
           <button class="nex-chat-toggle" aria-label="Toggle chat" title="Open or minimize Nex chat">
             <span class="nex-toggle-icon">⌃</span>
           </button>
@@ -41,6 +42,9 @@ export function createNexChatBar() {
           placeholder="Command or question…" 
           autocomplete="off"
         />
+        <button class="nex-mic-btn" id="nexMic" aria-label="Speak to Nex" title="Tap to speak">
+          <span>🎤</span>
+        </button>
         <button class="nex-chat-send" id="nexSend" aria-label="Send message" title="Send">
           <span>→</span>
         </button>
@@ -98,7 +102,8 @@ export function createNexChatBar() {
     }
 
     .nex-chat-bar-container.collapsed .nex-status,
-    .nex-chat-bar-container.collapsed .nex-drag-label {
+    .nex-chat-bar-container.collapsed .nex-drag-label,
+    .nex-chat-bar-container.collapsed .nex-voice-toggle {
       display: none;
     }
 
@@ -179,7 +184,8 @@ export function createNexChatBar() {
       text-transform: uppercase;
     }
 
-    .nex-chat-toggle {
+    .nex-chat-toggle,
+    .nex-voice-toggle {
       background: none;
       border: none;
       color: var(--nex-text-dim);
@@ -197,10 +203,17 @@ export function createNexChatBar() {
       font-family: var(--nex-mono);
     }
 
-    .nex-chat-toggle:hover {
+    .nex-chat-toggle:hover,
+    .nex-voice-toggle:hover {
       color: #fff;
       border-color: var(--nex-accent);
       background: rgba(46, 127, 255, 0.13);
+    }
+
+    .nex-voice-toggle.active {
+      color: #4DE8A0;
+      border-color: rgba(77, 232, 160, 0.5);
+      background: rgba(77, 232, 160, 0.1);
     }
 
     .nex-chat-bar-container.collapsed .nex-toggle-icon {
@@ -308,6 +321,35 @@ export function createNexChatBar() {
       box-shadow: 0 0 0 2px rgba(46, 127, 255, 0.2);
     }
 
+    .nex-mic-btn {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--nex-border);
+      border-radius: 6px;
+      color: var(--nex-text-dim);
+      cursor: pointer;
+      font-size: 13px;
+      padding: 8px 10px;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+
+    .nex-mic-btn:hover {
+      border-color: var(--nex-accent);
+      color: var(--nex-text);
+    }
+
+    .nex-mic-btn.listening {
+      background: rgba(232, 93, 93, 0.15);
+      border-color: #E85D5D;
+      color: #E85D5D;
+      animation: nex-mic-pulse 1.4s ease-in-out infinite;
+    }
+
+    @keyframes nex-mic-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(232, 93, 93, 0.35); }
+      50% { box-shadow: 0 0 0 6px rgba(232, 93, 93, 0); }
+    }
+
     .nex-chat-send {
       background: linear-gradient(135deg, rgba(46, 127, 255, 0.2), rgba(46, 127, 255, 0.08));
       border: 1px solid var(--nex-accent);
@@ -374,6 +416,8 @@ export function createNexChatBar() {
   // Event handlers
   const input = container.querySelector('#nexInput');
   const sendBtn = container.querySelector('#nexSend');
+  const micBtn = container.querySelector('#nexMic');
+  const voiceToggle = container.querySelector('#nexVoiceToggle');
   const messagesEl = container.querySelector('#nexMessages');
   const toggleBtn = container.querySelector('.nex-chat-toggle');
   const header = container.querySelector('.nex-chat-header');
@@ -498,6 +542,89 @@ export function createNexChatBar() {
     }
   }
 
+  // Voice output — Web Speech API's SpeechSynthesis. Off by default and
+  // persisted once toggled: auto-speaking every reply the moment the
+  // dock loads would be a jarring surprise on first use, not a delight,
+  // so this is opt-in via the 🔇/🔊 button in the header.
+  const voiceOutputKey = 'nex-voice-output-v1';
+  let voiceEnabled = localStorage.getItem(voiceOutputKey) === 'true';
+  const speechSupported = 'speechSynthesis' in window;
+
+  function updateVoiceToggleUI() {
+    voiceToggle.textContent = voiceEnabled ? '🔊' : '🔇';
+    voiceToggle.classList.toggle('active', voiceEnabled);
+  }
+
+  if (speechSupported) {
+    updateVoiceToggleUI();
+    voiceToggle.addEventListener('click', () => {
+      voiceEnabled = !voiceEnabled;
+      try { localStorage.setItem(voiceOutputKey, String(voiceEnabled)); } catch {}
+      updateVoiceToggleUI();
+      if (!voiceEnabled) window.speechSynthesis.cancel();
+    });
+  } else {
+    voiceToggle.remove();
+  }
+
+  function speak(text) {
+    if (!voiceEnabled || !speechSupported || !text) return;
+    window.speechSynthesis.cancel(); // one reply speaking at a time, never stacked
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1.02;
+    window.speechSynthesis.speak(utterance);
+  }
+
+  // Voice input — Web Speech API's SpeechRecognition. Feature-detected:
+  // the mic button simply isn't shown in browsers without support
+  // (Firefox desktop, most non-Chromium browsers) rather than exposing
+  // a control that would just fail silently.
+  const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognition = null;
+  let listening = false;
+
+  if (SpeechRecognitionImpl) {
+    recognition = new SpeechRecognitionImpl();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    recognition.addEventListener('start', () => {
+      listening = true;
+      micBtn.classList.add('listening');
+    });
+    recognition.addEventListener('end', () => {
+      listening = false;
+      micBtn.classList.remove('listening');
+    });
+    recognition.addEventListener('error', () => {
+      listening = false;
+      micBtn.classList.remove('listening');
+    });
+    recognition.addEventListener('result', (event) => {
+      let transcript = '';
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        transcript += event.results[i][0].transcript;
+      }
+      input.value = transcript;
+      const lastResult = event.results[event.results.length - 1];
+      if (lastResult.isFinal) send();
+    });
+
+    micBtn.addEventListener('click', () => {
+      if (listening) {
+        recognition.stop();
+        return;
+      }
+      // Never let the mic pick up Nex's own spoken reply mid-sentence.
+      if (speechSupported) window.speechSynthesis.cancel();
+      input.value = '';
+      recognition.start();
+    });
+  } else {
+    micBtn.remove();
+  }
+
   async function send() {
     const text = input.value.trim();
     if (!text) return;
@@ -521,7 +648,9 @@ export function createNexChatBar() {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'Nex could not process that message.');
-      addMessage(data.reply || 'Nex completed the request without a text reply.', 'nex-response');
+      const replyText = data.reply || 'Nex completed the request without a text reply.';
+      addMessage(replyText, 'nex-response');
+      speak(replyText);
       if (data.navigation?.type === 'room' && typeof data.navigation.url === 'string') {
         const event = new CustomEvent('nexus:navigate', { detail: data.navigation });
         window.dispatchEvent(event);
