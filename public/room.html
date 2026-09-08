@@ -9,18 +9,11 @@
 <style>
   html, body { margin: 0; padding: 0; height: 100%; background: #05070c; }
 
-  /* Room Builder is a chat + live-build-preview tool, not a set of
-     independent widgets — its whole point is one big live canvas
-     where a generated page renders full-size next to the chat that's
-     building it. Splitting that into several small draggable panels
-     (like Memory/Queue/Tenants) would make it worse to use. So this
-     migration puts the ENTIRE existing builder UI into one large
-     panel on its own canvas (canvas_id: 'room-builder') — it's still
-     genuinely "on a canvas" (draggable, resizable, on-brand), just as
-     one cohesive block rather than fragmented pieces. Everything
-     below this comment is the original room.html content, unchanged
-     except height calcs that assumed being the whole page and are now
-     relative to the panel instead of the viewport.
+  /* Room Builder is one cohesive workspace: a full project preview
+     with one movable Nex conversation dock over it. The workspace is
+     mounted on canvas_id "room-builder" so global canvas upgrades keep
+     applying, but its outer panel is locked edge-to-edge; only the Nex
+     dock moves or minimizes.
   */
   .room-builder-wrap {
     --bg: #0A0E14;
@@ -467,9 +460,47 @@
     #canvas-frame { min-height: 260px; border-radius: 7px; }
     .canvas-empty { inset: 0; padding: 24px; }
   }
+
+  /* One movable conversation over one full project surface. The outer
+     workspace is locked by the shared canvas engine; only this dock moves. */
+  body.room-builder-page .canvas-title-bar,
+  body.room-builder-page .return-link { display: none; }
+  .room { position: relative; display: block; overflow: hidden; }
+  .canvas { position: absolute; inset: 0; }
+  .chat-panel {
+    position: absolute; right: 16px; bottom: 16px; z-index: 30;
+    width: min(370px, calc(100% - 24px)); height: min(520px, calc(100% - 24px));
+    border: 1px solid rgba(148,163,184,.24); border-radius: 16px; overflow: hidden;
+    box-shadow: 0 24px 70px rgba(0,0,0,.56); backdrop-filter: blur(18px);
+    transition: width .18s ease, height .18s ease, box-shadow .18s ease;
+  }
+  .chat-toolbar { cursor: grab; touch-action: none; user-select: none; }
+  .chat-toolbar:active { cursor: grabbing; }
+  .chat-drag-handle {
+    flex: 1; min-width: 28px; color: var(--muted); text-align: center;
+    font-family: var(--sans); font-size: 16px; letter-spacing: 3px;
+  }
+  .chat-toggle { display: inline-flex; color: var(--text); font-size: 12px; letter-spacing: 0; text-transform: none; }
+  .chat-toggle::before { box-shadow: none; }
+  .chat-heading { display: none; }
+  .room-builder-wrap:not(.chat-open) .chat-panel { width: 112px; height: 48px; box-shadow: 0 14px 38px rgba(0,0,0,.46); }
+  .room-builder-wrap:not(.chat-open) .chat-toggle-label { display: none; }
+  .room-builder-wrap:not(.chat-open) .chat-history,
+  .room-builder-wrap:not(.chat-open) .input-row,
+  .room-builder-wrap:not(.chat-open) .chat-status,
+  .room-builder-wrap:not(.chat-open) .voice-btn { display: none; }
+  .room-builder-wrap:not(.chat-open) .chat-toolbar { border-bottom: 0; }
+
+  @media (max-width: 720px) {
+    .chat-panel {
+      right: 10px; bottom: 10px; width: calc(100% - 20px);
+      height: min(480px, calc(100% - 20px)); border-radius: 14px;
+    }
+    .room-builder-wrap:not(.chat-open) .chat-panel { width: 112px; height: 50px; }
+  }
 </style>
 </head>
-<body>
+<body class="room-builder-page">
 <script type="module">
   import { mountCanvas } from '/canvas-engine.js';
 
@@ -515,6 +546,7 @@
           <button class="chat-toggle" id="chat-toggle" type="button" aria-expanded="false">
             Nex <span class="chat-toggle-label" id="chat-toggle-label">Open conversation</span>
           </button>
+          <span class="chat-drag-handle" aria-hidden="true" title="Drag chat">•••</span>
           <span class="chat-heading">Build with Nex</span>
           <div class="chat-tools">
             <span class="chat-status" id="chat-status" role="status" aria-live="polite">Ready</span>
@@ -548,7 +580,7 @@
     </div>
   `;
 
-  canvas.addPanel({ id: 'room-builder', title: 'Room Builder', content: wrap, x: 60, y: 60, w: 900, h: 640 });
+  canvas.addPanel({ id: 'room-builder', title: 'Room Builder', content: wrap, locked: true });
 
   // ---- Auth gate: bounce to login if there's no valid session ----
   // Runs before anything else renders meaningfully. A 401 here means
@@ -599,6 +631,9 @@
   }
 
   function renderHtml(html, { label } = {}) {
+    // Older saved builds may contain the retired in-project editor bubble.
+    // The movable builder dock is now the one and only conversation surface.
+    html = stripLiveEditWidget(html);
     currentHtml = html;
     currentLabel = label || currentLabel || 'Untitled project';
     frame.srcdoc = html;
@@ -773,12 +808,44 @@
   const chatToggle = document.getElementById('chat-toggle');
   const chatToggleLabel = document.getElementById('chat-toggle-label');
   const chatStatus = document.getElementById('chat-status');
+  const chatPanel = wrap.querySelector('.chat-panel');
+  const chatToolbar = wrap.querySelector('.chat-toolbar');
+  const roomSurface = wrap.querySelector('.room');
   const mobileLayout = window.matchMedia('(max-width: 720px)');
+  const chatPositionKey = 'nexus-room-chat-position-v2';
+
+  function clampChatPosition(left, top) {
+    const margin = 8;
+    return {
+      left: Math.max(margin, Math.min(left, roomSurface.clientWidth - chatPanel.offsetWidth - margin)),
+      top: Math.max(margin, Math.min(top, roomSurface.clientHeight - chatPanel.offsetHeight - margin)),
+    };
+  }
+
+  function setChatPosition(left, top, persist = false) {
+    const position = clampChatPosition(left, top);
+    chatPanel.style.left = position.left + 'px';
+    chatPanel.style.top = position.top + 'px';
+    chatPanel.style.right = 'auto';
+    chatPanel.style.bottom = 'auto';
+    if (persist) {
+      try { localStorage.setItem(chatPositionKey, JSON.stringify(position)); } catch {}
+    }
+  }
+
+  function reclampChatPosition() {
+    if (!chatPanel.style.left) return;
+    const roomRect = roomSurface.getBoundingClientRect();
+    const chatRect = chatPanel.getBoundingClientRect();
+    setChatPosition(chatRect.left - roomRect.left, chatRect.top - roomRect.top);
+  }
 
   function setChatOpen(open) {
     wrap.classList.toggle('chat-open', open);
     chatToggle.setAttribute('aria-expanded', String(open));
-    chatToggleLabel.innerText = open ? 'Hide conversation' : 'Open conversation';
+    chatToggle.setAttribute('aria-label', open ? 'Minimize Nex chat' : 'Open Nex chat');
+    chatToggleLabel.innerText = open ? 'Minimize' : 'Open conversation';
+    requestAnimationFrame(reclampChatPosition);
   }
 
   chatToggle.addEventListener('click', () => {
@@ -787,6 +854,52 @@
 
   setChatOpen(!mobileLayout.matches);
   mobileLayout.addEventListener('change', (event) => setChatOpen(!event.matches));
+
+  requestAnimationFrame(() => {
+    try {
+      const savedPosition = JSON.parse(localStorage.getItem(chatPositionKey) || 'null');
+      if (savedPosition && Number.isFinite(savedPosition.left) && Number.isFinite(savedPosition.top)) {
+        setChatPosition(savedPosition.left, savedPosition.top);
+      }
+    } catch {}
+  });
+
+  let chatDrag = null;
+  chatToolbar.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0 || event.target.closest('button, input, textarea')) return;
+    const roomRect = roomSurface.getBoundingClientRect();
+    const chatRect = chatPanel.getBoundingClientRect();
+    chatDrag = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      left: chatRect.left - roomRect.left,
+      top: chatRect.top - roomRect.top,
+    };
+    chatToolbar.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  });
+
+  chatToolbar.addEventListener('pointermove', (event) => {
+    if (!chatDrag || event.pointerId !== chatDrag.pointerId) return;
+    setChatPosition(
+      chatDrag.left + event.clientX - chatDrag.startX,
+      chatDrag.top + event.clientY - chatDrag.startY,
+    );
+  });
+
+  function finishChatDrag(event) {
+    if (!chatDrag || event.pointerId !== chatDrag.pointerId) return;
+    const roomRect = roomSurface.getBoundingClientRect();
+    const chatRect = chatPanel.getBoundingClientRect();
+    setChatPosition(chatRect.left - roomRect.left, chatRect.top - roomRect.top, true);
+    if (chatToolbar.hasPointerCapture(event.pointerId)) chatToolbar.releasePointerCapture(event.pointerId);
+    chatDrag = null;
+  }
+
+  chatToolbar.addEventListener('pointerup', finishChatDrag);
+  chatToolbar.addEventListener('pointercancel', finishChatDrag);
+  window.addEventListener('resize', () => requestAnimationFrame(reclampChatPosition));
 
   function addBubble(role, text) {
     const el = document.createElement('div');
@@ -1072,18 +1185,6 @@
     }
   });
 
-  // ---- Live-edit widget bridge -------------------------------------------
-  // The chat bubble injected into every generated page (see
-  // injectLiveEditWidget in api/room-chat.js) posts a message here when
-  // someone submits something from inside the iframe. Only accept
-  // messages that actually came from our own canvas iframe.
-  window.addEventListener('message', (event) => {
-    if (event.source !== frame.contentWindow) return;
-    const data = event.data;
-    if (data && data.source === 'nexus-live-edit-widget' && typeof data.message === 'string') {
-      sendMessage(data.message);
-    }
-  });
 </script>
 </body>
 </html>
