@@ -41,7 +41,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, '..', 'public');
 const pages = fs.readdirSync(publicDir).filter((file) => file.endsWith('.html'));
-const pageUrl = (file) => file === 'canvas.html' ? '/canvas.html?id=mobile-test' : `/${file}`;
+const pageUrl = (file) => file === 'canvas.html' ? '/canvas?id=mobile-test' : `/${file}`;
 
 for (const file of pages) {
   test.describe(file, () => {
