@@ -5,7 +5,7 @@ import { getRoom, listRooms } from '../lib/rooms.js';
 test('built-in Nexus rooms stay available without the remote registry', async () => {
   const rooms = await listRooms({ fetchRemote: false });
   assert.deepEqual(rooms.map((room) => room.slug), [
-    'command-center', 'conference-room', 'room-builder', 'memory-archive',
+    'command-center', 'conference-room', 'room-builder', 'story-studio', 'memory-archive',
     'approval-queue', 'connector-bay', 'tenant-hub',
   ]);
 });
@@ -16,6 +16,7 @@ test('room lookup accepts friendly names, slugs, and spoken aliases', async () =
   assert.deepEqual(await getRoom('war room', { fetchRemote: false }), conference);
   assert.equal((await getRoom('board', { fetchRemote: false })).url, '/nexus-space.html#command');
   assert.equal((await getRoom('builder', { fetchRemote: false })).url, '/nexus-space.html#builder');
+  assert.equal((await getRoom('comic builder', { fetchRemote: false })).url, '/nexus-space.html#story');
   assert.equal((await getRoom('memories', { fetchRemote: false })).url, '/nexus-space.html#memory');
   assert.equal((await getRoom('approvals', { fetchRemote: false })).url, '/nexus-space.html#queue');
   assert.equal((await getRoom('integrations', { fetchRemote: false })).url, '/nexus-space.html#connectors');

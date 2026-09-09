@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexus // Story Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/nexus-stark.css">
+  <style>
+    :root { --ink:#070910; --panel:#0f1420; --panel-2:#151c2a; --line:#29344a; --paper:#edf1f8; --muted:#8c98ae; --cyan:#58d7ff; --violet:#a879ff; --pink:#ff6fbd; --green:#58edb0; --amber:#ffc56b; }
+    * { box-sizing:border-box; }
+    html, body, #canvas-root { width:100%; height:100%; margin:0; overflow:hidden; background:var(--ink); color:var(--paper); font-family:Inter,-apple-system,sans-serif; }
+    button, input, textarea, select { font:inherit; }
+    button { cursor:pointer; }
+    .nexus-canvas-panel[data-panel-id="story-studio"] { border-color:#a879ff73; box-shadow:0 25px 80px #000c, 0 0 50px #a879ff12; }
+    .nexus-canvas-panel[data-panel-id="story-studio"] .nexus-canvas-panel-body { padding:0; overflow:hidden; }
+    .studio { height:100%; min-height:0; display:grid; grid-template-rows:auto minmax(0,1fr); background:radial-gradient(circle at 70% -15%,#a879ff24,transparent 35%),linear-gradient(145deg,#0d1220,#070910 65%); }
+    .studio-top { min-height:64px; display:flex; align-items:center; justify-content:space-between; gap:15px; padding:12px 18px; border-bottom:1px solid var(--line); background:#090d16db; backdrop-filter:blur(16px); }
+    .brand { display:flex; align-items:center; min-width:0; gap:11px; }
+    .brand-mark { width:30px; height:30px; display:grid; place-items:center; border:1px solid var(--violet); border-radius:8px; color:var(--violet); font:700 13px 'JetBrains Mono'; box-shadow:0 0 18px #a879ff42; transform:rotate(-4deg); }
+    .brand strong { display:block; font:700 13px 'JetBrains Mono'; letter-spacing:.12em; }
+    .brand span { display:block; margin-top:3px; color:var(--muted); font:600 8px 'JetBrains Mono'; letter-spacing:.15em; }
+    .top-actions { display:flex; align-items:center; gap:8px; }
+    .credits { padding:8px 10px; border:1px solid #58edb044; border-radius:999px; color:var(--green); font:600 9px 'JetBrains Mono'; white-space:nowrap; }
+    .link-btn, .ghost-btn, .primary-btn, .danger-btn { min-height:40px; border-radius:8px; border:1px solid var(--line); background:#121928; color:var(--paper); padding:9px 12px; text-decoration:none; font:600 10px 'JetBrains Mono'; letter-spacing:.04em; }
+    .link-btn:hover, .ghost-btn:hover { border-color:#58d7ff88; }
+    .primary-btn { border-color:#a879ff9e; background:linear-gradient(135deg,#7546d7,#a957b3); box-shadow:0 10px 30px #7d45c22e; }
+    .primary-btn:disabled, .ghost-btn:disabled { cursor:not-allowed; opacity:.48; }
+    .danger-btn { color:#ff9ab4; border-color:#ff6fbd42; background:#ff6fbd0c; }
+    .workspace { min-height:0; display:grid; grid-template-columns:minmax(260px,320px) minmax(420px,1fr) minmax(230px,280px); }
+    .rail { min-height:0; overflow:auto; padding:18px; background:#0a0f19db; }
+    .rail.left { border-right:1px solid var(--line); }
+    .rail.right { border-left:1px solid var(--line); }
+    .eyebrow { color:var(--violet); font:700 9px 'JetBrains Mono'; letter-spacing:.17em; text-transform:uppercase; }
+    h1 { margin:9px 0 7px; font:700 25px 'JetBrains Mono'; letter-spacing:-.055em; }
+    .intro { margin:0 0 18px; color:var(--muted); font-size:12px; line-height:1.55; }
+    label { display:block; margin:14px 0 6px; color:#b9c4d7; font:600 9px 'JetBrains Mono'; letter-spacing:.08em; text-transform:uppercase; }
+    input[type="text"], textarea, select { width:100%; border:1px solid var(--line); border-radius:9px; background:#0d1320; color:var(--paper); padding:11px; outline:none; }
+    input:focus, textarea:focus, select:focus { border-color:var(--violet); box-shadow:0 0 0 3px #a879ff17; }
+    textarea { min-height:190px; resize:vertical; line-height:1.48; }
+    .upload { display:flex; align-items:center; justify-content:center; min-height:44px; border:1px dashed #53627c; border-radius:9px; color:#bdc8da; background:#ffffff03; font-size:11px; cursor:pointer; }
+    .upload:hover { border-color:var(--cyan); color:var(--cyan); }
+    .upload input { position:absolute; opacity:0; pointer-events:none; }
+    .count { display:flex; justify-content:space-between; margin-top:6px; color:#69768d; font:500 8px 'JetBrains Mono'; }
+    .rights { display:grid; grid-template-columns:auto 1fr; gap:9px; align-items:start; margin:14px 0; padding:11px; border:1px solid var(--line); border-radius:9px; background:#ffffff03; }
+    .rights input { width:17px; height:17px; margin:1px 0 0; accent-color:var(--violet); }
+    .rights span { color:#9eabc0; font-size:10px; line-height:1.5; }
+    .generate { width:100%; min-height:46px; }
+    .status { min-height:34px; margin-top:9px; padding:8px 10px; border-radius:8px; color:var(--muted); font:500 9px 'JetBrains Mono'; line-height:1.5; }
+    .status[data-state="busy"] { color:var(--cyan); background:#58d7ff0a; }
+    .status[data-state="error"] { color:#ff9ab4; background:#ff6fbd0a; }
+    .status[data-state="success"] { color:var(--green); background:#58edb00a; }
+    .stage { min-width:0; min-height:0; overflow:auto; padding:22px clamp(15px,3vw,34px) 50px; }
+    .empty-stage { min-height:100%; display:grid; place-items:center; text-align:center; border:1px dashed #344159; border-radius:18px; padding:28px; background:linear-gradient(145deg,#101726aa,#0a0e17aa); }
+    .empty-stage strong { display:block; font:700 clamp(22px,4vw,38px) 'JetBrains Mono'; letter-spacing:-.06em; }
+    .empty-stage p { max-width:460px; color:var(--muted); font-size:13px; line-height:1.6; }
+    .page-head { display:flex; justify-content:space-between; align-items:flex-end; gap:18px; margin-bottom:18px; }
+    .page-head h2 { margin:6px 0 0; font:700 clamp(20px,3vw,32px) 'JetBrains Mono'; letter-spacing:-.05em; }
+    .page-head p { max-width:620px; margin:8px 0 0; color:#9ca9bd; font-size:12px; line-height:1.55; }
+    .page-actions { display:flex; gap:7px; flex-wrap:wrap; justify-content:flex-end; }
+    .comic-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+    .comic-panel { min-width:0; overflow:hidden; border:1px solid #45536c; border-radius:13px; background:#0a0e17; box-shadow:0 15px 35px #0006; }
+    .panel-art { position:relative; min-height:210px; padding:16px; display:flex; align-items:flex-end; isolation:isolate; overflow:hidden; background:linear-gradient(145deg,var(--panel-a),var(--panel-b)); }
+    .panel-art::before { content:""; position:absolute; inset:-25%; z-index:-2; background:radial-gradient(circle at 70% 25%,var(--panel-c),transparent 28%),linear-gradient(115deg,transparent 43%,#ffffff0a 44% 46%,transparent 47%); transform:rotate(calc(var(--panel-index) * 7deg)); }
+    .panel-art::after { content:""; position:absolute; z-index:-1; width:45%; aspect-ratio:.72; left:28%; bottom:-12%; border-radius:48% 48% 16% 16%; background:#05070bbd; box-shadow:-95px 30px 0 -28px #0709109e,95px 42px 0 -34px #0709109e; filter:drop-shadow(0 0 24px #000); }
+    .panel-number { position:absolute; top:11px; left:11px; width:29px; height:29px; display:grid; place-items:center; border:1px solid #ffffff4a; background:#060913d9; border-radius:7px; font:700 11px 'JetBrains Mono'; }
+    .shot { position:absolute; top:13px; right:13px; max-width:65%; text-align:right; color:#dce5f4; font:600 8px 'JetBrains Mono'; letter-spacing:.08em; text-transform:uppercase; }
+    .art-copy { width:100%; padding:9px 10px; border-left:2px solid var(--cyan); background:#050811d9; backdrop-filter:blur(8px); }
+    .art-copy b { display:block; font:700 11px 'JetBrains Mono'; }
+    .art-copy span { display:block; margin-top:4px; color:#aab6ca; font-size:9px; line-height:1.4; }
+    .panel-copy { padding:13px; display:grid; gap:9px; }
+    .panel-copy label { margin:0 0 4px; font-size:8px; }
+    .panel-copy textarea { min-height:66px; padding:9px; font-size:11px; }
+    .dialogue-row { display:grid; grid-template-columns:100px 1fr; gap:7px; }
+    .dialogue-row input { font-size:10px; padding:8px; }
+    .character-list, .project-list { display:grid; gap:8px; margin-top:10px; }
+    .character, .project-card { padding:10px; border:1px solid var(--line); border-radius:9px; background:#0d1320; }
+    .character b, .project-card b { display:block; font:700 10px 'JetBrains Mono'; color:#e8eef9; }
+    .character span, .project-card span { display:block; margin-top:4px; color:#8491a7; font-size:9px; line-height:1.45; }
+    .project-card { width:100%; text-align:left; color:inherit; }
+    .project-card:hover, .project-card.active { border-color:var(--violet); background:#a879ff0b; }
+    .library-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+    .library-head h2 { margin:0; font:700 12px 'JetBrains Mono'; }
+    .tiny-btn { border:0; background:transparent; color:var(--cyan); padding:5px; font:600 9px 'JetBrains Mono'; }
+    .section { margin-top:22px; padding-top:18px; border-top:1px solid var(--line); }
+    .section h3 { margin:0; color:#b7c3d6; font:700 9px 'JetBrains Mono'; letter-spacing:.12em; text-transform:uppercase; }
+    .privacy { color:#6f7d93; font-size:9px; line-height:1.5; }
+    @media (max-width:1000px) { .workspace { grid-template-columns:280px minmax(400px,1fr); } .rail.right { grid-column:1/-1; border-left:0; border-top:1px solid var(--line); display:grid; grid-template-columns:1fr 1fr; gap:18px; } }
+    @media (max-width:720px) { html,body,#canvas-root { overflow:hidden; } .studio-top { min-height:58px; padding:9px 11px; } .brand span,.credits { display:none; } .link-btn { padding:9px; } .workspace { display:block; overflow:auto; } .rail.left,.rail.right,.stage { overflow:visible; } .rail.left { border-right:0; border-bottom:1px solid var(--line); padding:15px; } .stage { padding:16px 12px 30px; } .rail.right { display:block; padding:15px; } .comic-grid { grid-template-columns:1fr; } .page-head { align-items:flex-start; flex-direction:column; } .page-actions { justify-content:flex-start; } textarea { min-height:150px; } .panel-art { min-height:230px; } }
+    @media (prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important; transition:none!important; animation:none!important; } }
+  </style>
+</head>
+<body>
+  <div id="canvas-root"></div>
+  <script type="module">
+    import { mountCanvas } from '/canvas-engine.js';
+
+    const canvas = mountCanvas({ canvasId:'story-studio', canvasTitle:'Story Studio' });
+    const studio = document.createElement('main');
+    studio.className = 'studio';
+    studio.innerHTML = `
+      <header class="studio-top">
+        <div class="brand"><i class="brand-mark">NS</i><div><strong>NEXUS STORY STUDIO</strong><span>WRITING → COMIC CONTINUITY</span></div></div>
+        <div class="top-actions"><span class="credits" id="credits">Credits loading…</span><a class="link-btn" href="/nexus-space.html#story">Venture Factory</a></div>
+      </header>
+      <div class="workspace">
+        <aside class="rail left">
+          <div class="eyebrow">Chapter intake</div><h1>Shape the first issue.</h1>
+          <p class="intro">Paste one chapter. Nex will extract its story beats, lock character continuity, and arrange a six-panel comic sequence.</p>
+          <label for="source-title">Chapter title</label><input id="source-title" type="text" maxlength="120" placeholder="Chapter 1 — The Signal">
+          <label class="upload" for="source-file">Upload .txt or .md chapter<input id="source-file" type="file" accept=".txt,.md,text/plain,text/markdown"></label>
+          <label for="source-text">Writing</label><textarea id="source-text" maxlength="30000" placeholder="Paste at least 100 characters from one chapter…"></textarea>
+          <div class="count"><span id="source-count">0 characters</span><span>30,000 max</span></div>
+          <label for="visual-style">Visual direction</label>
+          <select id="visual-style"><option value="cinematic graphic novel">Cinematic graphic novel</option><option value="bold modern superhero comic">Modern superhero</option><option value="warm hand-inked adventure comic">Hand-inked adventure</option><option value="high-contrast noir comic">High-contrast noir</option><option value="bright all-ages animated comic">All-ages animated</option></select>
+          <label class="rights"><input id="rights-confirmed" type="checkbox"><span>I confirm this is my writing, public domain, licensed, or otherwise cleared for adaptation.</span></label>
+          <button class="primary-btn generate" id="generate-btn" type="button">Generate comic sequence</button>
+          <div class="status" id="status" role="status" aria-live="polite">Ready for your first chapter.</div>
+        </aside>
+        <section class="stage" id="stage">
+          <div class="empty-stage"><div><div class="eyebrow">Nex Story Editor</div><strong>One chapter.<br>One visual world.</strong><p>Your first output will be an editable comic blueprint: six composed panels, concise dialogue, character continuity, and production-ready art direction.</p></div></div>
+        </section>
+        <aside class="rail right">
+          <div><div class="library-head"><h2>PROJECT LIBRARY</h2><button class="tiny-btn" id="new-btn" type="button">+ New</button></div><div class="project-list" id="project-list"><p class="privacy">Loading private projects…</p></div></div>
+          <div class="section"><h3>Continuity bible</h3><div class="character-list" id="character-list"><p class="privacy">Characters appear here after generation.</p></div></div>
+          <div class="section"><h3>Rights & privacy</h3><p class="privacy">Your chapter and project are stored inside your private Nexus account and sent to the configured AI provider only to create this adaptation. Delete removes the saved Story Studio project.</p></div>
+        </aside>
+      </div>`;
+    canvas.addPanel({ id:'story-studio', title:'Story Studio', content:studio, locked:true });
+
+    const els = Object.fromEntries(['credits','source-title','source-file','source-text','source-count','visual-style','rights-confirmed','generate-btn','status','stage','project-list','character-list','new-btn'].map((id) => [id, document.getElementById(id)]));
+    let currentProject = null;
+
+    function setStatus(message, state='') { els.status.textContent = message; els.status.dataset.state = state; }
+    function safeColor(value, fallback) { return /^#[0-9a-f]{6}$/i.test(String(value || '')) ? value : fallback; }
+    function formatWhen(timestamp) { return new Date(timestamp).toLocaleDateString(undefined,{month:'short',day:'numeric'}); }
+
+    async function request(url, options={}) {
+      const response = await fetch(url, { ...options, headers:{ 'Content-Type':'application/json', ...(options.headers || {}) } });
+      if (response.status === 401) { location.href = '/room-login.html?next=/story-studio.html'; throw new Error('Sign in required'); }
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Request failed');
+      return data;
+    }
+
+    function syncComicFromInputs() {
+      if (!currentProject) return;
+      document.querySelectorAll('.comic-panel').forEach((card, index) => {
+        const panel = currentProject.comic.panels[index];
+        panel.caption = card.querySelector('[data-field="caption"]').value;
+        panel.artDirection = card.querySelector('[data-field="artDirection"]').value;
+        const speaker = card.querySelector('[data-field="speaker"]');
+        const line = card.querySelector('[data-field="dialogue"]');
+        panel.dialogue = line.value.trim() ? [{ speaker:speaker.value, line:line.value }] : [];
+      });
+    }
+
+    function renderCharacters() {
+      els.characterList.replaceChildren();
+      const characters = currentProject?.comic?.characters || [];
+      if (!characters.length) { els.characterList.innerHTML = '<p class="privacy">No recurring characters identified yet.</p>'; return; }
+      characters.forEach((character) => {
+        const item = document.createElement('article'); item.className = 'character';
+        const name = document.createElement('b'); name.textContent = character.name + (character.role ? ` · ${character.role}` : '');
+        const details = document.createElement('span'); details.textContent = [character.appearance, character.continuity].filter(Boolean).join(' Continuity: ');
+        item.append(name,details); els.characterList.append(item);
+      });
+    }
+
+    function renderProject() {
+      if (!currentProject) return;
+      const comic = currentProject.comic;
+      els.stage.replaceChildren();
+      const head = document.createElement('header'); head.className = 'page-head';
+      const intro = document.createElement('div');
+      const eye = document.createElement('div'); eye.className = 'eyebrow'; eye.textContent = [comic.genre, `${comic.panels.length} panels`].filter(Boolean).join(' · ');
+      const title = document.createElement('h2'); title.textContent = comic.title;
+      const logline = document.createElement('p'); logline.textContent = comic.logline || comic.visualStyle;
+      intro.append(eye,title,logline);
+      const actions = document.createElement('div'); actions.className = 'page-actions';
+      const save = document.createElement('button'); save.className = 'primary-btn'; save.type = 'button'; save.textContent = 'Save edits'; save.addEventListener('click', saveEdits);
+      const download = document.createElement('button'); download.className = 'ghost-btn'; download.type = 'button'; download.textContent = 'Export JSON'; download.addEventListener('click', exportProject);
+      const remove = document.createElement('button'); remove.className = 'danger-btn'; remove.type = 'button'; remove.textContent = 'Delete'; remove.addEventListener('click', deleteCurrent);
+      actions.append(save,download,remove); head.append(intro,actions); els.stage.append(head);
+      const grid = document.createElement('div'); grid.className = 'comic-grid';
+      comic.panels.forEach((panel,index) => {
+        const card = document.createElement('article'); card.className = 'comic-panel';
+        const palette = comic.palette || [];
+        card.style.setProperty('--panel-a',safeColor(palette[index % palette.length],'#1b2740'));
+        card.style.setProperty('--panel-b',safeColor(palette[(index + 1) % palette.length],'#492d66'));
+        card.style.setProperty('--panel-c',safeColor(palette[(index + 2) % palette.length],'#58d7ff'));
+        card.style.setProperty('--panel-index',String(index + 1));
+        const art = document.createElement('div'); art.className = 'panel-art';
+        const number = document.createElement('span'); number.className = 'panel-number'; number.textContent = String(index + 1).padStart(2,'0');
+        const shot = document.createElement('span'); shot.className = 'shot'; shot.textContent = panel.shot || 'Story beat';
+        const artCopy = document.createElement('div'); artCopy.className = 'art-copy';
+        const panelTitle = document.createElement('b'); panelTitle.textContent = panel.title;
+        const setting = document.createElement('span'); setting.textContent = panel.setting || panel.beat;
+        artCopy.append(panelTitle,setting); art.append(number,shot,artCopy);
+        const copy = document.createElement('div'); copy.className = 'panel-copy';
+        const captionLabel = document.createElement('label'); captionLabel.textContent = 'Caption';
+        const caption = document.createElement('textarea'); caption.dataset.field = 'caption'; caption.value = panel.caption || ''; caption.setAttribute('aria-label',`Panel ${index + 1} caption`);
+        const dialogueLabel = document.createElement('label'); dialogueLabel.textContent = 'Dialogue';
+        const dialogue = document.createElement('div'); dialogue.className = 'dialogue-row';
+        const speaker = document.createElement('input'); speaker.type = 'text'; speaker.dataset.field = 'speaker'; speaker.value = panel.dialogue?.[0]?.speaker || ''; speaker.placeholder = 'Speaker'; speaker.setAttribute('aria-label',`Panel ${index + 1} speaker`);
+        const line = document.createElement('input'); line.type = 'text'; line.dataset.field = 'dialogue'; line.value = panel.dialogue?.[0]?.line || ''; line.placeholder = 'Dialogue line'; line.setAttribute('aria-label',`Panel ${index + 1} dialogue`); dialogue.append(speaker,line);
+        const directionLabel = document.createElement('label'); directionLabel.textContent = 'Art direction';
+        const direction = document.createElement('textarea'); direction.dataset.field = 'artDirection'; direction.value = panel.artDirection || ''; direction.setAttribute('aria-label',`Panel ${index + 1} art direction`);
+        copy.append(captionLabel,caption,dialogueLabel,dialogue,directionLabel,direction); card.append(art,copy); grid.append(card);
+      });
+      els.stage.append(grid); renderCharacters();
+      els.sourceTitle.value = currentProject.sourceTitle || '';
+      els.sourceText.value = currentProject.sourceText || '';
+      updateCount();
+    }
+
+    async function generate() {
+      const sourceText = els.sourceText.value.trim();
+      if (sourceText.length < 100) return setStatus('Add at least 100 characters from one chapter.','error');
+      if (!els.rightsConfirmed.checked) return setStatus('Confirm that you have the right to adapt this writing.','error');
+      els.generateBtn.disabled = true; setStatus('Nex is finding the strongest beats and locking continuity…','busy');
+      try {
+        const data = await request('/api/story-studio',{ method:'POST', body:JSON.stringify({ action:'generate', sourceTitle:els.sourceTitle.value.trim(), sourceText, visualStyle:els.visualStyle.value, rightsConfirmed:true }) });
+        currentProject = data.project; renderProject(); await loadProjects(); await refreshCredits(); setStatus('Comic sequence created and saved.','success');
+      } catch (error) { setStatus(error.message,'error'); }
+      finally { els.generateBtn.disabled = false; }
+    }
+
+    async function saveEdits() {
+      if (!currentProject) return;
+      syncComicFromInputs(); setStatus('Saving panel edits…','busy');
+      try { const data = await request('/api/story-studio',{ method:'POST', body:JSON.stringify({ action:'save', projectId:currentProject.id, comic:currentProject.comic }) }); currentProject = data.project; await loadProjects(); setStatus('Panel edits saved.','success'); }
+      catch (error) { setStatus(error.message,'error'); }
+    }
+
+    async function loadProject(id) {
+      setStatus('Loading project…','busy');
+      try { currentProject = (await request('/api/story-studio?id=' + encodeURIComponent(id))).project; renderProject(); await loadProjects(); setStatus('Project loaded.','success'); }
+      catch (error) { setStatus(error.message,'error'); }
+    }
+
+    async function loadProjects() {
+      try {
+        const { projects } = await request('/api/story-studio'); els.projectList.replaceChildren();
+        if (!projects.length) { els.projectList.innerHTML = '<p class="privacy">No Story Studio projects yet.</p>'; return; }
+        projects.forEach((project) => { const button = document.createElement('button'); button.type = 'button'; button.className = 'project-card' + (project.id === currentProject?.id ? ' active' : ''); const title = document.createElement('b'); title.textContent = project.comicTitle; const meta = document.createElement('span'); meta.textContent = `${project.panelCount} panels · ${formatWhen(project.updatedAt)}`; button.append(title,meta); button.addEventListener('click',() => loadProject(project.id)); els.projectList.append(button); });
+      } catch (error) { if (error.message !== 'Sign in required') els.projectList.innerHTML = '<p class="privacy">Could not load projects.</p>'; }
+    }
+
+    async function deleteCurrent() {
+      if (!currentProject || !confirm('Delete this Story Studio project? This cannot be undone.')) return;
+      try { await request('/api/story-studio?id=' + encodeURIComponent(currentProject.id),{ method:'DELETE' }); resetStudio(); await loadProjects(); setStatus('Project deleted.','success'); }
+      catch (error) { setStatus(error.message,'error'); }
+    }
+
+    function exportProject() {
+      if (!currentProject) return; syncComicFromInputs();
+      const blob = new Blob([JSON.stringify(currentProject,null,2)],{ type:'application/json' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = 'nexus-story-project.json'; link.click(); setTimeout(() => URL.revokeObjectURL(url),1000);
+    }
+
+    function resetStudio() { currentProject = null; els.sourceTitle.value = ''; els.sourceText.value = ''; els.rightsConfirmed.checked = false; els.stage.innerHTML = '<div class="empty-stage"><div><div class="eyebrow">Nex Story Editor</div><strong>One chapter.<br>One visual world.</strong><p>Your first output will be an editable comic blueprint: six composed panels, concise dialogue, character continuity, and production-ready art direction.</p></div></div>'; els.characterList.innerHTML = '<p class="privacy">Characters appear here after generation.</p>'; updateCount(); setStatus('Ready for a new chapter.'); }
+    function updateCount() { els.sourceCount.textContent = `${els.sourceText.value.length.toLocaleString()} characters`; }
+    async function refreshCredits() { try { const response = await fetch('/api/room-usage',{cache:'no-store'}); if (!response.ok) return; const data = await response.json(); els.credits.textContent = `${data.usage.remaining} credits left`; } catch {} }
+
+    els.sourceText.addEventListener('input',updateCount); els.generateBtn.addEventListener('click',generate); els.newBtn.addEventListener('click',resetStudio);
+    els.sourceFile.addEventListener('change',async () => { const file = els.sourceFile.files?.[0]; if (!file) return; if (file.size > 100000) return setStatus('Keep text files under 100 KB for this first version.','error'); els.sourceText.value = (await file.text()).slice(0,30000); if (!els.sourceTitle.value) els.sourceTitle.value = file.name.replace(/\.(txt|md)$/i,''); updateCount(); setStatus('Chapter loaded. Confirm rights, then generate.','success'); });
+    fetch('/api/room-auth',{cache:'no-store'}).then((response) => { if (!response.ok) location.href = '/room-login.html?next=/story-studio.html'; else { loadProjects(); refreshCredits(); } }).catch(() => setStatus('Could not verify your session.','error'));
+  </script>
+</body>
+</html>
