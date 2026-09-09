@@ -29,6 +29,7 @@
 import { saveBuild } from '../lib/roomHistory.js';
 import { getRequestUser } from '../lib/roomAuth.js';
 import { roomMeter } from '../lib/roomMetering.js';
+import { roomConversations } from '../lib/roomConversation.js';
 
 const ANTHROPIC_ENDPOINT = 'https://api.anthropic.com/v1/messages';
 
@@ -96,7 +97,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { message, currentHtml } = req.body || {};
+  const { message, displayMessage, currentHtml, projectId } = req.body || {};
   if (!message) return res.status(400).json({ error: 'Missing message' });
 
   const username = await getRequestUser(req);
@@ -297,8 +298,30 @@ export default async function handler(req, res) {
     buildSucceeded = true;
 
     try {
-      const saved = await saveBuild(username, { label: message, requestMessage: message, html });
-      send({ action: 'saved', id: saved.id });
+      const customerMessage = typeof displayMessage === 'string' && displayMessage.trim()
+        ? displayMessage.trim()
+        : message;
+      const saved = await saveBuild(username, {
+        label: customerMessage,
+        requestMessage: customerMessage,
+        html,
+        projectId,
+      });
+      send({ action: 'saved', id: saved.id, projectId: saved.projectId || saved.id });
+      if (saved.projectId) {
+        try {
+          await roomConversations.appendTurns(username, saved.projectId, [
+            {
+              role: 'assistant',
+              text: isEdit
+                ? 'The requested update was completed and saved.'
+                : 'The first working version was completed and saved.',
+            },
+          ]);
+        } catch (conversationError) {
+          console.error('room-chat: completion memory write failed:', conversationError.message);
+        }
+      }
     } catch (saveErr) {
       console.error('room-chat: failed to save build to history:', saveErr.message);
       send({ action: 'save_error', message: "Built it, but couldn't save it to history — it'll be lost on refresh." });

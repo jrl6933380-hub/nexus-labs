@@ -530,11 +530,20 @@
     flex: 1; min-width: 28px; color: var(--muted); text-align: center;
     font-family: var(--sans); font-size: 16px; letter-spacing: 3px;
   }
+  .chat-specialty {
+    padding: 4px 7px;
+    border: 1px solid rgba(77,216,232,.22);
+    border-radius: 999px;
+    color: var(--cyan);
+    font: 650 10px/1 var(--sans);
+    white-space: nowrap;
+  }
   .chat-toggle { display: inline-flex; color: var(--text); font-size: 12px; letter-spacing: 0; text-transform: none; }
   .chat-toggle::before { box-shadow: none; }
   .chat-heading { display: none; }
   .room-builder-wrap:not(.chat-open) .chat-panel { width: 112px; height: 48px; box-shadow: 0 14px 38px rgba(0,0,0,.46); }
   .room-builder-wrap:not(.chat-open) .chat-toggle-label { display: none; }
+  .room-builder-wrap:not(.chat-open) .chat-specialty { display: none; }
   .room-builder-wrap:not(.chat-open) .chat-history,
   .room-builder-wrap:not(.chat-open) .input-row,
   .room-builder-wrap:not(.chat-open) .chat-status,
@@ -596,6 +605,7 @@
           <button class="chat-toggle" id="chat-toggle" type="button" aria-expanded="false">
             Nex <span class="chat-toggle-label" id="chat-toggle-label">Open conversation</span>
           </button>
+          <span class="chat-specialty">Web Pro</span>
           <span class="chat-drag-handle" aria-hidden="true" title="Drag chat">•••</span>
           <span class="chat-heading">Build with Nex</span>
           <div class="chat-tools">
@@ -605,9 +615,9 @@
         </div>
         <div class="chat-history" id="chat-history"></div>
         <div class="input-row">
-          <textarea class="chat-input" id="chat-input" rows="1" aria-label="Describe what to build or change" placeholder="Describe what to build or change…"></textarea>
+          <textarea class="chat-input" id="chat-input" rows="1" aria-label="Ask Nex or describe what to build or change" placeholder="Ask Nex or describe what to build…"></textarea>
           <button class="mic-btn" id="mic-btn" type="button" aria-label="Speak to Nex">Mic</button>
-          <button class="send-btn" id="send-btn" type="button">Build</button>
+          <button class="send-btn" id="send-btn" type="button">Send</button>
         </div>
       </aside>
 
@@ -676,8 +686,14 @@
 
   // ---- Project state: the current document plus enough local metadata to
   // drive safe actions and a clear phone-first workflow. ----
+  function newProjectId() {
+    if (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') return globalThis.crypto.randomUUID();
+    return `room-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  }
+
   let currentHtml = '';
   let currentLabel = 'New project';
+  let currentProjectId = newProjectId();
 
   const frame = document.getElementById('canvas-frame');
   const emptyState = document.getElementById('canvas-empty');
@@ -692,12 +708,13 @@
     return /<!-- NEXUS_SAFETY_SHIM_START -->/i.test(html);
   }
 
-  function renderHtml(html, { label } = {}) {
+  function renderHtml(html, { label, projectId } = {}) {
     // Older saved builds may contain the retired in-project editor bubble.
     // The movable builder dock is now the one and only conversation surface.
     html = stripLiveEditWidget(html);
     currentHtml = html;
     currentLabel = label || currentLabel || 'Untitled project';
+    if (projectId) currentProjectId = projectId;
     frame.srcdoc = html;
     frame.classList.add('visible');
     emptyState.style.display = 'none';
@@ -715,6 +732,7 @@
   function resetProject() {
     currentHtml = '';
     currentLabel = 'New project';
+    currentProjectId = newProjectId();
     projectState.innerText = currentLabel;
     frame.srcdoc = '';
     frame.classList.remove('visible');
@@ -769,13 +787,16 @@
     frame.srcdoc = currentHtml;
   });
 
-  document.querySelectorAll('.device-btn').forEach((button) => {
-    button.addEventListener('click', () => {
-      document.querySelector('.canvas').dataset.viewport = button.dataset.viewport;
-      document.querySelectorAll('.device-btn').forEach((candidate) => {
-        candidate.setAttribute('aria-pressed', String(candidate === button));
-      });
+  function setPreviewViewport(viewport) {
+    const nextViewport = ['responsive', 'tablet', 'phone'].includes(viewport) ? viewport : 'responsive';
+    document.querySelector('.canvas').dataset.viewport = nextViewport;
+    document.querySelectorAll('.device-btn').forEach((candidate) => {
+      candidate.setAttribute('aria-pressed', String(candidate.dataset.viewport === nextViewport));
     });
+  }
+
+  document.querySelectorAll('.device-btn').forEach((button) => {
+    button.addEventListener('click', () => setPreviewViewport(button.dataset.viewport));
   });
 
   async function refreshUsage() {
@@ -847,7 +868,9 @@
       const res = await fetch('/api/room-history?id=' + encodeURIComponent(id));
       const data = await res.json();
       if (data.build) {
-        renderHtml(data.build.html, { label: data.build.label || 'Saved project' });
+        const projectId = data.build.projectId || data.build.id;
+        renderHtml(data.build.html, { label: data.build.label || 'Saved project', projectId });
+        await loadProjectConversation(projectId);
         addBubble('nex', `Loaded "${data.build.label}" from history.`);
         showNextSteps();
         historyPanel.classList.remove('open');
@@ -974,6 +997,23 @@
     return el;
   }
 
+  async function loadProjectConversation(projectId) {
+    try {
+      const res = await fetch('/api/room-conversation?projectId=' + encodeURIComponent(projectId), {
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+      });
+      if (!res.ok) return false;
+      const data = await res.json();
+      if (!Array.isArray(data.turns) || data.turns.length === 0) return false;
+      chatHistory.replaceChildren();
+      data.turns.forEach((turn) => addBubble(turn.role === 'assistant' ? 'nex' : 'user', turn.text));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   const starterGuides = {
     business: {
       label: 'Business website',
@@ -1029,6 +1069,46 @@
     chatInput.setSelectionRange(text.length, text.length);
   }
 
+  function addAssistantSuggestions(suggestions) {
+    if (!Array.isArray(suggestions) || suggestions.length === 0) return;
+    addQuickActions(suggestions.map((suggestion) => ({
+      label: suggestion,
+      run: () => setPromptDraft(suggestion),
+    })));
+  }
+
+  function executeWorkspaceCommand(command) {
+    if (command === 'preview_phone') {
+      setPreviewViewport('phone');
+      return null;
+    }
+    if (command === 'preview_tablet') {
+      setPreviewViewport('tablet');
+      return null;
+    }
+    if (command === 'preview_fit') {
+      setPreviewViewport('responsive');
+      return null;
+    }
+    if (command === 'open_projects') {
+      historyPanel.classList.add('open');
+      historyBtn.classList.add('active');
+      loadHistoryList();
+      return null;
+    }
+    if (command === 'open_preview') {
+      if (!currentHtml) return 'Build or open a project first, then I can open its preview.';
+      openPreviewBtn.click();
+      return null;
+    }
+    if (command === 'export_project') {
+      if (!currentHtml) return 'Build or open a project first, then I can export it.';
+      exportBtn.click();
+      return null;
+    }
+    return 'I can’t run that workspace action.';
+  }
+
   function chooseStarter(key) {
     const guide = starterGuides[key];
     if (!guide) return;
@@ -1053,8 +1133,13 @@
     })));
   }
 
-  function showNextSteps() {
-    addBubble('nex', 'Your version is saved. Move me aside to inspect it, then choose a next step or describe any change in your own words.');
+  function showNextSteps({ saved = true } = {}) {
+    addBubble(
+      'nex',
+      saved
+        ? 'Your version is saved. Move me aside to inspect it, then choose a next step or describe any change in your own words.'
+        : 'Move me aside to inspect this version, then choose a next step or describe any change in your own words. Export it now if you want to keep this copy.',
+    );
     addQuickActions([
       {
         label: 'Polish mobile',
@@ -1242,57 +1327,52 @@
     }
   });
 
-  // sendMessage reads the chat box normally. Quick actions may also pass a
-  // complete, visible instruction after the customer explicitly selects it.
-  async function sendMessage(messageOverride) {
-    const message = (typeof messageOverride === 'string' ? messageOverride : chatInput.value).trim();
-    if (!message || sendBtn.disabled) return;
-    const wasEdit = Boolean(currentHtml);
-    markQuickActionsUsed();
-    try { localStorage.setItem('nexus-room-guide-seen-v1', '1'); } catch {}
-    setChatOpen(true);
+  function restoreComposer({ focus = false } = {}) {
+    chatStatus.innerText = 'Ready';
+    sendBtn.disabled = false;
+    chatInput.disabled = false;
+    chatInput.style.height = 'auto';
+    if (focus && wrap.classList.contains('chat-open')) chatInput.focus();
+    refreshUsage();
+  }
+
+  async function runProjectBuild(instruction, customerMessage, wasEdit) {
     chatStatus.innerText = 'Building';
-    addBubble('user', message);
-    chatInput.value = '';
-    sendBtn.disabled = true;
-    chatInput.disabled = true;
     const buildingBubble = addBubble(
       'nex',
-      wasEdit ? 'Reviewing that change…' : 'Turning your brief into the first working version…',
+      wasEdit ? 'Updating the current version…' : 'Creating the first working version…',
     );
-
     const slowNotice = setTimeout(() => {
-      buildingBubble.innerText = 'Still building… interactive stuff takes longer, hang tight.';
+      buildingBubble.innerText = 'Still building… interactive projects can take a minute.';
     }, 20000);
-
-    // The server aborts upstream generation at 110s. Keep a slightly longer
-    // browser backstop for dead connections without cancelling valid builds.
     const abortCtrl = new AbortController();
     const clientTimeout = setTimeout(() => abortCtrl.abort(), 115000);
     let offerNextSteps = false;
+    let saveSucceeded = false;
 
     try {
       const res = await fetch('/api/room-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, currentHtml }),
+        body: JSON.stringify({
+          message: instruction,
+          displayMessage: customerMessage,
+          currentHtml,
+          projectId: currentProjectId,
+        }),
         signal: abortCtrl.signal,
       });
-
       if (res.status === 401) {
         clearTimeout(slowNotice);
         buildingBubble.innerText = 'Your session expired — redirecting to sign in.';
         setTimeout(() => { window.location.href = '/room-login.html'; }, 1200);
         return;
       }
-
       if (!res.ok) {
         const failure = await res.json().catch(() => ({}));
-        if (res.status === 429 && failure.code === 'ROOM_CREDITS_EXHAUSTED') {
-          buildingBubble.innerText = failure.error + ' Check your Room usage before trying again.';
-        } else {
-          buildingBubble.innerText = failure.error || 'The Room could not start that build.';
-        }
+        buildingBubble.innerText = res.status === 429 && failure.code === 'ROOM_CREDITS_EXHAUSTED'
+          ? failure.error + ' Check your Room usage before trying again.'
+          : failure.error || 'The Room could not start that build.';
         return;
       }
 
@@ -1302,38 +1382,38 @@
       let gotHtml = false;
       let generatedHtml = '';
       let saveNote = '';
-
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
-
         const chunks = buffer.split('\n\n');
         buffer = chunks.pop() || '';
-
         for (const chunk of chunks) {
           if (!chunk.startsWith('data: ')) continue;
           const event = JSON.parse(chunk.slice(6));
-
           if (event.action === 'html') {
             gotHtml = true;
             generatedHtml = event.html;
             clearTimeout(slowNotice);
-            renderHtml(generatedHtml, { label: message.slice(0, 64) });
-            chatStatus.innerText = 'Ready';
+            renderHtml(generatedHtml, { label: customerMessage.slice(0, 64) });
             if (mobileLayout.matches) setChatOpen(false);
           } else if (event.action === 'progress') {
             buildingBubble.innerText = event.message || 'Still building…';
+          } else if (event.action === 'saved') {
+            currentProjectId = event.projectId || currentProjectId;
+            saveSucceeded = true;
           } else if (event.action === 'save_error') {
             saveNote = ' (' + event.message + ')';
           } else if (event.action === 'done') {
             clearTimeout(slowNotice);
             buildingBubble.innerText = gotHtml
-              ? (wasEdit ? 'Update complete and saved.' : 'First version complete and saved.') + saveNote
+              ? (saveSucceeded
+                  ? (wasEdit ? 'Update complete and saved.' : 'First version complete and saved.')
+                  : (wasEdit ? 'Update complete.' : 'First version complete.')) + saveNote
               : "Didn't get a page back — try rephrasing that.";
             if (gotHtml) {
               offerNextSteps = true;
-              chatInput.placeholder = 'Describe the next change…';
+              chatInput.placeholder = 'Ask Nex or describe the next change…';
               speakUpdate('Your build is ready.');
             }
           } else if (event.action === 'error') {
@@ -1344,19 +1424,79 @@
       }
     } catch (err) {
       clearTimeout(slowNotice);
-      if (err.name === 'AbortError') {
-        buildingBubble.innerText = 'That build took too long and the connection was stopped. Try something simpler or build it in smaller steps.';
-      } else {
-        buildingBubble.innerText = 'Something went wrong reaching the room.';
-      }
+      buildingBubble.innerText = err.name === 'AbortError'
+        ? 'That build took too long and was stopped. Try a smaller first step, then we can add the rest.'
+        : 'Something went wrong reaching the builder.';
     } finally {
       clearTimeout(clientTimeout);
-      chatStatus.innerText = 'Ready';
-      sendBtn.disabled = false;
-      chatInput.disabled = false;
-      if (offerNextSteps) showNextSteps();
-      chatInput.focus();
-      refreshUsage();
+      restoreComposer();
+      if (offerNextSteps) showNextSteps({ saved: saveSucceeded });
+    }
+  }
+
+  // Every customer message goes to their project-scoped Web Builder Nex first.
+  // Nex can answer, operate a safe local control, or hand a precise instruction
+  // to the streamed builder. A normal question never becomes an accidental edit.
+  async function sendMessage(messageOverride) {
+    const message = (typeof messageOverride === 'string' ? messageOverride : chatInput.value).trim();
+    if (!message || sendBtn.disabled) return;
+    markQuickActionsUsed();
+    try { localStorage.setItem('nexus-room-guide-seen-v1', '1'); } catch {}
+    setChatOpen(true);
+    addBubble('user', message);
+    chatInput.value = '';
+    chatInput.dispatchEvent(new Event('input'));
+    sendBtn.disabled = true;
+    chatInput.disabled = true;
+    chatStatus.innerText = 'Thinking';
+    const nexBubble = addBubble('nex', 'Thinking through that…');
+    let refocusAfterTurn = true;
+
+    try {
+      const res = await fetch('/api/room-assistant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message,
+          projectId: currentProjectId,
+          projectLabel: currentLabel,
+          currentHtml,
+          viewport: document.querySelector('.canvas').dataset.viewport,
+        }),
+      });
+      if (res.status === 401) {
+        nexBubble.innerText = 'Your session expired — redirecting to sign in.';
+        setTimeout(() => { window.location.href = '/room-login.html'; }, 1200);
+        return;
+      }
+      const decision = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        nexBubble.innerText = decision.error || 'I couldn’t answer that right now. Try again in a moment.';
+        return;
+      }
+      nexBubble.innerText = decision.message;
+      if (decision.kind === 'reply') {
+        addAssistantSuggestions(decision.suggestions);
+        speakUpdate(decision.message);
+        return;
+      }
+      if (decision.kind === 'command') {
+        refocusAfterTurn = false;
+        const commandError = executeWorkspaceCommand(decision.command);
+        if (commandError) nexBubble.innerText = commandError;
+        return;
+      }
+      if (decision.kind !== 'build' || !decision.instruction) {
+        nexBubble.innerText = 'I need a little more detail before I can help with that.';
+        return;
+      }
+      const wasEdit = Boolean(currentHtml);
+      refocusAfterTurn = false;
+      await runProjectBuild(decision.instruction, message, wasEdit);
+    } catch {
+      nexBubble.innerText = 'I couldn’t reach the Web Builder right now. Try again in a moment.';
+    } finally {
+      if (sendBtn.disabled) restoreComposer({ focus: refocusAfterTurn });
     }
   }
 
