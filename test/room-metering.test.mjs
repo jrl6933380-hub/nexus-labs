@@ -105,6 +105,27 @@ test('fresh and edit reservations use separate credit costs', async () => {
   );
 });
 
+test('professional Nex conversation uses a lightweight assistant credit', async () => {
+  const redis = fakeRedis();
+  const meter = createRoomMeter({
+    command: redis.command,
+    now,
+    config: { creditsLimit: 20, assistantCredits: 1, freshBuildCredits: 10, editCredits: 2 },
+  });
+  const turn = await meter.reserveBuild({ userId: 'alice', kind: 'assistant', requestId: 'talk-1' });
+  assert.equal(turn.ok, true);
+  assert.equal(turn.reserved, 1);
+  await meter.settleBuild({
+    userId: 'alice',
+    period: turn.period,
+    reservationId: turn.reservationId,
+    success: true,
+  });
+  const summary = await meter.getUsageSummary('alice');
+  assert.equal(summary.consumed, 1);
+  assert.equal(summary.remaining, 19);
+});
+
 test('hard ceiling rejects a reservation that would exceed the account limit', async () => {
   const redis = fakeRedis();
   const meter = createRoomMeter({ command: redis.command, now, config: { creditsLimit: 10, freshBuildCredits: 10 } });

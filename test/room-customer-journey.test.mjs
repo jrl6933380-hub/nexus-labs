@@ -26,3 +26,12 @@ test('generated projects stay free of Room Builder chrome', () => {
   assert.match(apiSource, /Don't add Room Builder controls/);
   assert.doesNotMatch(apiSource, /a real one is added automatically/);
 });
+
+test('the single dock is a conversational, project-aware Web Builder Nex', () => {
+  assert.match(roomSource, />Web Pro</);
+  assert.match(roomSource, /fetch\('\/api\/room-assistant'/);
+  assert.match(roomSource, /fetch\('\/api\/room-conversation\?projectId='/);
+  assert.match(roomSource, /executeWorkspaceCommand/);
+  assert.match(roomSource, /Ask Nex or describe what to build/);
+  assert.match(roomSource, /projectId: currentProjectId/);
+});
