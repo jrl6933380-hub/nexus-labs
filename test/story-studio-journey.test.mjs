@@ -21,6 +21,22 @@ test('the first golden path supports chapter input, rights confirmation, generat
   assert.match(source,/method:'DELETE'/);
 });
 
+test('every Story Studio DOM reference is wired to a camel-case element alias', () => {
+  const declared = new Set(
+    [...source.matchAll(/\['([A-Za-z]\w*)','[a-z0-9-]+'\]/g)].map((match) => match[1]),
+  );
+  const referenced = new Set(
+    [...source.matchAll(/\bels\.([A-Za-z]\w*)/g)].map((match) => match[1]),
+  );
+
+  assert.deepEqual(
+    [...referenced].filter((name) => !declared.has(name)),
+    [],
+    'every els.* reference must have a declared DOM alias',
+  );
+  assert.match(source,/if \(!element\) throw new Error\(`Story Studio could not initialize \$\{key\}\.`\);/);
+});
+
 test('Story Studio asks for six continuity-aware panels and preserves tenant ownership server-side', () => {
   assert.match(api,/Produce exactly 6 panels/);
   assert.match(api,/appearance/);
