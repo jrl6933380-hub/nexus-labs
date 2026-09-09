@@ -77,8 +77,45 @@
     .visual-btn[data-ready="true"] { color:var(--green); border-color:#58edb04f; }
     .panel-copy label { margin:0 0 4px; font-size:8px; }
     .panel-copy textarea { min-height:66px; padding:9px; font-size:11px; }
-    .dialogue-row { display:grid; grid-template-columns:100px 1fr; gap:7px; }
-    .dialogue-row input { font-size:10px; padding:8px; }
+    .bubble-layer { position:absolute; inset:48px 12px 76px; z-index:3; display:flex; flex-direction:column; align-items:flex-start; gap:8px; pointer-events:none; }
+    .comic-bubble { position:relative; max-width:min(76%,280px); padding:9px 12px; border:2px solid #111827; border-radius:17px; background:#fff; color:#111827; box-shadow:0 4px 0 #11182766,0 8px 22px #0007; font-size:11px; line-height:1.35; }
+    .comic-bubble:nth-child(even) { align-self:flex-end; }
+    .comic-bubble::after { content:""; position:absolute; left:17px; bottom:-9px; width:13px; height:13px; border-right:2px solid #111827; border-bottom:2px solid #111827; background:#fff; transform:skew(-24deg) rotate(35deg); }
+    .comic-bubble:nth-child(even)::after { left:auto; right:17px; transform:skew(24deg) rotate(55deg); }
+    .comic-bubble[data-type="thought"] { border-radius:999px; border-style:dashed; }
+    .comic-bubble[data-type="thought"]::after { width:8px; height:8px; bottom:-11px; border:2px solid #111827; border-radius:50%; transform:none; }
+    .comic-bubble[data-type="shout"] { border-radius:5px; border-color:#ff4f87; box-shadow:0 4px 0 #ff4f8766,0 8px 22px #0007; font-weight:800; text-transform:uppercase; }
+    .comic-bubble b { display:block; margin-bottom:2px; color:#7546d7; font:800 7px 'JetBrains Mono'; letter-spacing:.08em; text-transform:uppercase; }
+    .dialogue-editor { display:grid; gap:8px; }
+    .dialogue-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .dialogue-head label { margin:0; }
+    .dialogue-help { margin:0; color:#7f8ca2; font-size:9px; line-height:1.45; }
+    .dialogue-list { display:grid; gap:8px; }
+    .dialogue-item { padding:9px; border:1px solid #344159; border-radius:9px; background:#080d17; }
+    .dialogue-meta { display:grid; grid-template-columns:minmax(90px,1fr) minmax(88px,.7fr) auto; gap:7px; align-items:center; }
+    .dialogue-item input, .dialogue-item select, .dialogue-item textarea { font-size:10px; padding:8px; }
+    .dialogue-item textarea { min-height:58px; margin-top:7px; resize:vertical; }
+    .remove-bubble { width:34px; height:34px; border:1px solid #ff6fbd42; border-radius:7px; background:#ff6fbd0c; color:#ff9ab4; }
+    .add-bubble { min-height:30px; padding:6px 9px; color:var(--cyan); }
+    .no-dialogue { padding:10px; border:1px dashed #344159; border-radius:8px; color:#77849a; font-size:9px; text-align:center; }
+    .completion-bar { margin-top:18px; padding:16px; display:flex; align-items:center; justify-content:space-between; gap:16px; border:1px solid #58edb05e; border-radius:13px; background:linear-gradient(125deg,#58edb010,#a879ff12); }
+    .completion-bar b { display:block; font:700 13px 'JetBrains Mono'; }
+    .completion-bar span { display:block; margin-top:4px; color:#91a0b6; font-size:10px; }
+    .comic-reader { width:min(1180px,calc(100vw - 24px)); height:min(92vh,980px); max-width:none; max-height:none; margin:auto; padding:0; border:1px solid #53627c; border-radius:18px; background:#080b12; color:var(--paper); box-shadow:0 40px 120px #000; }
+    .comic-reader::backdrop { background:#02040ad9; backdrop-filter:blur(8px); }
+    .reader-shell { height:100%; min-height:0; display:grid; grid-template-rows:auto minmax(0,1fr); }
+    .reader-head { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:14px 18px; border-bottom:1px solid var(--line); background:#0e1420f5; }
+    .reader-head h2 { margin:3px 0 0; font:700 19px 'JetBrains Mono'; }
+    .reader-scroll { overflow:auto; padding:clamp(14px,3vw,34px); background:radial-gradient(circle at 50% 0,#a879ff18,transparent 38%),#070910; }
+    .reader-page { width:min(920px,100%); margin:0 auto; padding:clamp(10px,2vw,22px); display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; border:1px solid #3d4960; border-radius:12px; background:#e9e3d5; box-shadow:0 22px 70px #000a; }
+    .reader-panel { position:relative; min-height:clamp(260px,38vw,430px); overflow:hidden; border:3px solid #111827; background:#151c2a; }
+    .reader-panel:first-child, .reader-panel:last-child { grid-column:1/-1; min-height:clamp(280px,42vw,480px); }
+    .reader-panel .panel-image { filter:saturate(1.08) contrast(1.03); }
+    .reader-panel .bubble-layer { inset:18px 14px 82px; }
+    .reader-panel .comic-bubble { font-size:clamp(10px,1.4vw,14px); }
+    .reader-caption { position:absolute; z-index:4; left:12px; right:12px; bottom:12px; padding:9px 11px; border:2px solid #111827; background:#fff5ca; color:#141925; box-shadow:3px 3px 0 #111827; font:600 10px/1.4 'JetBrains Mono'; }
+    .reader-panel-number { position:absolute; z-index:5; top:7px; right:7px; padding:3px 5px; border:1px solid #111827; background:#fff; color:#111827; font:800 8px 'JetBrains Mono'; }
+    .reader-end { grid-column:1/-1; padding:22px; text-align:center; color:#111827; font:800 12px 'JetBrains Mono'; letter-spacing:.12em; }
     .character-list, .project-list { display:grid; gap:8px; margin-top:10px; }
     .character, .project-card { padding:10px; border:1px solid var(--line); border-radius:9px; background:#0d1320; }
     .character b, .project-card b { display:block; font:700 10px 'JetBrains Mono'; color:#e8eef9; }
@@ -92,7 +129,7 @@
     .section h3 { margin:0; color:#b7c3d6; font:700 9px 'JetBrains Mono'; letter-spacing:.12em; text-transform:uppercase; }
     .privacy { color:#6f7d93; font-size:9px; line-height:1.5; }
     @media (max-width:1000px) { .workspace { grid-template-columns:280px minmax(400px,1fr); } .rail.right { grid-column:1/-1; border-left:0; border-top:1px solid var(--line); display:grid; grid-template-columns:1fr 1fr; gap:18px; } }
-    @media (max-width:720px) { html,body,#canvas-root { overflow:hidden; } .studio-top { min-height:58px; padding:9px 11px; } .brand span,.credits { display:none; } .link-btn { padding:9px; } .workspace { display:block; overflow:auto; } .rail.left,.rail.right,.stage { overflow:visible; } .rail.left { border-right:0; border-bottom:1px solid var(--line); padding:15px; } .stage { padding:16px 12px 30px; } .rail.right { display:block; padding:15px; } .comic-grid { grid-template-columns:1fr; } .page-head { align-items:flex-start; flex-direction:column; } .page-actions { justify-content:flex-start; } textarea { min-height:150px; } .panel-art { min-height:230px; } }
+    @media (max-width:720px) { html,body,#canvas-root { overflow:hidden; } .studio-top { min-height:58px; padding:9px 11px; } .brand span,.credits { display:none; } .link-btn { padding:9px; } .workspace { display:block; overflow:auto; } .rail.left,.rail.right,.stage { overflow:visible; } .rail.left { border-right:0; border-bottom:1px solid var(--line); padding:15px; } .stage { padding:16px 12px 30px; } .rail.right { display:block; padding:15px; } .comic-grid { grid-template-columns:1fr; } .page-head { align-items:flex-start; flex-direction:column; } .page-actions { justify-content:flex-start; } textarea { min-height:150px; } .panel-art { min-height:270px; } .completion-bar { align-items:flex-start; flex-direction:column; } .dialogue-meta { grid-template-columns:1fr 100px auto; } .comic-reader { width:100vw; height:100dvh; border:0; border-radius:0; } .reader-head { padding:11px 12px; } .reader-page { grid-template-columns:1fr; gap:7px; padding:8px; border-radius:8px; } .reader-panel,.reader-panel:first-child,.reader-panel:last-child { grid-column:1; min-height:360px; } .reader-scroll { padding:8px; } }
     @media (prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important; transition:none!important; animation:none!important; } }
   </style>
 </head>
@@ -134,6 +171,14 @@
       </div>`;
     canvas.addPanel({ id:'story-studio', title:'Story Studio', content:studio, locked:true });
 
+    const reader = document.createElement('dialog');
+    reader.className = 'comic-reader';
+    reader.setAttribute('aria-labelledby','reader-title');
+    reader.innerHTML = '<div class="reader-shell"><header class="reader-head"><div><div class="eyebrow">Finished comic preview</div><h2 id="reader-title">Comic reader</h2></div><button class="ghost-btn" id="reader-close" type="button">Close reader</button></header><div class="reader-scroll" id="reader-scroll"></div></div>';
+    document.body.append(reader);
+    reader.querySelector('#reader-close').addEventListener('click',() => reader.close());
+    reader.addEventListener('click',(event) => { if (event.target === reader) reader.close(); });
+
     const els = Object.fromEntries([
       ['credits','credits'],
       ['sourceTitle','source-title'],
@@ -159,6 +204,37 @@
     function safeColor(value, fallback) { return /^#[0-9a-f]{6}$/i.test(String(value || '')) ? value : fallback; }
     function formatWhen(timestamp) { return new Date(timestamp).toLocaleDateString(undefined,{month:'short',day:'numeric'}); }
 
+    function dialogueFromCard(card) {
+      return [...card.querySelectorAll('.dialogue-item')].map((item) => ({
+        speaker:item.querySelector('[data-field="speaker"]').value.trim(),
+        line:item.querySelector('[data-field="dialogue"]').value.trim(),
+        type:item.querySelector('[data-field="dialogueType"]').value,
+      })).filter((item) => item.line).slice(0,6);
+    }
+
+    function createBubbleLayer(dialogue,readerMode=false) {
+      const layer = document.createElement('div'); layer.className = 'bubble-layer';
+      (dialogue || []).slice(0,readerMode ? 6 : 3).forEach((entry) => {
+        if (!entry?.line) return;
+        const bubble = document.createElement('div'); bubble.className = 'comic-bubble'; bubble.dataset.type = ['thought','shout'].includes(entry.type) ? entry.type : 'speech';
+        if (entry.speaker) { const speaker = document.createElement('b'); speaker.textContent = entry.speaker; bubble.append(speaker); }
+        bubble.append(document.createTextNode(entry.line)); layer.append(bubble);
+      });
+      return layer;
+    }
+
+    function refreshPanelBubbles(card) {
+      const art = card.querySelector('.panel-art');
+      art.querySelector('.bubble-layer')?.remove();
+      art.append(createBubbleLayer(dialogueFromCard(card)));
+    }
+
+    function rerenderWithoutJump() {
+      const scrollTop = els.stage.scrollTop;
+      renderProject();
+      els.stage.scrollTop = scrollTop;
+    }
+
     async function request(url, options={}) {
       const response = await fetch(url, { ...options, headers:{ 'Content-Type':'application/json', ...(options.headers || {}) } });
       if (response.status === 401) { location.href = '/room-login.html?next=/story-studio.html'; throw new Error('Sign in required'); }
@@ -173,10 +249,41 @@
         const panel = currentProject.comic.panels[index];
         panel.caption = card.querySelector('[data-field="caption"]').value;
         panel.artDirection = card.querySelector('[data-field="artDirection"]').value;
-        const speaker = card.querySelector('[data-field="speaker"]');
-        const line = card.querySelector('[data-field="dialogue"]');
-        panel.dialogue = line.value.trim() ? [{ speaker:speaker.value, line:line.value }] : [];
+        panel.dialogue = dialogueFromCard(card);
       });
+    }
+
+    function createDialogueItem(entry,panelIndex,lineIndex) {
+      const item = document.createElement('article'); item.className = 'dialogue-item'; item.dataset.dialogueIndex = String(lineIndex);
+      const meta = document.createElement('div'); meta.className = 'dialogue-meta';
+      const speaker = document.createElement('input'); speaker.type = 'text'; speaker.dataset.field = 'speaker'; speaker.value = entry?.speaker || ''; speaker.placeholder = 'Who is speaking?'; speaker.setAttribute('aria-label',`Panel ${panelIndex + 1} bubble ${lineIndex + 1} speaker`);
+      const type = document.createElement('select'); type.dataset.field = 'dialogueType'; type.setAttribute('aria-label',`Panel ${panelIndex + 1} bubble ${lineIndex + 1} style`);
+      [['speech','Speech'],['thought','Thought'],['shout','Shout']].forEach(([value,label]) => { const option = document.createElement('option'); option.value = value; option.textContent = label; option.selected = value === (entry?.type || 'speech'); type.append(option); });
+      const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'remove-bubble'; remove.textContent = '×'; remove.title = 'Remove this bubble'; remove.setAttribute('aria-label',`Remove panel ${panelIndex + 1} bubble ${lineIndex + 1}`);
+      const line = document.createElement('textarea'); line.dataset.field = 'dialogue'; line.value = entry?.line || ''; line.placeholder = 'What do they say? Keep it short and natural.'; line.maxLength = 500; line.setAttribute('aria-label',`Panel ${panelIndex + 1} bubble ${lineIndex + 1} dialogue`);
+      meta.append(speaker,type,remove); item.append(meta,line);
+      for (const control of [speaker,type,line]) control.addEventListener('input',() => refreshPanelBubbles(item.closest('.comic-panel')));
+      remove.addEventListener('click',() => { syncComicFromInputs(); currentProject.comic.panels[panelIndex].dialogue.splice(lineIndex,1); rerenderWithoutJump(); });
+      return item;
+    }
+
+    function openReader() {
+      if (!currentProject) return;
+      syncComicFromInputs();
+      const comic = currentProject.comic;
+      reader.querySelector('#reader-title').textContent = comic.title;
+      const scroll = reader.querySelector('#reader-scroll'); scroll.replaceChildren();
+      const page = document.createElement('section'); page.className = 'reader-page'; page.setAttribute('aria-label',`${comic.title}, complete comic`);
+      comic.panels.forEach((panel,index) => {
+        const frame = document.createElement('article'); frame.className = 'reader-panel'; frame.setAttribute('aria-label',`Panel ${index + 1}: ${panel.title}`);
+        if (panel.image?.url) { const image = document.createElement('img'); image.className = 'panel-image'; image.src = panel.image.url; image.alt = panel.artDirection || panel.title || `Comic panel ${index + 1}`; frame.append(image); }
+        else { frame.style.background = `linear-gradient(145deg,${safeColor(comic.palette?.[index % comic.palette.length],'#1b2740')},${safeColor(comic.palette?.[(index + 1) % comic.palette.length],'#492d66')})`; }
+        frame.append(createBubbleLayer(panel.dialogue,true));
+        if (panel.caption) { const caption = document.createElement('div'); caption.className = 'reader-caption'; caption.textContent = panel.caption; frame.append(caption); }
+        const number = document.createElement('span'); number.className = 'reader-panel-number'; number.textContent = String(index + 1).padStart(2,'0'); frame.append(number); page.append(frame);
+      });
+      const end = document.createElement('div'); end.className = 'reader-end'; end.textContent = 'END OF ISSUE'; page.append(end); scroll.append(page); scroll.scrollTop = 0;
+      reader.showModal(); reader.querySelector('#reader-close').focus();
     }
 
     function renderCharacters() {
@@ -202,10 +309,11 @@
       const logline = document.createElement('p'); logline.textContent = comic.logline || comic.visualStyle;
       intro.append(eye,title,logline);
       const actions = document.createElement('div'); actions.className = 'page-actions';
+      const read = document.createElement('button'); read.className = 'primary-btn'; read.type = 'button'; read.textContent = comic.panels.every((panel) => panel.image?.url) ? '▣ Read full comic' : '▣ Preview comic'; read.addEventListener('click',openReader);
       const save = document.createElement('button'); save.className = 'primary-btn'; save.type = 'button'; save.textContent = 'Save edits'; save.addEventListener('click', saveEdits);
       const download = document.createElement('button'); download.className = 'ghost-btn'; download.type = 'button'; download.textContent = 'Export JSON'; download.addEventListener('click', exportProject);
       const remove = document.createElement('button'); remove.className = 'danger-btn'; remove.type = 'button'; remove.textContent = 'Delete'; remove.addEventListener('click', deleteCurrent);
-      actions.append(save,download,remove); head.append(intro,actions); els.stage.append(head);
+      actions.append(read,save,download,remove); head.append(intro,actions); els.stage.append(head);
       const grid = document.createElement('div'); grid.className = 'comic-grid';
       comic.panels.forEach((panel,index) => {
         const card = document.createElement('article'); card.className = 'comic-panel'; card.dataset.panelIndex = String(index);
@@ -221,20 +329,31 @@
         const artCopy = document.createElement('div'); artCopy.className = 'art-copy';
         const panelTitle = document.createElement('b'); panelTitle.textContent = panel.title;
         const setting = document.createElement('span'); setting.textContent = panel.setting || panel.beat;
-        artCopy.append(panelTitle,setting); art.append(number,shot,artCopy);
+        artCopy.append(panelTitle,setting); art.append(number,shot,artCopy,createBubbleLayer(panel.dialogue));
         const copy = document.createElement('div'); copy.className = 'panel-copy';
         const visual = document.createElement('button'); visual.type = 'button'; visual.className = 'ghost-btn visual-btn'; visual.dataset.ready = panel.image?.url ? 'true' : 'false'; visual.textContent = panel.image?.url ? '↻ Regenerate art' : '✦ Illustrate panel'; visual.disabled = visualQueueActive; visual.addEventListener('click',() => illustratePanel(index));
         const captionLabel = document.createElement('label'); captionLabel.textContent = 'Caption';
         const caption = document.createElement('textarea'); caption.dataset.field = 'caption'; caption.value = panel.caption || ''; caption.setAttribute('aria-label',`Panel ${index + 1} caption`);
-        const dialogueLabel = document.createElement('label'); dialogueLabel.textContent = 'Dialogue';
-        const dialogue = document.createElement('div'); dialogue.className = 'dialogue-row';
-        const speaker = document.createElement('input'); speaker.type = 'text'; speaker.dataset.field = 'speaker'; speaker.value = panel.dialogue?.[0]?.speaker || ''; speaker.placeholder = 'Speaker'; speaker.setAttribute('aria-label',`Panel ${index + 1} speaker`);
-        const line = document.createElement('input'); line.type = 'text'; line.dataset.field = 'dialogue'; line.value = panel.dialogue?.[0]?.line || ''; line.placeholder = 'Dialogue line'; line.setAttribute('aria-label',`Panel ${index + 1} dialogue`); dialogue.append(speaker,line);
+        const dialogueEditor = document.createElement('section'); dialogueEditor.className = 'dialogue-editor';
+        const dialogueHead = document.createElement('div'); dialogueHead.className = 'dialogue-head';
+        const dialogueLabel = document.createElement('label'); dialogueLabel.textContent = 'Speech bubbles';
+        const addBubble = document.createElement('button'); addBubble.type = 'button'; addBubble.className = 'ghost-btn add-bubble'; addBubble.textContent = '+ Add bubble'; addBubble.disabled = (panel.dialogue?.length || 0) >= 6;
+        addBubble.addEventListener('click',() => { syncComicFromInputs(); const targetPanel = currentProject.comic.panels[index]; targetPanel.dialogue = Array.isArray(targetPanel.dialogue) ? targetPanel.dialogue : []; targetPanel.dialogue.push({speaker:'',line:'',type:'speech'}); rerenderWithoutJump(); });
+        dialogueHead.append(dialogueLabel,addBubble);
+        const help = document.createElement('p'); help.className = 'dialogue-help'; help.textContent = 'Choose who is talking, how it sounds, and the exact words readers will see.';
+        const dialogueList = document.createElement('div'); dialogueList.className = 'dialogue-list';
+        if (panel.dialogue?.length) panel.dialogue.forEach((entry,lineIndex) => dialogueList.append(createDialogueItem(entry,index,lineIndex)));
+        else { const empty = document.createElement('div'); empty.className = 'no-dialogue'; empty.textContent = 'No dialogue yet. Add a bubble if someone speaks or thinks here.'; dialogueList.append(empty); }
+        dialogueEditor.append(dialogueHead,help,dialogueList);
         const directionLabel = document.createElement('label'); directionLabel.textContent = 'Art direction';
         const direction = document.createElement('textarea'); direction.dataset.field = 'artDirection'; direction.value = panel.artDirection || ''; direction.setAttribute('aria-label',`Panel ${index + 1} art direction`);
-        copy.append(visual,captionLabel,caption,dialogueLabel,dialogue,directionLabel,direction); card.append(art,copy); grid.append(card);
+        copy.append(visual,captionLabel,caption,dialogueEditor,directionLabel,direction); card.append(art,copy); grid.append(card);
       });
-      els.stage.append(grid); renderCharacters();
+      els.stage.append(grid);
+      const readyCount = comic.panels.filter((panel) => panel.image?.url).length;
+      const completion = document.createElement('section'); completion.className = 'completion-bar';
+      const message = document.createElement('div'); const messageTitle = document.createElement('b'); messageTitle.textContent = readyCount === comic.panels.length ? 'Your comic is ready.' : `${readyCount} of ${comic.panels.length} panels illustrated.`; const messageDetail = document.createElement('span'); messageDetail.textContent = 'Open the reader to see every scene, caption, and speech bubble together.'; message.append(messageTitle,messageDetail);
+      const finishRead = document.createElement('button'); finishRead.type = 'button'; finishRead.className = 'primary-btn'; finishRead.textContent = readyCount === comic.panels.length ? 'Read the finished comic' : 'Preview the comic'; finishRead.addEventListener('click',openReader); completion.append(message,finishRead); els.stage.append(completion); renderCharacters();
       els.sourceTitle.value = currentProject.sourceTitle || '';
       els.sourceText.value = currentProject.sourceText || '';
       updateCount();

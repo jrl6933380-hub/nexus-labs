@@ -13,7 +13,7 @@ test('Story Studio is one locked Nexus canvas cubicle with a private auth gate',
 });
 
 test('the first golden path supports chapter input, rights confirmation, generation, editing, saving, export, and deletion', () => {
-  for (const marker of ['source-file','source-text','rights-confirmed','generate-btn','Save edits','Export JSON','Delete']) {
+  for (const marker of ['source-file','source-text','rights-confirmed','generate-btn','Save edits','Export JSON','Delete','Read full comic','Speech bubbles','Add bubble']) {
     assert.match(source,new RegExp(marker));
   }
   assert.match(source,/action:'generate'/);
@@ -22,7 +22,18 @@ test('the first golden path supports chapter input, rights confirmation, generat
   assert.match(source,/illustrateAll/);
   assert.match(source,/panel-image/);
   assert.match(source,/Regenerate art/);
+  assert.match(source,/createBubbleLayer/);
+  assert.match(source,/openReader/);
+  assert.match(source,/reader-page/);
   assert.match(source,/method:'DELETE'/);
+});
+
+test('the finished reader presents every panel together with captions and editable bubble styles', () => {
+  assert.match(source,/comic\.panels\.forEach\(\(panel,index\) =>/);
+  assert.match(source,/dialogueFromCard/);
+  assert.match(source,/\['speech','Speech'\],\['thought','Thought'\],\['shout','Shout'\]/);
+  assert.match(source,/reader-caption/);
+  assert.match(source,/END OF ISSUE/);
 });
 
 test('every Story Studio DOM reference is wired to a camel-case element alias', () => {
