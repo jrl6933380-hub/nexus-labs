@@ -51,7 +51,7 @@ Rules:
 - Make it genuinely complete and functional, not a placeholder or a mockup — real interactivity, real content, real styling. Use specific realistic content (names, copy, colors) suited to what was asked, never lorem ipsum or "TODO" placeholders.
 - Keep it self-contained and safe: no requests to localhost or internal networks, no attempts to break out of the iframe or access the parent page.
 - You have a real output budget, not infinite. If a request implies many features (multiple screens, a quiz engine, animations, a scoring system, etc.), deliberately scope down to ONE genuinely complete, working version first — the core layout and the single most important interaction, fully working — rather than attempting everything and running out of room half-finished. A simpler page that fully works beats an elaborate one that's cut off mid-file. The person can always ask you to add more in a follow-up, and follow-ups are cheap — they only touch what's changing, not the whole page.
-- Don't build your own "chat with an assistant" or "talk to Nex" interface — a real one is added automatically after your page is generated. If the request wants an in-world chat UI for its OWN purpose (e.g. a customer-support demo, a chatbot product mockup), that's fine to build — just don't try to wire it to anything real.`;
+- Don't add Room Builder controls or a "talk to Nex" interface inside the generated project. The builder already provides its own conversation dock outside the project. If the request is specifically for a chatbot product or customer-support interface, that interface is part of the requested project and is fine to build.`;
 
 // Used for every message after the first — editing something that
 // already exists. Patch format instead of a full-document rewrite, for
@@ -141,7 +141,10 @@ export default async function handler(req, res) {
 
   // Start the downstream SSE response immediately, then keep it active
   // while Anthropic streams the response to this function.
-  send({ action: 'progress', message: isEdit ? 'Applying that…' : 'Building…' });
+  send({
+    action: 'progress',
+    message: isEdit ? 'Updating the current version…' : 'Creating the first working version…',
+  });
   const heartbeat = setInterval(() => {
     send({
       action: 'progress',

@@ -214,6 +214,30 @@
     color: var(--text);
   }
 
+  .quick-actions {
+    align-self: flex-start;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    max-width: 100%;
+  }
+
+  .quick-action {
+    min-height: 34px;
+    padding: 7px 10px;
+    border: 1px solid rgba(77,216,232,.28);
+    border-radius: 9px;
+    background: rgba(77,216,232,.07);
+    color: var(--cyan);
+    font: 600 13px/1.2 var(--sans);
+    cursor: pointer;
+  }
+
+  .quick-action:hover,
+  .quick-action:focus-visible { border-color: var(--cyan); background: rgba(77,216,232,.13); }
+  .quick-action:focus-visible { outline: 2px solid rgba(77,216,232,.35); outline-offset: 2px; }
+  .quick-actions.is-used { display: none; }
+
   .input-row {
     display: flex;
     gap: 8px;
@@ -266,6 +290,29 @@
     font-family: var(--sans);
     padding: 0 32px;
   }
+
+  .starter-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+    margin-top: 20px;
+  }
+
+  .starter-card {
+    min-height: 52px;
+    padding: 11px 12px;
+    border: 1px solid rgba(148,163,184,.2);
+    border-radius: 11px;
+    background: rgba(255,255,255,.035);
+    color: var(--text);
+    font: 650 14px/1.25 var(--sans);
+    cursor: pointer;
+  }
+
+  .starter-card:hover,
+  .starter-card:focus-visible { border-color: rgba(77,216,232,.65); background: rgba(77,216,232,.08); }
+  .starter-card:focus-visible { outline: 2px solid rgba(77,216,232,.35); outline-offset: 2px; }
+  .starter-footnote { margin-top: 14px; color: var(--text-faint); font: 500 12px/1.4 var(--sans); }
 
   #canvas-frame {
     width: 100%;
@@ -459,6 +506,9 @@
     .preview-stage { padding: 7px; }
     #canvas-frame { min-height: 260px; border-radius: 7px; }
     .canvas-empty { inset: 0; padding: 24px; }
+    .starter-grid { grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 14px; }
+    .starter-card { min-height: 46px; padding: 8px; font-size: 13px; }
+    .quick-action { min-height: 40px; font-size: 13px; }
   }
 
   /* One movable conversation over one full project surface. The outer
@@ -573,7 +623,19 @@
           <button class="preview-action" id="open-preview-btn" type="button" disabled>Open</button>
         </div>
         <div class="preview-stage">
-          <div class="canvas-empty" id="canvas-empty"><div class="canvas-empty-inner"><strong>Build your first project</strong><span>Describe the site or tool you want. Nex will create it here, save every version, and keep editing from your next request.</span></div></div>
+          <div class="canvas-empty" id="canvas-empty">
+            <div class="canvas-empty-inner">
+              <strong>What are you building?</strong>
+              <span>Pick a starting point or tell Nex your whole idea. He’ll create the first working version, save it, and guide the next changes.</span>
+              <div class="starter-grid" aria-label="Project starting points">
+                <button class="starter-card" type="button" data-starter="business">Business website</button>
+                <button class="starter-card" type="button" data-starter="landing">Landing page</button>
+                <button class="starter-card" type="button" data-starter="portfolio">Portfolio</button>
+                <button class="starter-card" type="button" data-starter="app">App or tool</button>
+              </div>
+              <div class="starter-footnote">Already know what you want? Type it directly into Nex.</div>
+            </div>
+          </div>
           <iframe id="canvas-frame" sandbox="allow-scripts allow-forms" title="Live project preview"></iframe>
         </div>
       </main>
@@ -679,7 +741,8 @@
   document.getElementById('new-btn').addEventListener('click', () => {
     if (currentHtml && !window.confirm('Start a new project? Your saved versions will stay in Projects.')) return;
     resetProject();
-    addBubble('nex', 'New project ready. What should we build?');
+    chatHistory.replaceChildren();
+    showWelcomeGuide({ returning: true });
     setChatOpen(true);
     chatInput.focus();
   });
@@ -786,6 +849,7 @@
       if (data.build) {
         renderHtml(data.build.html, { label: data.build.label || 'Saved project' });
         addBubble('nex', `Loaded "${data.build.label}" from history.`);
+        showNextSteps();
         historyPanel.classList.remove('open');
         historyBtn.classList.remove('active');
       }
@@ -910,6 +974,111 @@
     return el;
   }
 
+  const starterGuides = {
+    business: {
+      label: 'Business website',
+      draft: 'Build a professional business website for ',
+      question: 'Great. Tell me the business name, what it does, and the main action visitors should take—like requesting a quote or booking a call.',
+    },
+    landing: {
+      label: 'Landing page',
+      draft: 'Build a polished landing page for ',
+      question: 'Tell me what you’re launching, who it’s for, and the one action you want visitors to take.',
+    },
+    portfolio: {
+      label: 'Portfolio',
+      draft: 'Build a polished portfolio for ',
+      question: 'Tell me whose work we’re showing, their specialty, and what a visitor should do after viewing it.',
+    },
+    app: {
+      label: 'App or tool',
+      draft: 'Build a working app or tool that ',
+      question: 'Tell me who will use it, the main job it should do, and its most important interaction. I’ll start with one complete working flow.',
+    },
+  };
+
+  function markQuickActionsUsed() {
+    chatHistory.querySelectorAll('.quick-actions:not(.is-used)').forEach((row) => row.classList.add('is-used'));
+  }
+
+  function addQuickActions(actions) {
+    const row = document.createElement('div');
+    row.className = 'quick-actions';
+    actions.forEach(({ label, run }) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'quick-action';
+      button.innerText = label;
+      button.addEventListener('click', () => {
+        if (row.classList.contains('is-used')) return;
+        markQuickActionsUsed();
+        run();
+      });
+      row.appendChild(button);
+    });
+    chatHistory.appendChild(row);
+    chatHistory.scrollTop = chatHistory.scrollHeight;
+    return row;
+  }
+
+  function setPromptDraft(text) {
+    setChatOpen(true);
+    chatInput.value = text;
+    chatInput.dispatchEvent(new Event('input'));
+    chatInput.focus();
+    chatInput.setSelectionRange(text.length, text.length);
+  }
+
+  function chooseStarter(key) {
+    const guide = starterGuides[key];
+    if (!guide) return;
+    markQuickActionsUsed();
+    setChatOpen(true);
+    addBubble('user', guide.label);
+    addBubble('nex', guide.question);
+    setPromptDraft(guide.draft);
+    try { localStorage.setItem('nexus-room-guide-seen-v1', '1'); } catch {}
+  }
+
+  function showWelcomeGuide({ returning = false } = {}) {
+    addBubble(
+      'nex',
+      returning
+        ? 'New project ready. Give me the whole idea in one message, or choose a starting point and I’ll help shape the brief.'
+        : 'Hey—I’m Nex. Give me the whole idea in one message, or choose a starting point and I’ll help shape the brief before I build.',
+    );
+    addQuickActions(Object.entries(starterGuides).map(([key, guide]) => ({
+      label: guide.label,
+      run: () => chooseStarter(key),
+    })));
+  }
+
+  function showNextSteps() {
+    addBubble('nex', 'Your version is saved. Move me aside to inspect it, then choose a next step or describe any change in your own words.');
+    addQuickActions([
+      {
+        label: 'Polish mobile',
+        run: () => sendMessage('Polish the mobile experience: improve spacing, tap targets, text sizing, and layout without changing the core design.'),
+      },
+      {
+        label: 'Refine design',
+        run: () => setPromptDraft('Refine the visual design by '),
+      },
+      {
+        label: 'Add a feature',
+        run: () => setPromptDraft('Add a feature that '),
+      },
+      {
+        label: 'Export help',
+        run: () => {
+          addBubble('user', 'How do I take this with me?');
+          addBubble('nex', 'Use Export at the top to download the current project as a self-contained HTML file. Your saved versions stay available under Projects.');
+          exportBtn.focus();
+        },
+      },
+    ]);
+  }
+
   // Voice uses the browser's built-in speech APIs and remains opt-in. No
   // recording or transcript is stored outside the normal build request.
   const micBtn = document.getElementById('mic-btn');
@@ -987,8 +1156,12 @@
     chatInput.style.height = `${Math.min(chatInput.scrollHeight, 112)}px`;
   });
 
-  addBubble('nex', 'Describe the project you want. I’ll build the first working version here, save it automatically, and make focused edits from each follow-up.');
-  addBubble('nex', 'Try: “Build a polished one-page site for an insured painting company with a quote form.”');
+  let hasSeenGuide = false;
+  try { hasSeenGuide = localStorage.getItem('nexus-room-guide-seen-v1') === '1'; } catch {}
+  showWelcomeGuide({ returning: hasSeenGuide });
+  document.querySelectorAll('[data-starter]').forEach((button) => {
+    button.addEventListener('click', () => chooseStarter(button.dataset.starter));
+  });
 
   // ---- Import / Push -------------------------------------------
   // Import: fetch the ACTUAL live public/index.html (same-origin, so
@@ -1069,20 +1242,24 @@
     }
   });
 
-  // sendMessage can be called from the chat box (no argument — reads
-  // chatInput.value) or from the live-edit widget embedded in a
-  // generated page (messageOverride — see the postMessage listener
-  // below).
+  // sendMessage reads the chat box normally. Quick actions may also pass a
+  // complete, visible instruction after the customer explicitly selects it.
   async function sendMessage(messageOverride) {
     const message = (typeof messageOverride === 'string' ? messageOverride : chatInput.value).trim();
     if (!message || sendBtn.disabled) return;
+    const wasEdit = Boolean(currentHtml);
+    markQuickActionsUsed();
+    try { localStorage.setItem('nexus-room-guide-seen-v1', '1'); } catch {}
     setChatOpen(true);
     chatStatus.innerText = 'Building';
     addBubble('user', message);
     chatInput.value = '';
     sendBtn.disabled = true;
     chatInput.disabled = true;
-    const buildingBubble = addBubble('nex', 'Building… (complex builds like games can take up to a minute)');
+    const buildingBubble = addBubble(
+      'nex',
+      wasEdit ? 'Reviewing that change…' : 'Turning your brief into the first working version…',
+    );
 
     const slowNotice = setTimeout(() => {
       buildingBubble.innerText = 'Still building… interactive stuff takes longer, hang tight.';
@@ -1092,6 +1269,7 @@
     // browser backstop for dead connections without cancelling valid builds.
     const abortCtrl = new AbortController();
     const clientTimeout = setTimeout(() => abortCtrl.abort(), 115000);
+    let offerNextSteps = false;
 
     try {
       const res = await fetch('/api/room-chat', {
@@ -1151,9 +1329,13 @@
           } else if (event.action === 'done') {
             clearTimeout(slowNotice);
             buildingBubble.innerText = gotHtml
-              ? 'Done — take a look.' + saveNote
+              ? (wasEdit ? 'Update complete and saved.' : 'First version complete and saved.') + saveNote
               : "Didn't get a page back — try rephrasing that.";
-            if (gotHtml) speakUpdate('Your build is ready.');
+            if (gotHtml) {
+              offerNextSteps = true;
+              chatInput.placeholder = 'Describe the next change…';
+              speakUpdate('Your build is ready.');
+            }
           } else if (event.action === 'error') {
             clearTimeout(slowNotice);
             buildingBubble.innerText = 'Ran into an issue: ' + event.message;
@@ -1172,6 +1354,7 @@
       chatStatus.innerText = 'Ready';
       sendBtn.disabled = false;
       chatInput.disabled = false;
+      if (offerNextSteps) showNextSteps();
       chatInput.focus();
       refreshUsage();
     }
