@@ -1,0 +1,28 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+
+const roomSource = await readFile(new URL('../public/room.html', import.meta.url), 'utf8');
+const apiSource = await readFile(new URL('../api/room-chat.js', import.meta.url), 'utf8');
+
+test('first-time customers can choose a guided start or type directly', () => {
+  for (const starter of ['business', 'landing', 'portfolio', 'app']) {
+    assert.match(roomSource, new RegExp(`data-starter="${starter}"`));
+  }
+  assert.match(roomSource, /Already know what you want\? Type it directly into Nex\./);
+  assert.match(roomSource, /function showWelcomeGuide/);
+});
+
+test('Nex offers clear next steps after a successful saved version', () => {
+  assert.match(roomSource, /function showNextSteps/);
+  for (const action of ['Polish mobile', 'Refine design', 'Add a feature', 'Export help']) {
+    assert.match(roomSource, new RegExp(action));
+  }
+  assert.match(roomSource, /First version complete and saved\./);
+  assert.match(roomSource, /Update complete and saved\./);
+});
+
+test('generated projects stay free of Room Builder chrome', () => {
+  assert.match(apiSource, /Don't add Room Builder controls/);
+  assert.doesNotMatch(apiSource, /a real one is added automatically/);
+});
