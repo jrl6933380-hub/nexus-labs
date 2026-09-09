@@ -374,14 +374,6 @@
     color: #58d7ff; background: #111827e8; border: 1px solid #3c5a84; border-radius: 8px;
     padding: 7px 16px; backdrop-filter: blur(12px);
   }
-  .return-link {
-    position: fixed; top: 12px; left: 12px; z-index: 10000;
-    font: 700 10px 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.06em;
-    color: #91a0b9; text-decoration: none; background: #111827e8; border: 1px solid #26334d;
-    border-radius: 8px; padding: 8px 12px; backdrop-filter: blur(12px);
-  }
-  .return-link:hover { color: #58d7ff; border-color: #4b8dff77; }
-
   /* Launch-grade builder cockpit. The inherited rules above preserve the
      original behavior; these rules establish the product hierarchy and
      phone-first working surface without changing the canvas engine. */
@@ -513,8 +505,7 @@
 
   /* One movable conversation over one full project surface. The outer
      workspace is locked by the shared canvas engine; only this dock moves. */
-  body.room-builder-page .canvas-title-bar,
-  body.room-builder-page .return-link { display: none; }
+  body.room-builder-page .canvas-title-bar { display: none; }
   .room { position: relative; display: block; overflow: hidden; }
   .canvas { position: absolute; inset: 0; }
   .chat-panel {
@@ -567,12 +558,6 @@
   titleBar.className = 'canvas-title-bar';
   titleBar.textContent = 'Room Builder';
   document.body.appendChild(titleBar);
-
-  const returnLink = document.createElement('a');
-  returnLink.className = 'return-link';
-  returnLink.href = '/';
-  returnLink.textContent = '← Dashboard';
-  document.body.appendChild(returnLink);
 
   const canvas = mountCanvas({ canvasId: 'room-builder', canvasTitle: 'Room Builder' });
 

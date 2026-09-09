@@ -117,7 +117,6 @@
     margin-top: 4px;
   }
 </style>
-<link rel="stylesheet" href="/nexus-stark.css">
 </head>
 <body>
 
@@ -170,7 +169,8 @@
 
   const nextPath = (() => {
     const requested = new URLSearchParams(window.location.search).get('next');
-    return requested && requested.startsWith('/') && !requested.startsWith('//') ? requested : '/room.html';
+    const customerWorkspaces = new Set(['/room.html', '/story-studio.html']);
+    return customerWorkspaces.has(requested) ? requested : '/room.html';
   })();
 
   async function submitAuth(action, body, errorEl, submitBtn) {
@@ -224,6 +224,5 @@
   });
 </script>
 
-<script src="/nexus-shell.js"></script>
 </body>
 </html>
