@@ -88,7 +88,7 @@ for (const file of pages) {
 const canvasRooms = [
   ['index.html', 3], ['canvas.html', 1], ['connectors.html', 1],
   ['memory.html', 3], ['mission-control.html', 3], ['nexus-canvas.html', 3],
-  ['queue.html', 1], ['room.html', 1], ['tenants.html', 2],
+  ['queue.html', 1], ['room.html', 1], ['story-studio.html', 1], ['tenants.html', 2],
 ];
 
 test.describe('mobile canvas room interactions', () => {
