@@ -130,7 +130,24 @@
       </div>`;
     canvas.addPanel({ id:'story-studio', title:'Story Studio', content:studio, locked:true });
 
-    const els = Object.fromEntries(['credits','source-title','source-file','source-text','source-count','visual-style','rights-confirmed','generate-btn','status','stage','project-list','character-list','new-btn'].map((id) => [id, document.getElementById(id)]));
+    const els = Object.fromEntries([
+      ['credits','credits'],
+      ['sourceTitle','source-title'],
+      ['sourceFile','source-file'],
+      ['sourceText','source-text'],
+      ['sourceCount','source-count'],
+      ['visualStyle','visual-style'],
+      ['rightsConfirmed','rights-confirmed'],
+      ['generateBtn','generate-btn'],
+      ['status','status'],
+      ['stage','stage'],
+      ['projectList','project-list'],
+      ['characterList','character-list'],
+      ['newBtn','new-btn'],
+    ].map(([key,id]) => [key, document.getElementById(id)]));
+    for (const [key, element] of Object.entries(els)) {
+      if (!element) throw new Error(`Story Studio could not initialize ${key}.`);
+    }
     let currentProject = null;
 
     function setStatus(message, state='') { els.status.textContent = message; els.status.dataset.state = state; }
