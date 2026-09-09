@@ -77,16 +77,20 @@
     .visual-btn[data-ready="true"] { color:var(--green); border-color:#58edb04f; }
     .panel-copy label { margin:0 0 4px; font-size:8px; }
     .panel-copy textarea { min-height:66px; padding:9px; font-size:11px; }
-    .bubble-layer { position:absolute; inset:48px 12px 76px; z-index:3; display:grid; grid-template-rows:repeat(3,minmax(0,1fr)); row-gap:6px; pointer-events:none; }
-    .comic-bubble { position:relative; width:fit-content; padding:9px 12px; border:2px solid #111827; border-radius:17px; background:#fff; color:#111827; box-shadow:0 4px 0 #11182766,0 8px 22px #0007; font-size:11px; line-height:1.35; }
+    .bubble-layer { position:absolute; inset:0; z-index:3; display:grid; grid-template-rows:repeat(3,minmax(0,1fr)); row-gap:6px; padding:48px 12px 76px; pointer-events:none; }
+    .comic-bubble { position:relative; width:fit-content; padding:7px 10px; border:2px solid #111827; border-radius:17px; background:#fff; color:#111827; box-shadow:0 4px 0 #11182766,0 8px 22px #0007; font-size:10px; line-height:1.3; overflow-wrap:anywhere; }
     .comic-bubble.zone-0 { grid-row:1; align-self:start; }
     .comic-bubble.zone-1 { grid-row:2; align-self:center; }
     .comic-bubble.zone-2 { grid-row:3; align-self:end; }
     .comic-bubble[data-side="left"] { justify-self:start; }
     .comic-bubble[data-side="right"] { justify-self:end; }
-    .comic-bubble.bubble-sm { max-width:min(44%,180px); }
-    .comic-bubble.bubble-md { max-width:min(60%,230px); }
-    .comic-bubble.bubble-lg { max-width:min(76%,280px); }
+    .comic-bubble.bubble-sm { max-width:min(38%,150px); }
+    .comic-bubble.bubble-md { max-width:min(50%,195px); }
+    .comic-bubble.bubble-lg { max-width:min(60%,235px); }
+    .comic-bubble[data-positioned="true"] { position:absolute; left:calc(var(--bubble-x) * 1%); top:calc(var(--bubble-y) * 1%); width:calc(var(--bubble-width) * 1%); max-width:calc(var(--bubble-width) * 1%); justify-self:auto; align-self:auto; }
+    .panel-art .comic-bubble { pointer-events:auto; cursor:grab; touch-action:none; }
+    .panel-art .comic-bubble:active { cursor:grabbing; }
+    .panel-art .comic-bubble.is-dragging { opacity:.88; box-shadow:0 5px 0 #11182766,0 14px 30px #000a; }
     .comic-bubble::after { content:""; position:absolute; left:17px; bottom:-9px; width:13px; height:13px; border-right:2px solid #111827; border-bottom:2px solid #111827; background:#fff; transform:skew(-24deg) rotate(35deg); }
     .comic-bubble[data-side="right"]::after { left:auto; right:17px; transform:skew(24deg) rotate(55deg); }
     .comic-bubble[data-type="thought"] { border-radius:999px; border-style:dashed; }
@@ -100,9 +104,11 @@
     .dialogue-help { margin:0; color:#7f8ca2; font-size:9px; line-height:1.45; }
     .dialogue-list { display:grid; gap:8px; }
     .dialogue-item { padding:9px; border:1px solid #344159; border-radius:9px; background:#080d17; }
-    .dialogue-meta { display:grid; grid-template-columns:minmax(90px,1fr) minmax(88px,.7fr) auto; gap:7px; align-items:center; }
-    .dialogue-item input, .dialogue-item select, .dialogue-item textarea { font-size:10px; padding:8px; }
+    .dialogue-meta { display:grid; grid-template-columns:minmax(78px,1fr) minmax(76px,.65fr) minmax(64px,.55fr) auto; gap:6px; align-items:center; }
+    .dialogue-item input, .dialogue-item select, .dialogue-item textarea { min-width:0; font-size:10px; padding:8px; }
     .dialogue-item textarea { min-height:58px; margin-top:7px; resize:vertical; }
+    .bubble-tools { display:flex; justify-content:flex-end; margin-top:6px; }
+    .reset-bubble { min-height:28px; padding:5px 8px; border:1px solid #53627c; border-radius:7px; background:#111827; color:#9edfff; font:600 8px 'JetBrains Mono'; }
     .remove-bubble { width:34px; height:34px; border:1px solid #ff6fbd42; border-radius:7px; background:#ff6fbd0c; color:#ff9ab4; }
     .add-bubble { min-height:30px; padding:6px 9px; color:var(--cyan); }
     .no-dialogue { padding:10px; border:1px dashed #344159; border-radius:8px; color:#77849a; font-size:9px; text-align:center; }
@@ -119,7 +125,8 @@
     .reader-panel { position:relative; min-height:clamp(260px,38vw,430px); overflow:hidden; border:3px solid #111827; background:#151c2a; }
     .reader-panel:first-child, .reader-panel:last-child { grid-column:1/-1; min-height:clamp(280px,42vw,480px); }
     .reader-panel .panel-image { filter:saturate(1.08) contrast(1.03); }
-    .reader-panel .bubble-layer { inset:18px 14px 82px; }
+    .reader-panel .bubble-layer { inset:0; padding:18px 14px 82px; }
+    .reader-panel .comic-bubble { pointer-events:none; cursor:default; }
     .reader-panel .comic-bubble { font-size:clamp(10px,1.4vw,14px); }
     .reader-caption { position:absolute; z-index:4; left:12px; right:12px; bottom:12px; padding:9px 11px; border:2px solid #111827; background:#fff5ca; color:#141925; box-shadow:3px 3px 0 #111827; font:600 10px/1.4 'JetBrains Mono'; }
     .reader-panel-number { position:absolute; z-index:5; top:7px; right:7px; padding:3px 5px; border:1px solid #111827; background:#fff; color:#111827; font:800 8px 'JetBrains Mono'; }
@@ -137,7 +144,7 @@
     .section h3 { margin:0; color:#b7c3d6; font:700 9px 'JetBrains Mono'; letter-spacing:.12em; text-transform:uppercase; }
     .privacy { color:#6f7d93; font-size:9px; line-height:1.5; }
     @media (max-width:1000px) { .workspace { grid-template-columns:280px minmax(400px,1fr); } .rail.right { grid-column:1/-1; border-left:0; border-top:1px solid var(--line); display:grid; grid-template-columns:1fr 1fr; gap:18px; } }
-    @media (max-width:720px) { html,body,#canvas-root { overflow:hidden; } .studio-top { min-height:58px; padding:9px 11px; } .brand span,.credits { display:none; } .link-btn { padding:9px; } .workspace { display:block; overflow:auto; } .rail.left,.rail.right,.stage { overflow:visible; } .rail.left { border-right:0; border-bottom:1px solid var(--line); padding:15px; } .stage { padding:16px 12px 30px; } .rail.right { display:block; padding:15px; } .comic-grid { grid-template-columns:1fr; } .page-head { align-items:flex-start; flex-direction:column; } .page-actions { justify-content:flex-start; } textarea { min-height:150px; } .panel-art { min-height:270px; } .completion-bar { align-items:flex-start; flex-direction:column; } .dialogue-meta { grid-template-columns:1fr 100px auto; } .comic-reader { width:100vw; height:100dvh; border:0; border-radius:0; } .reader-head { padding:11px 12px; } .reader-page { grid-template-columns:1fr; gap:7px; padding:8px; border-radius:8px; } .reader-panel,.reader-panel:first-child,.reader-panel:last-child { grid-column:1; min-height:360px; } .reader-scroll { padding:8px; } }
+    @media (max-width:720px) { html,body,#canvas-root { overflow:hidden; } .studio-top { min-height:58px; padding:9px 11px; } .brand span,.credits { display:none; } .link-btn { padding:9px; } .workspace { display:block; overflow:auto; } .rail.left,.rail.right,.stage { overflow:visible; } .rail.left { border-right:0; border-bottom:1px solid var(--line); padding:15px; } .stage { padding:16px 12px 30px; } .rail.right { display:block; padding:15px; } .comic-grid { grid-template-columns:1fr; } .page-head { align-items:flex-start; flex-direction:column; } .page-actions { justify-content:flex-start; } textarea { min-height:150px; } .panel-art { min-height:270px; } .completion-bar { align-items:flex-start; flex-direction:column; } .dialogue-meta { grid-template-columns:minmax(70px,1fr) 72px 64px 34px; } .comic-reader { width:100vw; height:100dvh; border:0; border-radius:0; } .reader-head { padding:11px 12px; } .reader-page { grid-template-columns:1fr; gap:7px; padding:8px; border-radius:8px; } .reader-panel,.reader-panel:first-child,.reader-panel:last-child { grid-column:1; min-height:360px; } .reader-scroll { padding:8px; } }
     @media (prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important; transition:none!important; animation:none!important; } }
   </style>
 </head>
@@ -211,24 +218,115 @@
     function setStatus(message, state='') { els.status.textContent = message; els.status.dataset.state = state; }
     function safeColor(value, fallback) { return /^#[0-9a-f]{6}$/i.test(String(value || '')) ? value : fallback; }
     function formatWhen(timestamp) { return new Date(timestamp).toLocaleDateString(undefined,{month:'short',day:'numeric'}); }
+    function clamp(value,min,max) { return Math.max(min,Math.min(max,value)); }
 
-    function dialogueFromCard(card) {
-      return [...card.querySelectorAll('.dialogue-item')].map((item) => ({
-        speaker:item.querySelector('[data-field="speaker"]').value.trim(),
-        line:item.querySelector('[data-field="dialogue"]').value.trim(),
-        type:item.querySelector('[data-field="dialogueType"]').value,
-      })).filter((item) => item.line).slice(0,6);
+    function bubbleLayoutFromItem(item) {
+      if (!item.dataset.bubbleX || !item.dataset.bubbleY || !item.dataset.bubbleWidth) return null;
+      const x = Number(item.dataset.bubbleX); const y = Number(item.dataset.bubbleY); const width = Number(item.dataset.bubbleWidth);
+      if (![x,y,width].every(Number.isFinite)) return null;
+      return { x, y, width, source:item.dataset.bubbleSource === 'manual' ? 'manual' : 'vision' };
     }
 
-    function createBubbleLayer(dialogue,readerMode=false) {
+    function dialogueFromCard(card) {
+      return [...card.querySelectorAll('.dialogue-item')].map((item) => {
+        const layout = bubbleLayoutFromItem(item);
+        return {
+          speaker:item.querySelector('[data-field="speaker"]').value.trim(),
+          line:item.querySelector('[data-field="dialogue"]').value.trim(),
+          type:item.querySelector('[data-field="dialogueType"]').value,
+          side:item.querySelector('[data-field="dialogueSide"]').value,
+          ...(layout ? {layout} : {}),
+        };
+      }).filter((item) => item.line).slice(0,6);
+    }
+
+    function validBubbleLayout(layout) {
+      return layout && [layout.x,layout.y,layout.width].every((value) => Number.isFinite(Number(value)));
+    }
+
+    function applyBubblePosition(bubble,layout) {
+      bubble.dataset.positioned = 'true';
+      bubble.style.setProperty('--bubble-x',String(layout.x));
+      bubble.style.setProperty('--bubble-y',String(layout.y));
+      bubble.style.setProperty('--bubble-width',String(layout.width));
+    }
+
+    function rememberDraggedBubble(panelIndex,lineIndex,layout,side) {
+      const card = els.stage.querySelector(`[data-panel-index="${panelIndex}"]`);
+      const item = card?.querySelector(`[data-dialogue-index="${lineIndex}"]`);
+      if (item) {
+        item.dataset.bubbleX = String(layout.x);
+        item.dataset.bubbleY = String(layout.y);
+        item.dataset.bubbleWidth = String(layout.width);
+        item.dataset.bubbleSource = 'manual';
+        item.querySelector('[data-field="dialogueSide"]').value = side;
+      }
+      const line = currentProject?.comic?.panels?.[panelIndex]?.dialogue?.[lineIndex];
+      if (line) { line.side = side; line.layout = {...layout,source:'manual'}; }
+    }
+
+    function enableBubbleDrag(bubble,layer,panelIndex,lineIndex) {
+      bubble.setAttribute('aria-label',`${bubble.textContent}. Drag to reposition bubble.`);
+      bubble.addEventListener('pointerdown',(event) => {
+        if (event.button !== undefined && event.button !== 0) return;
+        syncComicFromInputs();
+        const layerRect = layer.getBoundingClientRect();
+        const bubbleRect = bubble.getBoundingClientRect();
+        if (!layerRect.width || !layerRect.height) return;
+        const width = clamp((bubbleRect.width / layerRect.width) * 100,16,46);
+        const height = (bubbleRect.height / layerRect.height) * 100;
+        const maxY = Math.max(3,78 - height);
+        const start = {
+          pointerX:event.clientX,
+          pointerY:event.clientY,
+          x:clamp(((bubbleRect.left - layerRect.left) / layerRect.width) * 100,2,98 - width),
+          y:clamp(((bubbleRect.top - layerRect.top) / layerRect.height) * 100,3,maxY),
+          width,
+        };
+        let latest = {x:start.x,y:start.y,width};
+        let moved = false;
+        bubble.classList.add('is-dragging');
+        bubble.setPointerCapture?.(event.pointerId);
+        const move = (moveEvent) => {
+          if (!moved && Math.hypot(moveEvent.clientX - start.pointerX,moveEvent.clientY - start.pointerY) < 3) return;
+          moved = true;
+          latest = {
+            x:clamp(start.x + ((moveEvent.clientX - start.pointerX) / layerRect.width) * 100,2,98 - width),
+            y:clamp(start.y + ((moveEvent.clientY - start.pointerY) / layerRect.height) * 100,3,maxY),
+            width,
+          };
+          const side = latest.x + width / 2 >= 50 ? 'right' : 'left';
+          bubble.dataset.side = side;
+          applyBubblePosition(bubble,latest);
+          rememberDraggedBubble(panelIndex,lineIndex,latest,side);
+          moveEvent.preventDefault();
+        };
+        const finish = (finishEvent) => {
+          bubble.classList.remove('is-dragging');
+          bubble.releasePointerCapture?.(finishEvent.pointerId);
+          bubble.removeEventListener('pointermove',move);
+          bubble.removeEventListener('pointerup',finish);
+          bubble.removeEventListener('pointercancel',finish);
+          if (moved) setStatus('Bubble moved. Save edits when the panel looks right.','success');
+        };
+        bubble.addEventListener('pointermove',move);
+        bubble.addEventListener('pointerup',finish);
+        bubble.addEventListener('pointercancel',finish);
+        event.preventDefault();
+      });
+    }
+
+    function createBubbleLayer(dialogue,readerMode=false,panelIndex=null) {
       const layer = document.createElement('div'); layer.className = 'bubble-layer';
-      const entries = (dialogue || []).filter((entry) => entry?.line).slice(0,readerMode ? 6 : 3);
+      const entries = (dialogue || []).map((entry,lineIndex) => ({entry,lineIndex})).filter(({entry}) => entry?.line).slice(0,readerMode ? 6 : 3);
       const speakerSides = new Map();
       const zoneSlots = [{},{},{}];
       let fallbackSideIndex = 0;
-      entries.forEach((entry,index) => {
+      entries.forEach(({entry,lineIndex},index) => {
         let side;
-        if (entry.speaker) {
+        if (entry.side === 'left' || entry.side === 'right') {
+          side = entry.side;
+        } else if (entry.speaker) {
           if (!speakerSides.has(entry.speaker)) speakerSides.set(entry.speaker, speakerSides.size % 2 === 0 ? 'left' : 'right');
           side = speakerSides.get(entry.speaker);
         } else {
@@ -236,7 +334,10 @@
           fallbackSideIndex += 1;
         }
         let zoneIndex = zoneSlots.findIndex((slot) => !slot[side]);
-        if (zoneIndex === -1) zoneIndex = zoneSlots.findIndex((slot) => !slot.left && !slot.right);
+        if (zoneIndex === -1) {
+          side = side === 'left' ? 'right' : 'left';
+          zoneIndex = zoneSlots.findIndex((slot) => !slot[side]);
+        }
         if (zoneIndex === -1) zoneIndex = index % zoneSlots.length;
         zoneSlots[zoneIndex][side] = true;
         const bubble = document.createElement('div');
@@ -248,6 +349,8 @@
         if (entry.speaker) { const speaker = document.createElement('b'); speaker.textContent = entry.speaker; bubble.append(speaker); }
         bubble.append(document.createTextNode(entry.line));
         layer.append(bubble);
+        if (validBubbleLayout(entry.layout)) applyBubblePosition(bubble,entry.layout);
+        if (!readerMode && Number.isInteger(panelIndex)) enableBubbleDrag(bubble,layer,panelIndex,lineIndex);
       });
       return layer;
     }
@@ -255,7 +358,7 @@
     function refreshPanelBubbles(card) {
       const art = card.querySelector('.panel-art');
       art.querySelector('.bubble-layer')?.remove();
-      art.append(createBubbleLayer(dialogueFromCard(card)));
+      art.append(createBubbleLayer(dialogueFromCard(card),false,Number(card.dataset.panelIndex)));
     }
 
     function rerenderWithoutJump() {
@@ -284,14 +387,22 @@
 
     function createDialogueItem(entry,panelIndex,lineIndex) {
       const item = document.createElement('article'); item.className = 'dialogue-item'; item.dataset.dialogueIndex = String(lineIndex);
+      if (validBubbleLayout(entry?.layout)) {
+        item.dataset.bubbleX = String(entry.layout.x); item.dataset.bubbleY = String(entry.layout.y); item.dataset.bubbleWidth = String(entry.layout.width); item.dataset.bubbleSource = entry.layout.source || 'vision';
+      }
       const meta = document.createElement('div'); meta.className = 'dialogue-meta';
       const speaker = document.createElement('input'); speaker.type = 'text'; speaker.dataset.field = 'speaker'; speaker.value = entry?.speaker || ''; speaker.placeholder = 'Who is speaking?'; speaker.setAttribute('aria-label',`Panel ${panelIndex + 1} bubble ${lineIndex + 1} speaker`);
       const type = document.createElement('select'); type.dataset.field = 'dialogueType'; type.setAttribute('aria-label',`Panel ${panelIndex + 1} bubble ${lineIndex + 1} style`);
       [['speech','Speech'],['thought','Thought'],['shout','Shout']].forEach(([value,label]) => { const option = document.createElement('option'); option.value = value; option.textContent = label; option.selected = value === (entry?.type || 'speech'); type.append(option); });
+      const side = document.createElement('select'); side.dataset.field = 'dialogueSide'; side.setAttribute('aria-label',`Panel ${panelIndex + 1} bubble ${lineIndex + 1} position`);
+      [['auto','Auto'],['left','Left'],['right','Right']].forEach(([value,label]) => { const option = document.createElement('option'); option.value = value; option.textContent = label; option.selected = value === (entry?.side || 'auto'); side.append(option); });
       const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'remove-bubble'; remove.textContent = '×'; remove.title = 'Remove this bubble'; remove.setAttribute('aria-label',`Remove panel ${panelIndex + 1} bubble ${lineIndex + 1}`);
       const line = document.createElement('textarea'); line.dataset.field = 'dialogue'; line.value = entry?.line || ''; line.placeholder = 'What do they say? Keep it short and natural.'; line.maxLength = 500; line.setAttribute('aria-label',`Panel ${panelIndex + 1} bubble ${lineIndex + 1} dialogue`);
-      meta.append(speaker,type,remove); item.append(meta,line);
-      for (const control of [speaker,type,line]) control.addEventListener('input',() => refreshPanelBubbles(item.closest('.comic-panel')));
+      const tools = document.createElement('div'); tools.className = 'bubble-tools';
+      const resetPosition = document.createElement('button'); resetPosition.type = 'button'; resetPosition.className = 'reset-bubble'; resetPosition.textContent = '↺ Reset position'; resetPosition.setAttribute('aria-label',`Reset panel ${panelIndex + 1} bubble ${lineIndex + 1} position`);
+      tools.append(resetPosition); meta.append(speaker,type,side,remove); item.append(meta,line,tools);
+      for (const control of [speaker,type,side,line]) control.addEventListener('input',() => refreshPanelBubbles(item.closest('.comic-panel')));
+      resetPosition.addEventListener('click',() => { delete item.dataset.bubbleX; delete item.dataset.bubbleY; delete item.dataset.bubbleWidth; delete item.dataset.bubbleSource; const saved = currentProject?.comic?.panels?.[panelIndex]?.dialogue?.[lineIndex]; if (saved) saved.layout = null; refreshPanelBubbles(item.closest('.comic-panel')); setStatus('Bubble returned to automatic placement.','success'); });
       remove.addEventListener('click',() => { syncComicFromInputs(); currentProject.comic.panels[panelIndex].dialogue.splice(lineIndex,1); rerenderWithoutJump(); });
       return item;
     }
@@ -358,7 +469,7 @@
         const artCopy = document.createElement('div'); artCopy.className = 'art-copy';
         const panelTitle = document.createElement('b'); panelTitle.textContent = panel.title;
         const setting = document.createElement('span'); setting.textContent = panel.setting || panel.beat;
-        artCopy.append(panelTitle,setting); art.append(number,shot,artCopy,createBubbleLayer(panel.dialogue));
+        artCopy.append(panelTitle,setting); art.append(number,shot,artCopy,createBubbleLayer(panel.dialogue,false,index));
         const copy = document.createElement('div'); copy.className = 'panel-copy';
         const visual = document.createElement('button'); visual.type = 'button'; visual.className = 'ghost-btn visual-btn'; visual.dataset.ready = panel.image?.url ? 'true' : 'false'; visual.textContent = panel.image?.url ? '↻ Regenerate art' : '✦ Illustrate panel'; visual.disabled = visualQueueActive; visual.addEventListener('click',() => illustratePanel(index));
         const captionLabel = document.createElement('label'); captionLabel.textContent = 'Caption';

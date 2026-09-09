@@ -60,13 +60,16 @@ test('comic-plan parser accepts fenced JSON and normalizes six editable panels',
 test('comic dialogue supports multiple safe bubble styles and rejects unknown presentation values', () => {
   const comic = plan();
   comic.panels[0].dialogue = [
-    { speaker:'Mara', line:'Did you hear that?', type:'speech' },
+    { speaker:'Mara', line:'Did you hear that?', type:'speech', side:'right', layout:{x:82,y:-5,width:40,source:'manual'} },
     { speaker:'Mara', line:'It knows my name.', type:'thought' },
     { speaker:'Package', line:'RUN.', type:'shout' },
     { speaker:'Package', line:'Not a CSS injection.', type:'position:fixed' },
   ];
   const parsed = parseComicPlan(JSON.stringify(comic));
   assert.deepEqual(parsed.panels[0].dialogue.map((line) => line.type), ['speech','thought','shout','speech']);
+  assert.equal(parsed.panels[0].dialogue[0].side,'right');
+  assert.deepEqual(parsed.panels[0].dialogue[0].layout,{x:58,y:3,width:40,source:'manual'});
+  assert.equal(parsed.panels[0].dialogue[1].layout,null);
 });
 
 test('Story Studio projects stay isolated by signed-in account and can be deleted', async () => {
@@ -126,7 +129,7 @@ test('saving edits cannot claim a project outside the current account store', as
 
 test('illustrating one panel saves real private art and keeps the first panel as the world reference', async () => {
   const current = { id:'story-1', sourceTitle:'Chapter one', sourceText:'A'.repeat(180), comic:plan() };
-  const calls = { visual:[], save:[], settle:[] };
+  const calls = { visual:[], analysis:[], save:[], settle:[] };
   const handler = createStoryStudioHandler({
     resolveUser:async () => 'alice',
     store:{
@@ -139,11 +142,42 @@ test('illustrating one panel saves real private art and keeps the first panel as
     },
     meter:{ async reserveBuild(){ return {ok:true,period:1,reservationId:'visual-reservation'}; }, async settleBuild(input){ calls.settle.push(input); } },
     async generateVisual(input){ assert.equal(input.panelIndex,1); assert.equal(input.referenceImage.base64,'cmVm'); return {dataUrl:'data:image/png;base64,YXJ0',model:'image-model'}; },
+    async analyzeVisual(input){ calls.analysis.push(input); return [{index:0,side:'right',layout:{x:54,y:8,width:30,source:'vision'}}]; },
   });
   const res = response();
   await handler({method:'POST',body:{action:'illustrate',projectId:'story-1',panelIndex:1,comic:current.comic}},res);
   assert.equal(res.code,200);
   assert.equal(calls.visual[0].panelIndex,1);
+  assert.equal(calls.analysis[0].imageDataUrl,'data:image/png;base64,YXJ0');
+  assert.equal(calls.save[0].input.comic.panels[1].dialogue[0].side,'right');
+  assert.deepEqual(calls.save[0].input.comic.panels[1].dialogue[0].layout,{x:54,y:8,width:30,source:'vision'});
   assert.equal(calls.save[0].input.comic.panels[1].image.url,'/api/story-image?id=story-1&panel=1&v=777');
   assert.equal(calls.settle[0].success,true);
+});
+
+test('a failed optional vision pass falls back without losing the generated panel', async () => {
+  const current = { id:'story-1', sourceTitle:'Chapter one', sourceText:'A'.repeat(180), comic:plan() };
+  let savedComic;
+  const handler = createStoryStudioHandler({
+    resolveUser:async () => 'alice',
+    store:{
+      async getProject(){ return current; },
+      async saveProject(userId,input){ savedComic = input.comic; return {...current,comic:input.comic}; },
+    },
+    visuals:{
+      async get(){ return {mediaType:'image/png',base64:'cmVm'}; },
+      async save(){ return {model:'image-model',generatedAt:888}; },
+    },
+    meter:{ async reserveBuild(){ return {ok:true,period:1,reservationId:'visual-reservation'}; }, async settleBuild(){} },
+    async generateVisual(){ return {dataUrl:'data:image/png;base64,YXJ0',model:'image-model'}; },
+    async analyzeVisual(){ throw new Error('vision unavailable'); },
+  });
+  const originalError = console.error; console.error = () => {};
+  try {
+    const res = response();
+    await handler({method:'POST',body:{action:'illustrate',projectId:'story-1',panelIndex:1,comic:current.comic}},res);
+    assert.equal(res.code,200);
+    assert.equal(savedComic.panels[1].image.url,'/api/story-image?id=story-1&panel=1&v=888');
+    assert.equal(savedComic.panels[1].dialogue[0].layout,null);
+  } finally { console.error = originalError; }
 });

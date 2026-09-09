@@ -23,6 +23,9 @@ test('the first golden path supports chapter input, rights confirmation, generat
   assert.match(source,/panel-image/);
   assert.match(source,/Regenerate art/);
   assert.match(source,/createBubbleLayer/);
+  assert.match(source,/enableBubbleDrag/);
+  assert.match(source,/Reset position/);
+  assert.match(source,/data-positioned="true"/);
   assert.match(source,/openReader/);
   assert.match(source,/reader-page/);
   assert.match(source,/method:'DELETE'/);
@@ -56,6 +59,8 @@ test('Story Studio asks for six continuity-aware panels and preserves tenant own
   assert.match(api,/Produce exactly 6 panels/);
   assert.match(api,/appearance/);
   assert.match(api,/continuity/);
+  assert.match(api,/analyzePanelVisual/);
+  assert.match(api,/visual lettering pass failed/);
   assert.match(api,/store\.saveProject\(username/);
   assert.doesNotMatch(api,/req\.body\?\.userId/);
 });
