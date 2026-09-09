@@ -33,6 +33,10 @@ test('the finished reader presents every panel together with captions and editab
   assert.match(source,/dialogueFromCard/);
   assert.match(source,/\['speech','Speech'\],\['thought','Thought'\],\['shout','Shout'\]/);
   assert.match(source,/reader-caption/);
+  assert.match(source,/sideBySpeaker/);
+  assert.match(source,/bubble\.dataset\.placement/);
+  assert.match(source,/bubble\.dataset\.size/);
+  assert.match(source,/data-placement\^="middle-"/);
   assert.match(source,/END OF ISSUE/);
 });
 

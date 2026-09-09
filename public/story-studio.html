@@ -77,11 +77,17 @@
     .visual-btn[data-ready="true"] { color:var(--green); border-color:#58edb04f; }
     .panel-copy label { margin:0 0 4px; font-size:8px; }
     .panel-copy textarea { min-height:66px; padding:9px; font-size:11px; }
-    .bubble-layer { position:absolute; inset:48px 12px 76px; z-index:3; display:flex; flex-direction:column; align-items:flex-start; gap:8px; pointer-events:none; }
-    .comic-bubble { position:relative; max-width:min(76%,280px); padding:9px 12px; border:2px solid #111827; border-radius:17px; background:#fff; color:#111827; box-shadow:0 4px 0 #11182766,0 8px 22px #0007; font-size:11px; line-height:1.35; }
-    .comic-bubble:nth-child(even) { align-self:flex-end; }
-    .comic-bubble::after { content:""; position:absolute; left:17px; bottom:-9px; width:13px; height:13px; border-right:2px solid #111827; border-bottom:2px solid #111827; background:#fff; transform:skew(-24deg) rotate(35deg); }
-    .comic-bubble:nth-child(even)::after { left:auto; right:17px; transform:skew(24deg) rotate(55deg); }
+    .bubble-layer { position:absolute; inset:48px 12px 76px; z-index:3; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); grid-template-rows:repeat(3,minmax(0,1fr)); column-gap:12px; row-gap:5px; pointer-events:none; }
+    .comic-bubble { position:relative; width:max-content; max-width:min(100%,28ch); padding:7px 9px; border:2px solid #111827; border-radius:15px; background:#fff; color:#111827; box-shadow:0 3px 0 #11182766,0 6px 16px #0007; font-size:10px; line-height:1.28; overflow-wrap:anywhere; }
+    .comic-bubble[data-size="short"] { max-width:min(100%,15ch); }
+    .comic-bubble[data-size="medium"] { max-width:min(100%,22ch); }
+    .comic-bubble[data-side="left"] { grid-column:1; justify-self:start; }
+    .comic-bubble[data-side="right"] { grid-column:2; justify-self:end; }
+    .comic-bubble[data-placement^="top-"] { grid-row:1; align-self:start; }
+    .comic-bubble[data-placement^="middle-"] { grid-row:2; align-self:center; }
+    .comic-bubble[data-placement^="bottom-"] { grid-row:3; align-self:end; }
+    .comic-bubble::after { content:""; position:absolute; left:14px; bottom:-8px; width:11px; height:11px; border-right:2px solid #111827; border-bottom:2px solid #111827; background:#fff; transform:skew(-24deg) rotate(35deg); }
+    .comic-bubble[data-side="right"]::after { left:auto; right:14px; transform:skew(24deg) rotate(55deg); }
     .comic-bubble[data-type="thought"] { border-radius:999px; border-style:dashed; }
     .comic-bubble[data-type="thought"]::after { width:8px; height:8px; bottom:-11px; border:2px solid #111827; border-radius:50%; transform:none; }
     .comic-bubble[data-type="shout"] { border-radius:5px; border-color:#ff4f87; box-shadow:0 4px 0 #ff4f8766,0 8px 22px #0007; font-weight:800; text-transform:uppercase; }
@@ -214,9 +220,27 @@
 
     function createBubbleLayer(dialogue,readerMode=false) {
       const layer = document.createElement('div'); layer.className = 'bubble-layer';
-      (dialogue || []).slice(0,readerMode ? 6 : 3).forEach((entry) => {
+      const sideBySpeaker = new Map();
+      const sideCount = { left:0, right:0 };
+      let nextSide = 'left';
+      (dialogue || []).slice(0,readerMode ? 6 : 3).forEach((entry,index) => {
         if (!entry?.line) return;
-        const bubble = document.createElement('div'); bubble.className = 'comic-bubble'; bubble.dataset.type = ['thought','shout'].includes(entry.type) ? entry.type : 'speech';
+        const speakerKey = entry.speaker?.trim().toLowerCase() || `line-${index}`;
+        let side = sideBySpeaker.get(speakerKey);
+        if (!side) {
+          side = nextSide;
+          sideBySpeaker.set(speakerKey,side);
+          nextSide = nextSide === 'left' ? 'right' : 'left';
+        }
+        if (sideCount[side] >= 3) side = side === 'left' ? 'right' : 'left';
+        const slot = Math.min(sideCount[side],2);
+        sideCount[side] += 1;
+        const length = entry.line.trim().length;
+        const bubble = document.createElement('div'); bubble.className = 'comic-bubble';
+        bubble.dataset.type = ['thought','shout'].includes(entry.type) ? entry.type : 'speech';
+        bubble.dataset.side = side;
+        bubble.dataset.placement = `${['top','middle','bottom'][slot]}-${side}`;
+        bubble.dataset.size = length <= 28 ? 'short' : length <= 72 ? 'medium' : 'long';
         if (entry.speaker) { const speaker = document.createElement('b'); speaker.textContent = entry.speaker; bubble.append(speaker); }
         bubble.append(document.createTextNode(entry.line)); layer.append(bubble);
       });
