@@ -14,7 +14,7 @@ const comic = {
     shot:index % 2 ? 'Close-up' : 'Wide shot',
     setting:'Rainy elevated train platform',
     caption:index === 0 ? 'The last train was never empty.' : '',
-    dialogue:[{speaker:index % 2 ? 'Package' : 'Mara',line:index % 2 ? 'I have been waiting for you.' : 'Who said that?',type:index === 1 ? 'thought' : 'speech'}],
+    dialogue:[{speaker:index % 2 ? 'Package' : 'Mara',line:index % 2 ? 'I have been waiting for you.' : 'Who said that?',type:index === 1 ? 'thought' : 'speech',side:index % 2 ? 'right' : 'left',layout:index === 0 ? {x:56,y:8,width:24,source:'vision'} : null}],
     artDirection:'Violet rain light and a red coat.',
     image:{url:`/api/story-image?id=story-1&panel=${index}&v=777`,model:'test-image',generatedAt:777},
   })),
@@ -41,7 +41,21 @@ test('a mobile customer can edit bubbles and read the complete comic together', 
   await page.goto('/story-studio.html');
   await page.getByRole('button',{name:/The Signal/}).click();
   await expect(page.locator('.comic-panel')).toHaveCount(6);
-  await expect(page.locator('.comic-panel').first().locator('.comic-bubble')).toContainText('Who said that?');
+  const firstPanel = page.locator('.comic-panel').first();
+  const firstBubble = firstPanel.locator('.comic-bubble');
+  await expect(firstBubble).toContainText('Who said that?');
+  await expect(firstBubble).toHaveAttribute('data-positioned','true');
+  const beforeX = await firstBubble.evaluate((element) => element.style.getPropertyValue('--bubble-x'));
+  const box = await firstBubble.boundingBox();
+  await page.mouse.move(box.x + box.width / 2,box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x - 70,box.y + 55,{steps:5});
+  await page.mouse.up();
+  const afterX = await firstBubble.evaluate((element) => element.style.getPropertyValue('--bubble-x'));
+  expect(afterX).not.toBe(beforeX);
+  await expect(firstPanel.locator('[data-field="dialogueSide"]')).toHaveValue('left');
+  await firstPanel.getByRole('button',{name:/Reset panel 1 bubble 1 position/}).click();
+  await expect(firstPanel.locator('.comic-bubble')).not.toHaveAttribute('data-positioned','true');
   await page.locator('.comic-panel').first().getByRole('button',{name:'Add bubble'}).click();
   const newBubble = page.locator('.comic-panel').first().locator('.dialogue-item').last();
   await newBubble.getByPlaceholder('Who is speaking?').fill('Mara');

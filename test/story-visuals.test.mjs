@@ -2,9 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createStoryImageHandler } from '../api/story-image.js';
 import {
+  analyzePanelVisual,
   buildPanelVisualPrompt,
+  buildPanelVisionPrompt,
   createStoryVisualStore,
   generatePanelVisual,
+  parseBubblePlacements,
   parseImageDataUrl,
   __internals,
 } from '../lib/storyVisuals.js';
@@ -20,7 +23,7 @@ function comic() {
     characters: [{ name:'Mara', role:'courier', appearance:'cropped dark hair and a red utility coat', continuity:'silver wrist band on the left arm' }],
     panels: [
       { beat:'Mara arrives alone on a rain-soaked platform.', shot:'wide establishing shot', setting:'elevated train platform at midnight', artDirection:'rain and violet signals', dialogue:[] },
-      { beat:'The package lights up and speaks her name.', shot:'extreme close-up', setting:'inside the last train', artDirection:'blue light across her startled face', dialogue:[{speaker:'Package',line:'Mara.'}] },
+      { beat:'The package lights up and speaks her name.', shot:'extreme close-up', setting:'inside the last train', artDirection:'blue light across her startled face', dialogue:[{speaker:'Package',line:'Mara.',side:'right'}] },
     ],
   };
 }
@@ -42,9 +45,63 @@ test('panel prompts share one locked world while demanding a distinct scene', ()
   assert.match(second,/cropped dark hair and a red utility coat/);
   assert.match(first,/rain-soaked platform/);
   assert.match(second,/package lights up/);
+  assert.match(second,/Package \(right side\): Mara\./);
+  assert.match(second,/negative space above or beside every speaker/);
   assert.match(second,/genuinely new composition/);
   assert.match(second,/Do not include captions, speech bubbles/);
   assert.notEqual(first,second);
+});
+
+test('vision lettering prompt asks the Gateway to inspect actual pixels and return bounded coordinates', () => {
+  const prompt = buildPanelVisionPrompt({panel:comic().panels[1]});
+  assert.match(prompt,/professional letterer/);
+  assert.match(prompt,/Read the actual pixels/);
+  assert.match(prompt,/"x":number,"y":number,"width":number/);
+  assert.match(prompt,/Package.*Mara\./);
+});
+
+test('vision placements are complete, normalized, and rejected when bubbles collide', () => {
+  const dialogue = [
+    {speaker:'Mara',line:'Did you hear that?'},
+    {speaker:'Eli',line:'It came from below the floorboards.'},
+  ];
+  const placements = parseBubblePlacements(JSON.stringify({placements:[
+    {index:0,side:'left',x:-20,y:5,width:5},
+    {index:1,side:'right',x:62,y:40,width:80},
+  ]}),dialogue);
+  assert.deepEqual(placements,[
+    {index:0,side:'left',layout:{x:2,y:5,width:16,source:'vision'}},
+    {index:1,side:'right',layout:{x:62,y:40,width:28,source:'vision'}},
+  ]);
+  assert.equal(parseBubblePlacements(JSON.stringify({placements:[
+    {index:0,side:'left',x:5,y:5,width:28},
+    {index:1,side:'right',x:10,y:8,width:38},
+  ]}),dialogue),null);
+  assert.equal(parseBubblePlacements(JSON.stringify({placements:[
+    {index:0,side:'center',x:5,y:5,width:28},
+    {index:1,side:'right',x:62,y:40,width:28},
+  ]}),dialogue),null);
+});
+
+test('post-generation vision sends the finished panel to Gateway and returns safe bubble placements', async () => {
+  let request;
+  const panel = comic().panels[1];
+  const placements = await analyzePanelVisual({
+    panel,
+    imageDataUrl:png,
+    userId:'alice',
+    env:{AI_GATEWAY_API_KEY:'gateway-secret',STORY_STUDIO_VISION_MODEL:'openai/test-vision-model'},
+    fetchFn:async (url,options) => {
+      request = {url,options,body:JSON.parse(options.body)};
+      return {ok:true,async json(){ return {choices:[{message:{content:'{"placements":[{"index":0,"side":"right","x":58,"y":8,"width":22}]}'}}]}; }};
+    },
+  });
+  assert.equal(request.url,__internals.GATEWAY_IMAGE_ENDPOINT);
+  assert.equal(request.body.model,'openai/test-vision-model');
+  assert.equal(request.body.messages[0].content[1].image_url.url,png);
+  assert.equal(request.body.providerOptions.gateway.user,'alice');
+  assert.deepEqual(request.body.providerOptions.gateway.tags,['feature:story-studio-vision']);
+  assert.deepEqual(placements,[{index:0,side:'right',layout:{x:58,y:8,width:22,source:'vision'}}]);
 });
 
 test('image generation uses Gateway image modalities and can carry the first panel as reference', async () => {

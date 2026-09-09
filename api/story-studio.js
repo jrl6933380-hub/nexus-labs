@@ -5,7 +5,7 @@ import { getRequestUser } from '../lib/roomAuth.js';
 import { roomMeter } from '../lib/roomMetering.js';
 import { routeMessage } from '../lib/modelRouter.js';
 import { normalizeComicPlan, parseComicPlan, storyStudioStore } from '../lib/storyStudio.js';
-import { generatePanelVisual, storyVisualStore } from '../lib/storyVisuals.js';
+import { analyzePanelVisual, generatePanelVisual, storyVisualStore } from '../lib/storyVisuals.js';
 
 export const config = { maxDuration: 120 };
 
@@ -62,6 +62,7 @@ export function createStoryStudioHandler({
   meter = roomMeter,
   route = routeMessage,
   generateVisual = generatePanelVisual,
+  analyzeVisual = analyzePanelVisual,
 } = {}) {
   return async function handler(req, res) {
     res.setHeader('Cache-Control', 'private, no-store');
@@ -139,6 +140,23 @@ export function createStoryStudioHandler({
           }
           const referenceImage = panelIndex > 0 ? await visuals.get(username, projectId, 0) : null;
           const generated = await generateVisual({ comic, panel, panelIndex, referenceImage });
+          if (panel.dialogue.length) {
+            try {
+              const placements = await analyzeVisual({ comic, panel, panelIndex, imageDataUrl:generated.dataUrl, userId:username });
+              if (placements.length === panel.dialogue.length) {
+                panel.dialogue = panel.dialogue.map((line, index) => ({
+                  ...line,
+                  side: placements[index].side,
+                  layout: placements[index].layout,
+                }));
+              }
+            } catch (error) {
+              // Artwork is still useful when the optional lettering pass is
+              // unavailable. The UI falls back to its collision-safe grid and
+              // exposes manual side/drag controls instead of failing the panel.
+              console.error('story-studio visual lettering pass failed:', error.message);
+            }
+          }
           const asset = await visuals.save(username, projectId, panelIndex, generated);
           panel.image = {
             url: panelImageUrl(projectId, panelIndex, asset.generatedAt),
