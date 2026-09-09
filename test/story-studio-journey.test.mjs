@@ -18,6 +18,10 @@ test('the first golden path supports chapter input, rights confirmation, generat
   }
   assert.match(source,/action:'generate'/);
   assert.match(source,/action:'save'/);
+  assert.match(source,/action:'illustrate'/);
+  assert.match(source,/illustrateAll/);
+  assert.match(source,/panel-image/);
+  assert.match(source,/Regenerate art/);
   assert.match(source,/method:'DELETE'/);
 });
 

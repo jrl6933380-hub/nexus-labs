@@ -4,7 +4,10 @@
 import { getRequestUser } from '../lib/roomAuth.js';
 import { roomMeter } from '../lib/roomMetering.js';
 import { routeMessage } from '../lib/modelRouter.js';
-import { parseComicPlan, storyStudioStore } from '../lib/storyStudio.js';
+import { normalizeComicPlan, parseComicPlan, storyStudioStore } from '../lib/storyStudio.js';
+import { generatePanelVisual, storyVisualStore } from '../lib/storyVisuals.js';
+
+export const config = { maxDuration: 120 };
 
 export const STORY_STUDIO_PROMPT = `You are Nex Story Editor, a professional comics adaptation editor. Turn one chapter into a coherent six-panel comic sequence that can guide later illustration, storyboarding, and video production.
 
@@ -39,11 +42,25 @@ function validProjectId(value) {
   return /^[a-zA-Z0-9_-]{1,120}$/.test(String(value || ''));
 }
 
+function comicWithTrustedImages(input, current) {
+  const comic = normalizeComicPlan(input || current);
+  comic.panels.forEach((panel, index) => {
+    panel.image = current?.panels?.[index]?.image || null;
+  });
+  return comic;
+}
+
+function panelImageUrl(projectId, panelIndex, generatedAt) {
+  return `/api/story-image?id=${encodeURIComponent(projectId)}&panel=${panelIndex}&v=${generatedAt}`;
+}
+
 export function createStoryStudioHandler({
   resolveUser = getRequestUser,
   store = storyStudioStore,
+  visuals = storyVisualStore,
   meter = roomMeter,
   route = routeMessage,
+  generateVisual = generatePanelVisual,
 } = {}) {
   return async function handler(req, res) {
     res.setHeader('Cache-Control', 'private, no-store');
@@ -74,6 +91,10 @@ export function createStoryStudioHandler({
         const id = req.query?.id;
         if (!validProjectId(id)) return res.status(400).json({ error: 'Invalid project id' });
         const deleted = await store.deleteProject(username, id);
+        if (deleted) {
+          try { await visuals.deleteProject(username, id); }
+          catch (error) { console.error('story-studio visual cleanup failed:', error.message); }
+        }
         return res.status(deleted ? 200 : 404).json(deleted ? { deleted: true } : { error: 'Project not found' });
       }
 
@@ -87,9 +108,59 @@ export function createStoryStudioHandler({
         const project = await store.saveProject(username, {
           ...current,
           id: current.id,
-          comic: req.body.comic,
+          comic: comicWithTrustedImages(req.body.comic, current.comic),
         });
         return res.status(200).json({ project });
+      }
+
+      if (action === 'illustrate') {
+        const projectId = String(req.body?.projectId || '');
+        const panelIndex = Number(req.body?.panelIndex);
+        if (!validProjectId(projectId) || !Number.isInteger(panelIndex) || panelIndex < 0 || panelIndex > 7) {
+          return res.status(400).json({ error: 'Invalid Story Studio panel' });
+        }
+        const current = await store.getProject(username, projectId);
+        if (!current) return res.status(404).json({ error: 'Project not found' });
+        const comic = comicWithTrustedImages(req.body?.comic, current.comic);
+        const panel = comic.panels[panelIndex];
+        if (!panel) return res.status(400).json({ error: 'Panel not found' });
+
+        let visualReservation;
+        let visualSuccess = false;
+        try {
+          visualReservation = await meter.reserveBuild({ userId: username, kind: 'edit' });
+          if (!visualReservation.ok) {
+            return res.status(429).json({
+              error: 'This account needs more creative credits to illustrate another panel.',
+              code: 'ROOM_CREDITS_EXHAUSTED',
+              usage: visualReservation,
+            });
+          }
+          const referenceImage = panelIndex > 0 ? await visuals.get(username, projectId, 0) : null;
+          const generated = await generateVisual({ comic, panel, panelIndex, referenceImage });
+          const asset = await visuals.save(username, projectId, panelIndex, generated);
+          panel.image = {
+            url: panelImageUrl(projectId, panelIndex, asset.generatedAt),
+            model: asset.model,
+            generatedAt: asset.generatedAt,
+          };
+          const project = await store.saveProject(username, { ...current, comic });
+          visualSuccess = true;
+          return res.status(200).json({ project, panelIndex });
+        } finally {
+          if (visualReservation?.ok) {
+            try {
+              await meter.settleBuild({
+                userId: username,
+                period: visualReservation.period,
+                reservationId: visualReservation.reservationId,
+                success: visualSuccess,
+              });
+            } catch (error) {
+              console.error('story-studio visual usage settlement failed:', error.message);
+            }
+          }
+        }
       }
 
       if (action !== 'generate') return res.status(400).json({ error: 'Unknown action' });
@@ -148,7 +219,12 @@ export function createStoryStudioHandler({
       }
     } catch (error) {
       console.error('story-studio handler failed:', error.message);
-      return res.status(502).json({ error: 'Nex could not shape that chapter right now. Try again in a moment.' });
+      const illustrating = req.body?.action === 'illustrate';
+      return res.status(502).json({
+        error: illustrating
+          ? 'Nex could not illustrate that panel right now. Try it again in a moment.'
+          : 'Nex could not shape that chapter right now. Try again in a moment.',
+      });
     }
   };
 }
