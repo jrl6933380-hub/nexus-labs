@@ -77,13 +77,21 @@
     .visual-btn[data-ready="true"] { color:var(--green); border-color:#58edb04f; }
     .panel-copy label { margin:0 0 4px; font-size:8px; }
     .panel-copy textarea { min-height:66px; padding:9px; font-size:11px; }
-    .bubble-layer { position:absolute; inset:48px 12px 76px; z-index:3; display:flex; flex-direction:column; align-items:flex-start; gap:8px; pointer-events:none; }
-    .comic-bubble { position:relative; max-width:min(76%,280px); padding:9px 12px; border:2px solid #111827; border-radius:17px; background:#fff; color:#111827; box-shadow:0 4px 0 #11182766,0 8px 22px #0007; font-size:11px; line-height:1.35; }
-    .comic-bubble:nth-child(even) { align-self:flex-end; }
+    .bubble-layer { position:absolute; inset:48px 12px 76px; z-index:3; display:grid; grid-template-rows:repeat(3,minmax(0,1fr)); row-gap:6px; pointer-events:none; }
+    .comic-bubble { position:relative; width:fit-content; padding:9px 12px; border:2px solid #111827; border-radius:17px; background:#fff; color:#111827; box-shadow:0 4px 0 #11182766,0 8px 22px #0007; font-size:11px; line-height:1.35; }
+    .comic-bubble.zone-0 { grid-row:1; align-self:start; }
+    .comic-bubble.zone-1 { grid-row:2; align-self:center; }
+    .comic-bubble.zone-2 { grid-row:3; align-self:end; }
+    .comic-bubble[data-side="left"] { justify-self:start; }
+    .comic-bubble[data-side="right"] { justify-self:end; }
+    .comic-bubble.bubble-sm { max-width:min(44%,180px); }
+    .comic-bubble.bubble-md { max-width:min(60%,230px); }
+    .comic-bubble.bubble-lg { max-width:min(76%,280px); }
     .comic-bubble::after { content:""; position:absolute; left:17px; bottom:-9px; width:13px; height:13px; border-right:2px solid #111827; border-bottom:2px solid #111827; background:#fff; transform:skew(-24deg) rotate(35deg); }
-    .comic-bubble:nth-child(even)::after { left:auto; right:17px; transform:skew(24deg) rotate(55deg); }
+    .comic-bubble[data-side="right"]::after { left:auto; right:17px; transform:skew(24deg) rotate(55deg); }
     .comic-bubble[data-type="thought"] { border-radius:999px; border-style:dashed; }
-    .comic-bubble[data-type="thought"]::after { width:8px; height:8px; bottom:-11px; border:2px solid #111827; border-radius:50%; transform:none; }
+    .comic-bubble[data-type="thought"]::after { width:8px; height:8px; bottom:-11px; border:2px solid #111827; border-radius:50%; transform:none; left:17px; }
+    .comic-bubble[data-type="thought"][data-side="right"]::after { left:auto; right:17px; }
     .comic-bubble[data-type="shout"] { border-radius:5px; border-color:#ff4f87; box-shadow:0 4px 0 #ff4f8766,0 8px 22px #0007; font-weight:800; text-transform:uppercase; }
     .comic-bubble b { display:block; margin-bottom:2px; color:#7546d7; font:800 7px 'JetBrains Mono'; letter-spacing:.08em; text-transform:uppercase; }
     .dialogue-editor { display:grid; gap:8px; }
@@ -214,11 +222,32 @@
 
     function createBubbleLayer(dialogue,readerMode=false) {
       const layer = document.createElement('div'); layer.className = 'bubble-layer';
-      (dialogue || []).slice(0,readerMode ? 6 : 3).forEach((entry) => {
-        if (!entry?.line) return;
-        const bubble = document.createElement('div'); bubble.className = 'comic-bubble'; bubble.dataset.type = ['thought','shout'].includes(entry.type) ? entry.type : 'speech';
+      const entries = (dialogue || []).filter((entry) => entry?.line).slice(0,readerMode ? 6 : 3);
+      const speakerSides = new Map();
+      const zoneSlots = [{},{},{}];
+      let fallbackSideIndex = 0;
+      entries.forEach((entry,index) => {
+        let side;
+        if (entry.speaker) {
+          if (!speakerSides.has(entry.speaker)) speakerSides.set(entry.speaker, speakerSides.size % 2 === 0 ? 'left' : 'right');
+          side = speakerSides.get(entry.speaker);
+        } else {
+          side = fallbackSideIndex % 2 === 0 ? 'left' : 'right';
+          fallbackSideIndex += 1;
+        }
+        let zoneIndex = zoneSlots.findIndex((slot) => !slot[side]);
+        if (zoneIndex === -1) zoneIndex = zoneSlots.findIndex((slot) => !slot.left && !slot.right);
+        if (zoneIndex === -1) zoneIndex = index % zoneSlots.length;
+        zoneSlots[zoneIndex][side] = true;
+        const bubble = document.createElement('div');
+        bubble.className = `comic-bubble zone-${zoneIndex}`;
+        bubble.dataset.type = ['thought','shout'].includes(entry.type) ? entry.type : 'speech';
+        bubble.dataset.side = side;
+        const length = entry.line.length;
+        bubble.classList.add(length <= 40 ? 'bubble-sm' : length <= 90 ? 'bubble-md' : 'bubble-lg');
         if (entry.speaker) { const speaker = document.createElement('b'); speaker.textContent = entry.speaker; bubble.append(speaker); }
-        bubble.append(document.createTextNode(entry.line)); layer.append(bubble);
+        bubble.append(document.createTextNode(entry.line));
+        layer.append(bubble);
       });
       return layer;
     }
