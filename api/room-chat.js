@@ -22,15 +22,9 @@
 // v5: requires a signed-in session (see lib/roomAuth.js) — builds are
 // now saved per-user, not to one shared global history.
 //
-// v6: every generated page gets a real, working "talk to Nex" widget
-// injected server-side (see injectLiveEditWidget below) — a small
-// floating circle that expands into a chat input, present whether or
-// not the generated page has its own chat-style UI. This is injected
-// rather than left to the model to build, because a model-authored
-// chat UI can look convincing while not actually being wired to
-// anything (this is literally what happened with an earlier "Jarvis"
-// build) — the injected widget is fixed, tested once, and guaranteed
-// to work the same way every time.
+// v7: Room Builder now owns one draggable conversation dock over the full
+// preview. Generated HTML is deliberately free of builder chrome so users
+// see one chat surface, and exports/previews stay portable.
 
 import { saveBuild } from '../lib/roomHistory.js';
 import { getRequestUser } from '../lib/roomAuth.js';
@@ -74,7 +68,7 @@ Respond with one or more edit blocks in exactly this format, and nothing else �
 
 Include multiple edit blocks back to back for multiple separate changes in the same response. Keep every OLD block copied exactly, character for character, from the current HTML — it will be matched verbatim.
 
-Rules for any NEW text: never use localStorage or sessionStorage (the page runs in a sandboxed iframe where they throw errors); keep it self-contained and safe, no requests to localhost or internal networks, no attempts to break out of the iframe. Don't touch anything between the NEXUS_LIVE_EDIT_WIDGET_START/END comment markers if you see them in the current HTML — that's an injected, working chat widget, not part of the page you're editing.
+Rules for any NEW text: never use localStorage or sessionStorage (the page runs in a sandboxed iframe where they throw errors); keep it self-contained and safe, no requests to localhost or internal networks, no attempts to break out of the iframe.
 
 If the requested change is too extensive to express as targeted edits (e.g. a full redesign, or restructuring most of the page), instead respond with ONLY the token <<<REWRITE>>> on its own line, followed by the complete new HTML document starting with <!DOCTYPE html>, and nothing else.`;
 
@@ -90,56 +84,11 @@ function parsePatchBlocks(text) {
   return blocks;
 }
 
-// A real, working "talk to Nex" widget, injected into every generated
-// page rather than left to the model. font-size:16px on the input
-// avoids iOS Safari's zoom-on-focus (see nexus-stark.css for the same
-// fix applied to the rest of the app). Sends messages to the parent
-// window via postMessage — works even though the iframe is sandboxed
-// without allow-same-origin, since postMessage is exempt from that
-// restriction by design.
-const LIVE_EDIT_WIDGET = `<!-- NEXUS_LIVE_EDIT_WIDGET_START -->
-<div id="nexus-live-edit-widget" style="position:fixed;bottom:20px;right:20px;z-index:2147483647;font-family:-apple-system,system-ui,sans-serif;">
-  <button id="nexus-live-edit-toggle" type="button" aria-label="Talk to Nex" style="width:52px;height:52px;border-radius:50%;background:#2E7FFF;border:none;box-shadow:0 4px 18px rgba(0,0,0,0.35);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:22px;line-height:1;padding:0;">💬</button>
-  <div id="nexus-live-edit-panel" style="display:none;position:absolute;bottom:64px;right:0;width:250px;background:#12192A;border:1px solid #1F2B42;border-radius:12px;padding:10px;box-shadow:0 8px 26px rgba(0,0,0,0.45);">
-    <div style="font-size:11px;color:#8891A3;margin-bottom:6px;font-family:'JetBrains Mono',monospace;">Talk to Nex to edit this page</div>
-    <input id="nexus-live-edit-input" type="text" placeholder="Describe a change..." style="width:100%;padding:9px 10px;border-radius:6px;border:1px solid #1F2B42;background:#0A0E14;color:#E4E9F2;font-size:16px;box-sizing:border-box;outline:none;">
-  </div>
-</div>
-<script>
-(function(){
-  var toggle = document.getElementById('nexus-live-edit-toggle');
-  var panel = document.getElementById('nexus-live-edit-panel');
-  var input = document.getElementById('nexus-live-edit-input');
-  if (!toggle || !panel || !input) return;
-  toggle.addEventListener('click', function(){
-    var opening = panel.style.display === 'none';
-    panel.style.display = opening ? 'block' : 'none';
-    if (opening) input.focus();
-  });
-  input.addEventListener('keydown', function(e){
-    if (e.key === 'Enter' && input.value.trim()) {
-      try {
-        window.parent.postMessage({ source: 'nexus-live-edit-widget', message: input.value.trim() }, '*');
-      } catch (err) {}
-      input.value = '';
-      panel.style.display = 'none';
-    }
-  });
-})();
-</script>
-<!-- NEXUS_LIVE_EDIT_WIDGET_END -->`;
-
-function injectLiveEditWidget(html) {
-  // Strip any prior copy first (idempotent) — a patch-mode edit on a
-  // page that already has the widget shouldn't end up with two.
-  const withoutExisting = html.replace(
+export function stripLiveEditWidget(html) {
+  return html.replace(
     /<!-- NEXUS_LIVE_EDIT_WIDGET_START -->[\s\S]*?<!-- NEXUS_LIVE_EDIT_WIDGET_END -->\n?/i,
     ''
   );
-  if (/<\/body>/i.test(withoutExisting)) {
-    return withoutExisting.replace(/<\/body>/i, LIVE_EDIT_WIDGET + '\n</body>');
-  }
-  return withoutExisting + '\n' + LIVE_EDIT_WIDGET;
 }
 
 export default async function handler(req, res) {
@@ -336,7 +285,7 @@ export default async function handler(req, res) {
       }
     }
 
-    html = injectLiveEditWidget(html);
+    html = stripLiveEditWidget(html);
 
     send({ action: 'html', html });
     // Provider work completed, so charge the reserved operation even if

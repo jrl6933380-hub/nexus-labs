@@ -129,6 +129,20 @@ function injectStyles() {
       min-height: 120px;
       transition: border-color 160ms ease, box-shadow 160ms ease;
     }
+    .nexus-canvas-panel.is-workspace-locked {
+      inset: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      min-width: 0;
+      min-height: 0;
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
+      backdrop-filter: none;
+    }
+    .nexus-canvas-panel.is-workspace-locked > .nexus-canvas-panel-header,
+    .nexus-canvas-panel.is-workspace-locked > .nexus-canvas-resize-handle { display: none; }
+    .nexus-canvas-panel.is-workspace-locked > .nexus-canvas-panel-body { overflow: hidden; }
     .nexus-canvas-panel-header {
       display: flex;
       align-items: center;
@@ -542,9 +556,10 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
   poll();
   const pollTimer = setInterval(poll, POLL_INTERVAL_MS);
 
-  function addPanel({ id, title, content, x = 80, y = 80, w = 360, h = 280 }) {
+  function addPanel({ id, title, content, x = 80, y = 80, w = 360, h = 280, locked = false }) {
     const el = document.createElement('div');
     el.className = 'nexus-canvas-panel';
+    el.classList.toggle('is-workspace-locked', locked);
     el.dataset.panelId = id;
     applyRect(el, { x, y, w, h });
 
@@ -589,6 +604,7 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
     } catch {
       // Safe clamping still works when storage is unavailable.
     }
+    if (locked) collapsed = false;
     const entry = { el, dragging: false, resizing: false, collapsed, title, remoteRect: { x, y, w, h }, mobileRect };
     panels.set(id, entry);
     el.classList.toggle('is-collapsed', collapsed);
