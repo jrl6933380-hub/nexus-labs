@@ -54,6 +54,19 @@ test('comic-plan parser accepts fenced JSON and normalizes six editable panels',
   assert.equal(parsed.panels[0].number, 1);
   assert.equal(parsed.characters[0].name, 'Mara');
   assert.deepEqual(parsed.palette, ['#101525', '#7b45d6', '#58d7ff']);
+  assert.equal(parsed.panels[0].dialogue[0].type, 'speech');
+});
+
+test('comic dialogue supports multiple safe bubble styles and rejects unknown presentation values', () => {
+  const comic = plan();
+  comic.panels[0].dialogue = [
+    { speaker:'Mara', line:'Did you hear that?', type:'speech' },
+    { speaker:'Mara', line:'It knows my name.', type:'thought' },
+    { speaker:'Package', line:'RUN.', type:'shout' },
+    { speaker:'Package', line:'Not a CSS injection.', type:'position:fixed' },
+  ];
+  const parsed = parseComicPlan(JSON.stringify(comic));
+  assert.deepEqual(parsed.panels[0].dialogue.map((line) => line.type), ['speech','thought','shout','speech']);
 });
 
 test('Story Studio projects stay isolated by signed-in account and can be deleted', async () => {
