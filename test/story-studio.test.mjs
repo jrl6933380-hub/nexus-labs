@@ -110,3 +110,27 @@ test('saving edits cannot claim a project outside the current account store', as
   await handler({ method:'POST', body:{ action:'save', projectId:'someone-elses-project', comic:plan() } },res);
   assert.equal(res.code,404);
 });
+
+test('illustrating one panel saves real private art and keeps the first panel as the world reference', async () => {
+  const current = { id:'story-1', sourceTitle:'Chapter one', sourceText:'A'.repeat(180), comic:plan() };
+  const calls = { visual:[], save:[], settle:[] };
+  const handler = createStoryStudioHandler({
+    resolveUser:async () => 'alice',
+    store:{
+      async getProject(){ return current; },
+      async saveProject(userId,input){ calls.save.push({userId,input}); return {...current,comic:input.comic}; },
+    },
+    visuals:{
+      async get(userId,projectId,panelIndex){ assert.equal(userId,'alice'); assert.equal(projectId,'story-1'); assert.equal(panelIndex,0); return {mediaType:'image/png',base64:'cmVm'}; },
+      async save(userId,projectId,panelIndex,input){ calls.visual.push({userId,projectId,panelIndex,input}); return {model:input.model,generatedAt:777}; },
+    },
+    meter:{ async reserveBuild(){ return {ok:true,period:1,reservationId:'visual-reservation'}; }, async settleBuild(input){ calls.settle.push(input); } },
+    async generateVisual(input){ assert.equal(input.panelIndex,1); assert.equal(input.referenceImage.base64,'cmVm'); return {dataUrl:'data:image/png;base64,YXJ0',model:'image-model'}; },
+  });
+  const res = response();
+  await handler({method:'POST',body:{action:'illustrate',projectId:'story-1',panelIndex:1,comic:current.comic}},res);
+  assert.equal(res.code,200);
+  assert.equal(calls.visual[0].panelIndex,1);
+  assert.equal(calls.save[0].input.comic.panels[1].image.url,'/api/story-image?id=story-1&panel=1&v=777');
+  assert.equal(calls.settle[0].success,true);
+});
