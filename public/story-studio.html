@@ -66,8 +66,10 @@
     .panel-art:not(.has-image)::before { content:""; position:absolute; inset:-25%; z-index:-2; background:radial-gradient(circle at 70% 25%,var(--panel-c),transparent 28%),linear-gradient(115deg,transparent 43%,#ffffff0a 44% 46%,transparent 47%); transform:rotate(calc(var(--panel-index) * 7deg)); }
     .panel-art:not(.has-image)::after { content:""; position:absolute; z-index:-1; width:45%; aspect-ratio:.72; left:28%; bottom:-12%; border-radius:48% 48% 16% 16%; background:#05070bbd; box-shadow:-95px 30px 0 -28px #0709109e,95px 42px 0 -34px #0709109e; filter:drop-shadow(0 0 24px #000); }
     .panel-art.has-image::after { content:""; position:absolute; inset:0; z-index:1; background:linear-gradient(180deg,#05081108 55%,#05081138 100%); }
+    .scene-plate { position:absolute; inset:0; z-index:0; overflow:hidden; transform-origin:center; will-change:transform; }
     .panel-image { position:absolute; inset:0; z-index:0; width:100%; height:100%; object-fit:cover; }
-    .panel-number { position:absolute; z-index:2; top:11px; left:11px; width:29px; height:29px; display:grid; place-items:center; border:1px solid #ffffff4a; background:#060913d9; border-radius:7px; font:700 11px 'JetBrains Mono'; }
+    .scene-actor-layer { position:absolute; inset:0; z-index:1; pointer-events:none; }
+    .scene-actor { position:absolute; transform-origin:center bottom; object-fit:contain; filter:drop-shadow(0 8px 12px #0008); will-change:transform,opacity; }
     .shot { position:absolute; z-index:2; top:13px; right:13px; max-width:65%; text-align:right; color:#dce5f4; font:600 8px 'JetBrains Mono'; letter-spacing:.08em; text-transform:uppercase; text-shadow:0 2px 8px #000; }
     .art-copy { position:relative; z-index:2; width:100%; padding:9px 10px; border-left:2px solid var(--cyan); background:#050811d9; backdrop-filter:blur(8px); }
     .art-copy b { display:block; font:700 11px 'JetBrains Mono'; }
@@ -151,6 +153,7 @@
   <script type="module">
     import { mountCanvas } from '/canvas-engine.js';
     import { normalizeLetteringTimeline, posterLetteringFrames, sampleLetteringTimeline } from '/story-lettering-runtime.js';
+    import { normalizeStoryScene, sampleStoryScene } from '/story-scene-runtime.js';
 
     const canvas = mountCanvas({ canvasId:'story-studio', canvasTitle:'Story Studio' });
     const studio = document.createElement('main');
@@ -192,6 +195,7 @@
     document.body.append(reader);
     reader.querySelector('#reader-close').addEventListener('click',() => reader.close());
     reader.addEventListener('click',(event) => { if (event.target === reader) reader.close(); });
+    reader.addEventListener('close',stopReaderAnimation);
 
     const els = Object.fromEntries([
       ['credits','credits'],
@@ -212,6 +216,9 @@
     }
     let currentProject = null;
     let visualQueueActive = false;
+    let readerAnimationFrame = 0;
+    let readerAnimationStartedAt = 0;
+    let readerLastPaintAt = 0;
 
     function setStatus(message, state='') { els.status.textContent = message; els.status.dataset.state = state; }
     function safeColor(value, fallback) { return /^#[0-9a-f]{6}$/i.test(String(value || '')) ? value : fallback; }
@@ -235,9 +242,68 @@
 
     function letteringFrames(panel,timeMs=null) {
       const timeline = normalizeLetteringTimeline(panel?.lettering,panel?.dialogue || [],{durationMs:panel?.durationMs});
-      return (timeMs === null
+      const frames = (timeMs === null
         ? posterLetteringFrames(timeline,panel?.dialogue || [])
         : sampleLetteringTimeline(timeline,timeMs)).slice(0,2);
+      const scene = sampleStoryScene(panel?.scene,timeMs,{characters:currentProject?.comic?.characters || [],dialogue:panel?.dialogue || [],durationMs:panel?.durationMs});
+      return frames.map((entry) => {
+        if (!entry.followsActor || !entry.actorId) return entry;
+        const actor = scene.actors.find((candidate) => candidate.id === entry.actorId || candidate.characterId === entry.actorId);
+        if (!actor?.frame) return entry;
+        const base = actor.keyframes[0] || actor.frame;
+        const shiftX = actor.frame.x - base.x;
+        const shiftY = actor.frame.y - base.y;
+        const x = actor.speechAnchor.x + shiftX + Number(entry.actorOffsetX || 0);
+        const y = actor.speechAnchor.y + shiftY + Number(entry.actorOffsetY || 0);
+        return {
+          ...entry,
+          x,y,tailX:actor.faceAnchor.x + shiftX,tailY:actor.faceAnchor.y + shiftY,
+          layout:{...entry.layout,x,y},
+        };
+      });
+    }
+
+    function createScenePlate(panel,index,timeMs=null) {
+      const state = sampleStoryScene(panel?.scene,timeMs,{characters:currentProject?.comic?.characters || [],dialogue:panel?.dialogue || [],durationMs:panel?.durationMs});
+      const plate = document.createElement('div'); plate.className = 'scene-plate';
+      plate.dataset.sceneRevision = String(panel?.scene?.revision || 0);
+      if (panel.image?.url) {
+        const image = document.createElement('img'); image.className = 'panel-image'; image.src = panel.image.url;
+        image.alt = panel.title ? `Illustration for ${panel.title}` : `Comic panel ${index + 1}`;
+        image.loading = 'lazy'; image.decoding = 'async'; plate.append(image);
+      }
+      const actorLayer = document.createElement('div'); actorLayer.className = 'scene-actor-layer';
+      state.actors.filter((actor) => actor.assetUrl).forEach((actor) => {
+        const sprite = document.createElement('img'); sprite.className = 'scene-actor'; sprite.dataset.actorId = actor.id;
+        sprite.src = actor.assetUrl; sprite.alt = ''; sprite.setAttribute('aria-hidden','true');
+        actorLayer.append(sprite);
+      });
+      plate.append(actorLayer);
+      applySceneState(plate,state);
+      return plate;
+    }
+
+    function applySceneState(plate,state) {
+      if (!plate || !state) return;
+      const camera = state.camera || {x:50,y:50,zoom:1,rotation:0};
+      plate.style.transformOrigin = `${camera.x}% ${camera.y}%`;
+      plate.style.transform = `scale(${camera.zoom}) rotate(${camera.rotation}deg)`;
+      state.actors.forEach((actor) => {
+        const sprite = [...plate.querySelectorAll('.scene-actor[data-actor-id]')]
+          .find((candidate) => candidate.dataset.actorId === actor.id);
+        if (!sprite || !actor.frame) return;
+        const width = actor.bounds.width * actor.frame.scale;
+        const height = actor.bounds.height * actor.frame.scale;
+        sprite.style.left = `${actor.frame.x - width / 2}%`;
+        sprite.style.top = `${actor.frame.y - height}%`;
+        sprite.style.width = `${width}%`;
+        sprite.style.height = `${height}%`;
+        sprite.style.zIndex = String(actor.frame.z);
+        sprite.style.opacity = String(actor.frame.opacity);
+        sprite.style.transform = `rotate(${actor.frame.rotation}deg) scaleX(${actor.frame.facing === 'left' ? -1 : 1})`;
+        sprite.dataset.pose = actor.frame.pose;
+        sprite.dataset.expression = actor.frame.expression;
+      });
     }
 
     function createBubbleLayer(panel,timeMs=null) {
@@ -376,19 +442,51 @@
       const scroll = reader.querySelector('#reader-scroll'); scroll.replaceChildren();
       const page = document.createElement('section'); page.className = 'reader-page'; page.setAttribute('aria-label',`${comic.title}, complete comic`);
       comic.panels.forEach((panel,index) => {
-        const frame = document.createElement('article'); frame.className = 'reader-panel'; frame.setAttribute('aria-label',`Panel ${index + 1}: ${panel.title}`);
-        if (panel.image?.url) { const image = document.createElement('img'); image.className = 'panel-image'; image.src = panel.image.url; image.alt = panel.artDirection || panel.title || `Comic panel ${index + 1}`; frame.append(image); }
+        const frame = document.createElement('article'); frame.className = 'reader-panel'; frame.dataset.panelIndex = String(index); frame.dataset.liveScene = 'true'; frame.setAttribute('aria-label',`Panel ${index + 1}: ${panel.title}`);
+        if (panel.image?.url) frame.append(createScenePlate(panel,index));
         else { frame.style.background = `linear-gradient(145deg,${safeColor(comic.palette?.[index % comic.palette.length],'#1b2740')},${safeColor(comic.palette?.[(index + 1) % comic.palette.length],'#492d66')})`; }
         frame.append(createBubbleLayer(panel));
         if (panel.caption) { const caption = document.createElement('div'); caption.className = 'reader-caption'; caption.textContent = panel.caption; frame.append(caption); }
         page.append(frame);
       });
       const end = document.createElement('div'); end.className = 'reader-end'; end.textContent = 'END OF ISSUE'; page.append(end); scroll.append(page); scroll.scrollTop = 0;
-      reader.showModal(); reader.querySelector('#reader-close').focus();
+      if (!reader.open) { reader.showModal(); reader.querySelector('#reader-close').focus(); }
+      startReaderAnimation();
+    }
+
+    function stopReaderAnimation() {
+      if (readerAnimationFrame) cancelAnimationFrame(readerAnimationFrame);
+      readerAnimationFrame = 0; readerAnimationStartedAt = 0; readerLastPaintAt = 0;
+    }
+
+    function startReaderAnimation() {
+      stopReaderAnimation();
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      const paint = (now) => {
+        if (!reader.open || !currentProject) return stopReaderAnimation();
+        if (!readerAnimationStartedAt) readerAnimationStartedAt = now;
+        if (now - readerLastPaintAt >= 100) {
+          readerLastPaintAt = now;
+          reader.querySelectorAll('.reader-panel[data-panel-index]').forEach((frame) => {
+            const index = Number(frame.dataset.panelIndex);
+            const panel = currentProject.comic?.panels?.[index];
+            if (!panel) return;
+            const scene = normalizeStoryScene(panel.scene,{characters:currentProject.comic.characters,dialogue:panel.dialogue,durationMs:panel.durationMs});
+            const timeMs = (now - readerAnimationStartedAt) % scene.durationMs;
+            applySceneState(frame.querySelector('.scene-plate'),sampleStoryScene(scene,timeMs));
+            const previous = frame.querySelector('.bubble-layer');
+            const next = createBubbleLayer(panel,timeMs);
+            if (previous) previous.replaceWith(next); else frame.append(next);
+          });
+        }
+        readerAnimationFrame = requestAnimationFrame(paint);
+      };
+      readerAnimationFrame = requestAnimationFrame(paint);
     }
 
     function renderProject() {
       if (!currentProject) return;
+      document.body.dataset.storyProjectId = currentProject.id;
       const comic = currentProject.comic;
       els.stage.replaceChildren();
       const head = document.createElement('header'); head.className = 'page-head';
@@ -410,9 +508,8 @@
         card.style.setProperty('--panel-c',safeColor(palette[(index + 2) % palette.length],'#58d7ff'));
         card.style.setProperty('--panel-index',String(index + 1));
         const art = document.createElement('div'); art.className = 'panel-art' + (panel.image?.url ? ' has-image' : '');
-        if (panel.image?.url) { const image = document.createElement('img'); image.className = 'panel-image'; image.src = panel.image.url; image.alt = panel.title ? `Illustration for ${panel.title}` : `Comic panel ${index + 1}`; image.loading = 'lazy'; image.decoding = 'async'; art.append(image); }
-        const number = document.createElement('span'); number.className = 'panel-number'; number.textContent = String(index + 1).padStart(2,'0');
-        art.append(number,createBubbleLayer(panel));
+        if (panel.image?.url) art.append(createScenePlate(panel,index));
+        art.append(createBubbleLayer(panel));
         if (panel.caption) { const caption = document.createElement('div'); caption.className = 'reader-caption'; caption.textContent = panel.caption; art.append(caption); }
         card.append(art); grid.append(card);
       });
@@ -486,19 +583,36 @@
       } catch (error) { if (error.message !== 'Sign in required') els.projectList.innerHTML = '<p class="privacy">Could not load projects.</p>'; }
     }
 
+    async function refreshNexDirection() {
+      if (!currentProject || visualQueueActive || document.visibilityState !== 'visible') return;
+      try {
+        const projectId = currentProject.id;
+        const latest = (await request('/api/story-studio?id=' + encodeURIComponent(projectId))).project;
+        if (!latest || latest.id !== projectId || Number(latest.updatedAt) <= Number(currentProject.updatedAt)) return;
+        const readerWasOpen = reader.open;
+        currentProject = latest;
+        renderProject();
+        if (readerWasOpen) openReader();
+        setStatus('Nex’s latest actor direction is live.','success');
+      } catch (error) {
+        console.error('Could not refresh Nex actor direction',error);
+      }
+    }
+
     async function deleteCurrent() {
       if (!currentProject || !confirm('Delete this Story Studio project? This cannot be undone.')) return;
       try { await request('/api/story-studio?id=' + encodeURIComponent(currentProject.id),{ method:'DELETE' }); resetStudio(); await loadProjects(); setStatus('Project deleted.','success'); }
       catch (error) { setStatus(error.message,'error'); }
     }
 
-    function resetStudio() { if (visualQueueActive) return setStatus('Let Nex finish painting this comic first.','busy'); currentProject = null; els.sourceTitle.value = ''; els.sourceText.value = ''; els.rightsConfirmed.checked = false; els.stage.innerHTML = '<div class="empty-stage"><div><div class="eyebrow">Nex Story Editor</div><strong>One chapter.<br>One visual world.</strong><p>Nex chooses the strongest moments, composes every scene, and delivers a fully lettered six-panel comic.</p></div></div>'; updateCount(); setStatus('Ready for a new chapter.'); }
+    function resetStudio() { if (visualQueueActive) return setStatus('Let Nex finish painting this comic first.','busy'); currentProject = null; delete document.body.dataset.storyProjectId; els.sourceTitle.value = ''; els.sourceText.value = ''; els.rightsConfirmed.checked = false; els.stage.innerHTML = '<div class="empty-stage"><div><div class="eyebrow">Nex Story Editor</div><strong>One chapter.<br>One visual world.</strong><p>Nex chooses the strongest moments, composes every scene, and delivers a fully lettered six-panel comic.</p></div></div>'; updateCount(); setStatus('Ready for a new chapter.'); }
     function updateCount() { els.sourceCount.textContent = `${els.sourceText.value.length.toLocaleString()} characters`; }
     async function refreshCredits() { try { const response = await fetch('/api/room-usage',{cache:'no-store'}); if (!response.ok) return; const data = await response.json(); els.credits.textContent = `${data.usage.remaining} credits left`; } catch {} }
 
     els.sourceText.addEventListener('input',updateCount); els.generateBtn.addEventListener('click',generate); els.newBtn.addEventListener('click',resetStudio);
     els.sourceFile.addEventListener('change',async () => { const file = els.sourceFile.files?.[0]; if (!file) return; if (file.size > 100000) return setStatus('Keep text files under 100 KB for this first version.','error'); els.sourceText.value = (await file.text()).slice(0,30000); if (!els.sourceTitle.value) els.sourceTitle.value = file.name.replace(/\.(txt|md)$/i,''); updateCount(); setStatus('Chapter loaded. Confirm rights, then generate.','success'); });
     fetch('/api/room-auth',{cache:'no-store'}).then((response) => { if (!response.ok) location.href = '/room-login.html?next=/story-studio.html'; else { loadProjects(); refreshCredits(); } }).catch(() => setStatus('Could not verify your session.','error'));
+    setInterval(refreshNexDirection,4000);
   </script>
 </body>
 </html>

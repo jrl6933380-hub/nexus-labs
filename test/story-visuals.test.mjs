@@ -35,10 +35,13 @@ function comic() {
       animationLanguage:'Long holds followed by abrupt electronic motion.',
       soundLanguage:'Rain, rail hum, radio voices, and silence.',
     },
-    characters: [{ name:'Mara', role:'courier', appearance:'cropped dark hair and a red utility coat', continuity:'silver wrist band on the left arm' }],
+    characters: [
+      { actorId:'mara', name:'Mara', role:'courier', appearance:'cropped dark hair and a red utility coat', continuity:'silver wrist band on the left arm' },
+      { actorId:'package', name:'Package', role:'signal device', appearance:'black case with cyan seam', continuity:'Mara carries it' },
+    ],
     panels: [
       { beat:'Mara arrives alone on a rain-soaked platform.', shot:'wide establishing shot', setting:'elevated train platform at midnight', artDirection:'rain and violet signals', dialogue:[] },
-      { beat:'The package lights up and speaks her name.', shot:'extreme close-up', setting:'inside the last train', artDirection:'blue light across her startled face', dialogue:[{speaker:'Package',line:'Mara.',side:'right'}] },
+      { beat:'The package lights up and speaks her name.', shot:'extreme close-up', setting:'inside the last train', artDirection:'blue light across her startled face', scene:{actors:[{actorId:'package',name:'Package'}]}, dialogue:[{actorId:'package',speaker:'Package',line:'Mara.',side:'right'}] },
     ],
   };
 }
@@ -78,6 +81,8 @@ test('panel prompts share one locked world while demanding a distinct scene', ()
 test('vision lettering prompt asks the Gateway to inspect actual pixels and return bounded coordinates', () => {
   const prompt = buildPanelVisionPrompt({panel:comic().panels[1]});
   assert.match(prompt,/professional letterer/);
+  assert.match(prompt,/live-stage blocking supervisor/);
+  assert.match(prompt,/package = Package/);
   assert.match(prompt,/Read the actual pixels/);
   assert.match(prompt,/"x":number,"y":number,"width":number/);
   assert.match(prompt,/Package.*Mara\./);
@@ -106,9 +111,21 @@ test('raw artwork inspection rejects generated numbers and blank lettering boxes
   }),comic().panels[1].dialogue),{
     artwork:'regenerate',
     issues:['generated_text','blank_lettering_box'],
+    actors:[],
     placements:[],
   });
   assert.equal(parsePanelVisualInspection('{"artwork":"regenerate","issues":[],"placements":[]}',comic().panels[1].dialogue),null);
+});
+
+test('raw artwork inspection gives the live stage actor bounds and speech anchors', () => {
+  const panel = comic().panels[1];
+  const inspection = parsePanelVisualInspection(JSON.stringify({
+    artwork:'clean',issues:[],
+    actors:[{actorId:'package',bounds:{x:60,y:40,width:20,height:30},faceAnchor:{x:70,y:48},speechAnchor:{x:72,y:22}}],
+    placements:[{index:0,side:'right',x:65,y:8,width:22}],
+  }),panel.dialogue,panel);
+  assert.equal(inspection.actors[0].actorId,'package');
+  assert.deepEqual(inspection.actors[0].speechAnchor,{x:72,y:22});
 });
 
 test('vision placements are complete, normalized, and rejected when bubbles collide', () => {

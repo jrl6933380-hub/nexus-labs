@@ -36,6 +36,7 @@ test('oversized single lines can continue by absolute character offset', () => {
 test('Nex exposes queue inspection and Vercel read tools with dispatch-safe schemas', () => {
   const byName = new Map(TOOLS.map((tool) => [tool.name, tool]));
   for (const name of [
+    'direct_story_actor',
     'list_pending_actions',
     'read_pending_action',
     'list_vercel_projects',
@@ -47,6 +48,7 @@ test('Nex exposes queue inspection and Vercel read tools with dispatch-safe sche
   assert.deepEqual(byName.get('read_pending_action').input_schema.required, ['id']);
   assert.deepEqual(byName.get('list_vercel_deployments').input_schema.required, ['project_id']);
   assert.deepEqual(byName.get('get_vercel_build_logs').input_schema.required, ['deployment_id']);
+  assert.deepEqual(byName.get('direct_story_actor').input_schema.required, ['panel_index','actor','direction']);
 });
 
 test('Vercel deployment summaries preserve branch, commit, and failure status', () => {

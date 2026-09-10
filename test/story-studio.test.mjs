@@ -65,6 +65,9 @@ test('comic-plan parser accepts fenced JSON and normalizes six editable panels',
   assert.equal(parsed.directorBibleVersion,'1.2.0');
   assert.equal(parsed.panels[0].number, 1);
   assert.equal(parsed.characters[0].name, 'Mara');
+  assert.equal(parsed.characters[0].actorId,'mara');
+  assert.equal(parsed.panels[0].scene.directedBy,'nex');
+  assert.equal(parsed.panels[0].scene.actors[0].id,'mara');
   assert.deepEqual(parsed.palette, ['#101525', '#7b45d6', '#58d7ff']);
   assert.equal(parsed.worldBible.locations[0].name,'Platform');
   assert.equal(parsed.worldBible.recurringProps[0].name,'Package');
@@ -73,6 +76,7 @@ test('comic-plan parser accepts fenced JSON and normalizes six editable panels',
   assert.equal(parsed.panels[0].durationMs,6000);
   assert.equal(parsed.panels[0].lettering.directedBy,'nex');
   assert.equal(parsed.panels[0].lettering.tracks[0].textCues[0].text,'Line 1');
+  assert.equal(parsed.panels[0].lettering.tracks[0].actorId,'mara');
 });
 
 test('comic dialogue supports multiple safe bubble styles and rejects unknown presentation values', () => {
@@ -102,6 +106,8 @@ test('Nex prepares fresh basic comics with no more than two clean speaker labels
   assert.equal(prepared.panels[0].dialogue[0].speaker,'Mimic');
   assert.equal(prepared.panels[0].dialogue[0].layout,null);
   assert.equal(prepared.panels[0].lettering.tracks[0].speaker,'Mimic');
+  assert.equal(prepared.panels[0].lettering.tracks[1].actorId,'mara');
+  assert.equal(prepared.panels[0].lettering.tracks[1].followsActor,true);
 });
 
 test('Story Studio projects stay isolated by signed-in account and can be deleted', async () => {
@@ -301,4 +307,32 @@ test('Nex can privately direct timed bubble text and movement without customer c
   assert.equal(savedComic.panels[0].lettering.tracks[0].textCues[1].text,'The words changed.');
   assert.equal(savedComic.panels[0].lettering.tracks[0].keyframes[1].x,-25);
   assert.equal(savedComic.panels[0].lettering.tracks[0].keyframes[2].opacity,0);
+});
+
+test('Nex can send a private direction to one intelligent actor and save the live scene', async () => {
+  const current = { id:'story-1', sourceTitle:'Chapter one', sourceText:'A'.repeat(180), comic:plan() };
+  let directed;
+  const settlements = [];
+  const handler = createStoryStudioHandler({
+    resolveUser:async () => 'alice',
+    store:{async getProject(){ return current; }},
+    meter:{
+      async reserveBuild(){ return {ok:true,period:1,reservationId:'actor-reservation'}; },
+      async settleBuild(value){ settlements.push(value); },
+    },
+    async actorDirector(input){
+      directed = input;
+      return {project:current,panelIndex:2,actorId:'mara',acknowledgement:'Ready.',sceneRevision:2,letteringRevision:3,directedBy:'nex'};
+    },
+  });
+  const res = response();
+  await handler({method:'POST',body:{
+    action:'direct-actor',projectId:'story-1',panelIndex:2,actor:'Mara',direction:'Move behind Eli and whisper.',atMs:1800,
+  }},res);
+  assert.equal(res.code,200);
+  assert.equal(directed.userId,'alice');
+  assert.equal(directed.store.getProject instanceof Function,true);
+  assert.equal(directed.direction,'Move behind Eli and whisper.');
+  assert.equal(res.body.actorId,'mara');
+  assert.equal(settlements[0].success,true);
 });
