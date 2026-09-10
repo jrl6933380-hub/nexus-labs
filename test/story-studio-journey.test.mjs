@@ -24,6 +24,8 @@ test('the first golden path gives customers chapter input and a finished comic w
   assert.match(source,/action:'review-lettering'/);
   assert.match(source,/panel-image/);
   assert.match(source,/createBubbleLayer/);
+  assert.match(source,/sampleLetteringTimeline/);
+  assert.match(source,/dataset\.letteringRevision/);
   assert.match(source,/data-positioned="true"/);
   assert.match(source,/openReader/);
   assert.match(source,/reader-page/);
@@ -63,6 +65,8 @@ test('Story Studio asks for six continuity-aware panels and preserves tenant own
   assert.match(api,/never more than two/);
   assert.match(api,/prepareBasicComicPlan/);
   assert.match(api,/reviewPanelLettering/);
+  assert.match(api,/action === 'direct-lettering'/);
+  assert.match(api,/applyNexLetteringOperations/);
   assert.match(api,/appearance/);
   assert.match(api,/continuity/);
   assert.match(api,/worldBible/);
