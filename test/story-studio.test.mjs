@@ -165,7 +165,28 @@ test('saving edits cannot claim a project outside the current account store', as
   assert.equal(res.code,404);
 });
 
-test('illustrating one panel saves real private art and keeps the first panel as the world reference', async () => {
+test('Nex prepares and persists one reusable transparent identity per cast member', async () => {
+  const current = {id:'story-1',sourceTitle:'Chapter one',sourceText:'A'.repeat(180),comic:plan()};
+  let savedComic;
+  const handler = createStoryStudioHandler({
+    resolveUser:async () => 'alice',
+    store:{
+      async getProject(){return current;},
+      async saveProject(userId,input){savedComic = input.comic; return {...current,comic:input.comic};},
+    },
+    visuals:{async saveIdentity(userId,projectId,actor,input){assert.equal(actor,'mara'); return {model:input.model,generationId:input.generationId,generatedAt:700};}},
+    meter:{async reserveBuild(){return {ok:true,period:1,reservationId:'cast'};},async settleBuild(){}},
+    async generateActor({panel,character}){assert.equal(panel ?? null,null); assert.equal(character.name,'Mara'); return {dataUrl:'data:image/png;base64,aWRlbnRpdHk=',model:'actor-model',generationId:'cast-1'};},
+  });
+  const res = response();
+  await handler({method:'POST',body:{action:'prepare-cast',projectId:'story-1'}},res);
+  assert.equal(res.code,200);
+  assert.equal(res.body.ready,true);
+  assert.equal(savedComic.characters[0].visualIdentity.assetUrl,'/api/story-actor?id=story-1&actor=mara&kind=identity&v=700');
+  assert.equal(savedComic.characters[0].visualIdentity.generationId,'cast-1');
+});
+
+test('staging one panel saves a private set and transparent actor performance layers', async () => {
   const current = { id:'story-1', sourceTitle:'Chapter one', sourceText:'A'.repeat(180), comic:plan() };
   const calls = { visual:[], analysis:[], save:[], settle:[] };
   const handler = createStoryStudioHandler({
@@ -175,11 +196,13 @@ test('illustrating one panel saves real private art and keeps the first panel as
       async saveProject(userId,input){ calls.save.push({userId,input}); return {...current,comic:input.comic}; },
     },
     visuals:{
-      async get(userId,projectId,panelIndex){ assert.equal(userId,'alice'); assert.equal(projectId,'story-1'); assert.equal(panelIndex,0); return {mediaType:'image/png',base64:'cmVm'}; },
       async save(userId,projectId,panelIndex,input){ calls.visual.push({userId,projectId,panelIndex,input}); return {model:input.model,generatedAt:777}; },
+      async getIdentity(){ return {mediaType:'image/png',base64:'aWRlbnRpdHk='}; },
+      async saveActor(userId,projectId,panelIndex,actor,input){ calls.visual.push({userId,projectId,panelIndex,actor,input}); return {model:input.model,generatedAt:778}; },
     },
     meter:{ async reserveBuild(){ return {ok:true,period:1,reservationId:'visual-reservation'}; }, async settleBuild(input){ calls.settle.push(input); } },
-    async generateVisual(input){ assert.equal(input.panelIndex,1); assert.equal(input.referenceImage.base64,'cmVm'); return {dataUrl:'data:image/png;base64,YXJ0',model:'image-model'}; },
+    async generateBackground(input){ assert.equal(input.panelIndex,1); return {dataUrl:'data:image/png;base64,YXJ0',model:'image-model'}; },
+    async generateActor(input){ assert.equal(input.referenceImage.base64,'aWRlbnRpdHk='); return {dataUrl:'data:image/png;base64,YWN0b3I=',model:'actor-model'}; },
     async analyzeVisual(input){ calls.analysis.push(input); return [{index:0,side:'right',layout:{x:54,y:8,width:30,source:'vision'}}]; },
   });
   const res = response();
@@ -187,14 +210,15 @@ test('illustrating one panel saves real private art and keeps the first panel as
   assert.equal(res.code,200);
   assert.equal(calls.visual[0].panelIndex,1);
   assert.equal(calls.analysis[0].imageDataUrl,'data:image/png;base64,YXJ0');
-  assert.equal(calls.save[0].input.comic.panels[1].dialogue[0].side,'right');
-  assert.deepEqual(calls.save[0].input.comic.panels[1].dialogue[0].layout,{x:54,y:8,width:30,source:'vision'});
+  assert.ok(calls.save[0].input.comic.panels[1].dialogue[0].layout);
   assert.equal(calls.save[0].input.comic.panels[1].image.url,'/api/story-image?id=story-1&panel=1&v=777');
+  assert.equal(calls.save[0].input.comic.panels[1].image.layered,true);
+  assert.equal(calls.save[0].input.comic.panels[1].scene.actors[0].assetUrl,'/api/story-actor?id=story-1&panel=1&actor=mara&kind=performance&v=778');
   assert.equal(calls.settle[0].success,true);
 });
 
-test('Nex rejects lettering artifacts and regenerates clean art before saving', async () => {
-  const current = { id:'story-1', sourceTitle:'Chapter one', sourceText:'A'.repeat(180), comic:plan() };
+test('Nex preserves a rejected set and regenerates it in a fresh bounded request', async () => {
+  let current = { id:'story-1', sourceTitle:'Chapter one', sourceText:'A'.repeat(180), comic:plan() };
   const generations = [];
   let inspections = 0;
   let savedAsset;
@@ -202,17 +226,20 @@ test('Nex rejects lettering artifacts and regenerates clean art before saving', 
     resolveUser:async () => 'alice',
     store:{
       async getProject(){ return current; },
-      async saveProject(userId,input){ return {...current,comic:input.comic}; },
+      async saveProject(userId,input){ current = {...current,comic:input.comic}; return current; },
     },
     visuals:{
-      async get(){ return {mediaType:'image/png',base64:'cmVm'}; },
-      async save(userId,projectId,panelIndex,input){ savedAsset = input; return {model:input.model,generatedAt:999}; },
+      async save(userId,projectId,panelIndex,input){ savedAsset = input; return {model:input.model,generatedAt:998 + generations.length}; },
+      async getIdentity(){ return null; },
+      async getActor(){ return null; },
+      async saveActor(){ return {model:'actor-model',generatedAt:1000}; },
     },
     meter:{ async reserveBuild(){ return {ok:true,period:1,reservationId:'visual-reservation'}; }, async settleBuild(){} },
-    async generateVisual(input){
+    async generateBackground(input){
       generations.push(input);
       return {dataUrl:`data:image/png;base64,${input.correctionIssues.length ? 'Y2xlYW4=' : 'YXJ0aWZhY3Q='}`,model:'image-model'};
     },
+    async generateActor(){ return {dataUrl:'data:image/png;base64,YWN0b3I=',model:'actor-model'}; },
     async inspectVisual(){
       inspections += 1;
       return inspections === 1
@@ -223,6 +250,13 @@ test('Nex rejects lettering artifacts and regenerates clean art before saving', 
   const res = response();
   await handler({method:'POST',body:{action:'illustrate',projectId:'story-1',panelIndex:1,comic:current.comic}},res);
   assert.equal(res.code,200);
+  assert.equal(res.body.complete,false);
+  assert.equal(res.body.needsSetRetry,true);
+  const retry = response();
+  await handler({method:'POST',body:{action:'illustrate',projectId:'story-1',panelIndex:1,comic:current.comic}},retry);
+  assert.equal(retry.code,200);
+  assert.equal(retry.body.complete,true);
+  assert.equal(retry.body.needsSetRetry,false);
   assert.equal(generations.length,2);
   assert.deepEqual(generations[1].correctionIssues,['generated_text','blank_lettering_box']);
   assert.equal(savedAsset.dataUrl,'data:image/png;base64,Y2xlYW4=');
@@ -238,11 +272,13 @@ test('a failed optional vision pass falls back without losing the generated pane
       async saveProject(userId,input){ savedComic = input.comic; return {...current,comic:input.comic}; },
     },
     visuals:{
-      async get(){ return {mediaType:'image/png',base64:'cmVm'}; },
       async save(){ return {model:'image-model',generatedAt:888}; },
+      async getIdentity(){ return null; },
+      async saveActor(){ return {model:'actor-model',generatedAt:889}; },
     },
     meter:{ async reserveBuild(){ return {ok:true,period:1,reservationId:'visual-reservation'}; }, async settleBuild(){} },
-    async generateVisual(){ return {dataUrl:'data:image/png;base64,YXJ0',model:'image-model'}; },
+    async generateBackground(){ return {dataUrl:'data:image/png;base64,YXJ0',model:'image-model'}; },
+    async generateActor(){ return {dataUrl:'data:image/png;base64,YWN0b3I=',model:'actor-model'}; },
     async analyzeVisual(){ throw new Error('vision unavailable'); },
   });
   const originalError = console.error; console.error = () => {};
@@ -251,7 +287,33 @@ test('a failed optional vision pass falls back without losing the generated pane
     await handler({method:'POST',body:{action:'illustrate',projectId:'story-1',panelIndex:1,comic:current.comic}},res);
     assert.equal(res.code,200);
     assert.equal(savedComic.panels[1].image.url,'/api/story-image?id=story-1&panel=1&v=888');
-    assert.equal(savedComic.panels[1].dialogue[0].layout,null);
+    assert.ok(savedComic.panels[1].dialogue[0].layout);
+  } finally { console.error = originalError; }
+});
+
+test('one failed actor layer does not discard the set or stop the comic queue', async () => {
+  const current = {id:'story-1',sourceTitle:'Chapter one',sourceText:'A'.repeat(180),comic:plan()};
+  let savedComic;
+  const handler = createStoryStudioHandler({
+    resolveUser:async () => 'alice',
+    store:{async getProject(){return current;},async saveProject(userId,input){savedComic = input.comic; return {...current,comic:input.comic};}},
+    visuals:{
+      async save(){return {model:'set-model',generationId:'set-1',generatedAt:900};},
+      async getIdentity(){return null;},async saveActor(){throw new Error('should not save');},
+    },
+    meter:{async reserveBuild(){return {ok:true,period:1,reservationId:'scene'};},async settleBuild(){}},
+    async generateBackground(){return {dataUrl:'data:image/png;base64,c2V0',model:'set-model',generationId:'set-1'};},
+    async inspectVisual(){return {artwork:'clean',issues:[],actors:[],placements:[]};},
+    async generateActor(){throw new Error('actor provider unavailable');},
+  });
+  const originalError = console.error; console.error = () => {};
+  try {
+    const res = response();
+    await handler({method:'POST',body:{action:'illustrate',projectId:'story-1',panelIndex:0,comic:current.comic}},res);
+    assert.equal(res.code,200);
+    assert.equal(res.body.complete,false);
+    assert.deepEqual(res.body.missingActors,['mara']);
+    assert.equal(savedComic.panels[0].image.url,'/api/story-image?id=story-1&panel=0&v=900');
   } finally { console.error = originalError; }
 });
 

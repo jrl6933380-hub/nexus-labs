@@ -17,6 +17,7 @@ test('the first golden path gives customers chapter input and a finished comic w
     assert.match(source,new RegExp(marker));
   }
   assert.match(source,/action:'generate'/);
+  assert.match(source,/action:'prepare-cast'/);
   assert.match(source,/action:'illustrate'/);
   assert.match(source,/illustrateAll/);
   assert.match(source,/buildLetteringPreview/);
@@ -28,6 +29,8 @@ test('the first golden path gives customers chapter input and a finished comic w
   assert.match(source,/sampleLetteringTimeline/);
   assert.match(source,/sampleStoryScene/);
   assert.match(source,/scene-plate/);
+  assert.match(source,/scene-actor-layer/);
+  assert.match(source,/panelReady/);
   assert.doesNotMatch(source,/LIVE SCENE|panel-number/);
   assert.match(source,/dataset\.storyProjectId/);
   assert.match(source,/refreshNexDirection/);
@@ -83,7 +86,11 @@ test('Story Studio asks for six continuity-aware panels and preserves tenant own
   assert.match(api,/animationLanguage/);
   assert.match(api,/comicDirectorGuidance\('planning'\)/);
   assert.match(api,/inspectPanelVisual/);
-  assert.match(api,/visual inspection failed/);
+  assert.match(api,/background inspection failed/);
+  assert.match(api,/generateBackgroundPlate/);
+  assert.match(api,/generateActorVisual/);
+  assert.match(api,/saveIdentity/);
+  assert.match(api,/saveActor/);
   assert.match(api,/store\.saveProject\(username/);
   assert.doesNotMatch(api,/req\.body\?\.userId/);
 });

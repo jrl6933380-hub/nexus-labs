@@ -190,7 +190,7 @@ export function normalizeStoryScene(value, options = {}) {
     directedBy: 'nex',
     stage: {
       aspectRatio: '16:9',
-      backgroundMode: 'generated-plate',
+      backgroundMode: 'layered-composite',
     },
     camera: { keyframes:cameraFrames },
     actors,

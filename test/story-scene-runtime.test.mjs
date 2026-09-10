@@ -10,13 +10,13 @@ import {
 const characters = [{actorId:'mara',name:'Mara',role:'courier'}];
 const dialogue = [{actorId:'mara',speaker:'Mara',line:'Keep moving.'}];
 
-test('old comic panels automatically become persistent Nex-directed live scenes', () => {
+test('comic panels become persistent Nex-directed layered scenes', () => {
   const scene = normalizeStoryScene(null,{characters,dialogue,durationMs:6000});
   assert.equal(scene.version,1);
   assert.equal(scene.directedBy,'nex');
   assert.equal(scene.actors[0].id,'mara');
   assert.equal(scene.actors[0].keyframes[0].pose,'story-ready');
-  assert.equal(scene.stage.backgroundMode,'generated-plate');
+  assert.equal(scene.stage.backgroundMode,'layered-composite');
 });
 
 test('Nex can direct an actor across time without hard stage-edge limits', () => {
