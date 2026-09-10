@@ -93,3 +93,15 @@ test('poster lettering keeps sequential dialogue visible in the static comic', (
   assert.equal(posterLetteringFrames(timeline,twoLines).length,2);
   assert.deepEqual(posterLetteringFrames(timeline,twoLines).map((frame) => frame.text),['Where are we?','I heard it.']);
 });
+
+test('a bubble can belong to and follow its speaking actor', () => {
+  const actorDialogue = [{...dialogue[0],actorId:'lena'}];
+  const timeline = applyNexLetteringOperations(null,actorDialogue,[
+    {type:'attach-to-actor',trackId:'bubble-1',actorId:'lena',followsActor:true,offsetX:-20,offsetY:-28},
+  ],{durationMs:6000});
+  const frame = posterLetteringFrames(timeline,actorDialogue)[0];
+  assert.equal(frame.actorId,'lena');
+  assert.equal(frame.followsActor,true);
+  assert.equal(frame.actorOffsetX,-20);
+  assert.equal(frame.actorOffsetY,-28);
+});

@@ -30,6 +30,14 @@ function trackId(value, index) {
   return cleaned || `bubble-${index + 1}`;
 }
 
+function actorId(value) {
+  return cleanText(value, 100)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/gu, '-')
+    .replace(/^-+|-+$/gu, '')
+    .slice(0, 64);
+}
+
 function defaultLayout(line = {}, index = 0) {
   const length = cleanText(line.line, 500).length;
   const width = length <= 20 ? 23 : length <= 42 ? 30 : length <= 70 ? 35 : 40;
@@ -103,6 +111,10 @@ function normalizeTrack(value, fallbackLine, index, durationMs) {
     .sort((a, b) => a.atMs - b.atMs);
   return {
     id: trackId(value?.id, index),
+    actorId: actorId(value?.actorId ?? line.actorId ?? line.speaker),
+    followsActor: value?.followsActor === true,
+    actorOffsetX: round(clamp(number(value?.actorOffsetX, 0), -300, 300)),
+    actorOffsetY: round(clamp(number(value?.actorOffsetY, -22), -300, 300)),
     speaker: cleanText(value?.speaker ?? line.speaker, 80),
     type: ['speech', 'thought', 'shout'].includes(value?.type ?? line.type) ? (value?.type ?? line.type) : 'speech',
     side: (value?.side ?? line.side) === 'right' ? 'right' : 'left',
@@ -177,6 +189,10 @@ export function sampleLetteringTimeline(value, timeMs = 0, options = {}) {
     const text = sampleText(track, atMs);
     return {
       id: track.id,
+      actorId: track.actorId,
+      followsActor: track.followsActor,
+      actorOffsetX: track.actorOffsetX,
+      actorOffsetY: track.actorOffsetY,
       speaker: track.speaker,
       type: track.type,
       side: track.side,
@@ -199,6 +215,10 @@ export function posterLetteringFrames(value, dialogue = [], options = {}) {
     const text = sampleText(track, timeline.posterTimeMs) || track.textCues[0]?.text || '';
     return {
       id:track.id,
+      actorId:track.actorId,
+      followsActor:track.followsActor,
+      actorOffsetX:track.actorOffsetX,
+      actorOffsetY:track.actorOffsetY,
       speaker:track.speaker,
       type:track.type,
       side:track.side,
@@ -235,6 +255,7 @@ export function applyNexLetteringOperations(value, dialogue = [], operations = [
     if (type === 'add-track' && timeline.tracks.length < MAX_TRACKS) {
       const index = timeline.tracks.length;
       const fallback = {
+        actorId:operation.actorId,
         speaker:operation.speaker,
         line:operation.text,
         type:operation.bubbleType,
@@ -243,7 +264,7 @@ export function applyNexLetteringOperations(value, dialogue = [], operations = [
         endMs:operation.endMs,
         layout:operation,
       };
-      timeline.tracks.push(normalizeTrack({id:operation.trackId}, fallback, index, timeline.durationMs));
+      timeline.tracks.push(normalizeTrack({id:operation.trackId,actorId:operation.actorId}, fallback, index, timeline.durationMs));
       continue;
     }
     const id = trackId(operation?.trackId, -1);
@@ -267,6 +288,11 @@ export function applyNexLetteringOperations(value, dialogue = [], operations = [
       upsertKeyframe(track, Math.round(number(operation.atMs, 0)), {opacity:type === 'show' ? 1 : 0,easing:operation.easing}, timeline.durationMs);
     } else if (type === 'retarget-tail') {
       upsertKeyframe(track, Math.round(number(operation.atMs, 0)), {tailX:operation.tailX,tailY:operation.tailY,easing:operation.easing}, timeline.durationMs);
+    } else if (type === 'attach-to-actor') {
+      track.actorId = actorId(operation.actorId || track.speaker);
+      track.followsActor = operation.followsActor !== false;
+      track.actorOffsetX = round(clamp(number(operation.offsetX, track.actorOffsetX), -300, 300));
+      track.actorOffsetY = round(clamp(number(operation.offsetY, track.actorOffsetY), -300, 300));
     } else if (type === 'set-style') {
       if (['speech', 'thought', 'shout'].includes(operation.bubbleType)) track.type = operation.bubbleType;
       if (operation.side === 'left' || operation.side === 'right') track.side = operation.side;

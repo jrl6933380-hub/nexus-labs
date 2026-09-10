@@ -13,6 +13,7 @@ import {
 } from '../lib/claudeHandoff.js';
 import { getNexChatMode, disengageNex, engageNex } from '../lib/nexMode.js';
 import { detectHyperfocusTrigger, buildHyperfocusDirective } from '../lib/hyperfocusTriggers.js';
+import { getRequestUser } from '../lib/roomAuth.js';
 
 // ============================================================
 // SHORT-TERM ROLLING BUFFER — just enough for mid-conversation
@@ -42,8 +43,11 @@ function normalizeScreenSnapshot(input) {
     height: Number.isFinite(input.viewport.height) ? Math.max(0, Math.min(input.viewport.height, 10000)) : null,
     scroll_y: Number.isFinite(input.viewport.scroll_y) ? Math.max(0, Math.min(input.viewport.scroll_y, 10000000)) : null,
   } : null;
-  if (!title && !viewportText.length && !controls.length && !focused && !viewport) return null;
-  return { title, viewport_text: viewportText, controls, focused, viewport };
+  const storyProjectId = /^[a-zA-Z0-9_-]{1,120}$/u.test(String(input.story_project_id || ''))
+    ? String(input.story_project_id)
+    : null;
+  if (!title && !viewportText.length && !controls.length && !focused && !viewport && !storyProjectId) return null;
+  return { title, viewport_text: viewportText, controls, focused, viewport, story_project_id:storyProjectId };
 }
 
 function normalizeClientContext(input) {
@@ -238,6 +242,8 @@ export default async function handler(req, res) {
       ? `${message}\n\n${buildHyperfocusDirective(hyperfocusTrigger)}`
       : message) + buildHandoffDirective(message);
 
+    const operatorUser = await getRequestUser(req).catch(() => null);
+    const clientContext = normalizeClientContext(workspace);
     const {
       reply,
       updatedHistory,
@@ -246,7 +252,7 @@ export default async function handler(req, res) {
       usage,
       navigation,
       degraded,
-    } = await askNex(messageForModel, runningHistory, forcedTier, normalizeClientContext(workspace), (stage) => sendBuildEvent('stage', stage));
+    } = await askNex(messageForModel, runningHistory, forcedTier, clientContext, (stage) => sendBuildEvent('stage', stage), {userId:operatorUser,storyProjectId:clientContext.screen?.story_project_id || null});
 
     // If the message sent to the model was augmented with an internal
     // hyperfocus directive, restore Mr. Lopez's original text in the

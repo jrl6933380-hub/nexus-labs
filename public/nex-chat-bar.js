@@ -526,6 +526,9 @@ export function createNexChatBar() {
     const focused = focusedElement && !inNexChat(focusedElement) && !isPrivateControl(focusedElement) ? describeControl(focusedElement) : '';
     return {
       title: shorten(document.title, 180), viewport_text: viewportText, controls, focused,
+      story_project_id: /^[a-zA-Z0-9_-]{1,120}$/u.test(document.body?.dataset?.storyProjectId || '')
+        ? document.body.dataset.storyProjectId
+        : null,
       viewport: { width: window.innerWidth, height: window.innerHeight, scroll_y: Math.round(window.scrollY) },
     };
   }
