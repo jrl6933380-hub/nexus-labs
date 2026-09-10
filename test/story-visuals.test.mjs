@@ -1,13 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createStoryImageHandler } from '../api/story-image.js';
+import { createStoryActorHandler } from '../api/story-actor.js';
 import {
   analyzePanelVisual,
+  buildActorPerformancePrompt,
+  buildBackgroundPlatePrompt,
   buildBubbleReservations,
+  buildCharacterIdentityPrompt,
   buildPanelVisualPrompt,
   buildPanelReviewPrompt,
   buildPanelVisionPrompt,
   createStoryVisualStore,
+  generateActorVisual,
+  generateBackgroundPlate,
   generatePanelVisual,
   parseBubblePlacements,
   parseLetteringReview,
@@ -76,6 +82,22 @@ test('panel prompts share one locked world while demanding a distinct scene', ()
   assert.match(second,/genuinely new composition/);
   assert.match(second,/Return artwork only/);
   assert.notEqual(first,second);
+});
+
+test('the art department separates canonical cast, empty sets, and actor performances', () => {
+  const identity = buildCharacterIdentityPrompt({comic:comic(),character:comic().characters[0]});
+  const background = buildBackgroundPlatePrompt({comic:comic(),panel:comic().panels[1]});
+  const performance = buildActorPerformancePrompt({
+    comic:comic(),panel:comic().panels[1],actor:{name:'Mara',keyframes:[{pose:'recoiling',expression:'afraid',facing:'right'}]},
+    character:comic().characters[0],hasIdentity:true,
+  });
+  assert.match(identity,/canonical reusable visual identity/i);
+  assert.match(identity,/transparent alpha background/i);
+  assert.match(background,/Do not draw any person, character, creature/i);
+  assert.match(background,/only the set, atmosphere, lighting/i);
+  assert.match(performance,/supplied identity image is binding/i);
+  assert.match(performance,/Pose: recoiling/);
+  assert.match(performance,/all pixels outside the actor transparent/i);
 });
 
 test('vision lettering prompt asks the Gateway to inspect actual pixels and return bounded coordinates', () => {
@@ -238,6 +260,33 @@ test('image generation uses Gateway image modalities and can carry the first pan
   assert.equal(result.model,'google/test-image-model');
 });
 
+test('layer generation uses a clean set request and transparent actor image contracts', async () => {
+  const requests = [];
+  const fetchFn = async (url,options) => {
+    const body = JSON.parse(options.body); requests.push({url,body});
+    if (url === __internals.GATEWAY_IMAGE_ENDPOINT) {
+      return {ok:true,async json(){return {choices:[{message:{images:[{image_url:{url:png}}]}}],usage:{total_tokens:4}};}};
+    }
+    return {ok:true,async json(){return {data:[{b64_json:Buffer.from('transparent-actor').toString('base64')}],usage:{total_tokens:8}};}};
+  };
+  const background = await generateBackgroundPlate({comic:comic(),panel:comic().panels[1],panelIndex:1,userId:'alice',env:{AI_GATEWAY_API_KEY:'secret'},fetchFn});
+  const identity = await generateActorVisual({comic:comic(),character:comic().characters[0],userId:'alice',env:{AI_GATEWAY_API_KEY:'secret'},fetchFn});
+  const actor = await generateActorVisual({
+    comic:comic(),panel:comic().panels[1],actor:{name:'Mara',keyframes:[{pose:'recoiling'}]},character:comic().characters[0],
+    referenceImage:parseImageDataUrl(png),userId:'alice',env:{AI_GATEWAY_API_KEY:'secret'},fetchFn,
+  });
+  assert.equal(background.kind,'background');
+  assert.equal(identity.kind,'identity');
+  assert.equal(actor.kind,'actor');
+  assert.equal(requests[1].url,__internals.GATEWAY_IMAGE_GENERATION_ENDPOINT);
+  assert.equal(requests[1].body.background,'transparent');
+  assert.equal(requests[1].body.output_format,'png');
+  assert.equal(requests[2].url,__internals.GATEWAY_IMAGE_EDIT_ENDPOINT);
+  assert.match(requests[2].body.images[0].image_url,/^data:image\/png;base64,/);
+  assert.ok(background.generationId);
+  assert.ok(identity.generationId);
+});
+
 test('visual assets persist separately and remain isolated by customer', async () => {
   const values = new Map();
   const command = async ([op,key,...args]) => {
@@ -248,10 +297,28 @@ test('visual assets persist separately and remain isolated by customer', async (
   };
   const store = createStoryVisualStore({command,now:() => 1234});
   await store.save('alice','story-1',0,{dataUrl:png,model:'image-model'});
+  await store.saveIdentity('alice','story-1','mara',{dataUrl:png,model:'actor-model',generationId:'identity-1'});
+  await store.saveActor('alice','story-1',0,'mara',{dataUrl:png,model:'actor-model',generationId:'actor-1'});
   assert.equal((await store.get('alice','story-1',0)).generatedAt,1234);
+  assert.equal((await store.getIdentity('alice','story-1','mara')).generationId,'identity-1');
+  assert.equal((await store.getActor('alice','story-1',0,'mara')).generationId,'actor-1');
   assert.equal(await store.get('bob','story-1',0),null);
-  assert.equal(await store.deleteProject('alice','story-1'),1);
+  assert.equal(await store.deleteProject('alice','story-1',{characters:[{actorId:'mara'}]}),3);
   assert.equal(await store.get('alice','story-1',0),null);
+});
+
+test('private actor delivery verifies project ownership and serves either identity or performance art', async () => {
+  const actorStore = {
+    async getIdentity(){return {mediaType:'image/png',base64:Buffer.from('identity').toString('base64')};},
+    async getActor(){return {mediaType:'image/png',base64:Buffer.from('performance').toString('base64')};},
+  };
+  const handler = createStoryActorHandler({resolveUser:async () => 'alice',projectStore:{async getProject(){return {id:'story-1'};}},visualStore:actorStore});
+  const identityRes = response();
+  await handler({method:'GET',query:{id:'story-1',actor:'mara',kind:'identity'}},identityRes);
+  assert.equal(identityRes.bytes.toString(),'identity');
+  const performanceRes = response();
+  await handler({method:'GET',query:{id:'story-1',panel:'2',actor:'mara',kind:'performance'}},performanceRes);
+  assert.equal(performanceRes.bytes.toString(),'performance');
 });
 
 test('private image delivery verifies project ownership before returning bytes', async () => {

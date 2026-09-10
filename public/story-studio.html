@@ -166,7 +166,7 @@
       <div class="workspace">
         <aside class="rail left">
           <div class="eyebrow">Chapter intake</div><h1>Shape the first issue.</h1>
-          <p class="intro">Paste one chapter. Nex will lock its story world, compose six distinct scenes, and illustrate them as a real comic sequence.</p>
+          <p class="intro">Paste one chapter. Nex will lock the cast, build six sets, direct every performance, and deliver the finished comic.</p>
           <label for="source-title">Chapter title</label><input id="source-title" type="text" maxlength="120" placeholder="Chapter 1 — The Signal">
           <label class="upload" for="source-file">Upload .txt or .md chapter<input id="source-file" type="file" accept=".txt,.md,text/plain,text/markdown"></label>
           <label for="source-text">Writing</label><textarea id="source-text" maxlength="30000" placeholder="Paste at least 100 characters from one chapter…"></textarea>
@@ -178,7 +178,7 @@
           <div class="status" id="status" role="status" aria-live="polite">Ready for your first chapter.</div>
         </aside>
         <section class="stage" id="stage">
-          <div class="empty-stage"><div><div class="eyebrow">Nex Story Editor</div><strong>One chapter.<br>One visual world.</strong><p>Nex chooses the strongest moments, composes every scene, and delivers a fully lettered six-panel comic.</p></div></div>
+          <div class="empty-stage"><div><div class="eyebrow">Nex Story Editor</div><strong>One chapter.<br>One living stage.</strong><p>Nex locks the cast, builds each set, directs the actors, and delivers a fully lettered six-panel comic.</p></div></div>
         </section>
         <aside class="rail right">
           <div><div class="library-head"><h2>PROJECT LIBRARY</h2><button class="tiny-btn" id="new-btn" type="button">+ New</button></div><div class="project-list" id="project-list"><p class="privacy">Loading private projects…</p></div></div>
@@ -226,6 +226,13 @@
     function validBubbleLayout(layout) {
       return layout && [layout.x,layout.y,layout.width].every((value) => Number.isFinite(Number(value)));
     }
+    function panelReady(panel) {
+      if (!panel?.image?.url) return false;
+      if (panel.image.layered !== true) return true;
+      return panel.image.needsSetRetry !== true
+        && !panel.image.missingActors?.length
+        && (panel.scene?.actors || []).every((actor) => actor.assetUrl);
+    }
 
     function applyBubblePosition(bubble,layout,frame={}) {
       bubble.dataset.positioned = 'true';
@@ -269,7 +276,7 @@
       plate.dataset.sceneRevision = String(panel?.scene?.revision || 0);
       if (panel.image?.url) {
         const image = document.createElement('img'); image.className = 'panel-image'; image.src = panel.image.url;
-        image.alt = panel.title ? `Illustration for ${panel.title}` : `Comic panel ${index + 1}`;
+        image.alt = panel.title ? `Set for ${panel.title}` : `Comic panel ${index + 1} set`;
         image.loading = 'lazy'; image.decoding = 'async'; plate.append(image);
       }
       const actorLayer = document.createElement('div'); actorLayer.className = 'scene-actor-layer';
@@ -406,6 +413,19 @@
       const scale = Math.max(canvas.width / image.naturalWidth,canvas.height / image.naturalHeight);
       const sourceWidth = canvas.width / scale; const sourceHeight = canvas.height / scale;
       context.drawImage(image,(image.naturalWidth - sourceWidth) / 2,(image.naturalHeight - sourceHeight) / 2,sourceWidth,sourceHeight,0,0,canvas.width,canvas.height);
+      const scene = sampleStoryScene(panel?.scene,null,{characters:currentProject?.comic?.characters || [],dialogue:panel?.dialogue || [],durationMs:panel?.durationMs});
+      const actorImages = await Promise.all(scene.actors.filter((actor) => actor.assetUrl).map(async (actor) => {
+        const sprite = new Image(); sprite.src = actor.assetUrl; await sprite.decode(); return {actor,sprite};
+      }));
+      actorImages.sort((a,b) => a.actor.frame.z - b.actor.frame.z).forEach(({actor,sprite}) => {
+        const width = canvas.width * actor.bounds.width * actor.frame.scale / 100;
+        const height = canvas.height * actor.bounds.height * actor.frame.scale / 100;
+        const x = canvas.width * actor.frame.x / 100;
+        const y = canvas.height * actor.frame.y / 100;
+        context.save(); context.translate(x,y); context.rotate(actor.frame.rotation * Math.PI / 180);
+        context.scale(actor.frame.facing === 'left' ? -1 : 1,1); context.globalAlpha = actor.frame.opacity;
+        context.drawImage(sprite,-width / 2,-height,width,height); context.restore();
+      });
       if (includeLettering) letteringFrames(panel).forEach((entry,bubbleIndex) => drawPreviewBubble(context,entry,bubbleIndex));
       if (panel.caption) { context.fillStyle = '#fff5ca'; context.strokeStyle = '#111827'; context.lineWidth = 3; context.fillRect(28,610,664,48); context.strokeRect(28,610,664,48); context.fillStyle = '#141925'; context.font = '600 15px JetBrains Mono, monospace'; context.fillText(panel.caption.slice(0,78),45,640); }
       return canvas.toDataURL('image/jpeg',.86);
@@ -415,7 +435,7 @@
       const projectId = currentProject?.id;
       for (let pass = 0; pass < 3; pass += 1) {
         const panel = currentProject?.comic?.panels?.[index];
-        if (!panel?.image?.url || panel.image.letteringReviewedAt || !panel.dialogue?.length) return true;
+        if (!panelReady(panel) || panel.image.letteringReviewedAt || !panel.dialogue?.length) return true;
         setStatus(`Nex is reviewing panel ${index + 1} exactly as readers will see it…`,'busy');
         const cleanPreviewDataUrl = await buildLetteringPreview(panel,index,{includeLettering:false});
         const previewDataUrl = await buildLetteringPreview(panel,index,{includeLettering:true});
@@ -496,7 +516,7 @@
       const logline = document.createElement('p'); logline.textContent = comic.logline || comic.visualStyle;
       intro.append(eye,title,logline);
       const actions = document.createElement('div'); actions.className = 'page-actions';
-      const read = document.createElement('button'); read.className = 'primary-btn'; read.type = 'button'; read.textContent = comic.panels.every((panel) => panel.image?.url) ? '▣ Read full comic' : '▣ Preview comic'; read.addEventListener('click',openReader);
+      const read = document.createElement('button'); read.className = 'primary-btn'; read.type = 'button'; read.textContent = comic.panels.every(panelReady) ? '▣ Read full comic' : '▣ Preview comic'; read.addEventListener('click',openReader);
       const remove = document.createElement('button'); remove.className = 'danger-btn'; remove.type = 'button'; remove.textContent = 'Delete comic'; remove.addEventListener('click', deleteCurrent);
       actions.append(read,remove); head.append(intro,actions); els.stage.append(head);
       const grid = document.createElement('div'); grid.className = 'comic-grid';
@@ -514,10 +534,10 @@
         card.append(art); grid.append(card);
       });
       els.stage.append(grid);
-      const readyCount = comic.panels.filter((panel) => panel.image?.url).length;
+      const readyCount = comic.panels.filter(panelReady).length;
       const completion = document.createElement('section'); completion.className = 'completion-bar';
       const message = document.createElement('div'); const messageTitle = document.createElement('b'); messageTitle.textContent = readyCount === comic.panels.length ? 'Your comic is ready.' : `Nex is finishing ${comic.panels.length - readyCount} more panels.`; const messageDetail = document.createElement('span'); messageDetail.textContent = readyCount === comic.panels.length ? 'Every scene is composed, illustrated, and lettered.' : 'This page updates as each finished panel arrives.'; message.append(messageTitle,messageDetail);
-      const finishRead = document.createElement('button'); finishRead.type = 'button'; finishRead.className = 'primary-btn'; finishRead.textContent = readyCount === comic.panels.length ? 'Read the finished comic' : 'Preview the comic'; finishRead.addEventListener('click',openReader); completion.append(message,finishRead); els.stage.append(completion);
+      const finishRead = document.createElement('button'); finishRead.type = 'button'; finishRead.className = 'primary-btn'; finishRead.textContent = readyCount === comic.panels.length ? 'Read the finished comic' : 'Let Nex finish the comic'; finishRead.addEventListener('click',readyCount === comic.panels.length ? openReader : illustrateAll); completion.append(message,finishRead); els.stage.append(completion);
       els.sourceTitle.value = currentProject.sourceTitle || '';
       els.sourceText.value = currentProject.sourceText || '';
       updateCount();
@@ -530,14 +550,32 @@
       els.generateBtn.disabled = true; setStatus('Nex is finding the strongest beats and locking continuity…','busy');
       try {
         const data = await request('/api/story-studio',{ method:'POST', body:JSON.stringify({ action:'generate', sourceTitle:els.sourceTitle.value.trim(), sourceText, visualStyle:els.visualStyle.value, rightsConfirmed:true }) });
-        currentProject = data.project; renderProject(); await loadProjects(); await illustrateAll(); await refreshCredits();
+        currentProject = data.project; renderProject(); await loadProjects(); await prepareCast(); await illustrateAll(); await refreshCredits();
       } catch (error) { setStatus(error.message,'error'); }
       finally { els.generateBtn.disabled = false; }
     }
 
+    async function prepareCast() {
+      if (!currentProject) return;
+      const projectId = currentProject.id;
+      setStatus('Nex is locking the cast likenesses and wardrobe…','busy');
+      try {
+        let data;
+        for (let batch = 0; batch < 4; batch += 1) {
+          data = await request('/api/story-studio',{method:'POST',body:JSON.stringify({action:'prepare-cast',projectId})});
+          if (currentProject?.id !== projectId) return;
+          currentProject = data.project; renderProject();
+          if (data.ready) break;
+        }
+        if (!data?.ready) console.warn('Nex will stage missing cast identities from their character bibles',data?.missingActors);
+      } catch (error) {
+        console.error('Nex cast preparation will retry during staging',error);
+      }
+    }
+
     async function illustratePanel(index,{ partOfSequence=false }={}) {
-      if (!currentProject) return false;
-      if (visualQueueActive && !partOfSequence) { setStatus('Nex is already painting this comic world.','busy'); return false; }
+      if (!currentProject) return {ok:false,complete:false};
+      if (visualQueueActive && !partOfSequence) { setStatus('Nex is already staging this comic.','busy'); return {ok:false,complete:false}; }
       const projectId = currentProject.id;
       if (!partOfSequence) setStatus(`Painting panel ${index + 1}…`,'busy');
       try {
@@ -545,32 +583,44 @@
         if (currentProject?.id === projectId) { currentProject = data.project; renderProject(); }
         try { await reviewPanelLettering(index); }
         catch (reviewError) { console.error('Nex lettering review failed',reviewError); }
-        if (!partOfSequence) { await loadProjects(); await refreshCredits(); setStatus(`Panel ${index + 1} illustrated and saved.`,'success'); }
-        return true;
+        if (!partOfSequence) {
+          await loadProjects(); await refreshCredits();
+          const retryMessage = data.needsSetRetry
+            ? `Nex saved panel ${index + 1} and will repaint one set artifact.`
+            : `Nex saved the set and will retry a missing actor in panel ${index + 1}.`;
+          setStatus(data.complete ? `Panel ${index + 1} staged and saved.` : retryMessage,data.complete ? 'success' : 'busy');
+        }
+        return {ok:true,complete:data.complete !== false,needsSetRetry:data.needsSetRetry === true};
       } catch (error) {
         setStatus(error.message,'error');
-        return false;
+        return {ok:false,complete:false};
       }
     }
 
     async function illustrateAll() {
       if (!currentProject || visualQueueActive) return;
-      const missing = currentProject.comic.panels.map((panel,index) => panel.image?.url ? -1 : index).filter((index) => index >= 0);
-      if (!missing.length) { setStatus('Comic world illustrated and saved.','success'); return; }
+      const initiallyMissing = currentProject.comic.panels.map((panel,index) => panelReady(panel) ? -1 : index).filter((index) => index >= 0);
+      if (!initiallyMissing.length) { setStatus('Comic world staged, directed, and saved.','success'); return; }
       visualQueueActive = true; renderProject();
-      let completed = 0;
-      for (const index of missing) {
-        setStatus(`Painting panel ${completed + 1} of ${missing.length}. Keeping the cast and world consistent…`,'busy');
-        if (!await illustratePanel(index,{partOfSequence:true})) break;
-        completed += 1;
+      for (let round = 0; round < 2; round += 1) {
+        const missing = currentProject.comic.panels.map((panel,index) => panelReady(panel) ? -1 : index).filter((index) => index >= 0);
+        if (!missing.length) break;
+        for (let position = 0; position < missing.length; position += 1) {
+          const index = missing[position];
+          const verb = round ? 'Polishing' : 'Staging';
+          setStatus(`${verb} scene ${position + 1} of ${missing.length}. Dressing the set and directing the cast…`,'busy');
+          await illustratePanel(index,{partOfSequence:true});
+        }
       }
       visualQueueActive = false; renderProject(); await loadProjects();
-      if (completed === missing.length) setStatus('Comic world illustrated and saved.','success');
+      const remaining = currentProject.comic.panels.filter((panel) => !panelReady(panel)).length;
+      if (!remaining) setStatus('Comic world staged, directed, and saved.','success');
+      else setStatus(`Nex preserved every finished layer. ${remaining} scene${remaining === 1 ? '' : 's'} can retry without restarting the comic.`,'error');
     }
 
     async function loadProject(id) {
       setStatus('Loading project…','busy');
-      if (visualQueueActive) return setStatus('Let Nex finish painting this comic before switching projects.','busy');
+      if (visualQueueActive) return setStatus('Let Nex finish staging this comic before switching projects.','busy');
       try { currentProject = (await request('/api/story-studio?id=' + encodeURIComponent(id))).project; renderProject(); await loadProjects(); setStatus('Project loaded.','success'); }
       catch (error) { setStatus(error.message,'error'); }
     }
@@ -605,7 +655,7 @@
       catch (error) { setStatus(error.message,'error'); }
     }
 
-    function resetStudio() { if (visualQueueActive) return setStatus('Let Nex finish painting this comic first.','busy'); currentProject = null; delete document.body.dataset.storyProjectId; els.sourceTitle.value = ''; els.sourceText.value = ''; els.rightsConfirmed.checked = false; els.stage.innerHTML = '<div class="empty-stage"><div><div class="eyebrow">Nex Story Editor</div><strong>One chapter.<br>One visual world.</strong><p>Nex chooses the strongest moments, composes every scene, and delivers a fully lettered six-panel comic.</p></div></div>'; updateCount(); setStatus('Ready for a new chapter.'); }
+    function resetStudio() { if (visualQueueActive) return setStatus('Let Nex finish staging this comic first.','busy'); currentProject = null; delete document.body.dataset.storyProjectId; els.sourceTitle.value = ''; els.sourceText.value = ''; els.rightsConfirmed.checked = false; els.stage.innerHTML = '<div class="empty-stage"><div><div class="eyebrow">Nex Story Editor</div><strong>One chapter.<br>One living stage.</strong><p>Nex locks the cast, builds each set, directs the actors, and delivers a fully lettered six-panel comic.</p></div></div>'; updateCount(); setStatus('Ready for a new chapter.'); }
     function updateCount() { els.sourceCount.textContent = `${els.sourceText.value.length.toLocaleString()} characters`; }
     async function refreshCredits() { try { const response = await fetch('/api/room-usage',{cache:'no-store'}); if (!response.ok) return; const data = await response.json(); els.credits.textContent = `${data.usage.remaining} credits left`; } catch {} }
 

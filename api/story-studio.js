@@ -9,7 +9,13 @@ import { comicDirectorGuidance } from '../lib/comicDirectorBible.js';
 import { applyNexLetteringOperations, normalizeLetteringTimeline, staticDialogueFromTimeline } from '../lib/letteringTimeline.js';
 import { actorId, applyNexSceneOperations, normalizeStoryScene } from '../public/story-scene-runtime.js';
 import { normalizeComicPlan, parseComicPlan, prepareBasicComicPlan, storyStudioStore } from '../lib/storyStudio.js';
-import { generatePanelVisual, inspectPanelVisual, reviewPanelLettering, storyVisualStore } from '../lib/storyVisuals.js';
+import {
+  generateActorVisual,
+  generateBackgroundPlate,
+  inspectPanelVisual,
+  reviewPanelLettering,
+  storyVisualStore,
+} from '../lib/storyVisuals.js';
 
 export const config = { maxDuration: 120 };
 
@@ -58,14 +64,72 @@ function validProjectId(value) {
 
 function comicWithTrustedImages(input, current) {
   const comic = normalizeComicPlan(input || current);
+  comic.characters.forEach((character) => {
+    const trusted = current?.characters?.find((candidate) => candidate.actorId === character.actorId);
+    character.visualIdentity = trusted?.visualIdentity || null;
+  });
   comic.panels.forEach((panel, index) => {
     panel.image = current?.panels?.[index]?.image || null;
+    const trustedActors = current?.panels?.[index]?.scene?.actors || [];
+    panel.scene.actors.forEach((actor) => {
+      const trusted = trustedActors.find((candidate) => candidate.id === actor.id || candidate.characterId === actor.characterId);
+      actor.assetUrl = trusted?.assetUrl || null;
+    });
   });
   return comic;
 }
 
 function panelImageUrl(projectId, panelIndex, generatedAt) {
   return `/api/story-image?id=${encodeURIComponent(projectId)}&panel=${panelIndex}&v=${generatedAt}`;
+}
+
+function identityImageUrl(projectId, actor, generatedAt) {
+  return `/api/story-actor?id=${encodeURIComponent(projectId)}&actor=${encodeURIComponent(actor)}&kind=identity&v=${generatedAt}`;
+}
+
+function actorImageUrl(projectId, panelIndex, actor, generatedAt) {
+  return `/api/story-actor?id=${encodeURIComponent(projectId)}&panel=${panelIndex}&actor=${encodeURIComponent(actor)}&kind=performance&v=${generatedAt}`;
+}
+
+function characterForActor(comic, actor) {
+  return comic.characters.find((character) => character.actorId === actor.characterId || character.actorId === actor.id)
+    || {actorId:actor.characterId || actor.id,name:actor.name,role:actor.role};
+}
+
+async function allSettledWithConcurrency(items, worker, limit = 3) {
+  const results = new Array(items.length);
+  let cursor = 0;
+  const runners = Array.from({length:Math.min(limit,items.length)}, async () => {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      try {
+        results[index] = {status:'fulfilled',value:await worker(items[index],index)};
+      } catch (reason) {
+        results[index] = {status:'rejected',reason};
+      }
+    }
+  });
+  await Promise.all(runners);
+  return results;
+}
+
+function layeredBubblePlacements(panel) {
+  return panel.dialogue.map((line,index) => {
+    const actor = panel.scene.actors.find((candidate) => candidate.id === line.actorId || candidate.characterId === line.actorId);
+    const length = String(line.line || '').length;
+    const width = length <= 20 ? 22 : length <= 42 ? 30 : length <= 70 ? 36 : 42;
+    const actorX = Number(actor?.keyframes?.[0]?.x ?? actor?.faceAnchor?.x ?? (index ? 70 : 30));
+    const side = actorX >= 50 ? 'right' : 'left';
+    return {
+      index,side,
+      layout:{
+        x:side === 'left' ? 3 : 97 - width,
+        y:index > 0 && panel.dialogue.length > 1 && side === (panel.dialogue[0]?.side || side) ? 26 : 4,
+        width,source:'nex-stage',
+      },
+    };
+  });
 }
 
 function applyNexPlacements(panel, placements) {
@@ -155,7 +219,8 @@ export function createStoryStudioHandler({
   visuals = storyVisualStore,
   meter = roomMeter,
   route = routeMessage,
-  generateVisual = generatePanelVisual,
+  generateBackground = generateBackgroundPlate,
+  generateActor = generateActorVisual,
   inspectVisual = inspectPanelVisual,
   analyzeVisual = null,
   reviewVisual = reviewPanelLettering,
@@ -189,9 +254,10 @@ export function createStoryStudioHandler({
       if (req.method === 'DELETE') {
         const id = req.query?.id;
         if (!validProjectId(id)) return res.status(400).json({ error: 'Invalid project id' });
+        const current = await store.getProject(username,id);
         const deleted = await store.deleteProject(username, id);
         if (deleted) {
-          try { await visuals.deleteProject(username, id); }
+          try { await visuals.deleteProject(username, id, current?.comic); }
           catch (error) { console.error('story-studio visual cleanup failed:', error.message); }
         }
         return res.status(deleted ? 200 : 404).json(deleted ? { deleted: true } : { error: 'Project not found' });
@@ -322,6 +388,56 @@ export function createStoryStudioHandler({
         }
       }
 
+      if (action === 'prepare-cast') {
+        const projectId = String(req.body?.projectId || '');
+        if (!validProjectId(projectId)) return res.status(400).json({error:'Invalid project id'});
+        const current = await store.getProject(username,projectId);
+        if (!current) return res.status(404).json({error:'Project not found'});
+        const comic = comicWithTrustedImages(current.comic,current.comic);
+        const pending = comic.characters.filter((character) => !character.visualIdentity?.assetUrl);
+        if (!pending.length) return res.status(200).json({project:current,ready:true,missingActors:[]});
+        const batch = pending.slice(0,3);
+
+        let castReservation;
+        let castSuccess = false;
+        try {
+          castReservation = await meter.reserveBuild({userId:username,kind:'edit'});
+          if (!castReservation.ok) {
+            return res.status(429).json({
+              error:'This account needs more creative credits to prepare another cast.',
+              code:'ROOM_CREDITS_EXHAUSTED',usage:castReservation,
+            });
+          }
+          const results = await allSettledWithConcurrency(batch,async (character) => {
+            const generated = await generateActor({comic,character,userId:username});
+            const asset = await visuals.saveIdentity(username,projectId,character.actorId,generated);
+            character.visualIdentity = {
+              assetUrl:identityImageUrl(projectId,character.actorId,asset.generatedAt),
+              model:asset.model,generationId:asset.generationId,generatedAt:asset.generatedAt,
+            };
+            return character.actorId;
+          });
+          const missingActors = [
+            ...results.flatMap((result,index) => result.status === 'fulfilled' ? [] : [batch[index].actorId]),
+            ...pending.slice(batch.length).map((character) => character.actorId),
+          ];
+          results.forEach((result,index) => {
+            if (result.status === 'rejected') console.error(`story-studio cast asset failed for ${batch[index].actorId}:`,result.reason?.message || 'unknown');
+          });
+          const project = await store.saveProject(username,{...current,comic});
+          castSuccess = results.some((result) => result.status === 'fulfilled');
+          return res.status(200).json({project,ready:missingActors.length === 0,missingActors});
+        } finally {
+          if (castReservation?.ok) {
+            try {
+              await meter.settleBuild({
+                userId:username,period:castReservation.period,reservationId:castReservation.reservationId,success:castSuccess,
+              });
+            } catch (error) { console.error('story-studio cast usage settlement failed:',error.message); }
+          }
+        }
+      }
+
       if (action === 'illustrate') {
         const projectId = String(req.body?.projectId || '');
         const panelIndex = Number(req.body?.panelIndex);
@@ -345,44 +461,68 @@ export function createStoryStudioHandler({
               usage: visualReservation,
             });
           }
-          const referenceImage = panelIndex > 0 ? await visuals.get(username, projectId, 0) : null;
-          let generated;
-          let inspection = {artwork:'clean',issues:[],actors:[],placements:[]};
-          for (let attempt = 0; attempt < 2; attempt += 1) {
-            generated = await generateVisual({
-              comic,
-              panel,
-              panelIndex,
-              referenceImage,
-              correctionIssues:attempt ? inspection.issues : [],
-            });
+          panel.scene = normalizeStoryScene(panel.scene,{characters:comic.characters,dialogue:panel.dialogue,durationMs:panel.durationMs});
+
+          await Promise.all(panel.scene.actors.filter((actor) => !actor.assetUrl).map(async (actor) => {
+            if (typeof visuals.getActor !== 'function') return;
             try {
-              inspection = analyzeVisual
-                ? {artwork:'clean',issues:[],actors:[],placements:await analyzeVisual({ comic, panel, panelIndex, imageDataUrl:generated.dataUrl, userId:username })}
-                : await inspectVisual({ comic, panel, panelIndex, imageDataUrl:generated.dataUrl, userId:username });
+              const existing = await visuals.getActor(username,projectId,panelIndex,actor.id);
+              if (existing?.generatedAt) actor.assetUrl = actorImageUrl(projectId,panelIndex,actor.id,existing.generatedAt);
             } catch (error) {
-              // Preserve the expensive artwork if vision is temporarily down.
-              // The reader uses Nex's preplanned collision-safe fallback layout.
-              console.error('story-studio visual inspection failed:', error.message);
-              inspection = {artwork:'clean',issues:[],actors:[],placements:[]};
-              break;
+              console.error(`story-studio actor cache lookup failed for ${actor.id}:`,error.message);
             }
-            if (inspection.artwork === 'clean') break;
-            if (attempt === 1) throw new Error('Nex rejected the generated panel because it still contained lettering artifacts or lacked safe dialogue space');
-          }
-          applyNexActorInspection(comic, panel, inspection.actors);
-          if (panel.dialogue.length) applyNexPlacements(panel, inspection.placements);
-          const asset = await visuals.save(username, projectId, panelIndex, generated);
-          panel.image = {
-            url: panelImageUrl(projectId, panelIndex, asset.generatedAt),
-            model: asset.model,
-            generatedAt: asset.generatedAt,
-            letteringReviewPasses:0,
-            letteringReviewedAt:0,
-          };
+          }));
+
+          const actorsNeedingArt = panel.scene.actors.filter((actor) => !actor.assetUrl);
+          const actorWork = allSettledWithConcurrency(actorsNeedingArt,async (actor) => {
+            const character = characterForActor(comic,actor);
+            const referenceImage = await visuals.getIdentity(username,projectId,character.actorId);
+            const generated = await generateActor({comic,panel,actor,character,referenceImage,userId:username});
+            const asset = await visuals.saveActor(username,projectId,panelIndex,actor.id,generated);
+            actor.assetUrl = actorImageUrl(projectId,panelIndex,actor.id,asset.generatedAt);
+            return actor.id;
+          });
+
+          const backgroundWork = (async () => {
+            if (panel.image?.url && panel.image.needsSetRetry !== true) return;
+            const generated = await generateBackground({
+              comic,panel,panelIndex,userId:username,
+              correctionIssues:panel.image?.setIssues || [],
+            });
+            let inspection = {artwork:'clean',issues:[],actors:[],placements:[]};
+            try {
+              const emptySetPanel = {...panel,dialogue:[],scene:{...panel.scene,actors:[]}};
+              inspection = analyzeVisual
+                ? {artwork:'clean',issues:[],actors:[],placements:await analyzeVisual({comic,panel:emptySetPanel,panelIndex,imageDataUrl:generated.dataUrl,userId:username})}
+                : await inspectVisual({comic,panel:emptySetPanel,panelIndex,imageDataUrl:generated.dataUrl,userId:username});
+            } catch (error) {
+              console.error('story-studio background inspection failed:',error.message);
+              inspection = {artwork:'clean',issues:[],actors:[],placements:[]};
+            }
+            const asset = await visuals.save(username,projectId,panelIndex,generated);
+            panel.image = {
+              url:panelImageUrl(projectId,panelIndex,asset.generatedAt),
+              model:asset.model,generationId:asset.generationId,generatedAt:asset.generatedAt,
+              layered:true,
+              needsSetRetry:inspection.artwork === 'regenerate',
+              setIssues:inspection.artwork === 'regenerate' ? inspection.issues : [],
+              missingActors:[],letteringReviewPasses:0,letteringReviewedAt:0,
+            };
+          })();
+
+          const [,actorResults] = await Promise.all([backgroundWork,actorWork]);
+          actorResults.forEach((result,index) => {
+            if (result.status === 'rejected') {
+              console.error(`story-studio actor layer failed for ${actorsNeedingArt[index].id}:`,result.reason?.message || 'unknown');
+            }
+          });
+          const missingActors = panel.scene.actors.filter((actor) => !actor.assetUrl).map((actor) => actor.id);
+          panel.image = {...panel.image,layered:true,missingActors,letteringReviewPasses:0,letteringReviewedAt:0};
+          if (panel.dialogue.length) applyNexPlacements(panel,layeredBubblePlacements(panel));
           const project = await store.saveProject(username, { ...current, comic });
           visualSuccess = true;
-          return res.status(200).json({ project, panelIndex });
+          const needsSetRetry = panel.image.needsSetRetry === true;
+          return res.status(200).json({project,panelIndex,complete:missingActors.length === 0 && !needsSetRetry,missingActors,needsSetRetry});
         } finally {
           if (visualReservation?.ok) {
             try {
