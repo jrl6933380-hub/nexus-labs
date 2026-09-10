@@ -20,7 +20,7 @@ const comic = {
   })),
 };
 
-test('a mobile customer can edit bubbles and read the complete comic together', async ({page}) => {
+test('a mobile customer receives a clean Nex-finished comic and reader', async ({page}) => {
   await page.setViewportSize({width:393,height:852});
   await page.route('**/api/room-auth',route => route.fulfill({json:{username:'reader-test'}}));
   await page.route('**/api/room-usage',route => route.fulfill({json:{usage:{remaining:90}}}));
@@ -45,27 +45,17 @@ test('a mobile customer can edit bubbles and read the complete comic together', 
   const firstBubble = firstPanel.locator('.comic-bubble');
   await expect(firstBubble).toContainText('Who said that?');
   await expect(firstBubble).toHaveAttribute('data-positioned','true');
-  const beforeX = await firstBubble.evaluate((element) => element.style.getPropertyValue('--bubble-x'));
-  const box = await firstBubble.boundingBox();
-  await page.mouse.move(box.x + box.width / 2,box.y + box.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(box.x - 70,box.y + 55,{steps:5});
-  await page.mouse.up();
-  const afterX = await firstBubble.evaluate((element) => element.style.getPropertyValue('--bubble-x'));
-  expect(afterX).not.toBe(beforeX);
-  await expect(firstPanel.locator('[data-field="dialogueSide"]')).toHaveValue('left');
-  await firstPanel.getByRole('button',{name:/Reset panel 1 bubble 1 position/}).click();
-  await expect(firstPanel.locator('.comic-bubble')).not.toHaveAttribute('data-positioned','true');
-  await page.locator('.comic-panel').first().getByRole('button',{name:'Add bubble'}).click();
-  const newBubble = page.locator('.comic-panel').first().locator('.dialogue-item').last();
-  await newBubble.getByPlaceholder('Who is speaking?').fill('Mara');
-  await newBubble.getByPlaceholder('What do they say? Keep it short and natural.').fill('This cannot be real.');
-  await expect(page.locator('.comic-panel').first().locator('.comic-bubble')).toHaveCount(2);
+  await expect(page.getByText('Save edits',{exact:true})).toHaveCount(0);
+  await expect(page.getByText('Export JSON',{exact:true})).toHaveCount(0);
+  await expect(page.getByText('Regenerate art',{exact:true})).toHaveCount(0);
+  await expect(page.getByText('Speech bubbles',{exact:true})).toHaveCount(0);
+  await expect(page.getByText('Art direction',{exact:true})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Delete comic'})).toBeVisible();
 
   await page.getByRole('button',{name:'Read full comic'}).first().click();
   await expect(page.locator('.comic-reader')).toBeVisible();
   await expect(page.locator('.reader-panel')).toHaveCount(6);
-  await expect(page.locator('.reader-panel').first().locator('.comic-bubble')).toHaveCount(2);
+  await expect(page.locator('.reader-panel').first().locator('.comic-bubble')).toHaveCount(1);
   await expect(page.locator('.reader-page')).toContainText('END OF ISSUE');
   const readerColumns = await page.locator('.reader-page').evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length);
   expect(readerColumns).toBe(1);

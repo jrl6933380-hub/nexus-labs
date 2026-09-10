@@ -12,31 +12,31 @@ test('Story Studio is one locked Nexus canvas cubicle with a private auth gate',
   assert.match(api,/getRequestUser/);
 });
 
-test('the first golden path supports chapter input, rights confirmation, generation, editing, saving, export, and deletion', () => {
-  for (const marker of ['source-file','source-text','rights-confirmed','generate-btn','Save edits','Export JSON','Delete','Read full comic','Speech bubbles','Add bubble']) {
+test('the first golden path gives customers chapter input and a finished comic without production controls', () => {
+  for (const marker of ['source-file','source-text','rights-confirmed','generate-btn','Delete comic','Read full comic']) {
     assert.match(source,new RegExp(marker));
   }
   assert.match(source,/action:'generate'/);
-  assert.match(source,/action:'save'/);
   assert.match(source,/action:'illustrate'/);
   assert.match(source,/illustrateAll/);
   assert.match(source,/panel-image/);
-  assert.match(source,/Regenerate art/);
   assert.match(source,/createBubbleLayer/);
-  assert.match(source,/enableBubbleDrag/);
-  assert.match(source,/Reset position/);
   assert.match(source,/data-positioned="true"/);
   assert.match(source,/openReader/);
   assert.match(source,/reader-page/);
   assert.match(source,/method:'DELETE'/);
+  for (const hidden of ['Save edits','Export JSON','Regenerate art','Reset position','Add bubble','data-field="artDirection"','enableBubbleDrag','dialogueSide']) {
+    assert.doesNotMatch(source,new RegExp(hidden));
+  }
 });
 
-test('the finished reader presents every panel together with captions and editable bubble styles', () => {
+test('the finished reader presents every panel together with captions and Nex-owned bubble styles', () => {
   assert.match(source,/comic\.panels\.forEach\(\(panel,index\) =>/);
-  assert.match(source,/dialogueFromCard/);
-  assert.match(source,/\['speech','Speech'\],\['thought','Thought'\],\['shout','Shout'\]/);
+  assert.match(source,/\['thought','shout'\]\.includes\(entry\.type\)/);
   assert.match(source,/reader-caption/);
   assert.match(source,/END OF ISSUE/);
+  assert.match(source,/word-break:normal/);
+  assert.match(source,/hyphens:none/);
 });
 
 test('every Story Studio DOM reference is wired to a camel-case element alias', () => {
@@ -57,6 +57,8 @@ test('every Story Studio DOM reference is wired to a camel-case element alias', 
 
 test('Story Studio asks for six continuity-aware panels and preserves tenant ownership server-side', () => {
   assert.match(api,/Produce exactly 6 panels/);
+  assert.match(api,/never more than two/);
+  assert.match(api,/prepareBasicComicPlan/);
   assert.match(api,/appearance/);
   assert.match(api,/continuity/);
   assert.match(api,/analyzePanelVisual/);
