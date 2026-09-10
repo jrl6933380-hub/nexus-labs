@@ -12,7 +12,7 @@ import { normalizeComicPlan, parseComicPlan, prepareBasicComicPlan, storyStudioS
 import {
   generateActorVisual,
   generateBackgroundPlate,
-  inspectPanelVisual,
+  inspectBackgroundPlate,
   reviewPanelLettering,
   storyVisualStore,
 } from '../lib/storyVisuals.js';
@@ -30,11 +30,12 @@ Return ONLY one JSON object with this exact shape and no markdown:
   "palette":["#RRGGBB","#RRGGBB","#RRGGBB"],
   "worldBible":{"premise":"story invariant","era":"time period and reality","storyRules":["facts and limits that must not change"],"locations":[{"name":"place","visualIdentity":"repeatable spatial and visual identity","continuity":"state that must persist"}],"recurringProps":[{"name":"prop","appearance":"repeatable design","continuity":"state and ownership"}],"visualMotifs":["intentional recurring image"],"colorScript":["sequence-level palette progression"],"animationLanguage":"story-specific motion and camera grammar","soundLanguage":"ambience, effects, silence, voice, and music grammar"},
   "characters":[{"actorId":"stable-kebab-case-id","name":"name","role":"story role","appearance":"repeatable visual description","continuity":"details that must stay consistent","intelligence":{"personality":"how this actor thinks and reacts","privateObjective":"what the actor wants beneath the scene","instincts":["repeatable behavior under pressure"],"voice":"word choice, rhythm, restraint","movementStyle":"physical acting language","emotionalRange":"how emotion appears in face and body","relationships":["Name: specific dynamic"]}}],
-  "panels":[{"title":"short panel title","beat":"what changes in this panel","shot":"camera framing and angle","setting":"place, time, atmosphere","caption":"optional narration","durationMs":6000,"scene":{"posterTimeMs":0,"camera":{"keyframes":[{"atMs":0,"x":50,"y":50,"zoom":1,"rotation":0,"easing":"ease-in-out"}]},"actors":[{"actorId":"matching character actorId","name":"name","blocking":{"x":25,"y":68,"scale":1,"rotation":0,"opacity":1,"z":1,"pose":"specific readable pose","expression":"specific emotion","facing":"left|right|camera|away"},"bounds":{"x":15,"y":25,"width":22,"height":55},"faceAnchor":{"x":25,"y":30},"speechAnchor":{"x":25,"y":16}}]},"dialogue":[{"actorId":"matching character actorId","speaker":"name","line":"short dialogue","type":"speech|thought|shout","side":"left|right","startMs":0,"endMs":2800}],"artDirection":"precise composition, action, lighting, expressions, and continuity details"}]
+  "panels":[{"title":"short panel title","visualRole":"establishing|action|reaction|detail|reveal|aftermath","beat":"what changes in this panel","shot":"camera framing and angle","setting":"place, time, atmosphere","caption":"optional narration","durationMs":6000,"scene":{"posterTimeMs":0,"camera":{"keyframes":[{"atMs":0,"x":50,"y":50,"zoom":1,"rotation":0,"easing":"ease-in-out"}]},"actors":[{"actorId":"matching character actorId","name":"name","blocking":{"x":25,"y":68,"scale":1,"rotation":0,"opacity":1,"z":1,"pose":"specific readable pose","expression":"specific emotion","facing":"left|right|camera|away"},"bounds":{"x":15,"y":25,"width":22,"height":55},"faceAnchor":{"x":25,"y":30},"speechAnchor":{"x":25,"y":16}}]},"dialogue":[{"actorId":"matching character actorId","speaker":"name","line":"short dialogue","type":"speech|thought|shout","side":"left|right","startMs":0,"endMs":2800}],"artDirection":"precise composition, action, lighting, expressions, and continuity details"}]
 }
 
 Rules:
 - Produce exactly 6 panels with a clear beginning, turn, and closing hook.
+- Give every panel one visualRole. Across the six panels, deliberately use at least one establishing, one detail, one reaction, and one aftermath or reveal. Vary shot size and camera height. Never use the same full-body hero pose, airborne pose, or centered protagonist composition twice in a row. A detail or establishing panel may have no character actors when that is the clearest storytelling choice.
 - Preserve the source's meaning, tone, named characters, and important dialogue. Do not invent a different plot.
 - Nex owns the finished basic comic. Choose only the strongest dialogue: zero, one, or two bubbles per panel, never more than two. Keep every line to 14 words or fewer. Use simple character names as speaker labels without parenthetical stage directions. Choose speech, thought, or shout deliberately. Use captions only when they add information the art cannot show.
 - For every dialogue line, set "side" to "left" or "right" based on where that speaking character actually stands in THIS panel's shot/artDirection — the reader should be able to tell whose bubble it is without reading the name. If a character stays on the same side of the frame for multiple lines in one panel, keep "side" the same for all of them. If a panel's composition doesn't clearly place characters on one side or the other (e.g. a single close-up face, an off-panel voice), pick whichever side keeps that speaker's lines together and leaves room for anyone else in the panel.
@@ -221,8 +222,7 @@ export function createStoryStudioHandler({
   route = routeMessage,
   generateBackground = generateBackgroundPlate,
   generateActor = generateActorVisual,
-  inspectVisual = inspectPanelVisual,
-  analyzeVisual = null,
+  inspectBackground = inspectBackgroundPlate,
   reviewVisual = reviewPanelLettering,
   actorDirector = directStoryActor,
 } = {}) {
@@ -388,6 +388,26 @@ export function createStoryStudioHandler({
         }
       }
 
+      if (action === 'restage') {
+        const projectId = String(req.body?.projectId || '');
+        const panelIndex = Number(req.body?.panelIndex);
+        if (!validProjectId(projectId) || !Number.isInteger(panelIndex) || panelIndex < 0 || panelIndex > 7) {
+          return res.status(400).json({ error:'Invalid Story Studio panel' });
+        }
+        const current = await store.getProject(username, projectId);
+        if (!current) return res.status(404).json({ error:'Project not found' });
+        const comic = comicWithTrustedImages(current.comic,current.comic);
+        const panel = comic.panels[panelIndex];
+        if (!panel) return res.status(404).json({ error:'Panel not found' });
+        panel.image = null;
+        panel.scene = normalizeStoryScene({
+          ...panel.scene,
+          actors:(panel.scene?.actors || []).map((actor) => ({...actor,assetUrl:null})),
+        },{characters:comic.characters,dialogue:panel.dialogue,durationMs:panel.durationMs});
+        const project = await store.saveProject(username,{...current,comic});
+        return res.status(200).json({project,panelIndex,restaged:true});
+      }
+
       if (action === 'prepare-cast') {
         const projectId = String(req.body?.projectId || '');
         if (!validProjectId(projectId)) return res.status(400).json({error:'Invalid project id'});
@@ -489,23 +509,20 @@ export function createStoryStudioHandler({
               comic,panel,panelIndex,userId:username,
               correctionIssues:panel.image?.setIssues || [],
             });
-            let inspection = {artwork:'clean',issues:[],actors:[],placements:[]};
+            let inspection = {verdict:'clean',issues:[]};
             try {
-              const emptySetPanel = {...panel,dialogue:[],scene:{...panel.scene,actors:[]}};
-              inspection = analyzeVisual
-                ? {artwork:'clean',issues:[],actors:[],placements:await analyzeVisual({comic,panel:emptySetPanel,panelIndex,imageDataUrl:generated.dataUrl,userId:username})}
-                : await inspectVisual({comic,panel:emptySetPanel,panelIndex,imageDataUrl:generated.dataUrl,userId:username});
+              inspection = await inspectBackground({comic,panel,panelIndex,imageDataUrl:generated.dataUrl,userId:username});
             } catch (error) {
               console.error('story-studio background inspection failed:',error.message);
-              inspection = {artwork:'clean',issues:[],actors:[],placements:[]};
+              inspection = {verdict:'clean',issues:[]};
             }
             const asset = await visuals.save(username,projectId,panelIndex,generated);
             panel.image = {
               url:panelImageUrl(projectId,panelIndex,asset.generatedAt),
               model:asset.model,generationId:asset.generationId,generatedAt:asset.generatedAt,
               layered:true,
-              needsSetRetry:inspection.artwork === 'regenerate',
-              setIssues:inspection.artwork === 'regenerate' ? inspection.issues : [],
+              needsSetRetry:inspection.verdict === 'regenerate',
+              setIssues:inspection.verdict === 'regenerate' ? inspection.issues : [],
               missingActors:[],letteringReviewPasses:0,letteringReviewedAt:0,
             };
           })();

@@ -165,6 +165,24 @@ test('saving edits cannot claim a project outside the current account store', as
   assert.equal(res.code,404);
 });
 
+test('a creator can re-direct one scene without deleting the comic or cast bible', async () => {
+  const current = {id:'story-1',sourceTitle:'Chapter one',sourceText:'A'.repeat(180),comic:parseComicPlan(JSON.stringify(plan()))};
+  current.comic.panels[0].image = {url:'/api/story-image?id=story-1&panel=0&v=700',layered:true};
+  current.comic.panels[0].scene.actors[0].assetUrl = '/api/story-actor?id=story-1&panel=0&actor=mara&kind=performance&v=701';
+  let saved;
+  const handler = createStoryStudioHandler({
+    resolveUser:async () => 'alice',
+    store:{async getProject(){return current;},async saveProject(userId,input){saved = input.comic; return {...current,comic:input.comic};}},
+  });
+  const res = response();
+  await handler({method:'POST',body:{action:'restage',projectId:'story-1',panelIndex:0}},res);
+  assert.equal(res.code,200);
+  assert.equal(res.body.restaged,true);
+  assert.equal(saved.panels[0].image,null);
+  assert.equal(saved.panels[0].scene.actors[0].assetUrl,null);
+  assert.equal(saved.characters[0].visualIdentity?.assetUrl ?? null,current.comic.characters[0].visualIdentity?.assetUrl ?? null);
+});
+
 test('Nex prepares and persists one reusable transparent identity per cast member', async () => {
   const current = {id:'story-1',sourceTitle:'Chapter one',sourceText:'A'.repeat(180),comic:plan()};
   let savedComic;
@@ -188,7 +206,7 @@ test('Nex prepares and persists one reusable transparent identity per cast membe
 
 test('staging one panel saves a private set and transparent actor performance layers', async () => {
   const current = { id:'story-1', sourceTitle:'Chapter one', sourceText:'A'.repeat(180), comic:plan() };
-  const calls = { visual:[], analysis:[], save:[], settle:[] };
+  const calls = { visual:[], setQa:[], save:[], settle:[] };
   const handler = createStoryStudioHandler({
     resolveUser:async () => 'alice',
     store:{
@@ -203,13 +221,13 @@ test('staging one panel saves a private set and transparent actor performance la
     meter:{ async reserveBuild(){ return {ok:true,period:1,reservationId:'visual-reservation'}; }, async settleBuild(input){ calls.settle.push(input); } },
     async generateBackground(input){ assert.equal(input.panelIndex,1); return {dataUrl:'data:image/png;base64,YXJ0',model:'image-model'}; },
     async generateActor(input){ assert.equal(input.referenceImage.base64,'aWRlbnRpdHk='); return {dataUrl:'data:image/png;base64,YWN0b3I=',model:'actor-model'}; },
-    async analyzeVisual(input){ calls.analysis.push(input); return [{index:0,side:'right',layout:{x:54,y:8,width:30,source:'vision'}}]; },
+    async inspectBackground(input){ calls.setQa.push(input); return {verdict:'clean',issues:[]}; },
   });
   const res = response();
   await handler({method:'POST',body:{action:'illustrate',projectId:'story-1',panelIndex:1,comic:current.comic}},res);
   assert.equal(res.code,200);
   assert.equal(calls.visual[0].panelIndex,1);
-  assert.equal(calls.analysis[0].imageDataUrl,'data:image/png;base64,YXJ0');
+  assert.equal(calls.setQa[0].imageDataUrl,'data:image/png;base64,YXJ0');
   assert.ok(calls.save[0].input.comic.panels[1].dialogue[0].layout);
   assert.equal(calls.save[0].input.comic.panels[1].image.url,'/api/story-image?id=story-1&panel=1&v=777');
   assert.equal(calls.save[0].input.comic.panels[1].image.layered,true);
@@ -240,11 +258,11 @@ test('Nex preserves a rejected set and regenerates it in a fresh bounded request
       return {dataUrl:`data:image/png;base64,${input.correctionIssues.length ? 'Y2xlYW4=' : 'YXJ0aWZhY3Q='}`,model:'image-model'};
     },
     async generateActor(){ return {dataUrl:'data:image/png;base64,YWN0b3I=',model:'actor-model'}; },
-    async inspectVisual(){
+    async inspectBackground(){
       inspections += 1;
       return inspections === 1
-        ? {artwork:'regenerate',issues:['generated_text','blank_lettering_box'],placements:[]}
-        : {artwork:'clean',issues:[],placements:[{index:0,side:'right',layout:{x:60,y:8,width:28,source:'vision'}}]};
+        ? {verdict:'regenerate',issues:['generated_text','blank_lettering_box']}
+        : {verdict:'clean',issues:[]};
     },
   });
   const res = response();
@@ -279,7 +297,7 @@ test('a failed optional vision pass falls back without losing the generated pane
     meter:{ async reserveBuild(){ return {ok:true,period:1,reservationId:'visual-reservation'}; }, async settleBuild(){} },
     async generateBackground(){ return {dataUrl:'data:image/png;base64,YXJ0',model:'image-model'}; },
     async generateActor(){ return {dataUrl:'data:image/png;base64,YWN0b3I=',model:'actor-model'}; },
-    async analyzeVisual(){ throw new Error('vision unavailable'); },
+    async inspectBackground(){ throw new Error('vision unavailable'); },
   });
   const originalError = console.error; console.error = () => {};
   try {
@@ -303,7 +321,7 @@ test('one failed actor layer does not discard the set or stop the comic queue', 
     },
     meter:{async reserveBuild(){return {ok:true,period:1,reservationId:'scene'};},async settleBuild(){}},
     async generateBackground(){return {dataUrl:'data:image/png;base64,c2V0',model:'set-model',generationId:'set-1'};},
-    async inspectVisual(){return {artwork:'clean',issues:[],actors:[],placements:[]};},
+    async inspectBackground(){return {verdict:'clean',issues:[]};},
     async generateActor(){throw new Error('actor provider unavailable');},
   });
   const originalError = console.error; console.error = () => {};

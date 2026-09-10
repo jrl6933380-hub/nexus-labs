@@ -531,7 +531,8 @@
         if (panel.image?.url) art.append(createScenePlate(panel,index));
         art.append(createBubbleLayer(panel));
         if (panel.caption) { const caption = document.createElement('div'); caption.className = 'reader-caption'; caption.textContent = panel.caption; art.append(caption); }
-        card.append(art); grid.append(card);
+        const restage = document.createElement('button'); restage.type = 'button'; restage.className = 'ghost-btn visual-btn'; restage.textContent = '↻ Re-direct scene'; restage.addEventListener('click',() => restagePanel(index));
+        card.append(art,restage); grid.append(card);
       });
       els.stage.append(grid);
       const readyCount = comic.panels.filter(panelReady).length;
@@ -594,6 +595,23 @@
       } catch (error) {
         setStatus(error.message,'error');
         return {ok:false,complete:false};
+      }
+    }
+
+    async function restagePanel(index) {
+      if (!currentProject || visualQueueActive) return;
+      const projectId = currentProject.id;
+      setStatus(`Re-directing scene ${index + 1} with a fresh set and performance…`,'busy');
+      try {
+        const data = await request('/api/story-studio',{ method:'POST', body:JSON.stringify({ action:'restage', projectId, panelIndex:index }) });
+        if (currentProject?.id !== projectId) return;
+        currentProject = data.project;
+        renderProject();
+        await illustratePanel(index);
+        await loadProjects();
+        await refreshCredits();
+      } catch (error) {
+        setStatus(error.message,'error');
       }
     }
 

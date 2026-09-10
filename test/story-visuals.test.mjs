@@ -6,6 +6,7 @@ import {
   analyzePanelVisual,
   buildActorPerformancePrompt,
   buildBackgroundPlatePrompt,
+  buildBackgroundPlateVisionPrompt,
   buildBubbleReservations,
   buildCharacterIdentityPrompt,
   buildPanelVisualPrompt,
@@ -15,7 +16,9 @@ import {
   generateActorVisual,
   generateBackgroundPlate,
   generatePanelVisual,
+  inspectBackgroundPlate,
   parseBubblePlacements,
+  parseBackgroundPlateInspection,
   parseLetteringReview,
   parsePanelVisualInspection,
   parseImageDataUrl,
@@ -98,6 +101,25 @@ test('the art department separates canonical cast, empty sets, and actor perform
   assert.match(performance,/supplied identity image is binding/i);
   assert.match(performance,/Pose: recoiling/);
   assert.match(performance,/all pixels outside the actor transparent/i);
+});
+
+test('the set-continuity worker rejects people leaked into a background plate', async () => {
+  const prompt = buildBackgroundPlateVisionPrompt({panel:comic().panels[1]});
+  assert.match(prompt,/empty set/i);
+  assert.match(prompt,/unauthorized person/i);
+  assert.deepEqual(parseBackgroundPlateInspection('{"verdict":"regenerate","issues":["unauthorized_character"]}'),{
+    verdict:'regenerate',issues:['unauthorized_character'],
+  });
+  let request;
+  const inspection = await inspectBackgroundPlate({
+    panel:comic().panels[1],imageDataUrl:png,userId:'alice',env:{AI_GATEWAY_API_KEY:'gateway-secret'},
+    fetchFn:async (url,options) => {
+      request = JSON.parse(options.body);
+      return {ok:true,async json(){ return {choices:[{message:{content:'{"verdict":"regenerate","issues":["unauthorized_character"]}'}}]}; }};
+    },
+  });
+  assert.deepEqual(inspection,{verdict:'regenerate',issues:['unauthorized_character']});
+  assert.deepEqual(request.providerOptions.gateway.tags,['feature:story-studio-set-qa','role:set-continuity-worker']);
 });
 
 test('vision lettering prompt asks the Gateway to inspect actual pixels and return bounded coordinates', () => {
