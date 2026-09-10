@@ -180,6 +180,8 @@ test('a creator can re-direct one scene without deleting the comic or cast bible
   assert.equal(res.body.restaged,true);
   assert.equal(saved.panels[0].image,null);
   assert.equal(saved.panels[0].scene.actors[0].assetUrl,null);
+  assert.equal(saved.panels[0].scene.forceRegenerateActors,true);
+  assert.equal(saved.panels[0].scene.actors[0].keyframes[0].scale,1);
   assert.equal(saved.characters[0].visualIdentity?.assetUrl ?? null,current.comic.characters[0].visualIdentity?.assetUrl ?? null);
 });
 
@@ -280,7 +282,7 @@ test('Nex preserves a rejected set and regenerates it in a fresh bounded request
   assert.equal(savedAsset.dataUrl,'data:image/png;base64,Y2xlYW4=');
 });
 
-test('a failed optional vision pass falls back without losing the generated panel', async () => {
+test('a failed set inspection keeps the generated plate quarantined for a retry', async () => {
   const current = { id:'story-1', sourceTitle:'Chapter one', sourceText:'A'.repeat(180), comic:plan() };
   let savedComic;
   const handler = createStoryStudioHandler({
@@ -305,8 +307,62 @@ test('a failed optional vision pass falls back without losing the generated pane
     await handler({method:'POST',body:{action:'illustrate',projectId:'story-1',panelIndex:1,comic:current.comic}},res);
     assert.equal(res.code,200);
     assert.equal(savedComic.panels[1].image.url,'/api/story-image?id=story-1&panel=1&v=888');
+    assert.equal(savedComic.panels[1].image.needsSetRetry,true);
+    assert.deepEqual(savedComic.panels[1].image.setIssues,['inspection_failed']);
     assert.ok(savedComic.panels[1].dialogue[0].layout);
   } finally { console.error = originalError; }
+});
+
+test('re-direct bypasses the old actor performance cache and generates a fresh layer', async () => {
+  const current = {id:'story-1',sourceTitle:'Chapter one',sourceText:'A'.repeat(180),comic:parseComicPlan(JSON.stringify(plan()))};
+  const panel = current.comic.panels[0];
+  panel.scene.forceRegenerateActors = true;
+  panel.scene.actors[0].assetUrl = null;
+  let cacheReads = 0; let actorGenerations = 0; let savedComic;
+  const handler = createStoryStudioHandler({
+    resolveUser:async () => 'alice',
+    store:{async getProject(){return current;},async saveProject(userId,input){savedComic = input.comic; return {...current,comic:input.comic};}},
+    visuals:{
+      async getActor(){cacheReads += 1; return {generatedAt:111};},
+      async getIdentity(){return null;},
+      async saveActor(){return {model:'actor-model',generatedAt:999};},
+      async save(){return {model:'set-model',generatedAt:998};},
+    },
+    meter:{async reserveBuild(){return {ok:true,period:1,reservationId:'fresh'};},async settleBuild(){}},
+    async generateActor(){actorGenerations += 1; return {dataUrl:'data:image/png;base64,ZnJlc2g=',model:'actor-model'};},
+    async generateBackground(){return {dataUrl:'data:image/png;base64,c2V0',model:'set-model'};},
+    async inspectBackground(){return {verdict:'clean',issues:[]};},
+  });
+  const res = response();
+  await handler({method:'POST',body:{action:'illustrate',projectId:'story-1',panelIndex:0,comic:current.comic}},res);
+  assert.equal(res.code,200);
+  assert.equal(cacheReads,0);
+  assert.equal(actorGenerations,1);
+  assert.match(savedComic.panels[0].scene.actors[0].assetUrl,/v=999$/);
+  assert.equal(savedComic.panels[0].scene.forceRegenerateActors,false);
+});
+
+test('Nex reviews the assembled scene and applies bounded visible-body placement', async () => {
+  const current = {id:'story-1',sourceTitle:'Chapter one',sourceText:'A'.repeat(180),comic:parseComicPlan(JSON.stringify(plan()))};
+  const panel = current.comic.panels[0];
+  panel.image = {url:'/api/story-image?id=story-1&panel=0&v=777',layered:true,compositeReviewPasses:0,compositeReviewedAt:0,needsCompositeReview:true};
+  panel.scene.actors[0].assetUrl = '/api/story-actor?id=story-1&panel=0&actor=mara&kind=performance&v=778';
+  let savedComic;
+  const handler = createStoryStudioHandler({
+    resolveUser:async () => 'alice',
+    store:{async getProject(){return current;},async saveProject(userId,input){savedComic = input.comic; return {...current,comic:input.comic};}},
+    async reviewComposite(input){
+      assert.equal(input.previewDataUrl,'data:image/jpeg;base64,Y29tcG9zaXRl');
+      return {verdict:'adjust',issues:['actor_too_large'],actors:[{actorId:'mara',desiredBounds:{x:12,y:48,width:18,height:28},confidence:.96}]};
+    },
+  });
+  const res = response();
+  await handler({method:'POST',body:{action:'review-scene',projectId:'story-1',panelIndex:0,previewDataUrl:'data:image/jpeg;base64,Y29tcG9zaXRl'}},res);
+  assert.equal(res.code,200);
+  assert.equal(res.body.needsRecheck,true);
+  assert.equal(savedComic.panels[0].scene.actors[0].bounds.height,28);
+  assert.equal(savedComic.panels[0].scene.actors[0].keyframes[0].scale,1);
+  assert.equal(savedComic.panels[0].image.compositeReviewPasses,1);
 });
 
 test('one failed actor layer does not discard the set or stop the comic queue', async () => {

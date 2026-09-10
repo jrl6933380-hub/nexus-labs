@@ -12,6 +12,7 @@ import {
   buildPanelVisualPrompt,
   buildPanelReviewPrompt,
   buildPanelVisionPrompt,
+  buildSceneCompositeReviewPrompt,
   createStoryVisualStore,
   generateActorVisual,
   generateBackgroundPlate,
@@ -21,8 +22,10 @@ import {
   parseBackgroundPlateInspection,
   parseLetteringReview,
   parsePanelVisualInspection,
+  parseSceneCompositeReview,
   parseImageDataUrl,
   reviewPanelLettering,
+  reviewSceneComposite,
   __internals,
 } from '../lib/storyVisuals.js';
 
@@ -120,6 +123,35 @@ test('the set-continuity worker rejects people leaked into a background plate', 
   });
   assert.deepEqual(inspection,{verdict:'regenerate',issues:['unauthorized_character']});
   assert.deepEqual(request.providerOptions.gateway.tags,['feature:story-studio-set-qa','role:set-continuity-worker']);
+});
+
+test('the composite supervisor constrains visible actor size to the intended shot', async () => {
+  const panel = comic().panels[0];
+  panel.visualRole = 'establishing';
+  panel.scene = {actors:[{id:'mara',name:'Mara'}]};
+  const prompt = buildSceneCompositeReviewPrompt({panel});
+  assert.match(prompt,/visible final body rectangle/i);
+  assert.match(prompt,/Establishing\/detail actors should usually be 18-30%/);
+  assert.deepEqual(parseSceneCompositeReview(JSON.stringify({
+    verdict:'adjust',issues:['actor_too_large'],
+    actors:[{actorId:'mara',desiredBounds:{x:20,y:12,width:50,height:80},confidence:.9}],
+  }),panel),{
+    verdict:'adjust',issues:['actor_too_large'],
+    actors:[{actorId:'mara',desiredBounds:{x:20,y:12,width:18.8,height:30},confidence:.9}],
+  });
+
+  let request;
+  const review = await reviewSceneComposite({
+    panel,previewDataUrl:png,userId:'alice',env:{AI_GATEWAY_API_KEY:'gateway-secret'},
+    fetchFn:async (url,options) => {
+      request = JSON.parse(options.body);
+      return {ok:true,async json(){ return {choices:[{message:{content:JSON.stringify({
+        verdict:'pass',issues:[],actors:[{actorId:'mara',desiredBounds:{x:22,y:50,width:12,height:28},confidence:.95}],
+      })}}]}; }};
+    },
+  });
+  assert.equal(review.verdict,'pass');
+  assert.deepEqual(request.providerOptions.gateway.tags,['feature:story-studio-composite-qa','role:composite-supervisor']);
 });
 
 test('vision lettering prompt asks the Gateway to inspect actual pixels and return bounded coordinates', () => {

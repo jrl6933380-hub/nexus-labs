@@ -188,6 +188,7 @@ export function normalizeStoryScene(value, options = {}) {
     posterTimeMs: Math.round(clamp(number(value?.posterTimeMs, options.posterTimeMs ?? 0), 0, durationMs)),
     revision: Math.max(0, Math.round(number(value?.revision, 0))),
     directedBy: 'nex',
+    forceRegenerateActors: value?.forceRegenerateActors === true,
     stage: {
       aspectRatio: '16:9',
       backgroundMode: 'layered-composite',
