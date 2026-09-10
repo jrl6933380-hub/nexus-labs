@@ -65,6 +65,9 @@ test('Story Studio asks for six continuity-aware panels and preserves tenant own
   assert.match(api,/reviewPanelLettering/);
   assert.match(api,/appearance/);
   assert.match(api,/continuity/);
+  assert.match(api,/worldBible/);
+  assert.match(api,/animationLanguage/);
+  assert.match(api,/comicDirectorGuidance\('planning'\)/);
   assert.match(api,/analyzePanelVisual/);
   assert.match(api,/visual lettering pass failed/);
   assert.match(api,/store\.saveProject\(username/);

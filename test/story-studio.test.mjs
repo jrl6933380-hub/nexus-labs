@@ -10,6 +10,17 @@ function plan() {
     genre: 'science fiction',
     visualStyle: 'inked cinematic panels with sharp violet light',
     palette: ['#101525', '#7b45d6', '#58d7ff'],
+    worldBible: {
+      premise:'The signal can copy any voice it hears.',
+      era:'Near future',
+      storyRules:['The signal cannot cross running water.'],
+      locations:[{name:'Platform',visualIdentity:'wet steel and violet lamps',continuity:'clock remains stopped at midnight'}],
+      recurringProps:[{name:'Package',appearance:'black case with cyan seam',continuity:'Mara carries it in her right hand'}],
+      visualMotifs:['broken signal bars'],
+      colorScript:['violet isolation becomes red danger'],
+      animationLanguage:'Long holds and sudden electronic motion.',
+      soundLanguage:'Rain, rail hum, radio distortion, and silence.',
+    },
     characters: [{ name: 'Mara', role: 'courier', appearance: 'cropped dark hair, red utility coat', continuity: 'coat and silver wrist band remain visible' }],
     panels: Array.from({ length: 6 }, (_, index) => ({
       title: `Beat ${index + 1}`,
@@ -51,9 +62,13 @@ function response() {
 test('comic-plan parser accepts fenced JSON and normalizes six editable panels', () => {
   const parsed = parseComicPlan('```json\n' + JSON.stringify(plan()) + '\n```');
   assert.equal(parsed.panels.length, 6);
+  assert.equal(parsed.directorBibleVersion,'1.0.0');
   assert.equal(parsed.panels[0].number, 1);
   assert.equal(parsed.characters[0].name, 'Mara');
   assert.deepEqual(parsed.palette, ['#101525', '#7b45d6', '#58d7ff']);
+  assert.equal(parsed.worldBible.locations[0].name,'Platform');
+  assert.equal(parsed.worldBible.recurringProps[0].name,'Package');
+  assert.equal(parsed.worldBible.animationLanguage,'Long holds and sudden electronic motion.');
   assert.equal(parsed.panels[0].dialogue[0].type, 'speech');
 });
 
