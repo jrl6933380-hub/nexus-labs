@@ -7,7 +7,7 @@ import { routeMessage } from '../lib/modelRouter.js';
 import { comicDirectorGuidance } from '../lib/comicDirectorBible.js';
 import { applyNexLetteringOperations, normalizeLetteringTimeline, staticDialogueFromTimeline } from '../lib/letteringTimeline.js';
 import { normalizeComicPlan, parseComicPlan, prepareBasicComicPlan, storyStudioStore } from '../lib/storyStudio.js';
-import { analyzePanelVisual, generatePanelVisual, reviewPanelLettering, storyVisualStore } from '../lib/storyVisuals.js';
+import { generatePanelVisual, inspectPanelVisual, reviewPanelLettering, storyVisualStore } from '../lib/storyVisuals.js';
 
 export const config = { maxDuration: 120 };
 
@@ -99,7 +99,8 @@ export function createStoryStudioHandler({
   meter = roomMeter,
   route = routeMessage,
   generateVisual = generatePanelVisual,
-  analyzeVisual = analyzePanelVisual,
+  inspectVisual = inspectPanelVisual,
+  analyzeVisual = null,
   reviewVisual = reviewPanelLettering,
 } = {}) {
   return async function handler(req, res) {
@@ -164,17 +165,18 @@ export function createStoryStudioHandler({
         const panel = current.comic?.panels?.[panelIndex];
         if (!panel?.image?.url) return res.status(400).json({ error:'Panel art is not ready for review' });
         const priorPasses = Math.max(0, Number(panel.image.letteringReviewPasses) || 0);
-        if (panel.image.letteringReviewedAt || priorPasses >= 2 || !panel.dialogue?.length) {
+        if (panel.image.letteringReviewedAt || priorPasses >= 3 || !panel.dialogue?.length) {
           return res.status(200).json({ project:current, panelIndex, verdict:'pass', needsRecheck:false });
         }
         const review = await reviewVisual({
           panel,
+          cleanPreviewDataUrl:req.body?.cleanPreviewDataUrl || req.body?.previewDataUrl,
           previewDataUrl:req.body?.previewDataUrl,
           userId:username,
         });
         applyNexPlacements(panel, review.placements);
         const letteringReviewPasses = priorPasses + 1;
-        const needsRecheck = review.verdict === 'corrected' && letteringReviewPasses < 2;
+        const needsRecheck = review.verdict === 'corrected' && letteringReviewPasses < 3;
         panel.image = {
           ...panel.image,
           letteringReviewPasses,
@@ -238,17 +240,31 @@ export function createStoryStudioHandler({
             });
           }
           const referenceImage = panelIndex > 0 ? await visuals.get(username, projectId, 0) : null;
-          const generated = await generateVisual({ comic, panel, panelIndex, referenceImage });
-          if (panel.dialogue.length) {
+          let generated;
+          let inspection = {artwork:'clean',issues:[],placements:[]};
+          for (let attempt = 0; attempt < 2; attempt += 1) {
+            generated = await generateVisual({
+              comic,
+              panel,
+              panelIndex,
+              referenceImage,
+              correctionIssues:attempt ? inspection.issues : [],
+            });
             try {
-              const placements = await analyzeVisual({ comic, panel, panelIndex, imageDataUrl:generated.dataUrl, userId:username });
-              applyNexPlacements(panel, placements);
+              inspection = analyzeVisual
+                ? {artwork:'clean',issues:[],placements:await analyzeVisual({ comic, panel, panelIndex, imageDataUrl:generated.dataUrl, userId:username })}
+                : await inspectVisual({ comic, panel, panelIndex, imageDataUrl:generated.dataUrl, userId:username });
             } catch (error) {
               // Preserve the expensive artwork if vision is temporarily down.
               // The reader uses Nex's preplanned collision-safe fallback layout.
-              console.error('story-studio visual lettering pass failed:', error.message);
+              console.error('story-studio visual inspection failed:', error.message);
+              inspection = {artwork:'clean',issues:[],placements:[]};
+              break;
             }
+            if (inspection.artwork === 'clean') break;
+            if (attempt === 1) throw new Error('Nex rejected the generated panel because it still contained lettering artifacts or lacked safe dialogue space');
           }
+          if (panel.dialogue.length) applyNexPlacements(panel, inspection.placements);
           const asset = await visuals.save(username, projectId, panelIndex, generated);
           panel.image = {
             url: panelImageUrl(projectId, panelIndex, asset.generatedAt),

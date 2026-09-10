@@ -56,6 +56,8 @@ test('phase guidance stays focused while carrying Nex core directing rules', () 
   assert.match(lettering,/Serve the story before spectacle/);
   assert.match(lettering,/face overlap as a failed panel/i);
   assert.match(lettering,/MATCHED LETTERING EXAMPLE — close-up performance/);
+  assert.match(lettering,/Match balloon scale aggressively/i);
+  assert.match(lettering,/professionally lettered pages as layout lessons/i);
   assert.doesNotMatch(lettering,/Use ambience to establish place/);
   const animation = comicDirectorGuidance('animation');
   assert.match(animation,/timed track/i);

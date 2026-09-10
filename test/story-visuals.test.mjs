@@ -11,6 +11,7 @@ import {
   generatePanelVisual,
   parseBubblePlacements,
   parseLetteringReview,
+  parsePanelVisualInspection,
   parseImageDataUrl,
   reviewPanelLettering,
   __internals,
@@ -59,15 +60,18 @@ test('panel prompts share one locked world while demanding a distinct scene', ()
   assert.match(second,/cropped dark hair and a red utility coat/);
   assert.match(first,/rain-soaked platform/);
   assert.match(second,/package lights up/);
-  assert.match(second,/Package \(right side\): Mara\./);
+  assert.doesNotMatch(second,/Package \(right side\): Mara\./);
   assert.match(second,/STORY-SPECIFIC WORLD BIBLE/);
   assert.match(second,/rear door remains jammed/);
-  assert.match(second,/NEX COMIC DIRECTOR BIBLE/);
-  assert.match(second,/LETTERING RESERVATIONS/);
-  assert.match(second,/keep the right zone x=/);
-  assert.match(second,/locked composition space/);
+  assert.match(second,/Serve the story before spectacle/);
+  assert.match(second,/UNPRINTED LETTERING SPACE/);
+  assert.match(second,/upper right/);
+  assert.doesNotMatch(second,/x=|\d+%/);
+  assert.match(second,/invisible composition guidance/);
+  assert.match(second,/Never draw words, letters, numerals, percentages/);
+  assert.doesNotMatch(second,/Palette:|NEX COMIC DIRECTOR BIBLE v|panel 2 of 2|^\d+\.\s/m);
   assert.match(second,/genuinely new composition/);
-  assert.match(second,/Do not include captions, speech bubbles/);
+  assert.match(second,/Return artwork only/);
   assert.notEqual(first,second);
 });
 
@@ -89,9 +93,22 @@ test('lettering reservations are planned before art for at most two readable bub
     {speaker:'Eli',line:'It came from below the floorboards.',side:'right'},
     {speaker:'Package',line:'This third line must not crowd the panel.',side:'left'},
   ]);
-  assert.match(reservations,/Mara: keep the left zone/);
-  assert.match(reservations,/Eli: keep the right zone/);
-  assert.doesNotMatch(reservations,/Package/);
+  assert.match(reservations,/upper left/);
+  assert.match(reservations,/upper right/);
+  assert.doesNotMatch(reservations,/Mara|Eli|Package|x=|%/);
+});
+
+test('raw artwork inspection rejects generated numbers and blank lettering boxes', () => {
+  assert.deepEqual(parsePanelVisualInspection(JSON.stringify({
+    artwork:'regenerate',
+    issues:['generated_text','blank_lettering_box'],
+    placements:[],
+  }),comic().panels[1].dialogue),{
+    artwork:'regenerate',
+    issues:['generated_text','blank_lettering_box'],
+    placements:[],
+  });
+  assert.equal(parsePanelVisualInspection('{"artwork":"regenerate","issues":[],"placements":[]}',comic().panels[1].dialogue),null);
 });
 
 test('vision placements are complete, normalized, and rejected when bubbles collide', () => {
@@ -127,7 +144,7 @@ test('post-generation vision sends the finished panel to Gateway and returns saf
     env:{AI_GATEWAY_API_KEY:'gateway-secret',STORY_STUDIO_VISION_MODEL:'openai/test-vision-model'},
     fetchFn:async (url,options) => {
       request = {url,options,body:JSON.parse(options.body)};
-      return {ok:true,async json(){ return {choices:[{message:{content:'{"placements":[{"index":0,"side":"right","x":58,"y":8,"width":22}]}'}}]}; }};
+      return {ok:true,async json(){ return {choices:[{message:{content:'{"artwork":"clean","issues":[],"placements":[{"index":0,"side":"right","x":58,"y":8,"width":22}]}'}}]}; }};
     },
   });
   assert.equal(request.url,__internals.GATEWAY_IMAGE_ENDPOINT);
@@ -141,7 +158,8 @@ test('post-generation vision sends the finished panel to Gateway and returns saf
 test('final lettering review judges the actual rendered composite and returns corrections', async () => {
   const panel = comic().panels[1];
   const prompt = buildPanelReviewPrompt({panel});
-  assert.match(prompt,/ACTUAL finished mobile panel/);
+  assert.match(prompt,/two pixel-accurate phone renders/i);
+  assert.match(prompt,/Use IMAGE 1 to recover every face/i);
   assert.match(prompt,/Never put a bubble directly over its speaker/);
   assert.match(prompt,/face overlap as a failed panel/i);
   const parsed = parseLetteringReview('{"verdict":"corrected","placements":[{"index":0,"side":"left","x":4,"y":10,"width":24}]}',panel.dialogue);
@@ -151,6 +169,7 @@ test('final lettering review judges the actual rendered composite and returns co
   let request;
   const review = await reviewPanelLettering({
     panel,
+    cleanPreviewDataUrl:png,
     previewDataUrl:png,
     userId:'alice',
     env:{AI_GATEWAY_API_KEY:'gateway-secret'},
@@ -159,7 +178,8 @@ test('final lettering review judges the actual rendered composite and returns co
       return {ok:true,async json(){ return {choices:[{message:{content:'{"verdict":"pass","placements":[{"index":0,"side":"right","x":68,"y":6,"width":22}]}'}}]}; }};
     },
   });
-  assert.equal(request.messages[0].content[1].image_url.url,png);
+  assert.equal(request.messages[0].content[2].image_url.url,png);
+  assert.equal(request.messages[0].content[4].image_url.url,png);
   assert.deepEqual(request.providerOptions.gateway.tags,['feature:story-studio-lettering-review']);
   assert.equal(review.verdict,'pass');
 });
@@ -174,7 +194,7 @@ test('vision lettering reinspects the same pixels once after an invalid layout',
       calls += 1;
       const prompt = JSON.parse(options.body).messages[0].content[0].text;
       if (calls === 2) assert.match(prompt,/first layout was rejected/);
-      return {ok:true,async json(){ return {choices:[{message:{content:calls === 1 ? '{}' : '{"placements":[{"index":0,"side":"right","x":60,"y":8,"width":26}]}'}}]}; }};
+      return {ok:true,async json(){ return {choices:[{message:{content:calls === 1 ? '{}' : '{"artwork":"clean","issues":[],"placements":[{"index":0,"side":"right","x":60,"y":8,"width":26}]}'}}]}; }};
     },
   });
   assert.equal(calls,2);
@@ -185,7 +205,7 @@ test('image generation uses Gateway image modalities and can carry the first pan
   let request;
   const referenceImage = parseImageDataUrl(png);
   const result = await generatePanelVisual({
-    comic:comic(), panel:comic().panels[1], panelIndex:1, referenceImage,
+    comic:comic(), panel:comic().panels[1], panelIndex:1, referenceImage, correctionIssues:['generated_text'],
     env:{ AI_GATEWAY_API_KEY:'gateway-secret', STORY_STUDIO_IMAGE_MODEL:'google/test-image-model' },
     fetchFn:async (url,options) => {
       request = { url, options, body:JSON.parse(options.body) };
@@ -196,6 +216,7 @@ test('image generation uses Gateway image modalities and can carry the first pan
   assert.equal(request.options.headers.Authorization,'Bearer gateway-secret');
   assert.deepEqual(request.body.modalities,['text','image']);
   assert.equal(request.body.messages[0].content[1].type,'image_url');
+  assert.match(request.body.messages[0].content[0].text,/prior attempt contained accidental printed characters/i);
   assert.equal(result.dataUrl,png);
   assert.equal(result.model,'google/test-image-model');
 });
