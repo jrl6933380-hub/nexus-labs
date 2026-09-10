@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createStoryStudioHandler } from '../api/story-studio.js';
-import { createStoryStudioStore, parseComicPlan } from '../lib/storyStudio.js';
+import { createStoryStudioStore, parseComicPlan, prepareBasicComicPlan } from '../lib/storyStudio.js';
 
 function plan() {
   return {
@@ -70,6 +70,19 @@ test('comic dialogue supports multiple safe bubble styles and rejects unknown pr
   assert.equal(parsed.panels[0].dialogue[0].side,'right');
   assert.deepEqual(parsed.panels[0].dialogue[0].layout,{x:58,y:3,width:40,source:'manual'});
   assert.equal(parsed.panels[0].dialogue[1].layout,null);
+});
+
+test('Nex prepares fresh basic comics with no more than two clean speaker labels per panel', () => {
+  const comic = plan();
+  comic.panels[0].dialogue = [
+    {speaker:'Mimic (V.O.)',line:'Open the door.'},
+    {speaker:'Mara',line:'No.'},
+    {speaker:'Eli',line:'The third line would crowd the art.'},
+  ];
+  const prepared = prepareBasicComicPlan(comic);
+  assert.equal(prepared.panels[0].dialogue.length,2);
+  assert.equal(prepared.panels[0].dialogue[0].speaker,'Mimic');
+  assert.equal(prepared.panels[0].dialogue[0].layout,null);
 });
 
 test('Story Studio projects stay isolated by signed-in account and can be deleted', async () => {

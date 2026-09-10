@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createStoryImageHandler } from '../api/story-image.js';
 import {
   analyzePanelVisual,
+  buildBubbleReservations,
   buildPanelVisualPrompt,
   buildPanelVisionPrompt,
   createStoryVisualStore,
@@ -46,7 +47,9 @@ test('panel prompts share one locked world while demanding a distinct scene', ()
   assert.match(first,/rain-soaked platform/);
   assert.match(second,/package lights up/);
   assert.match(second,/Package \(right side\): Mara\./);
-  assert.match(second,/negative space above or beside every speaker/);
+  assert.match(second,/LETTERING RESERVATIONS/);
+  assert.match(second,/keep the right zone x=/);
+  assert.match(second,/locked composition space/);
   assert.match(second,/genuinely new composition/);
   assert.match(second,/Do not include captions, speech bubbles/);
   assert.notEqual(first,second);
@@ -58,6 +61,19 @@ test('vision lettering prompt asks the Gateway to inspect actual pixels and retu
   assert.match(prompt,/Read the actual pixels/);
   assert.match(prompt,/"x":number,"y":number,"width":number/);
   assert.match(prompt,/Package.*Mara\./);
+  assert.match(prompt,/never split in the middle/);
+  assert.match(prompt,/width 24-30/);
+});
+
+test('lettering reservations are planned before art for at most two readable bubbles', () => {
+  const reservations = buildBubbleReservations([
+    {speaker:'Mara',line:'Did you hear that?',side:'left'},
+    {speaker:'Eli',line:'It came from below the floorboards.',side:'right'},
+    {speaker:'Package',line:'This third line must not crowd the panel.',side:'left'},
+  ]);
+  assert.match(reservations,/Mara: keep the left zone/);
+  assert.match(reservations,/Eli: keep the right zone/);
+  assert.doesNotMatch(reservations,/Package/);
 });
 
 test('vision placements are complete, normalized, and rejected when bubbles collide', () => {
@@ -70,8 +86,8 @@ test('vision placements are complete, normalized, and rejected when bubbles coll
     {index:1,side:'right',x:62,y:40,width:80},
   ]}),dialogue);
   assert.deepEqual(placements,[
-    {index:0,side:'left',layout:{x:2,y:5,width:16,source:'vision'}},
-    {index:1,side:'right',layout:{x:62,y:40,width:28,source:'vision'}},
+    {index:0,side:'left',layout:{x:2,y:5,width:24,source:'vision'}},
+    {index:1,side:'right',layout:{x:60,y:40,width:38,source:'vision'}},
   ]);
   assert.equal(parseBubblePlacements(JSON.stringify({placements:[
     {index:0,side:'left',x:5,y:5,width:28},
@@ -101,7 +117,24 @@ test('post-generation vision sends the finished panel to Gateway and returns saf
   assert.equal(request.body.messages[0].content[1].image_url.url,png);
   assert.equal(request.body.providerOptions.gateway.user,'alice');
   assert.deepEqual(request.body.providerOptions.gateway.tags,['feature:story-studio-vision']);
-  assert.deepEqual(placements,[{index:0,side:'right',layout:{x:58,y:8,width:22,source:'vision'}}]);
+  assert.deepEqual(placements,[{index:0,side:'right',layout:{x:58,y:8,width:24,source:'vision'}}]);
+});
+
+test('vision lettering reinspects the same pixels once after an invalid layout', async () => {
+  let calls = 0;
+  const placements = await analyzePanelVisual({
+    panel:comic().panels[1],
+    imageDataUrl:png,
+    env:{AI_GATEWAY_API_KEY:'gateway-secret'},
+    fetchFn:async (url,options) => {
+      calls += 1;
+      const prompt = JSON.parse(options.body).messages[0].content[0].text;
+      if (calls === 2) assert.match(prompt,/first layout was rejected/);
+      return {ok:true,async json(){ return {choices:[{message:{content:calls === 1 ? '{}' : '{"placements":[{"index":0,"side":"right","x":60,"y":8,"width":26}]}'}}]}; }};
+    },
+  });
+  assert.equal(calls,2);
+  assert.equal(placements[0].layout.width,26);
 });
 
 test('image generation uses Gateway image modalities and can carry the first panel as reference', async () => {
