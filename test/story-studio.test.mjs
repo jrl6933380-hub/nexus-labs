@@ -62,7 +62,7 @@ function response() {
 test('comic-plan parser accepts fenced JSON and normalizes six editable panels', () => {
   const parsed = parseComicPlan('```json\n' + JSON.stringify(plan()) + '\n```');
   assert.equal(parsed.panels.length, 6);
-  assert.equal(parsed.directorBibleVersion,'1.1.0');
+  assert.equal(parsed.directorBibleVersion,'1.2.0');
   assert.equal(parsed.panels[0].number, 1);
   assert.equal(parsed.characters[0].name, 'Mara');
   assert.deepEqual(parsed.palette, ['#101525', '#7b45d6', '#58d7ff']);
@@ -187,6 +187,41 @@ test('illustrating one panel saves real private art and keeps the first panel as
   assert.equal(calls.settle[0].success,true);
 });
 
+test('Nex rejects lettering artifacts and regenerates clean art before saving', async () => {
+  const current = { id:'story-1', sourceTitle:'Chapter one', sourceText:'A'.repeat(180), comic:plan() };
+  const generations = [];
+  let inspections = 0;
+  let savedAsset;
+  const handler = createStoryStudioHandler({
+    resolveUser:async () => 'alice',
+    store:{
+      async getProject(){ return current; },
+      async saveProject(userId,input){ return {...current,comic:input.comic}; },
+    },
+    visuals:{
+      async get(){ return {mediaType:'image/png',base64:'cmVm'}; },
+      async save(userId,projectId,panelIndex,input){ savedAsset = input; return {model:input.model,generatedAt:999}; },
+    },
+    meter:{ async reserveBuild(){ return {ok:true,period:1,reservationId:'visual-reservation'}; }, async settleBuild(){} },
+    async generateVisual(input){
+      generations.push(input);
+      return {dataUrl:`data:image/png;base64,${input.correctionIssues.length ? 'Y2xlYW4=' : 'YXJ0aWZhY3Q='}`,model:'image-model'};
+    },
+    async inspectVisual(){
+      inspections += 1;
+      return inspections === 1
+        ? {artwork:'regenerate',issues:['generated_text','blank_lettering_box'],placements:[]}
+        : {artwork:'clean',issues:[],placements:[{index:0,side:'right',layout:{x:60,y:8,width:28,source:'vision'}}]};
+    },
+  });
+  const res = response();
+  await handler({method:'POST',body:{action:'illustrate',projectId:'story-1',panelIndex:1,comic:current.comic}},res);
+  assert.equal(res.code,200);
+  assert.equal(generations.length,2);
+  assert.deepEqual(generations[1].correctionIssues,['generated_text','blank_lettering_box']);
+  assert.equal(savedAsset.dataUrl,'data:image/png;base64,Y2xlYW4=');
+});
+
 test('a failed optional vision pass falls back without losing the generated panel', async () => {
   const current = { id:'story-1', sourceTitle:'Chapter one', sourceText:'A'.repeat(180), comic:plan() };
   let savedComic;
@@ -227,11 +262,12 @@ test('Nex reviews the rendered bubble composite and stores a corrected layout fo
     },
     async reviewVisual(input){
       assert.equal(input.previewDataUrl,'data:image/png;base64,Y29tcG9zaXRl');
+      assert.equal(input.cleanPreviewDataUrl,'data:image/png;base64,Y2xlYW4=');
       return {verdict:'corrected',placements:[{index:0,side:'left',layout:{x:4,y:8,width:22,source:'vision'}}]};
     },
   });
   const res = response();
-  await handler({method:'POST',body:{action:'review-lettering',projectId:'story-1',panelIndex:0,previewDataUrl:'data:image/png;base64,Y29tcG9zaXRl'}},res);
+  await handler({method:'POST',body:{action:'review-lettering',projectId:'story-1',panelIndex:0,cleanPreviewDataUrl:'data:image/png;base64,Y2xlYW4=',previewDataUrl:'data:image/png;base64,Y29tcG9zaXRl'}},res);
   assert.equal(res.code,200);
   assert.equal(res.body.needsRecheck,true);
   assert.equal(savedComic.panels[0].image.letteringReviewPasses,1);

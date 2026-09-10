@@ -128,7 +128,6 @@
     .reader-panel .comic-bubble { pointer-events:none; cursor:default; }
     .reader-panel .comic-bubble { font-size:clamp(10px,1.4vw,14px); }
     .reader-caption { position:absolute; z-index:4; left:12px; right:12px; bottom:12px; padding:9px 11px; border:2px solid #111827; background:#fff5ca; color:#141925; box-shadow:3px 3px 0 #111827; font:600 10px/1.4 'JetBrains Mono'; }
-    .reader-panel-number { position:absolute; z-index:5; top:7px; right:7px; padding:3px 5px; border:1px solid #111827; background:#fff; color:#111827; font:800 8px 'JetBrains Mono'; }
     .reader-end { grid-column:1/-1; padding:22px; text-align:center; color:#111827; font:800 12px 'JetBrains Mono'; letter-spacing:.12em; }
     .character-list, .project-list { display:grid; gap:8px; margin-top:10px; }
     .character, .project-card { padding:10px; border:1px solid var(--line); border-radius:9px; background:#0d1320; }
@@ -332,7 +331,7 @@
       lines.forEach((line) => { context.fillText(line,x + padding,textY); textY += 23; });
     }
 
-    async function buildLetteringPreview(panel,index) {
+    async function buildLetteringPreview(panel,index,{includeLettering=true}={}) {
       await document.fonts?.ready;
       const image = new Image(); image.src = panel.image.url;
       await image.decode();
@@ -341,20 +340,20 @@
       const scale = Math.max(canvas.width / image.naturalWidth,canvas.height / image.naturalHeight);
       const sourceWidth = canvas.width / scale; const sourceHeight = canvas.height / scale;
       context.drawImage(image,(image.naturalWidth - sourceWidth) / 2,(image.naturalHeight - sourceHeight) / 2,sourceWidth,sourceHeight,0,0,canvas.width,canvas.height);
-      letteringFrames(panel).forEach((entry,bubbleIndex) => drawPreviewBubble(context,entry,bubbleIndex));
+      if (includeLettering) letteringFrames(panel).forEach((entry,bubbleIndex) => drawPreviewBubble(context,entry,bubbleIndex));
       if (panel.caption) { context.fillStyle = '#fff5ca'; context.strokeStyle = '#111827'; context.lineWidth = 3; context.fillRect(28,610,664,48); context.strokeRect(28,610,664,48); context.fillStyle = '#141925'; context.font = '600 15px JetBrains Mono, monospace'; context.fillText(panel.caption.slice(0,78),45,640); }
-      context.fillStyle = '#fff'; context.strokeStyle = '#111827'; context.lineWidth = 2; context.fillRect(665,12,40,30); context.strokeRect(665,12,40,30); context.fillStyle = '#111827'; context.font = '800 14px JetBrains Mono, monospace'; context.fillText(String(index + 1).padStart(2,'0'),674,33);
       return canvas.toDataURL('image/jpeg',.86);
     }
 
     async function reviewPanelLettering(index) {
       const projectId = currentProject?.id;
-      for (let pass = 0; pass < 2; pass += 1) {
+      for (let pass = 0; pass < 3; pass += 1) {
         const panel = currentProject?.comic?.panels?.[index];
         if (!panel?.image?.url || panel.image.letteringReviewedAt || !panel.dialogue?.length) return true;
         setStatus(`Nex is reviewing panel ${index + 1} exactly as readers will see it…`,'busy');
-        const previewDataUrl = await buildLetteringPreview(panel,index);
-        const data = await request('/api/story-studio',{method:'POST',body:JSON.stringify({action:'review-lettering',projectId,panelIndex:index,previewDataUrl})});
+        const cleanPreviewDataUrl = await buildLetteringPreview(panel,index,{includeLettering:false});
+        const previewDataUrl = await buildLetteringPreview(panel,index,{includeLettering:true});
+        const data = await request('/api/story-studio',{method:'POST',body:JSON.stringify({action:'review-lettering',projectId,panelIndex:index,cleanPreviewDataUrl,previewDataUrl})});
         if (currentProject?.id !== projectId) return false;
         currentProject = data.project; renderProject();
         if (!data.needsRecheck) return true;
@@ -382,7 +381,7 @@
         else { frame.style.background = `linear-gradient(145deg,${safeColor(comic.palette?.[index % comic.palette.length],'#1b2740')},${safeColor(comic.palette?.[(index + 1) % comic.palette.length],'#492d66')})`; }
         frame.append(createBubbleLayer(panel));
         if (panel.caption) { const caption = document.createElement('div'); caption.className = 'reader-caption'; caption.textContent = panel.caption; frame.append(caption); }
-        const number = document.createElement('span'); number.className = 'reader-panel-number'; number.textContent = String(index + 1).padStart(2,'0'); frame.append(number); page.append(frame);
+        page.append(frame);
       });
       const end = document.createElement('div'); end.className = 'reader-end'; end.textContent = 'END OF ISSUE'; page.append(end); scroll.append(page); scroll.scrollTop = 0;
       reader.showModal(); reader.querySelector('#reader-close').focus();
