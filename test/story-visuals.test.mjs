@@ -5,11 +5,14 @@ import {
   analyzePanelVisual,
   buildBubbleReservations,
   buildPanelVisualPrompt,
+  buildPanelReviewPrompt,
   buildPanelVisionPrompt,
   createStoryVisualStore,
   generatePanelVisual,
   parseBubblePlacements,
+  parseLetteringReview,
   parseImageDataUrl,
+  reviewPanelLettering,
   __internals,
 } from '../lib/storyVisuals.js';
 
@@ -62,7 +65,8 @@ test('vision lettering prompt asks the Gateway to inspect actual pixels and retu
   assert.match(prompt,/"x":number,"y":number,"width":number/);
   assert.match(prompt,/Package.*Mara\./);
   assert.match(prompt,/never split in the middle/);
-  assert.match(prompt,/width 24-30/);
+  assert.match(prompt,/width 20-26/);
+  assert.match(prompt,/Never cover or touch any character's head/);
 });
 
 test('lettering reservations are planned before art for at most two readable bubbles', () => {
@@ -86,8 +90,8 @@ test('vision placements are complete, normalized, and rejected when bubbles coll
     {index:1,side:'right',x:62,y:40,width:80},
   ]}),dialogue);
   assert.deepEqual(placements,[
-    {index:0,side:'left',layout:{x:2,y:5,width:24,source:'vision'}},
-    {index:1,side:'right',layout:{x:60,y:40,width:38,source:'vision'}},
+    {index:0,side:'left',layout:{x:2,y:5,width:20,source:'vision'}},
+    {index:1,side:'right',layout:{x:62,y:40,width:34,source:'vision'}},
   ]);
   assert.equal(parseBubblePlacements(JSON.stringify({placements:[
     {index:0,side:'left',x:5,y:5,width:28},
@@ -117,7 +121,32 @@ test('post-generation vision sends the finished panel to Gateway and returns saf
   assert.equal(request.body.messages[0].content[1].image_url.url,png);
   assert.equal(request.body.providerOptions.gateway.user,'alice');
   assert.deepEqual(request.body.providerOptions.gateway.tags,['feature:story-studio-vision']);
-  assert.deepEqual(placements,[{index:0,side:'right',layout:{x:58,y:8,width:24,source:'vision'}}]);
+  assert.deepEqual(placements,[{index:0,side:'right',layout:{x:58,y:8,width:22,source:'vision'}}]);
+});
+
+test('final lettering review judges the actual rendered composite and returns corrections', async () => {
+  const panel = comic().panels[1];
+  const prompt = buildPanelReviewPrompt({panel});
+  assert.match(prompt,/ACTUAL finished mobile panel/);
+  assert.match(prompt,/Never put a bubble directly over its speaker/);
+  const parsed = parseLetteringReview('{"verdict":"corrected","placements":[{"index":0,"side":"left","x":4,"y":10,"width":24}]}',panel.dialogue);
+  assert.equal(parsed.verdict,'corrected');
+  assert.equal(parsed.placements[0].layout.x,4);
+
+  let request;
+  const review = await reviewPanelLettering({
+    panel,
+    previewDataUrl:png,
+    userId:'alice',
+    env:{AI_GATEWAY_API_KEY:'gateway-secret'},
+    fetchFn:async (url,options) => {
+      request = JSON.parse(options.body);
+      return {ok:true,async json(){ return {choices:[{message:{content:'{"verdict":"pass","placements":[{"index":0,"side":"right","x":68,"y":6,"width":22}]}'}}]}; }};
+    },
+  });
+  assert.equal(request.messages[0].content[1].image_url.url,png);
+  assert.deepEqual(request.providerOptions.gateway.tags,['feature:story-studio-lettering-review']);
+  assert.equal(review.verdict,'pass');
 });
 
 test('vision lettering reinspects the same pixels once after an invalid layout', async () => {

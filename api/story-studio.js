@@ -5,7 +5,7 @@ import { getRequestUser } from '../lib/roomAuth.js';
 import { roomMeter } from '../lib/roomMetering.js';
 import { routeMessage } from '../lib/modelRouter.js';
 import { normalizeComicPlan, parseComicPlan, prepareBasicComicPlan, storyStudioStore } from '../lib/storyStudio.js';
-import { analyzePanelVisual, generatePanelVisual, storyVisualStore } from '../lib/storyVisuals.js';
+import { analyzePanelVisual, generatePanelVisual, reviewPanelLettering, storyVisualStore } from '../lib/storyVisuals.js';
 
 export const config = { maxDuration: 120 };
 
@@ -65,6 +65,7 @@ export function createStoryStudioHandler({
   route = routeMessage,
   generateVisual = generatePanelVisual,
   analyzeVisual = analyzePanelVisual,
+  reviewVisual = reviewPanelLettering,
 } = {}) {
   return async function handler(req, res) {
     res.setHeader('Cache-Control', 'private, no-store');
@@ -117,6 +118,43 @@ export function createStoryStudioHandler({
         return res.status(200).json({ project });
       }
 
+      if (action === 'review-lettering') {
+        const projectId = String(req.body?.projectId || '');
+        const panelIndex = Number(req.body?.panelIndex);
+        if (!validProjectId(projectId) || !Number.isInteger(panelIndex) || panelIndex < 0 || panelIndex > 7) {
+          return res.status(400).json({ error:'Invalid Story Studio panel' });
+        }
+        const current = await store.getProject(username, projectId);
+        if (!current) return res.status(404).json({ error:'Project not found' });
+        const panel = current.comic?.panels?.[panelIndex];
+        if (!panel?.image?.url) return res.status(400).json({ error:'Panel art is not ready for review' });
+        const priorPasses = Math.max(0, Number(panel.image.letteringReviewPasses) || 0);
+        if (panel.image.letteringReviewedAt || priorPasses >= 2 || !panel.dialogue?.length) {
+          return res.status(200).json({ project:current, panelIndex, verdict:'pass', needsRecheck:false });
+        }
+        const review = await reviewVisual({
+          panel,
+          previewDataUrl:req.body?.previewDataUrl,
+          userId:username,
+        });
+        if (review.placements.length === panel.dialogue.length) {
+          panel.dialogue = panel.dialogue.map((line, index) => ({
+            ...line,
+            side:review.placements[index].side,
+            layout:review.placements[index].layout,
+          }));
+        }
+        const letteringReviewPasses = priorPasses + 1;
+        const needsRecheck = review.verdict === 'corrected' && letteringReviewPasses < 2;
+        panel.image = {
+          ...panel.image,
+          letteringReviewPasses,
+          letteringReviewedAt:needsRecheck ? 0 : Date.now(),
+        };
+        const project = await store.saveProject(username, {...current,comic:current.comic});
+        return res.status(200).json({ project, panelIndex, verdict:review.verdict, needsRecheck });
+      }
+
       if (action === 'illustrate') {
         const projectId = String(req.body?.projectId || '');
         const panelIndex = Number(req.body?.panelIndex);
@@ -163,6 +201,8 @@ export function createStoryStudioHandler({
             url: panelImageUrl(projectId, panelIndex, asset.generatedAt),
             model: asset.model,
             generatedAt: asset.generatedAt,
+            letteringReviewPasses:0,
+            letteringReviewedAt:0,
           };
           const project = await store.saveProject(username, { ...current, comic });
           visualSuccess = true;

@@ -194,3 +194,27 @@ test('a failed optional vision pass falls back without losing the generated pane
     assert.equal(savedComic.panels[1].dialogue[0].layout,null);
   } finally { console.error = originalError; }
 });
+
+test('Nex reviews the rendered bubble composite and stores a corrected layout for one recheck', async () => {
+  const current = { id:'story-1', sourceTitle:'Chapter one', sourceText:'A'.repeat(180), comic:plan() };
+  current.comic.panels[0].image = {url:'/api/story-image?id=story-1&panel=0&v=777',model:'image-model',generatedAt:777,letteringReviewPasses:0,letteringReviewedAt:0};
+  current.comic.panels[0].dialogue[0].layout = {x:60,y:10,width:26,source:'vision'};
+  let savedComic;
+  const handler = createStoryStudioHandler({
+    resolveUser:async () => 'alice',
+    store:{
+      async getProject(){ return current; },
+      async saveProject(userId,input){ savedComic = input.comic; return {...current,comic:input.comic}; },
+    },
+    async reviewVisual(input){
+      assert.equal(input.previewDataUrl,'data:image/png;base64,Y29tcG9zaXRl');
+      return {verdict:'corrected',placements:[{index:0,side:'left',layout:{x:4,y:8,width:22,source:'vision'}}]};
+    },
+  });
+  const res = response();
+  await handler({method:'POST',body:{action:'review-lettering',projectId:'story-1',panelIndex:0,previewDataUrl:'data:image/png;base64,Y29tcG9zaXRl'}},res);
+  assert.equal(res.code,200);
+  assert.equal(res.body.needsRecheck,true);
+  assert.equal(savedComic.panels[0].image.letteringReviewPasses,1);
+  assert.equal(savedComic.panels[0].dialogue[0].layout.x,4);
+});

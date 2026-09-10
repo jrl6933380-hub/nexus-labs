@@ -78,15 +78,15 @@
     .panel-copy label { margin:0 0 4px; font-size:8px; }
     .panel-copy textarea { min-height:66px; padding:9px; font-size:11px; }
     .bubble-layer { position:absolute; inset:0; z-index:3; display:grid; grid-template-rows:repeat(3,minmax(0,1fr)); row-gap:6px; padding:48px 12px 76px; pointer-events:none; }
-    .comic-bubble { position:relative; width:fit-content; min-width:min(24%,110px); padding:7px 10px; border:2px solid #111827; border-radius:17px; background:#fff; color:#111827; box-shadow:0 4px 0 #11182766,0 8px 22px #0007; font-size:10px; line-height:1.3; overflow-wrap:normal; word-break:normal; hyphens:none; }
+    .comic-bubble { position:relative; width:fit-content; min-width:min(20%,90px); padding:7px 10px; border:2px solid #111827; border-radius:17px; background:#fff; color:#111827; box-shadow:0 4px 0 #11182766,0 8px 22px #0007; font-size:10px; line-height:1.3; overflow-wrap:normal; word-break:normal; hyphens:none; }
     .comic-bubble.zone-0 { grid-row:1; align-self:start; }
     .comic-bubble.zone-1 { grid-row:2; align-self:center; }
     .comic-bubble.zone-2 { grid-row:3; align-self:end; }
     .comic-bubble[data-side="left"] { justify-self:start; }
     .comic-bubble[data-side="right"] { justify-self:end; }
-    .comic-bubble.bubble-sm { max-width:min(30%,165px); }
-    .comic-bubble.bubble-md { max-width:min(38%,210px); }
-    .comic-bubble.bubble-lg { max-width:min(46%,255px); }
+    .comic-bubble.bubble-sm { max-width:min(26%,145px); }
+    .comic-bubble.bubble-md { max-width:min(34%,190px); }
+    .comic-bubble.bubble-lg { max-width:min(44%,245px); }
     .comic-bubble[data-positioned="true"] { position:absolute; left:calc(var(--bubble-x) * 1%); top:calc(var(--bubble-y) * 1%); width:calc(var(--bubble-width) * 1%); max-width:calc(var(--bubble-width) * 1%); justify-self:auto; align-self:auto; }
     .panel-art .comic-bubble { pointer-events:none; }
     .comic-bubble::after { content:""; position:absolute; left:17px; bottom:-9px; width:13px; height:13px; border-right:2px solid #111827; border-bottom:2px solid #111827; background:#fff; transform:skew(-24deg) rotate(35deg); }
@@ -255,13 +255,91 @@
         bubble.dataset.type = ['thought','shout'].includes(entry.type) ? entry.type : 'speech';
         bubble.dataset.side = side;
         const length = entry.line.length;
-        bubble.classList.add(length <= 40 ? 'bubble-sm' : length <= 90 ? 'bubble-md' : 'bubble-lg');
+        bubble.classList.add(length <= 20 ? 'bubble-sm' : length <= 42 ? 'bubble-md' : 'bubble-lg');
         if (entry.speaker) { const speaker = document.createElement('b'); speaker.textContent = entry.speaker; bubble.append(speaker); }
         bubble.append(document.createTextNode(entry.line));
         layer.append(bubble);
         if (validBubbleLayout(entry.layout)) applyBubblePosition(bubble,entry.layout);
       });
       return layer;
+    }
+
+    function previewLayout(entry,index) {
+      if (validBubbleLayout(entry.layout)) return entry.layout;
+      const length = entry.line.length;
+      const width = length <= 20 ? 23 : length <= 42 ? 30 : length <= 70 ? 35 : 40;
+      const side = entry.side === 'right' ? 'right' : 'left';
+      return {x:side === 'right' ? 96 - width : 4,y:10 + index * 24,width};
+    }
+
+    function wrapCanvasText(context,text,maxWidth) {
+      const words = String(text || '').split(/\s+/).filter(Boolean);
+      const lines = [];
+      let line = '';
+      for (const word of words) {
+        const candidate = line ? `${line} ${word}` : word;
+        if (line && context.measureText(candidate).width > maxWidth) { lines.push(line); line = word; }
+        else line = candidate;
+      }
+      if (line) lines.push(line);
+      return lines;
+    }
+
+    function roundedRect(context,x,y,width,height,radius) {
+      const r = Math.min(radius,width / 2,height / 2);
+      context.beginPath();
+      context.moveTo(x + r,y); context.lineTo(x + width - r,y); context.quadraticCurveTo(x + width,y,x + width,y + r);
+      context.lineTo(x + width,y + height - r); context.quadraticCurveTo(x + width,y + height,x + width - r,y + height);
+      context.lineTo(x + r,y + height); context.quadraticCurveTo(x,y + height,x,y + height - r);
+      context.lineTo(x,y + r); context.quadraticCurveTo(x,y,x + r,y); context.closePath();
+    }
+
+    function drawPreviewBubble(context,entry,index) {
+      const layout = previewLayout(entry,index);
+      const xScale = context.canvas.width / 100; const yScale = context.canvas.height / 100;
+      const x = layout.x * xScale; const y = layout.y * yScale; const width = layout.width * xScale;
+      const padding = 14; const speakerHeight = entry.speaker ? 22 : 0;
+      context.font = `${entry.type === 'shout' ? '800' : '500'} 18px Inter, sans-serif`;
+      const lines = wrapCanvasText(context,entry.line,width - padding * 2);
+      const height = padding * 2 + speakerHeight + Math.max(1,lines.length) * 23;
+      context.fillStyle = '#fff'; context.strokeStyle = entry.type === 'shout' ? '#ff4f87' : '#111827'; context.lineWidth = entry.type === 'shout' ? 5 : 3;
+      roundedRect(context,x,y,width,height,entry.type === 'thought' ? height / 2 : 20); context.fill(); context.stroke();
+      const tailRight = entry.side === 'right'; const tailX = tailRight ? x + width - 38 : x + 38;
+      context.beginPath(); context.moveTo(tailX - 12,y + height - 2); context.lineTo(tailX + 10,y + height + 18); context.lineTo(tailX + 22,y + height - 2); context.closePath(); context.fill(); context.stroke();
+      let textY = y + padding + 16;
+      if (entry.speaker) { context.fillStyle = '#7546d7'; context.font = '800 13px JetBrains Mono, monospace'; context.fillText(entry.speaker.toUpperCase(),x + padding,textY); textY += speakerHeight; }
+      context.fillStyle = '#111827'; context.font = `${entry.type === 'shout' ? '800' : '500'} 18px Inter, sans-serif`;
+      lines.forEach((line) => { context.fillText(line,x + padding,textY); textY += 23; });
+    }
+
+    async function buildLetteringPreview(panel,index) {
+      await document.fonts?.ready;
+      const image = new Image(); image.src = panel.image.url;
+      await image.decode();
+      const canvas = document.createElement('canvas'); canvas.width = 720; canvas.height = 680;
+      const context = canvas.getContext('2d');
+      const scale = Math.max(canvas.width / image.naturalWidth,canvas.height / image.naturalHeight);
+      const sourceWidth = canvas.width / scale; const sourceHeight = canvas.height / scale;
+      context.drawImage(image,(image.naturalWidth - sourceWidth) / 2,(image.naturalHeight - sourceHeight) / 2,sourceWidth,sourceHeight,0,0,canvas.width,canvas.height);
+      (panel.dialogue || []).filter((entry) => entry?.line).slice(0,2).forEach((entry,bubbleIndex) => drawPreviewBubble(context,entry,bubbleIndex));
+      if (panel.caption) { context.fillStyle = '#fff5ca'; context.strokeStyle = '#111827'; context.lineWidth = 3; context.fillRect(28,610,664,48); context.strokeRect(28,610,664,48); context.fillStyle = '#141925'; context.font = '600 15px JetBrains Mono, monospace'; context.fillText(panel.caption.slice(0,78),45,640); }
+      context.fillStyle = '#fff'; context.strokeStyle = '#111827'; context.lineWidth = 2; context.fillRect(665,12,40,30); context.strokeRect(665,12,40,30); context.fillStyle = '#111827'; context.font = '800 14px JetBrains Mono, monospace'; context.fillText(String(index + 1).padStart(2,'0'),674,33);
+      return canvas.toDataURL('image/jpeg',.86);
+    }
+
+    async function reviewPanelLettering(index) {
+      const projectId = currentProject?.id;
+      for (let pass = 0; pass < 2; pass += 1) {
+        const panel = currentProject?.comic?.panels?.[index];
+        if (!panel?.image?.url || panel.image.letteringReviewedAt || !panel.dialogue?.length) return true;
+        setStatus(`Nex is reviewing panel ${index + 1} exactly as readers will see it…`,'busy');
+        const previewDataUrl = await buildLetteringPreview(panel,index);
+        const data = await request('/api/story-studio',{method:'POST',body:JSON.stringify({action:'review-lettering',projectId,panelIndex:index,previewDataUrl})});
+        if (currentProject?.id !== projectId) return false;
+        currentProject = data.project; renderProject();
+        if (!data.needsRecheck) return true;
+      }
+      return true;
     }
 
     async function request(url, options={}) {
@@ -349,6 +427,8 @@
       try {
         const data = await request('/api/story-studio',{ method:'POST', body:JSON.stringify({ action:'illustrate', projectId, panelIndex:index, comic:currentProject.comic }) });
         if (currentProject?.id === projectId) { currentProject = data.project; renderProject(); }
+        try { await reviewPanelLettering(index); }
+        catch (reviewError) { console.error('Nex lettering review failed',reviewError); }
         if (!partOfSequence) { await loadProjects(); await refreshCredits(); setStatus(`Panel ${index + 1} illustrated and saved.`,'success'); }
         return true;
       } catch (error) {
