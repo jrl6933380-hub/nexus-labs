@@ -62,7 +62,7 @@ function response() {
 test('comic-plan parser accepts fenced JSON and normalizes six editable panels', () => {
   const parsed = parseComicPlan('```json\n' + JSON.stringify(plan()) + '\n```');
   assert.equal(parsed.panels.length, 6);
-  assert.equal(parsed.directorBibleVersion,'1.0.0');
+  assert.equal(parsed.directorBibleVersion,'1.1.0');
   assert.equal(parsed.panels[0].number, 1);
   assert.equal(parsed.characters[0].name, 'Mara');
   assert.deepEqual(parsed.palette, ['#101525', '#7b45d6', '#58d7ff']);
@@ -70,6 +70,9 @@ test('comic-plan parser accepts fenced JSON and normalizes six editable panels',
   assert.equal(parsed.worldBible.recurringProps[0].name,'Package');
   assert.equal(parsed.worldBible.animationLanguage,'Long holds and sudden electronic motion.');
   assert.equal(parsed.panels[0].dialogue[0].type, 'speech');
+  assert.equal(parsed.panels[0].durationMs,6000);
+  assert.equal(parsed.panels[0].lettering.directedBy,'nex');
+  assert.equal(parsed.panels[0].lettering.tracks[0].textCues[0].text,'Line 1');
 });
 
 test('comic dialogue supports multiple safe bubble styles and rejects unknown presentation values', () => {
@@ -98,6 +101,7 @@ test('Nex prepares fresh basic comics with no more than two clean speaker labels
   assert.equal(prepared.panels[0].dialogue.length,2);
   assert.equal(prepared.panels[0].dialogue[0].speaker,'Mimic');
   assert.equal(prepared.panels[0].dialogue[0].layout,null);
+  assert.equal(prepared.panels[0].lettering.tracks[0].speaker,'Mimic');
 });
 
 test('Story Studio projects stay isolated by signed-in account and can be deleted', async () => {
@@ -232,4 +236,33 @@ test('Nex reviews the rendered bubble composite and stores a corrected layout fo
   assert.equal(res.body.needsRecheck,true);
   assert.equal(savedComic.panels[0].image.letteringReviewPasses,1);
   assert.equal(savedComic.panels[0].dialogue[0].layout.x,4);
+  assert.equal(savedComic.panels[0].lettering.tracks[0].keyframes[0].x,4);
+});
+
+test('Nex can privately direct timed bubble text and movement without customer controls', async () => {
+  const current = { id:'story-1', sourceTitle:'Chapter one', sourceText:'A'.repeat(180), comic:plan() };
+  let savedComic;
+  const handler = createStoryStudioHandler({
+    resolveUser:async () => 'alice',
+    store:{
+      async getProject(){ return current; },
+      async saveProject(userId,input){ savedComic = input.comic; return {...current,comic:input.comic}; },
+    },
+  });
+  const res = response();
+  await handler({method:'POST',body:{
+    action:'direct-lettering',
+    projectId:'story-1',
+    panelIndex:0,
+    operations:[
+      {type:'set-text',trackId:'bubble-1',startMs:3000,endMs:5000,text:'The words changed.'},
+      {type:'move',trackId:'bubble-1',atMs:3000,x:-25,y:20,width:30},
+      {type:'hide',trackId:'bubble-1',atMs:5000},
+    ],
+  }},res);
+  assert.equal(res.code,200);
+  assert.equal(res.body.directedBy,'nex');
+  assert.equal(savedComic.panels[0].lettering.tracks[0].textCues[1].text,'The words changed.');
+  assert.equal(savedComic.panels[0].lettering.tracks[0].keyframes[1].x,-25);
+  assert.equal(savedComic.panels[0].lettering.tracks[0].keyframes[2].opacity,0);
 });

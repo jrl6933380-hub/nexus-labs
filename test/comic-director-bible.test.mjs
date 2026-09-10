@@ -57,6 +57,9 @@ test('phase guidance stays focused while carrying Nex core directing rules', () 
   assert.match(lettering,/face overlap as a failed panel/i);
   assert.match(lettering,/MATCHED LETTERING EXAMPLE — close-up performance/);
   assert.doesNotMatch(lettering,/Use ambience to establish place/);
+  const animation = comicDirectorGuidance('animation');
+  assert.match(animation,/timed track/i);
+  assert.match(animation,/publish-time quality checks/i);
 });
 
 test('lettering archetypes turn visual examples into reusable positive and negative direction', () => {
@@ -81,4 +84,5 @@ test('story-specific world knowledge and animation handoff remain available down
   assert.match(handoff,/NEX COMIC DIRECTOR BIBLE/);
   assert.match(handoff,/Mara sees a figure reflected behind her/);
   assert.match(handoff,/Package: Mara\./);
+  assert.match(handoff,/Nex lettering timeline:/);
 });

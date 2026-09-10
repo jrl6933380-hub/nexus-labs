@@ -87,10 +87,11 @@
     .comic-bubble.bubble-sm { max-width:min(26%,145px); }
     .comic-bubble.bubble-md { max-width:min(34%,190px); }
     .comic-bubble.bubble-lg { max-width:min(44%,245px); }
-    .comic-bubble[data-positioned="true"] { position:absolute; left:calc(var(--bubble-x) * 1%); top:calc(var(--bubble-y) * 1%); width:calc(var(--bubble-width) * 1%); max-width:calc(var(--bubble-width) * 1%); justify-self:auto; align-self:auto; }
+    .comic-bubble[data-positioned="true"] { position:absolute; left:calc(var(--bubble-x) * 1%); top:calc(var(--bubble-y) * 1%); width:calc(var(--bubble-width) * 1%); max-width:calc(var(--bubble-width) * 1%); justify-self:auto; align-self:auto; opacity:var(--bubble-opacity,1); transform:scale(var(--bubble-scale,1)); transform-origin:center; }
     .panel-art .comic-bubble { pointer-events:none; }
     .comic-bubble::after { content:""; position:absolute; left:17px; bottom:-9px; width:13px; height:13px; border-right:2px solid #111827; border-bottom:2px solid #111827; background:#fff; transform:skew(-24deg) rotate(35deg); }
     .comic-bubble[data-side="right"]::after { left:auto; right:17px; transform:skew(24deg) rotate(55deg); }
+    .comic-bubble[data-positioned]::after,.comic-bubble[data-positioned][data-side="right"]::after { left:calc(var(--bubble-tail-offset,20) * 1%); right:auto; }
     .comic-bubble[data-type="thought"] { border-radius:999px; border-style:dashed; }
     .comic-bubble[data-type="thought"]::after { width:8px; height:8px; bottom:-11px; border:2px solid #111827; border-radius:50%; transform:none; left:17px; }
     .comic-bubble[data-type="thought"][data-side="right"]::after { left:auto; right:17px; }
@@ -150,6 +151,7 @@
   <div id="canvas-root"></div>
   <script type="module">
     import { mountCanvas } from '/canvas-engine.js';
+    import { normalizeLetteringTimeline, posterLetteringFrames, sampleLetteringTimeline } from '/story-lettering-runtime.js';
 
     const canvas = mountCanvas({ canvasId:'story-studio', canvasTitle:'Story Studio' });
     const studio = document.createElement('main');
@@ -219,16 +221,30 @@
       return layout && [layout.x,layout.y,layout.width].every((value) => Number.isFinite(Number(value)));
     }
 
-    function applyBubblePosition(bubble,layout) {
+    function applyBubblePosition(bubble,layout,frame={}) {
       bubble.dataset.positioned = 'true';
       bubble.style.setProperty('--bubble-x',String(layout.x));
       bubble.style.setProperty('--bubble-y',String(layout.y));
       bubble.style.setProperty('--bubble-width',String(layout.width));
+      bubble.style.setProperty('--bubble-opacity',String(Number.isFinite(Number(frame.opacity)) ? frame.opacity : 1));
+      bubble.style.setProperty('--bubble-scale',String(Number.isFinite(Number(frame.scale)) ? frame.scale : 1));
+      const tailOffset = Number.isFinite(Number(frame.tailX))
+        ? Math.max(8,Math.min(92,((Number(frame.tailX) - Number(layout.x)) / Math.max(1,Number(layout.width))) * 100))
+        : (frame.side === 'right' ? 78 : 22);
+      bubble.style.setProperty('--bubble-tail-offset',String(tailOffset));
     }
 
-    function createBubbleLayer(dialogue) {
+    function letteringFrames(panel,timeMs=null) {
+      const timeline = normalizeLetteringTimeline(panel?.lettering,panel?.dialogue || [],{durationMs:panel?.durationMs});
+      return (timeMs === null
+        ? posterLetteringFrames(timeline,panel?.dialogue || [])
+        : sampleLetteringTimeline(timeline,timeMs)).slice(0,2);
+    }
+
+    function createBubbleLayer(panel,timeMs=null) {
       const layer = document.createElement('div'); layer.className = 'bubble-layer';
-      const entries = (dialogue || []).filter((entry) => entry?.line).slice(0,2);
+      const entries = letteringFrames(panel,timeMs);
+      layer.dataset.letteringRevision = String(panel?.lettering?.revision || 0);
       const speakerSides = new Map();
       const zoneSlots = [{},{},{}];
       let fallbackSideIndex = 0;
@@ -252,6 +268,7 @@
         zoneSlots[zoneIndex][side] = true;
         const bubble = document.createElement('div');
         bubble.className = `comic-bubble zone-${zoneIndex}`;
+        bubble.dataset.trackId = entry.id;
         bubble.dataset.type = ['thought','shout'].includes(entry.type) ? entry.type : 'speech';
         bubble.dataset.side = side;
         const length = entry.line.length;
@@ -259,7 +276,7 @@
         if (entry.speaker) { const speaker = document.createElement('b'); speaker.textContent = entry.speaker; bubble.append(speaker); }
         bubble.append(document.createTextNode(entry.line));
         layer.append(bubble);
-        if (validBubbleLayout(entry.layout)) applyBubblePosition(bubble,entry.layout);
+        if (validBubbleLayout(entry.layout)) applyBubblePosition(bubble,entry.layout,entry);
       });
       return layer;
     }
@@ -304,7 +321,10 @@
       const height = padding * 2 + speakerHeight + Math.max(1,lines.length) * 23;
       context.fillStyle = '#fff'; context.strokeStyle = entry.type === 'shout' ? '#ff4f87' : '#111827'; context.lineWidth = entry.type === 'shout' ? 5 : 3;
       roundedRect(context,x,y,width,height,entry.type === 'thought' ? height / 2 : 20); context.fill(); context.stroke();
-      const tailRight = entry.side === 'right'; const tailX = tailRight ? x + width - 38 : x + 38;
+      const tailRatio = Number.isFinite(Number(entry.tailX))
+        ? Math.max(.1,Math.min(.9,(Number(entry.tailX) - Number(layout.x)) / Math.max(1,Number(layout.width))))
+        : (entry.side === 'right' ? .78 : .22);
+      const tailX = x + width * tailRatio;
       context.beginPath(); context.moveTo(tailX - 12,y + height - 2); context.lineTo(tailX + 10,y + height + 18); context.lineTo(tailX + 22,y + height - 2); context.closePath(); context.fill(); context.stroke();
       let textY = y + padding + 16;
       if (entry.speaker) { context.fillStyle = '#7546d7'; context.font = '800 13px JetBrains Mono, monospace'; context.fillText(entry.speaker.toUpperCase(),x + padding,textY); textY += speakerHeight; }
@@ -321,7 +341,7 @@
       const scale = Math.max(canvas.width / image.naturalWidth,canvas.height / image.naturalHeight);
       const sourceWidth = canvas.width / scale; const sourceHeight = canvas.height / scale;
       context.drawImage(image,(image.naturalWidth - sourceWidth) / 2,(image.naturalHeight - sourceHeight) / 2,sourceWidth,sourceHeight,0,0,canvas.width,canvas.height);
-      (panel.dialogue || []).filter((entry) => entry?.line).slice(0,2).forEach((entry,bubbleIndex) => drawPreviewBubble(context,entry,bubbleIndex));
+      letteringFrames(panel).forEach((entry,bubbleIndex) => drawPreviewBubble(context,entry,bubbleIndex));
       if (panel.caption) { context.fillStyle = '#fff5ca'; context.strokeStyle = '#111827'; context.lineWidth = 3; context.fillRect(28,610,664,48); context.strokeRect(28,610,664,48); context.fillStyle = '#141925'; context.font = '600 15px JetBrains Mono, monospace'; context.fillText(panel.caption.slice(0,78),45,640); }
       context.fillStyle = '#fff'; context.strokeStyle = '#111827'; context.lineWidth = 2; context.fillRect(665,12,40,30); context.strokeRect(665,12,40,30); context.fillStyle = '#111827'; context.font = '800 14px JetBrains Mono, monospace'; context.fillText(String(index + 1).padStart(2,'0'),674,33);
       return canvas.toDataURL('image/jpeg',.86);
@@ -360,7 +380,7 @@
         const frame = document.createElement('article'); frame.className = 'reader-panel'; frame.setAttribute('aria-label',`Panel ${index + 1}: ${panel.title}`);
         if (panel.image?.url) { const image = document.createElement('img'); image.className = 'panel-image'; image.src = panel.image.url; image.alt = panel.artDirection || panel.title || `Comic panel ${index + 1}`; frame.append(image); }
         else { frame.style.background = `linear-gradient(145deg,${safeColor(comic.palette?.[index % comic.palette.length],'#1b2740')},${safeColor(comic.palette?.[(index + 1) % comic.palette.length],'#492d66')})`; }
-        frame.append(createBubbleLayer(panel.dialogue,true));
+        frame.append(createBubbleLayer(panel));
         if (panel.caption) { const caption = document.createElement('div'); caption.className = 'reader-caption'; caption.textContent = panel.caption; frame.append(caption); }
         const number = document.createElement('span'); number.className = 'reader-panel-number'; number.textContent = String(index + 1).padStart(2,'0'); frame.append(number); page.append(frame);
       });
@@ -393,7 +413,7 @@
         const art = document.createElement('div'); art.className = 'panel-art' + (panel.image?.url ? ' has-image' : '');
         if (panel.image?.url) { const image = document.createElement('img'); image.className = 'panel-image'; image.src = panel.image.url; image.alt = panel.title ? `Illustration for ${panel.title}` : `Comic panel ${index + 1}`; image.loading = 'lazy'; image.decoding = 'async'; art.append(image); }
         const number = document.createElement('span'); number.className = 'panel-number'; number.textContent = String(index + 1).padStart(2,'0');
-        art.append(number,createBubbleLayer(panel.dialogue));
+        art.append(number,createBubbleLayer(panel));
         if (panel.caption) { const caption = document.createElement('div'); caption.className = 'reader-caption'; caption.textContent = panel.caption; art.append(caption); }
         card.append(art); grid.append(card);
       });
