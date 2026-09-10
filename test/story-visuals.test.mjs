@@ -24,6 +24,16 @@ function comic() {
     genre: 'science fiction',
     visualStyle: 'cinematic inked graphic novel',
     palette: ['#101525', '#7b45d6', '#58d7ff'],
+    worldBible: {
+      premise:'The package can copy a voice only after hearing it.',
+      storyRules:['The package cannot move by itself.'],
+      locations:[{name:'Last train',visualIdentity:'wet steel and violet emergency lights',continuity:'rear door remains jammed'}],
+      recurringProps:[{name:'Package',appearance:'black case with cyan seam',continuity:'Mara carries it in her right hand'}],
+      visualMotifs:['broken signal bars'],
+      colorScript:['violet isolation becomes red danger'],
+      animationLanguage:'Long holds followed by abrupt electronic motion.',
+      soundLanguage:'Rain, rail hum, radio voices, and silence.',
+    },
     characters: [{ name:'Mara', role:'courier', appearance:'cropped dark hair and a red utility coat', continuity:'silver wrist band on the left arm' }],
     panels: [
       { beat:'Mara arrives alone on a rain-soaked platform.', shot:'wide establishing shot', setting:'elevated train platform at midnight', artDirection:'rain and violet signals', dialogue:[] },
@@ -50,6 +60,9 @@ test('panel prompts share one locked world while demanding a distinct scene', ()
   assert.match(first,/rain-soaked platform/);
   assert.match(second,/package lights up/);
   assert.match(second,/Package \(right side\): Mara\./);
+  assert.match(second,/STORY-SPECIFIC WORLD BIBLE/);
+  assert.match(second,/rear door remains jammed/);
+  assert.match(second,/NEX COMIC DIRECTOR BIBLE/);
   assert.match(second,/LETTERING RESERVATIONS/);
   assert.match(second,/keep the right zone x=/);
   assert.match(second,/locked composition space/);
@@ -67,6 +80,7 @@ test('vision lettering prompt asks the Gateway to inspect actual pixels and retu
   assert.match(prompt,/never split in the middle/);
   assert.match(prompt,/width 20-26/);
   assert.match(prompt,/Never cover or touch any character's head/);
+  assert.match(prompt,/MATCHED LETTERING EXAMPLE — close-up performance/);
 });
 
 test('lettering reservations are planned before art for at most two readable bubbles', () => {
@@ -129,6 +143,7 @@ test('final lettering review judges the actual rendered composite and returns co
   const prompt = buildPanelReviewPrompt({panel});
   assert.match(prompt,/ACTUAL finished mobile panel/);
   assert.match(prompt,/Never put a bubble directly over its speaker/);
+  assert.match(prompt,/face overlap as a failed panel/i);
   const parsed = parseLetteringReview('{"verdict":"corrected","placements":[{"index":0,"side":"left","x":4,"y":10,"width":24}]}',panel.dialogue);
   assert.equal(parsed.verdict,'corrected');
   assert.equal(parsed.placements[0].layout.x,4);
