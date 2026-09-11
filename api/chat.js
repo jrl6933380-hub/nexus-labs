@@ -49,6 +49,23 @@ function normalizeScreenSnapshot(input) {
   return { title, viewport_text: viewportText, controls, focused, viewport, story_project_id:storyProjectId };
 }
 
+function normalizeVisualFrame(input) {
+  if (!input || typeof input !== 'object') return null;
+  const match = typeof input.image_data_url === 'string'
+    ? input.image_data_url.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/u)
+    : null;
+  if (!match || match[2].length > 2_800_000) return null;
+  const width = Number.isFinite(input.width) ? Math.max(1, Math.min(Math.round(input.width), 4096)) : null;
+  const height = Number.isFinite(input.height) ? Math.max(1, Math.min(Math.round(input.height), 4096)) : null;
+  return {
+    media_type: match[1],
+    data: match[2],
+    width,
+    height,
+    captured_at: Number.isFinite(input.captured_at) ? input.captured_at : null,
+  };
+}
+
 function normalizeClientContext(input) {
   const activeView = typeof input?.active_view === 'string' ? input.active_view.trim() : '';
   return {
@@ -56,6 +73,7 @@ function normalizeClientContext(input) {
       ? activeView.slice(0, 160)
       : null,
     screen: normalizeScreenSnapshot(input?.screen),
+    visual: normalizeVisualFrame(input?.visual),
   };
 }
 

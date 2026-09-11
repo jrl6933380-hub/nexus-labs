@@ -19,6 +19,7 @@ export function createNexChatBar() {
           <span class="nex-status">Operational</span>
         </div>
         <div class="nex-chat-actions">
+          <button class="nex-vision-toggle" id="nexVisionToggle" aria-label="Share the current tab visually with Nex" title="Share the current tab visually with Nex"><span aria-hidden="true">Vision</span></button>
           <button class="nex-voice-toggle" id="nexVoiceToggle" aria-label="Toggle spoken replies" title="Toggle spoken replies"><span aria-hidden="true">Audio</span></button>
           <button class="nex-chat-toggle" aria-label="Toggle chat" title="Open or minimize Nex chat">
             <span class="nex-toggle-icon">⌃</span>
@@ -184,7 +185,8 @@ export function createNexChatBar() {
     }
 
     .nex-chat-toggle,
-    .nex-voice-toggle {
+    .nex-voice-toggle,
+    .nex-vision-toggle {
       background: none;
       border: none;
       color: var(--nex-text-dim);
@@ -202,7 +204,8 @@ export function createNexChatBar() {
       font-family: var(--nex-mono);
     }
 
-    .nex-voice-toggle {
+    .nex-voice-toggle,
+    .nex-vision-toggle {
       width: auto;
       min-width: 46px;
       padding: 0 8px;
@@ -211,13 +214,15 @@ export function createNexChatBar() {
     }
 
     .nex-chat-toggle:hover,
-    .nex-voice-toggle:hover {
+    .nex-voice-toggle:hover,
+    .nex-vision-toggle:hover {
       color: #fff;
       border-color: var(--nex-accent);
       background: rgba(46, 127, 255, 0.13);
     }
 
-    .nex-voice-toggle.active {
+    .nex-voice-toggle.active,
+    .nex-vision-toggle.active {
       color: #56d6a0;
       border-color: rgba(86, 214, 160, .42);
       background: rgba(86, 214, 160, .08);
@@ -425,6 +430,7 @@ export function createNexChatBar() {
   const sendBtn = container.querySelector('#nexSend');
   const micBtn = container.querySelector('#nexMic');
   const voiceToggle = container.querySelector('#nexVoiceToggle');
+  const visionToggle = container.querySelector('#nexVisionToggle');
   const messagesEl = container.querySelector('#nexMessages');
   const toggleBtn = container.querySelector('.nex-chat-toggle');
   const header = container.querySelector('.nex-chat-header');
@@ -532,6 +538,71 @@ export function createNexChatBar() {
       viewport: { width: window.innerWidth, height: window.innerHeight, scroll_y: Math.round(window.scrollY) },
     };
   }
+
+  let visionStream = null;
+  let visionVideo = null;
+
+  function stopVision() {
+    visionStream?.getTracks().forEach((track) => track.stop());
+    visionStream = null;
+    visionVideo = null;
+    visionToggle.classList.remove('active');
+    visionToggle.setAttribute('aria-pressed', 'false');
+    visionToggle.querySelector('span').textContent = 'Vision';
+  }
+
+  async function startVision() {
+    if (!navigator.mediaDevices?.getDisplayMedia) throw new Error('Visual sharing is not supported by this browser.');
+    visionStream = await navigator.mediaDevices.getDisplayMedia({
+      video: { displaySurface: 'browser', frameRate: { ideal: 1, max: 2 } },
+      audio: false,
+      preferCurrentTab: true,
+      selfBrowserSurface: 'include',
+      surfaceSwitching: 'exclude',
+    });
+    visionVideo = document.createElement('video');
+    visionVideo.srcObject = visionStream;
+    visionVideo.muted = true;
+    await visionVideo.play();
+    visionStream.getVideoTracks()[0]?.addEventListener('ended', stopVision, { once: true });
+    visionToggle.classList.add('active');
+    visionToggle.setAttribute('aria-pressed', 'true');
+    visionToggle.querySelector('span').textContent = 'Seeing';
+  }
+
+  async function captureVisualFrame() {
+    if (!visionVideo || !visionStream?.active || visionVideo.readyState < 2) return null;
+    const sourceWidth = visionVideo.videoWidth;
+    const sourceHeight = visionVideo.videoHeight;
+    if (!sourceWidth || !sourceHeight) return null;
+    const maxWidth = 1280;
+    const scale = Math.min(1, maxWidth / sourceWidth);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(sourceWidth * scale));
+    canvas.height = Math.max(1, Math.round(sourceHeight * scale));
+    canvas.getContext('2d', { alpha: false }).drawImage(visionVideo, 0, 0, canvas.width, canvas.height);
+    return {
+      image_data_url: canvas.toDataURL('image/jpeg', 0.72),
+      width: canvas.width,
+      height: canvas.height,
+      captured_at: Date.now(),
+    };
+  }
+
+  visionToggle.setAttribute('aria-pressed', 'false');
+  visionToggle.addEventListener('click', async () => {
+    if (visionStream) {
+      stopVision();
+      return;
+    }
+    try {
+      await startVision();
+      addMessage('Visual sharing is on. Nex will receive one current-tab frame with each message until you turn it off.', 'nex-system');
+    } catch (err) {
+      stopVision();
+      addMessage(err.name === 'NotAllowedError' ? 'Visual sharing was cancelled.' : (err.message || 'Visual sharing could not start.'), 'nex-system');
+    }
+  });
 
   async function loadHistory() {
     try {
@@ -654,6 +725,7 @@ export function createNexChatBar() {
           workspace: {
             active_view: window.location.pathname,
             screen: captureWorkspaceSnapshot(),
+            visual: await captureVisualFrame(),
           },
         }),
       });
