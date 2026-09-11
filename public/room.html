@@ -789,6 +789,11 @@
       const res = await fetch('/api/room-usage', { headers: { Accept: 'application/json' }, cache: 'no-store' });
       if (!res.ok) return;
       const { usage } = await res.json();
+      if (usage.unlimited) {
+        usagePill.innerText = 'Owner · unlimited';
+        usagePill.title = 'Owner account is exempt from creative credit limits';
+        return;
+      }
       usagePill.innerText = `${usage.remaining} credits left`;
       usagePill.title = `${usage.consumed} used of ${usage.limit} this period`;
     } catch {
