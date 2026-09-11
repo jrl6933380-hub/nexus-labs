@@ -678,15 +678,31 @@
   // Runs before anything else renders meaningfully. A 401 here means
   // no session cookie or an expired one — send to the login page
   // rather than showing a room that will just fail on first message.
+  function mountOperatorNexDock() {
+    if (document.getElementById('nexChatBar') || document.querySelector('script[data-operator-nex-dock]')) return;
+    const script = document.createElement('script');
+    script.type = 'module';
+    script.src = '/nex-chat-bar.js';
+    script.dataset.operatorNexDock = 'true';
+    document.body.appendChild(script);
+  }
+
   (async function requireSession() {
     try {
-      const res = await fetch('/api/room-auth');
+      const res = await fetch('/api/room-auth', {
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+      });
       if (!res.ok) {
         window.location.href = '/room-login.html';
         return;
       }
       const data = await res.json();
       document.getElementById('whoami').innerText = data.username;
+      // The regular Forge AI panel remains the customer-facing project builder.
+      // Only a server-authenticated operator gets the persistent Nexus chat,
+      // shared history, and Vision controls layered over this workspace.
+      if (data.operator === true) mountOperatorNexDock();
     } catch (err) {
       window.location.href = '/room-login.html';
     }
