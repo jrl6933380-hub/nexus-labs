@@ -23,6 +23,18 @@ export async function handleAttachmentSelection({ file, prepareAttachment, clear
   }
 }
 
+let activeViewportFrameCacheInvalidator = null;
+let viewportFrameCacheListenersBound = false;
+
+function bindViewportFrameCacheInvalidation(invalidator) {
+  activeViewportFrameCacheInvalidator = invalidator;
+  if (viewportFrameCacheListenersBound || typeof window === 'undefined') return;
+  const clearActiveViewportFrameCache = () => activeViewportFrameCacheInvalidator?.();
+  window.addEventListener('scroll', clearActiveViewportFrameCache, { passive: true });
+  window.addEventListener('resize', clearActiveViewportFrameCache);
+  viewportFrameCacheListenersBound = true;
+}
+
 export function createNexChatBar() {
   const container = document.createElement('div');
   container.className = 'nex-chat-bar-container';
@@ -676,11 +688,11 @@ export function createNexChatBar() {
     canvas.width = Math.min(width, 1280);
     canvas.height = Math.max(1, Math.round(height * (canvas.width / width)));
     const context = canvas.getContext('2d', { alpha: false });
-    const scale = canvas.width / width;
-    context.scale(scale, scale);
     const bodyStyle = getComputedStyle(document.body);
     context.fillStyle = bodyStyle.backgroundColor === 'rgba(0, 0, 0, 0)' ? '#ffffff' : bodyStyle.backgroundColor;
-    context.fillRect(0, 0, width, height);
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    const scale = canvas.width / width;
+    context.scale(scale, scale);
 
     const elements = [...document.querySelectorAll('body *')]
       .filter((element) => !element.closest('#nexChatBar') && isVisibleInViewport(element) && !isPrivateControl(element))
@@ -784,8 +796,7 @@ export function createNexChatBar() {
     }
   }
 
-  window.addEventListener('scroll', clearViewportFrameCache, { passive: true });
-  window.addEventListener('resize', clearViewportFrameCache);
+  bindViewportFrameCacheInvalidation(clearViewportFrameCache);
   attachBtn.addEventListener('click', () => {
     clearAttachment();
     attachmentInput.click();
