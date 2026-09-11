@@ -1,7 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { canSendNexMessage, handleAttachmentSelection } from '../public/nex-chat-bar.js';
+import {
+  canSendNexMessage,
+  getBoundedImageScale,
+  handleAttachmentSelection,
+  showSuccessfulNexReply,
+} from '../public/nex-chat-bar.js';
 
 const chatBar = await readFile(new URL('../public/nex-chat-bar.js', import.meta.url), 'utf8');
 
@@ -14,7 +19,9 @@ test('operator Nex dock accepts one validated picture with preview and removal',
 });
 
 test('attached picture is compressed and takes precedence over a live Vision frame', () => {
-  assert.match(chatBar, /Math\.min\(1, 1280 \/ image\.naturalWidth, 1280 \/ image\.naturalHeight\)/u);
+  assert.equal(getBoundedImageScale(640, 320), 1);
+  assert.equal(getBoundedImageScale(640, 2560), 0.5);
+  assert.equal(getBoundedImageScale(2560, 640), 0.5);
   assert.match(chatBar, /canvas\.toDataURL\('image\/jpeg', 0\.8\)/u);
   assert.match(chatBar, /const visualForMessage = attachedVisual \|\| await captureVisualFrame\(\)/u);
   assert.match(chatBar, /visual: visualForMessage/u);
@@ -22,10 +29,15 @@ test('attached picture is compressed and takes precedence over a live Vision fra
 });
 
 test('attachment clears only after Nex returns a successful response', () => {
-  const clearIndex = chatBar.indexOf("clearAttachment();\n      addMessage(replyText, 'nex-response')");
-  const catchIndex = chatBar.indexOf("} catch (err) {", clearIndex);
-  assert.ok(clearIndex > -1);
-  assert.ok(catchIndex > clearIndex);
+  const calls = [];
+  const replyText = showSuccessfulNexReply({
+    data: { reply: 'Done.' },
+    clearAttachment: () => calls.push('clear'),
+    addMessage: (text, type) => calls.push(['message', text, type]),
+    speak: (text) => calls.push(['speak', text]),
+  });
+  assert.equal(replyText, 'Done.');
+  assert.deepEqual(calls, ['clear', ['message', 'Done.', 'nex-response'], ['speak', 'Done.']]);
 });
 
 test('vision mode still allows a send without typed text or an attachment', () => {

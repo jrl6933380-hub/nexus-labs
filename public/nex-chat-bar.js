@@ -22,6 +22,18 @@ export async function handleAttachmentSelection({ file, prepareAttachment, clear
   }
 }
 
+export function getBoundedImageScale(width, height, maxDimension = 1280) {
+  return Math.min(1, maxDimension / Math.max(width || 1, height || 1));
+}
+
+export function showSuccessfulNexReply({ data, clearAttachment, addMessage, speak }) {
+  const replyText = data.reply || 'Nex completed the request without a text reply.';
+  clearAttachment();
+  addMessage(replyText, 'nex-response');
+  speak(replyText);
+  return replyText;
+}
+
 let activeViewportFrameCacheInvalidator = null;
 let viewportFrameCacheListenersBound = false;
 
@@ -776,7 +788,7 @@ export function createNexChatBar() {
       const image = new Image();
       image.src = source;
       await image.decode();
-      const scale = Math.min(1, 1280 / image.naturalWidth, 1280 / image.naturalHeight);
+      const scale = getBoundedImageScale(image.naturalWidth, image.naturalHeight);
       const canvas = document.createElement('canvas');
       canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
       canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
@@ -986,10 +998,7 @@ export function createNexChatBar() {
         }
       }
       if (!data) throw new Error('Nex did not return a response.');
-      const replyText = data.reply || 'Nex completed the request without a text reply.';
-      clearAttachment();
-      addMessage(replyText, 'nex-response');
-      speak(replyText);
+      showSuccessfulNexReply({ data, clearAttachment, addMessage, speak });
       if (data.navigation?.type === 'room' && typeof data.navigation.url === 'string') {
         const event = new CustomEvent('nexus:navigate', { detail: data.navigation });
         window.dispatchEvent(event);
