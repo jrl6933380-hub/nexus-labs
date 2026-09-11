@@ -34,7 +34,7 @@ test('vision mode still allows a send without typed text or an attachment', () =
   assert.equal(canSendNexMessage({ typedText: '', attachedVisual: null, visionMode: null }), false);
 });
 
-test('cancelling attachment selection clears any pending image state', async () => {
+test('cancelling attachment selection leaves the current image state unchanged', async () => {
   const calls = [];
   const result = await handleAttachmentSelection({
     file: undefined,
@@ -43,7 +43,7 @@ test('cancelling attachment selection clears any pending image state', async () 
     addMessage: () => calls.push('message'),
   });
   assert.equal(result, false);
-  assert.deepEqual(calls, ['clear']);
+  assert.deepEqual(calls, []);
 });
 
 test('failed attachment preparation clears state and reports the error', async () => {

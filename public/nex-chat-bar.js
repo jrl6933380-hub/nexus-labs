@@ -10,7 +10,6 @@ export function canSendNexMessage({ typedText, attachedVisual, visionMode }) {
 
 export async function handleAttachmentSelection({ file, prepareAttachment, clearAttachment, addMessage }) {
   if (!file) {
-    clearAttachment();
     return false;
   }
   try {
@@ -798,7 +797,7 @@ export function createNexChatBar() {
 
   bindViewportFrameCacheInvalidation(clearViewportFrameCache);
   attachBtn.addEventListener('click', () => {
-    clearAttachment();
+    attachmentInput.value = '';
     attachmentInput.click();
   });
   attachmentRemove.addEventListener('click', clearAttachment);
