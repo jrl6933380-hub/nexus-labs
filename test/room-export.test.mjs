@@ -11,10 +11,15 @@ function response() {
   };
 }
 const html = '<!doctype html><script>alert("generated")</script>';
-const make = (user) => createHistoryHandler({
+// Default to a paid plan in tests so the existing non-plan-related
+// export tests below keep exercising the 200 path unchanged; the new
+// tests at the bottom of this file explicitly pass resolvePlan to
+// exercise the free-tier gate.
+const make = (user, resolvePlan = async () => 'unlimited') => createHistoryHandler({
   resolveUser: async () => user,
   readBuild: async (owner, id) => owner === 'alice' && id === 'a1' ? { html, label: '\r\nInjected: yes' } : null,
   readList: async () => [],
+  resolvePlan,
 });
 const request = (query = {id:'a1', download:'html'}) => ({method:'GET', query});
 
@@ -50,4 +55,24 @@ test('session storage failure returns a controlled error', async () => {
 });
 test('non-GET requests cannot export', async () => {
   const res=response(); await make('alice')({method:'POST'},res); assert.equal(res.code,405);
+});
+test('free-tier accounts cannot download exported html', async () => {
+  const res=response(); await make('alice', async () => 'free')(request(),res);
+  assert.equal(res.code,402);
+  assert.equal(res.body.code,'EXPORT_REQUIRES_PAID_PLAN');
+  assert.equal(res.headers['Content-Disposition'],undefined);
+});
+test('an account with no stored plan (undefined) is treated as free and blocked', async () => {
+  const res=response(); await make('alice', async () => undefined)(request(),res);
+  assert.equal(res.code,402);
+});
+test('viewing (no download param) still works on a free-tier account', async () => {
+  const res=response(); await make('alice', async () => 'free')(request({id:'a1'}),res);
+  assert.equal(res.code,200); assert.equal(res.body.build.html,html);
+});
+test('hosted, growth, and unlimited plans can all download', async () => {
+  for (const plan of ['hosted','growth','unlimited']) {
+    const res=response(); await make('alice', async () => plan)(request(),res);
+    assert.equal(res.code,200,`plan ${plan} should be able to export`);
+  }
 });
