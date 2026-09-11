@@ -8,6 +8,7 @@ import { roomMeter } from '../lib/roomMetering.js';
 import { roomConversations } from '../lib/roomConversation.js';
 import { routeMessage } from '../lib/modelRouter.js';
 import { attachmentManifest, attachmentMessageContent, parseRoomAttachments } from '../lib/roomAttachments.js';
+import { roomEscalator } from '../lib/roomEscalation.js';
 
 const ALLOWED_COMMANDS = new Set([
   'preview_phone',
@@ -25,11 +26,13 @@ Decide what the customer needs next and return ONLY one JSON object with no mark
 Allowed shapes:
 {"kind":"reply","message":"your helpful response or one focused question","suggestions":["optional short reply", "optional short reply"]}
 {"kind":"build","message":"brief plain-language confirmation of what you will change","instruction":"a complete precise instruction for the page generator"}
+{"kind":"team","message":"brief explanation that this needs the Nexus Build Team","instruction":"a complete precise team brief"}
 {"kind":"command","command":"preview_phone|preview_tablet|preview_fit|open_projects|open_preview|export_project","message":"brief confirmation"}
 
 Rules:
 - Use reply when the customer is asking a question, wants advice, is brainstorming, or an essential detail is missing. Ask at most one focused question at a time. Do not force questions when the request is already buildable.
 - Use build only when the customer clearly asks to create or change the project. Preserve their intent and compile relevant details from the recent conversation into instruction so they do not have to repeat themselves.
+- Use team only when the request cannot be completed as a self-contained website or browser app in one instant-builder pass, or needs capabilities the instant builder cannot safely provide. Never use team merely because a request is detailed. The application creates the real team ticket after your decision, so do not claim it already exists.
 - Use command only for the exact safe workspace controls listed above. Never invent a command.
 - Attached images are real customer-provided visual context. Inspect them before answering. If the customer wants an image used in the site, reference its exact NEXUS_IMAGE_N token in the build instruction so the generator can place it. Never invent an image token.
 - A question about whether a change would be good is advice, not permission to change the project.
@@ -48,7 +51,7 @@ export function parseAssistantDecision(raw) {
   const end = cleaned.lastIndexOf('}');
   if (start < 0 || end <= start) throw new Error('Assistant response was not JSON');
   const parsed = JSON.parse(cleaned.slice(start, end + 1));
-  if (!['reply', 'build', 'command'].includes(parsed.kind)) throw new Error('Unknown assistant decision');
+  if (!['reply', 'build', 'team', 'command'].includes(parsed.kind)) throw new Error('Unknown assistant decision');
   const message = String(parsed.message || '').trim().slice(0, 1_000);
   if (!message) throw new Error('Assistant message is required');
   const suggestions = Array.isArray(parsed.suggestions)
@@ -59,6 +62,11 @@ export function parseAssistantDecision(raw) {
     const instruction = String(parsed.instruction || '').trim().slice(0, 6_000);
     if (!instruction) throw new Error('Build instruction is required');
     return { kind: 'build', message, instruction };
+  }
+  if (parsed.kind === 'team') {
+    const instruction = String(parsed.instruction || '').trim().slice(0, 6_000);
+    if (!instruction) throw new Error('Team instruction is required');
+    return { kind: 'team', message, instruction };
   }
   if (!ALLOWED_COMMANDS.has(parsed.command)) throw new Error('Unsupported workspace command');
   return { kind: 'command', command: parsed.command, message };
@@ -75,6 +83,7 @@ export function createAssistantHandler({
   meter = roomMeter,
   conversations = roomConversations,
   route = routeMessage,
+  escalator = roomEscalator,
 } = {}) {
   return async function handler(req, res) {
     res.setHeader('Cache-Control', 'private, no-store');
@@ -132,15 +141,26 @@ export function createAssistantHandler({
       });
       const decision = parseAssistantDecision(textFromResponse(data));
       chargeAssistantTurn = decision.kind !== 'build';
+      let responseDecision = decision;
+      if (decision.kind === 'team') {
+        const ticket = await escalator.queue({
+          userId: username,
+          projectId,
+          request: decision.instruction,
+          reason: decision.message,
+          currentHtml: req.body?.currentHtml,
+        });
+        responseDecision = { kind: 'team', ...ticket };
+      }
       try {
         await conversations.appendTurns(username, projectId, [
           { role: 'user', text: message },
-          { role: 'assistant', text: decision.message },
+          { role: 'assistant', text: responseDecision.message },
         ]);
       } catch (error) {
         console.error('room-assistant: conversation write failed:', error.message);
       }
-      return res.status(200).json(decision);
+      return res.status(200).json(responseDecision);
     } catch (error) {
       console.error('room-assistant handler failed:', error.message);
       return res.status(502).json({ error: 'Nex could not answer that right now. Try again in a moment.' });

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Nexus — Web Builder</title>
+<title>Nexus Forge — AI Website & App Builder</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -532,11 +532,12 @@
   /* One movable conversation over one full project surface. The outer
      workspace is locked by the shared canvas engine; only this dock moves. */
   body.room-builder-page .canvas-title-bar { display: none; }
+  body.room-builder-page .nexus-canvas-brand { display: none; }
   .room { position: relative; display: block; overflow: hidden; }
   .canvas { position: absolute; inset: 0; }
   .chat-panel {
     position: absolute; right: 16px; bottom: 16px; z-index: 30;
-    width: min(370px, calc(100% - 24px)); height: min(520px, calc(100% - 24px));
+    width: min(410px, calc(100% - 24px)); height: min(540px, calc(100% - 24px));
     border: 1px solid rgba(148,163,184,.24); border-radius: 16px; overflow: hidden;
     box-shadow: 0 24px 70px rgba(0,0,0,.56); backdrop-filter: blur(18px);
     transition: width .18s ease, height .18s ease, box-shadow .18s ease;
@@ -558,6 +559,11 @@
   .chat-toggle { display: inline-flex; color: var(--text); font-size: 12px; letter-spacing: 0; text-transform: none; }
   .chat-toggle::before { box-shadow: none; }
   .chat-heading { display: none; }
+  .input-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; }
+  .bubble.team {
+    align-self: stretch; max-width: 100%; border-color: rgba(242,186,99,.42);
+    background: rgba(242,186,99,.09); color: #ffe2b5;
+  }
   .room-builder-wrap:not(.chat-open) .chat-panel { width: 112px; height: 48px; box-shadow: 0 14px 38px rgba(0,0,0,.46); }
   .room-builder-wrap:not(.chat-open) .chat-toggle-label { display: none; }
   .room-builder-wrap:not(.chat-open) .chat-specialty { display: none; }
@@ -592,8 +598,8 @@
   wrap.innerHTML = `
     <div class="header">
       <div class="builder-brand">
-        <span class="title">Web Builder</span>
-        <span class="project-state" id="project-state">New project</span>
+        <span class="title">Nexus Forge</span>
+        <span class="project-state" id="project-state">AI Website &amp; App Builder · New project</span>
       </div>
       <div class="header-actions">
         <span class="usage-pill" id="usage-pill">Usage —</span>
@@ -616,7 +622,7 @@
           <button class="chat-toggle" id="chat-toggle" type="button" aria-expanded="false">
             Nex <span class="chat-toggle-label" id="chat-toggle-label">Open conversation</span>
           </button>
-          <span class="chat-specialty">Web Pro</span>
+          <span class="chat-specialty">Forge AI</span>
           <span class="chat-drag-handle" aria-hidden="true" title="Drag chat">•••</span>
           <span class="chat-heading">Build with Nex</span>
           <div class="chat-tools">
@@ -649,15 +655,15 @@
         <div class="preview-stage">
           <div class="canvas-empty" id="canvas-empty">
             <div class="canvas-empty-inner">
-              <strong>What are you building?</strong>
-              <span>Pick a starting point or tell Nex your whole idea. He’ll create the first working version, save it, and guide the next changes.</span>
+              <strong>Turn your idea into a working site or app.</strong>
+              <span>Describe it to Nex. He’ll build the first version, save every update, and bring in the Nexus Build Team automatically when the job needs more hands.</span>
               <div class="starter-grid" aria-label="Project starting points">
                 <button class="starter-card" type="button" data-starter="business">Business website</button>
                 <button class="starter-card" type="button" data-starter="landing">Landing page</button>
                 <button class="starter-card" type="button" data-starter="portfolio">Portfolio</button>
                 <button class="starter-card" type="button" data-starter="app">App or tool</button>
               </div>
-              <div class="starter-footnote">Already know what you want? Type it directly into Nex.</div>
+              <div class="starter-footnote">Describe the result you want. Nex handles the build plan.</div>
             </div>
           </div>
           <iframe id="canvas-frame" sandbox="allow-scripts allow-forms" title="Live project preview"></iframe>
@@ -732,7 +738,7 @@
     frame.srcdoc = html;
     frame.classList.add('visible');
     emptyState.style.display = 'none';
-    projectState.innerText = currentLabel;
+    projectState.innerText = `AI Website & App Builder · ${currentLabel}`;
     exportBtn.disabled = false;
     openPreviewBtn.disabled = false;
     refreshBtn.disabled = false;
@@ -747,7 +753,7 @@
     currentHtml = '';
     currentLabel = 'New project';
     currentProjectId = newProjectId();
-    projectState.innerText = currentLabel;
+    projectState.innerText = `AI Website & App Builder · ${currentLabel}`;
     frame.srcdoc = '';
     frame.classList.remove('visible');
     emptyState.style.display = '';
@@ -1247,8 +1253,8 @@
     addBubble(
       'nex',
       returning
-        ? 'New project ready. Give me the whole idea in one message, or choose a starting point and I’ll help shape the brief.'
-        : 'Hey—I’m Nex. Give me the whole idea in one message, or choose a starting point and I’ll help shape the brief before I build.',
+        ? 'New project ready. Describe the whole idea or choose a starting point. If the instant builder reaches its limit, I’ll bring in the Nexus Build Team automatically.'
+        : 'Welcome to Nexus Forge. I’m Nex—describe the site or app you want, and I’ll build it. If it needs more than one pass, I’ll bring in the Nexus Build Team automatically.',
     );
     addQuickActions(Object.entries(starterGuides).map(([key, guide]) => ({
       label: guide.label,
@@ -1544,6 +1550,14 @@
           } else if (event.action === 'error') {
             clearTimeout(slowNotice);
             buildingBubble.innerText = 'Ran into an issue: ' + event.message;
+          } else if (event.action === 'team_escalation') {
+            clearTimeout(slowNotice);
+            buildingBubble.classList.add('team');
+            buildingBubble.innerText = event.message;
+            speakUpdate('I sent this build to the Nexus Build Team.');
+          } else if (event.action === 'team_escalation_error') {
+            clearTimeout(slowNotice);
+            buildingBubble.innerText = event.message;
           }
         }
       }
@@ -1608,6 +1622,11 @@
       if (decision.kind === 'reply') {
         addAssistantSuggestions(decision.suggestions);
         speakUpdate(decision.message);
+        return;
+      }
+      if (decision.kind === 'team') {
+        nexBubble.classList.add('team');
+        speakUpdate('I sent this build to the Nexus Build Team.');
         return;
       }
       if (decision.kind === 'command') {
