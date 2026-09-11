@@ -30,6 +30,7 @@ import { saveBuild } from '../lib/roomHistory.js';
 import { getRequestUser } from '../lib/roomAuth.js';
 import { roomMeter } from '../lib/roomMetering.js';
 import { roomConversations } from '../lib/roomConversation.js';
+import { attachmentManifest, attachmentMessageContent, embedRoomAttachments, parseRoomAttachments } from '../lib/roomAttachments.js';
 
 const ANTHROPIC_ENDPOINT = 'https://api.anthropic.com/v1/messages';
 
@@ -52,7 +53,8 @@ Rules:
 - Make it genuinely complete and functional, not a placeholder or a mockup — real interactivity, real content, real styling. Use specific realistic content (names, copy, colors) suited to what was asked, never lorem ipsum or "TODO" placeholders.
 - Keep it self-contained and safe: no requests to localhost or internal networks, no attempts to break out of the iframe or access the parent page.
 - You have a real output budget, not infinite. If a request implies many features (multiple screens, a quiz engine, animations, a scoring system, etc.), deliberately scope down to ONE genuinely complete, working version first — the core layout and the single most important interaction, fully working — rather than attempting everything and running out of room half-finished. A simpler page that fully works beats an elaborate one that's cut off mid-file. The person can always ask you to add more in a follow-up, and follow-ups are cheap — they only touch what's changing, not the whole page.
-- Don't add Room Builder controls or a "talk to Nex" interface inside the generated project. The builder already provides its own conversation dock outside the project. If the request is specifically for a chatbot product or customer-support interface, that interface is part of the requested project and is fine to build.`;
+- Don't add Room Builder controls or a "talk to Nex" interface inside the generated project. The builder already provides its own conversation dock outside the project. If the request is specifically for a chatbot product or customer-support interface, that interface is part of the requested project and is fine to build.
+- When attached images are listed, inspect them and follow the customer's directions. To place one in the page, use its exact NEXUS_IMAGE_N token as the image src; include useful alt text. Never copy base64, invent a URL, or use an attachment the customer did not ask to place.`;
 
 // Used for every message after the first — editing something that
 // already exists. Patch format instead of a full-document rewrite, for
@@ -69,7 +71,7 @@ Respond with one or more edit blocks in exactly this format, and nothing else �
 
 Include multiple edit blocks back to back for multiple separate changes in the same response. Keep every OLD block copied exactly, character for character, from the current HTML — it will be matched verbatim.
 
-Rules for any NEW text: never use localStorage or sessionStorage (the page runs in a sandboxed iframe where they throw errors); keep it self-contained and safe, no requests to localhost or internal networks, no attempts to break out of the iframe.
+Rules for any NEW text: never use localStorage or sessionStorage (the page runs in a sandboxed iframe where they throw errors); keep it self-contained and safe, no requests to localhost or internal networks, no attempts to break out of the iframe. When attached images are listed, inspect them and use the exact NEXUS_IMAGE_N token as src for any image the customer asked to place. Never copy base64 or invent a URL.
 
 If the requested change is too extensive to express as targeted edits (e.g. a full redesign, or restructuring most of the page), instead respond with ONLY the token <<<REWRITE>>> on its own line, followed by the complete new HTML document starting with <!DOCTYPE html>, and nothing else.`;
 
@@ -97,7 +99,12 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { message, displayMessage, currentHtml, projectId } = req.body || {};
+  const { displayMessage, currentHtml, projectId } = req.body || {};
+  let attachments;
+  try { attachments = parseRoomAttachments(req.body?.attachments); }
+  catch (error) { return res.status(400).json({ error: error.message }); }
+  const typedMessage = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
+  const message = typedMessage || (attachments.length ? 'Use the attached image in the project.' : '');
   if (!message) return res.status(400).json({ error: 'Missing message' });
 
   const username = await getRequestUser(req);
@@ -174,9 +181,10 @@ export default async function handler(req, res) {
         messages: [
           {
             role: 'user',
-            content: isEdit
-              ? `Current HTML:\n${currentHtml}\n\nRequested change: ${message}`
-              : `No existing page yet (build from scratch).\n\nUser request: ${message}`,
+            content: attachmentMessageContent(isEdit
+              ? `Current HTML:\n${currentHtml}\n\nAttached images:\n${attachmentManifest(attachments)}\n\nRequested change: ${message}`
+              : `No existing page yet (build from scratch).\n\nAttached images:\n${attachmentManifest(attachments)}\n\nUser request: ${message}`,
+            attachments),
           },
         ],
       }),
@@ -289,7 +297,7 @@ export default async function handler(req, res) {
       }
     }
 
-    html = stripLiveEditWidget(html);
+    html = embedRoomAttachments(stripLiveEditWidget(html), attachments);
 
     send({ action: 'html', html });
     // Provider work completed, so charge the reserved operation even if

@@ -14,7 +14,7 @@ function response() {
 }
 
 function harness(decision, { user = 'alice' } = {}) {
-  const calls = { reserve: [], settle: [], append: [], route: 0 };
+  const calls = { reserve: [], settle: [], append: [], route: 0, routeInput: null };
   const handler = createAssistantHandler({
     resolveUser: async () => user,
     meter: {
@@ -28,8 +28,9 @@ function harness(decision, { user = 'alice' } = {}) {
       async getConversation() { return [{ role: 'assistant', text: 'What is the main goal?' }]; },
       async appendTurns(...args) { calls.append.push(args); },
     },
-    async route() {
+    async route(input) {
       calls.route += 1;
+      calls.routeInput = input;
       return { data: { content: [{ type: 'text', text: JSON.stringify(decision) }] } };
     },
   });
@@ -66,6 +67,30 @@ test('an explicit build is compiled and releases the assistant reservation for b
   assert.equal(res.body.kind, 'build');
   assert.match(res.body.instruction, /quote form/);
   assert.equal(calls.settle[0].success, false);
+});
+
+test('attached images reach Nex as vision input with a stable build token', async () => {
+  const { handler, calls } = harness({
+    kind: 'build',
+    message: 'I’ll use your logo in the hero.',
+    instruction: 'Place NEXUS_IMAGE_1 in the hero with descriptive alt text.',
+  });
+  const png = Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,0x00]).toString('base64');
+  const res = response();
+  await handler({
+    method: 'POST',
+    body: {
+      message: 'Use this logo',
+      projectId: 'p1',
+      attachments: [{name:'logo.png',mediaType:'image/png',data:png}],
+    },
+  }, res);
+  assert.equal(res.code, 200);
+  const content = calls.routeInput.body.messages[0].content;
+  assert.equal(content[0].type, 'text');
+  assert.match(content[0].text, /NEXUS_IMAGE_1: logo\.png/);
+  assert.equal(content[1].type, 'image');
+  assert.equal(content[1].source.data, png);
 });
 
 test('only allowlisted workspace commands can cross the assistant boundary', () => {

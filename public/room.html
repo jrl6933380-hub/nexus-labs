@@ -270,6 +270,32 @@
 
   .send-btn:disabled { opacity: 0.5; cursor: default; }
 
+  .attachment-tray {
+    display: flex;
+    gap: 8px;
+    min-height: 70px;
+    padding: 8px 10px 0;
+    overflow-x: auto;
+    border-top: 1px solid var(--border);
+  }
+
+  .attachment-tray[hidden] { display: none; }
+  .attachment-card { position: relative; flex: 0 0 58px; width: 58px; height: 58px; }
+  .attachment-card img { width: 100%; height: 100%; object-fit: cover; border: 1px solid var(--border); border-radius: 9px; }
+  .attachment-remove {
+    position: absolute; top: -5px; right: -5px; width: 21px; height: 21px; padding: 0;
+    border: 1px solid rgba(255,255,255,.3); border-radius: 999px; background: #111827; color: #fff;
+    font: 700 14px/1 var(--sans); cursor: pointer;
+  }
+  .attachment-btn {
+    min-width: 50px; min-height: 42px; padding: 0 9px; border: 1px solid var(--border);
+    border-radius: 10px; background: rgba(255,255,255,.025); color: var(--text-dim);
+    font: 650 11px var(--sans); cursor: pointer;
+  }
+  .attachment-btn:hover, .attachment-btn:focus-visible { color: var(--cyan); border-color: rgba(93,184,255,.55); }
+  .attachment-btn:focus-visible, .attachment-remove:focus-visible { outline: 2px solid rgba(93,184,255,.62); outline-offset: 2px; }
+  .attachment-btn:disabled { opacity: .5; cursor: default; }
+
   .canvas {
     position: relative;
     background: #fff;
@@ -599,7 +625,10 @@
           </div>
         </div>
         <div class="chat-history" id="chat-history"></div>
+        <div class="attachment-tray" id="attachment-tray" aria-label="Attached images" hidden></div>
         <div class="input-row">
+          <input id="photo-input" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden>
+          <button class="attachment-btn" id="photo-btn" type="button" aria-label="Add photos for Nex">Photo</button>
           <textarea class="chat-input" id="chat-input" rows="1" aria-label="Ask Nex or describe what to build or change" placeholder="Ask Nex or describe what to build…"></textarea>
           <button class="mic-btn" id="mic-btn" type="button" aria-label="Speak to Nex">Mic</button>
           <button class="send-btn" id="send-btn" type="button">Send</button>
@@ -882,6 +911,9 @@
   const chatHistory = document.getElementById('chat-history');
   const chatInput = document.getElementById('chat-input');
   const sendBtn = document.getElementById('send-btn');
+  const photoBtn = document.getElementById('photo-btn');
+  const photoInput = document.getElementById('photo-input');
+  const attachmentTray = document.getElementById('attachment-tray');
   const chatToggle = document.getElementById('chat-toggle');
   const chatToggleLabel = document.getElementById('chat-toggle-label');
   const chatStatus = document.getElementById('chat-status');
@@ -890,6 +922,107 @@
   const roomSurface = wrap.querySelector('.room');
   const mobileLayout = window.matchMedia('(max-width: 720px)');
   const chatPositionKey = 'nexus-room-chat-position-v2';
+  const acceptedImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
+  let pendingAttachments = [];
+
+  function blobToAttachment(blob, name) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.addEventListener('load', () => resolve({
+        name,
+        mediaType: blob.type,
+        data: String(reader.result || '').split(',')[1] || '',
+        previewUrl: URL.createObjectURL(blob),
+      }));
+      reader.addEventListener('error', () => reject(new Error('Could not read that image')));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  function canvasBlob(canvas, type, quality) {
+    return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
+  }
+
+  async function prepareAttachment(file) {
+    if (!acceptedImageTypes.has(file.type)) throw new Error('Choose a JPG, PNG, or WebP image.');
+    if (file.size > 10_000_000) throw new Error('Choose an image under 10 MB.');
+    if (file.size <= 650_000) return blobToAttachment(file, file.name);
+
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    let blob = await canvasBlob(canvas, 'image/webp', .82);
+    if (blob?.size > 750_000) {
+      const smaller = document.createElement('canvas');
+      const retryScale = Math.min(1, 1100 / Math.max(canvas.width, canvas.height));
+      smaller.width = Math.max(1, Math.round(canvas.width * retryScale));
+      smaller.height = Math.max(1, Math.round(canvas.height * retryScale));
+      smaller.getContext('2d').drawImage(canvas, 0, 0, smaller.width, smaller.height);
+      blob = await canvasBlob(smaller, 'image/webp', .7);
+    }
+    if (!blob || blob.size > 750_000) throw new Error('That image could not be compressed enough.');
+    return blobToAttachment(blob, file.name.replace(/\.[^.]+$/u, '') + '.webp');
+  }
+
+  function renderAttachments() {
+    attachmentTray.replaceChildren();
+    pendingAttachments.forEach((attachment, index) => {
+      const card = document.createElement('div');
+      card.className = 'attachment-card';
+      const image = document.createElement('img');
+      image.src = attachment.previewUrl;
+      image.alt = attachment.name;
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'attachment-remove';
+      remove.setAttribute('aria-label', `Remove ${attachment.name}`);
+      remove.textContent = '×';
+      remove.addEventListener('click', () => {
+        URL.revokeObjectURL(pendingAttachments[index].previewUrl);
+        pendingAttachments.splice(index, 1);
+        renderAttachments();
+      });
+      card.append(image, remove);
+      attachmentTray.append(card);
+    });
+    attachmentTray.hidden = pendingAttachments.length === 0;
+    photoBtn.disabled = sendBtn.disabled || pendingAttachments.length >= 3;
+  }
+
+  function clearAttachments() {
+    pendingAttachments.forEach((attachment) => URL.revokeObjectURL(attachment.previewUrl));
+    pendingAttachments = [];
+    photoInput.value = '';
+    renderAttachments();
+  }
+
+  function attachmentPayload(attachments) {
+    return attachments.map(({name, mediaType, data}) => ({name, mediaType, data}));
+  }
+
+  photoBtn.addEventListener('click', () => photoInput.click());
+  photoInput.addEventListener('change', async () => {
+    const available = 3 - pendingAttachments.length;
+    const files = [...(photoInput.files || [])].slice(0, available);
+    if (!files.length) return;
+    photoBtn.disabled = true;
+    chatStatus.innerText = 'Preparing photos';
+    try {
+      for (const file of files) pendingAttachments.push(await prepareAttachment(file));
+      renderAttachments();
+      chatStatus.innerText = `${pendingAttachments.length} photo${pendingAttachments.length === 1 ? '' : 's'} ready`;
+    } catch (error) {
+      chatStatus.innerText = error.message;
+      renderAttachments();
+    } finally {
+      photoInput.value = '';
+      if (pendingAttachments.length < 3) photoBtn.disabled = false;
+    }
+  });
 
   function clampChatPosition(left, top) {
     const margin = 8;
@@ -1320,13 +1453,14 @@
   function restoreComposer({ focus = false } = {}) {
     chatStatus.innerText = 'Ready';
     sendBtn.disabled = false;
+    photoBtn.disabled = pendingAttachments.length >= 3;
     chatInput.disabled = false;
     chatInput.style.height = 'auto';
     if (focus && wrap.classList.contains('chat-open')) chatInput.focus();
     refreshUsage();
   }
 
-  async function runProjectBuild(instruction, customerMessage, wasEdit) {
+  async function runProjectBuild(instruction, customerMessage, wasEdit, attachments = []) {
     chatStatus.innerText = 'Building';
     const buildingBubble = addBubble(
       'nex',
@@ -1349,6 +1483,7 @@
           displayMessage: customerMessage,
           currentHtml,
           projectId: currentProjectId,
+          attachments: attachmentPayload(attachments),
         }),
         signal: abortCtrl.signal,
       });
@@ -1428,15 +1563,18 @@
   // Nex can answer, operate a safe local control, or hand a precise instruction
   // to the streamed builder. A normal question never becomes an accidental edit.
   async function sendMessage(messageOverride) {
-    const message = (typeof messageOverride === 'string' ? messageOverride : chatInput.value).trim();
+    const selectedAttachments = pendingAttachments.slice();
+    const typedMessage = (typeof messageOverride === 'string' ? messageOverride : chatInput.value).trim();
+    const message = typedMessage || (selectedAttachments.length ? 'Look at these images and help me use them on the site.' : '');
     if (!message || sendBtn.disabled) return;
     markQuickActionsUsed();
     try { localStorage.setItem('nexus-room-guide-seen-v1', '1'); } catch {}
     setChatOpen(true);
-    addBubble('user', message);
+    addBubble('user', message + (selectedAttachments.length ? ` · ${selectedAttachments.length} photo${selectedAttachments.length === 1 ? '' : 's'}` : ''));
     chatInput.value = '';
     chatInput.dispatchEvent(new Event('input'));
     sendBtn.disabled = true;
+    photoBtn.disabled = true;
     chatInput.disabled = true;
     chatStatus.innerText = 'Thinking';
     const nexBubble = addBubble('nex', 'Thinking through that…');
@@ -1452,6 +1590,7 @@
           projectLabel: currentLabel,
           currentHtml,
           viewport: document.querySelector('.canvas').dataset.viewport,
+          attachments: attachmentPayload(selectedAttachments),
         }),
       });
       if (res.status === 401) {
@@ -1464,6 +1603,7 @@
         nexBubble.innerText = decision.error || 'I couldn’t answer that right now. Try again in a moment.';
         return;
       }
+      clearAttachments();
       nexBubble.innerText = decision.message;
       if (decision.kind === 'reply') {
         addAssistantSuggestions(decision.suggestions);
@@ -1482,7 +1622,7 @@
       }
       const wasEdit = Boolean(currentHtml);
       refocusAfterTurn = false;
-      await runProjectBuild(decision.instruction, message, wasEdit);
+      await runProjectBuild(decision.instruction, message, wasEdit, selectedAttachments);
     } catch {
       nexBubble.innerText = 'I couldn’t reach the Web Builder right now. Try again in a moment.';
     } finally {

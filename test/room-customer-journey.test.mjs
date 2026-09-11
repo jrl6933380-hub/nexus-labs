@@ -35,3 +35,14 @@ test('the single dock is a conversational, project-aware Web Builder Nex', () =>
   assert.match(roomSource, /Ask Nex or describe what to build/);
   assert.match(roomSource, /projectId: currentProjectId/);
 });
+
+test('customers can attach and remove compressed images before sending them to Nex', () => {
+  assert.match(roomSource, /id="photo-input"[^>]+accept="image\/jpeg,image\/png,image\/webp"[^>]+multiple/);
+  assert.match(roomSource, /id="photo-btn"[^>]+aria-label="Add photos for Nex"/);
+  assert.match(roomSource, /id="attachment-tray"[^>]+aria-label="Attached images"/);
+  assert.match(roomSource, /async function prepareAttachment/);
+  assert.match(roomSource, /createImageBitmap/);
+  assert.match(roomSource, /pendingAttachments\.splice/);
+  assert.match(roomSource, /attachments: attachmentPayload\(selectedAttachments\)/);
+  assert.match(apiSource, /embedRoomAttachments\(stripLiveEditWidget\(html\), attachments\)/);
+});
