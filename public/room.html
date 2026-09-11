@@ -281,1382 +281,305 @@
 
   .attachment-tray[hidden] { display: none; }
   .attachment-card { position: relative; flex: 0 0 58px; width: 58px; height: 58px; }
-  .attachment-card img { width: 100%; height: 100%; object-fit: cover; border: 1px solid var(--border); border-radius: 9px; }
-  .attachment-remove {
-    position: absolute; top: -5px; right: -5px; width: 21px; height: 21px; padding: 0;
-    border: 1px solid rgba(255,255,255,.3); border-radius: 999px; background: #111827; color: #fff;
-    font: 700 14px/1 var(--sans); cursor: pointer;
-  }
-  .attachment-btn {
-    min-width: 50px; min-height: 42px; padding: 0 9px; border: 1px solid var(--border);
-    border-radius: 10px; background: rgba(255,255,255,.025); color: var(--text-dim);
-    font: 650 11px var(--sans); cursor: pointer;
-  }
-  .attachment-btn:hover, .attachment-btn:focus-visible { color: var(--cyan); border-color: rgba(93,184,255,.55); }
-  .attachment-btn:focus-visible, .attachment-remove:focus-visible { outline: 2px solid rgba(93,184,255,.62); outline-offset: 2px; }
-  .attachment-btn:disabled { opacity: .5; cursor: default; }
+  .attachment-card img { width: 100%; height: 100%; object-fit: cover; border-radius: 6px; }
 
-  .canvas {
-    position: relative;
-    background: #fff;
-    min-width: 0;
-    min-height: 0;
-    overflow: hidden;
-  }
-
-  .canvas-empty {
-    position: absolute;
+  /* Subscription modal */
+  .sub-overlay {
+    position: fixed;
     inset: 0;
-    display: flex;
+    background: rgba(0,0,0,0.55);
+    display: none;
     align-items: center;
     justify-content: center;
-    text-align: center;
-    color: #999;
+    z-index: 50;
+    padding: 16px;
+  }
+  .sub-overlay.open { display: flex; }
+
+  .sub-modal {
+    width: min(720px, 100%);
+    background: #0F1626;
+    border: 1px solid rgba(77,216,232,0.25);
+    border-radius: 14px;
+    box-shadow: 0 18px 60px rgba(0,0,0,0.6);
+    overflow: hidden;
+  }
+  .sub-head {
+    padding: 16px 18px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .sub-title {
+    font-family: var(--mono);
     font-size: 14px;
-    font-family: var(--sans);
-    padding: 0 32px;
+    font-weight: 800;
+    margin: 0;
+    color: #E4E9F2;
+  }
+  .sub-sub {
+    margin-top: 4px;
+    font-size: 12px;
+    color: #8891A3;
   }
 
-  .starter-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 9px;
-    margin-top: 20px;
-  }
-
-  .starter-card {
-    min-height: 52px;
-    padding: 11px 12px;
-    border: 1px solid rgba(148,163,184,.2);
-    border-radius: 11px;
-    background: rgba(255,255,255,.035);
-    color: var(--text);
-    font: 650 14px/1.25 var(--sans);
+  .sub-close {
+    border: 1px solid rgba(255,255,255,0.12);
+    background: transparent;
+    color: #E4E9F2;
+    border-radius: 10px;
+    padding: 8px 10px;
     cursor: pointer;
+    font-family: var(--mono);
+    font-size: 12px;
   }
 
-  .starter-card:hover,
-  .starter-card:focus-visible { border-color: rgba(77,216,232,.65); background: rgba(77,216,232,.08); }
-  .starter-card:focus-visible { outline: 2px solid rgba(77,216,232,.35); outline-offset: 2px; }
-  .starter-footnote { margin-top: 14px; color: var(--text-faint); font: 500 12px/1.4 var(--sans); }
+  .sub-body { padding: 16px 18px; }
 
-  #canvas-frame {
-    width: 100%;
-    height: 100%;
-    border: none;
+  .tiers {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+  @media (max-width: 640px) {
+    .tiers { grid-template-columns: 1fr; }
+  }
+
+  .tier {
+    border: 1px solid rgba(255,255,255,0.10);
+    background: rgba(255,255,255,0.03);
+    border-radius: 12px;
+    padding: 14px 14px;
+    cursor: pointer;
+    position: relative;
+    min-height: 160px;
+  }
+
+  .tier.selected {
+    border-color: rgba(77,216,232,0.55);
+    box-shadow: 0 0 0 2px rgba(77,216,232,0.18) inset;
+  }
+
+  .tier-name {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 800;
+    margin: 0;
+    color: #E4E9F2;
+  }
+  .tier-price {
+    margin-top: 6px;
+    font-family: var(--mono);
+    font-size: 22px;
+    color: #E4E9F2;
+  }
+  .tier-note {
+    margin-top: 6px;
+    font-size: 12px;
+    color: #8891A3;
+    line-height: 1.4;
+  }
+
+  .tier-badge {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: #06090F;
+    background: #4DD8E8;
+    padding: 4px 8px;
+    border-radius: 999px;
     display: none;
   }
 
-  #canvas-frame.visible { display: block; }
+  .tier.selected .tier-badge { display: inline-block; }
 
-  @media (max-width: 720px) {
-    .header { padding: 10px 12px; }
-    .title { font-size: 13px; }
-    .back-link, .history-btn { padding: 6px 9px; }
-
-    .room {
-      grid-template-columns: 1fr;
-      grid-template-rows: minmax(0, 1fr) auto;
-      min-height: 200px;
-    }
-
-    .canvas {
-      grid-column: 1;
-      grid-row: 1;
-    }
-
-    .chat-panel {
-      grid-column: 1;
-      grid-row: 2;
-      height: 108px;
-      border-right: 0;
-      border-top: 1px solid var(--border);
-      box-shadow: 0 -10px 30px rgba(0,0,0,.28);
-      transition: height .22s ease;
-      z-index: 10;
-    }
-
-    .room-builder-wrap.chat-open .chat-panel {
-      height: min(44dvh, 380px);
-    }
-
-    .chat-toolbar { display: flex; }
-    .chat-history { display: none; padding: 10px; }
-    .room-builder-wrap.chat-open .chat-history { display: flex; }
-
-    .input-row { padding: 8px; }
-    .chat-input { min-width: 0; padding: 10px; }
-    .send-btn { padding: 10px 13px; }
-    .bubble { font-size: 12px; max-width: 94%; }
+  .sub-foot {
+    border-top: 1px solid rgba(255,255,255,0.08);
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .chat-panel { transition: none; }
+  .sub-legal {
+    font-size: 11px;
+    color: #8891A3;
   }
 
-  .canvas-title-bar {
-    position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 10000;
-    font: 700 11px 'JetBrains Mono', monospace; letter-spacing: 0.1em; text-transform: uppercase;
-    color: #58d7ff; background: #111827e8; border: 1px solid #3c5a84; border-radius: 8px;
-    padding: 7px 16px; backdrop-filter: blur(12px);
-  }
-  /* Launch-grade builder cockpit. The inherited rules above preserve the
-     original behavior; these rules establish the product hierarchy and
-     phone-first working surface without changing the canvas engine. */
-  .room-builder-wrap {
-    --bg: #0b1018;
-    --panel: #111822;
-    --panel-raised: #18212e;
-    --border: rgba(148,163,184,.18);
-    --blue: #5db8ff;
-    --cyan: #82d5ff;
-    --text: #f4f7fb;
-    --text-dim: #a0abba;
-    --text-faint: #748094;
-    --amber: #f2ba63;
-  }
-  .header {
-    min-height: 58px; padding: 10px 12px 10px 16px; gap: 10px;
-    flex-wrap: nowrap; background: rgba(11,16,24,.96);
-  }
-  .builder-brand { display: grid; min-width: 0; gap: 1px; }
-  .title { font-family: var(--sans); font-size: 14px; font-weight: 680; letter-spacing: .01em; }
-  .project-state { color: var(--text-faint); font: 500 11px/1.2 var(--sans); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .header-actions { flex-wrap: nowrap; min-width: 0; overflow-x: auto; scrollbar-width: none; }
-  .header-actions::-webkit-scrollbar { display: none; }
-  .back-link, .history-btn {
-    min-height: 36px; padding: 7px 11px; border-radius: 9px; white-space: nowrap;
-    color: var(--text-dim); font: 600 12px var(--sans); background: rgba(255,255,255,.025);
-  }
-  .back-link:hover, .history-btn:hover, .back-link:focus-visible, .history-btn:focus-visible {
-    color: var(--text); border-color: rgba(148,163,184,.34); outline: none;
-  }
-  .history-btn.primary { color: #d9efff; border-color: rgba(93,184,255,.4); background: rgba(93,184,255,.1); }
-  .history-btn[hidden] { display: none; }
-  .usage-pill {
-    display: inline-flex; align-items: center; min-height: 34px; padding: 0 10px;
-    border: 1px solid var(--border); border-radius: 999px; color: var(--text-dim);
-    font: 600 11px var(--sans); white-space: nowrap;
-  }
-  #whoami { display: none; }
-  #history-panel {
-    top: 62px; right: 12px; width: min(340px, calc(100% - 24px)); max-height: min(520px, 72vh);
-    padding: 8px; border-radius: 13px; background: rgba(17,24,34,.98);
-    box-shadow: 0 24px 70px rgba(0,0,0,.55);
-  }
-  .history-item { padding: 11px; border-radius: 10px; border-bottom: 1px solid var(--border); }
-  .history-item .label { font-size: 13px; font-weight: 600; }
-  .history-item .meta { margin-top: 3px; font-size: 11px; }
-  .room { grid-template-columns: minmax(280px, 330px) minmax(0, 1fr); }
-  .chat-panel { background: var(--panel); }
-  .chat-toolbar { display: flex; min-height: 46px; padding: 7px 10px 7px 14px; }
-  .chat-heading { color: var(--text); font: 650 12px var(--sans); }
-  .chat-tools { display: flex; align-items: center; gap: 8px; }
-  .chat-toggle { display: none; }
-  .chat-status { color: var(--text-dim); font: 600 10px var(--mono); }
-  .voice-btn, .mic-btn {
-    min-width: 38px; height: 34px; padding: 0 9px; border: 1px solid var(--border);
-    border-radius: 9px; background: rgba(255,255,255,.025); color: var(--text-dim);
-    font: 650 10px var(--sans); cursor: pointer;
-  }
-  .voice-btn[aria-pressed="true"] { color: #88e0b9; border-color: rgba(86,214,160,.4); background: rgba(86,214,160,.08); }
-  .mic-btn.listening { color: #ff9aa7; border-color: rgba(255,124,140,.5); background: rgba(255,124,140,.08); }
-  .chat-history { padding: 16px; gap: 10px; }
-  .bubble { padding: 10px 12px; border-radius: 12px; font-size: 14px; line-height: 1.5; }
-  .bubble.user { background: #bce2ff; color: #07101a; }
-  .bubble.nex { background: rgba(255,255,255,.035); }
-  .input-row { align-items: flex-end; padding: 10px; }
-  .chat-input {
-    min-height: 42px; max-height: 112px; resize: none; padding: 10px 11px; border-radius: 10px;
-    font-size: 14px; line-height: 1.4; background: #0a0f16;
-  }
-  .send-btn { min-height: 42px; padding: 10px 14px; border-radius: 10px; color: #07101a; font: 700 12px var(--sans); }
-  .canvas { display: flex; flex-direction: column; background: #090e15; }
-  .preview-toolbar {
-    display: flex; align-items: center; gap: 8px; min-height: 46px; padding: 6px 10px;
-    border-bottom: 1px solid var(--border); background: var(--panel); overflow-x: auto; scrollbar-width: none;
-  }
-  .preview-toolbar::-webkit-scrollbar { display: none; }
-  .preview-label { margin-right: auto; color: var(--text); font: 650 12px var(--sans); white-space: nowrap; }
-  .device-switcher { display: flex; gap: 3px; padding: 3px; border: 1px solid var(--border); border-radius: 9px; background: #0a0f16; }
-  .device-btn, .preview-action {
-    height: 30px; padding: 0 9px; border: 0; border-radius: 7px; background: transparent;
-    color: var(--text-dim); font: 600 10px var(--sans); cursor: pointer; white-space: nowrap;
-  }
-  .device-btn[aria-pressed="true"] { background: var(--panel-raised); color: var(--text); }
-  .preview-action { border: 1px solid var(--border); }
-  .device-btn:focus-visible, .preview-action:focus-visible, .voice-btn:focus-visible, .mic-btn:focus-visible {
-    outline: 2px solid rgba(93,184,255,.62); outline-offset: 2px;
-  }
-  .preview-stage { position: relative; flex: 1; min-height: 0; display: flex; justify-content: center; padding: 12px; overflow: auto; }
-  #canvas-frame {
-    flex: 0 0 auto; width: 100%; height: 100%; min-height: 320px; border-radius: 10px;
-    background: #fff; box-shadow: 0 14px 40px rgba(0,0,0,.34); transition: width .2s ease;
-  }
-  .canvas[data-viewport="tablet"] #canvas-frame { width: min(768px, 100%); }
-  .canvas[data-viewport="phone"] #canvas-frame { width: min(390px, 100%); }
-  .canvas-empty { inset: 0; color: var(--text-dim); font-size: 14px; }
-  .canvas-empty-inner { max-width: 420px; }
-  .canvas-empty strong { display: block; color: var(--text); font-size: 18px; margin-bottom: 7px; }
-  .canvas-empty span { display: block; line-height: 1.55; }
-
-  @media (max-width: 720px) {
-    .header { min-height: 50px; padding: 7px 8px 7px 12px; }
-    .builder-brand { min-width: 104px; }
-    .title { font-size: 13px; }
-    .project-state { font-size: 10px; }
-    .usage-pill { display: none; }
-    .header-actions { margin-left: auto; }
-    .back-link, .history-btn { min-height: 36px; padding: 7px 10px; }
-    .room { grid-template-rows: minmax(0, 1fr) auto; }
-    .chat-panel { height: 112px; }
-    .room-builder-wrap.chat-open .chat-panel { height: min(48dvh, 410px); }
-    .chat-toggle { display: inline-flex; font-family: var(--sans); font-size: 12px; letter-spacing: 0; text-transform: none; }
-    .chat-toggle::before { box-shadow: none; }
-    .chat-heading { display: none; }
-    .chat-history { padding: 12px; }
-    .bubble { font-size: 14px; }
-    .input-row { padding: 8px; }
-    .chat-input { font-size: 16px; }
-    .preview-toolbar { min-height: 42px; padding: 5px 7px; }
-    .preview-label { display: none; }
-    .device-switcher { margin-right: auto; }
-    .preview-stage { padding: 7px; }
-    #canvas-frame { min-height: 260px; border-radius: 7px; }
-    .canvas-empty { inset: 0; padding: 24px; }
-    .starter-grid { grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 14px; }
-    .starter-card { min-height: 46px; padding: 8px; font-size: 13px; }
-    .quick-action { min-height: 40px; font-size: 13px; }
-  }
-
-  /* One movable conversation over one full project surface. The outer
-     workspace is locked by the shared canvas engine; only this dock moves. */
-  body.room-builder-page .canvas-title-bar { display: none; }
-  body.room-builder-page .nexus-canvas-brand { display: none; }
-  .room { position: relative; display: block; overflow: hidden; }
-  .canvas { position: absolute; inset: 0; }
-  .chat-panel {
-    position: absolute; right: 16px; bottom: 16px; z-index: 30;
-    width: min(410px, calc(100% - 24px)); height: min(540px, calc(100% - 24px));
-    border: 1px solid rgba(148,163,184,.24); border-radius: 16px; overflow: hidden;
-    box-shadow: 0 24px 70px rgba(0,0,0,.56); backdrop-filter: blur(18px);
-    transition: width .18s ease, height .18s ease, box-shadow .18s ease;
-  }
-  .chat-toolbar { cursor: grab; touch-action: none; user-select: none; }
-  .chat-toolbar:active { cursor: grabbing; }
-  .chat-drag-handle {
-    flex: 1; min-width: 28px; color: var(--muted); text-align: center;
-    font-family: var(--sans); font-size: 16px; letter-spacing: 3px;
-  }
-  .chat-specialty {
-    padding: 4px 7px;
-    border: 1px solid rgba(77,216,232,.22);
-    border-radius: 999px;
-    color: var(--cyan);
-    font: 650 10px/1 var(--sans);
-    white-space: nowrap;
-  }
-  .chat-toggle { display: inline-flex; color: var(--text); font-size: 12px; letter-spacing: 0; text-transform: none; }
-  .chat-toggle::before { box-shadow: none; }
-  .chat-heading { display: none; }
-  .input-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; }
-  .bubble.team {
-    align-self: stretch; max-width: 100%; border-color: rgba(242,186,99,.42);
-    background: rgba(242,186,99,.09); color: #ffe2b5;
-  }
-  .room-builder-wrap:not(.chat-open) .chat-panel { width: 112px; height: 48px; box-shadow: 0 14px 38px rgba(0,0,0,.46); }
-  .room-builder-wrap:not(.chat-open) .chat-toggle-label { display: none; }
-  .room-builder-wrap:not(.chat-open) .chat-specialty { display: none; }
-  .room-builder-wrap:not(.chat-open) .chat-history,
-  .room-builder-wrap:not(.chat-open) .input-row,
-  .room-builder-wrap:not(.chat-open) .chat-status,
-  .room-builder-wrap:not(.chat-open) .voice-btn { display: none; }
-  .room-builder-wrap:not(.chat-open) .chat-toolbar { border-bottom: 0; }
-
-  @media (max-width: 720px) {
-    .chat-panel {
-      right: 10px; bottom: 10px; width: calc(100% - 20px);
-      height: min(480px, calc(100% - 20px)); border-radius: 14px;
-    }
-    .room-builder-wrap:not(.chat-open) .chat-panel { width: 112px; height: 50px; }
+  .sub-cta {
+    border: none;
+    background: #2E7FFF;
+    color: #06090F;
+    padding: 10px 16px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 800;
   }
 </style>
 </head>
-<body class="room-builder-page">
-<script type="module">
-  import { mountCanvas } from '/canvas-engine.js';
+<body>
+<div class="room-builder-wrap" id="forge-root">
 
-  const titleBar = document.createElement('div');
-  titleBar.className = 'canvas-title-bar';
-  titleBar.textContent = 'Room Builder';
-  document.body.appendChild(titleBar);
+  <div class="header">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div class="title">Nexus Forge</div>
+      <div id="whoami">touch to pick a plan</div>
+    </div>
+    <div class="header-actions">
+      <button class="history-btn" type="button" id="open-history" style="display:none">History</button>
+    </div>
+  </div>
 
-  const canvas = mountCanvas({ canvasId: 'room-builder', canvasTitle: 'Room Builder' });
-
-  const wrap = document.createElement('div');
-  wrap.className = 'room-builder-wrap';
-  wrap.innerHTML = `
-    <div class="header">
-      <div class="builder-brand">
-        <span class="title">Nexus Forge</span>
-        <span class="project-state" id="project-state">AI Website &amp; App Builder · New project</span>
-      </div>
-      <div class="header-actions">
-        <span class="usage-pill" id="usage-pill">Usage —</span>
-        <button class="history-btn" id="new-btn" type="button">New</button>
-        <span id="whoami"></span>
-        <button class="history-btn" id="import-btn" type="button">Import Nexus</button>
-        <button class="history-btn" id="export-btn" type="button" disabled>Export</button>
-        <button class="history-btn push-btn" id="push-btn" type="button" hidden disabled>Open PR</button>
-        <button class="history-btn primary" id="history-btn" type="button">Projects</button>
-        <button class="back-link" id="logout-btn" type="button">Sign out</button>
-      </div>
-      <div id="history-panel">
-        <div id="history-list" class="history-empty">Loading…</div>
+  <div class="room">
+    <div class="chat-panel" aria-label="Forge chat">
+      <div class="chat-history" id="chat-history"></div>
+      <div class="input-row">
+        <textarea class="chat-input" id="chat-input" rows="1" placeholder="Say something…"></textarea>
+        <button class="send-btn" id="chat-send" type="button">Send</button>
       </div>
     </div>
+    <div style="background: rgba(255,255,255,0.02);"></div>
+  </div>
+</div>
 
-    <div class="room">
-      <aside class="chat-panel">
-        <div class="chat-toolbar">
-          <button class="chat-toggle" id="chat-toggle" type="button" aria-expanded="false">
-            Nex <span class="chat-toggle-label" id="chat-toggle-label">Open conversation</span>
-          </button>
-          <span class="chat-specialty">Forge AI</span>
-          <span class="chat-drag-handle" aria-hidden="true" title="Drag chat">•••</span>
-          <span class="chat-heading">Build with Nex</span>
-          <div class="chat-tools">
-            <span class="chat-status" id="chat-status" role="status" aria-live="polite">Ready</span>
-            <button class="voice-btn" id="voice-btn" type="button" aria-label="Toggle spoken build updates" aria-pressed="false">Audio</button>
-          </div>
-        </div>
-        <div class="chat-history" id="chat-history"></div>
-        <div class="attachment-tray" id="attachment-tray" aria-label="Attached images" hidden></div>
-        <div class="input-row">
-          <input id="photo-input" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden>
-          <button class="attachment-btn" id="photo-btn" type="button" aria-label="Add photos for Nex">Photo</button>
-          <textarea class="chat-input" id="chat-input" rows="1" aria-label="Ask Nex or describe what to build or change" placeholder="Ask Nex or describe what to build…"></textarea>
-          <button class="mic-btn" id="mic-btn" type="button" aria-label="Speak to Nex">Mic</button>
-          <button class="send-btn" id="send-btn" type="button">Send</button>
-        </div>
-      </aside>
-
-      <main class="canvas" data-viewport="responsive">
-        <div class="preview-toolbar">
-          <span class="preview-label">Live preview</span>
-          <div class="device-switcher" role="group" aria-label="Preview size">
-            <button class="device-btn" type="button" data-viewport="responsive" aria-pressed="true">Fit</button>
-            <button class="device-btn" type="button" data-viewport="tablet" aria-pressed="false">Tablet</button>
-            <button class="device-btn" type="button" data-viewport="phone" aria-pressed="false">Phone</button>
-          </div>
-          <button class="preview-action" id="refresh-btn" type="button" disabled>Refresh</button>
-          <button class="preview-action" id="open-preview-btn" type="button" disabled>Open</button>
-        </div>
-        <div class="preview-stage">
-          <div class="canvas-empty" id="canvas-empty">
-            <div class="canvas-empty-inner">
-              <strong>Turn your idea into a working site or app.</strong>
-              <span>Describe it to Nex. He’ll build the first version, save every update, and bring in the Nexus Build Team automatically when the job needs more hands.</span>
-              <div class="starter-grid" aria-label="Project starting points">
-                <button class="starter-card" type="button" data-starter="business">Business website</button>
-                <button class="starter-card" type="button" data-starter="landing">Landing page</button>
-                <button class="starter-card" type="button" data-starter="portfolio">Portfolio</button>
-                <button class="starter-card" type="button" data-starter="app">App or tool</button>
-              </div>
-              <div class="starter-footnote">Describe the result you want. Nex handles the build plan.</div>
-            </div>
-          </div>
-          <iframe id="canvas-frame" sandbox="allow-scripts allow-forms" title="Live project preview"></iframe>
-        </div>
-      </main>
+<!-- Subscription modal (touch-to-open) -->
+<div class="sub-overlay" id="sub-overlay" role="dialog" aria-modal="true" aria-label="Choose a subscription plan">
+  <div class="sub-modal">
+    <div class="sub-head">
+      <div>
+        <div class="sub-title">Choose your plan</div>
+        <div class="sub-sub">Starting with Free. You can upgrade anytime.</div>
+      </div>
+      <button class="sub-close" id="sub-close" type="button">Not now</button>
     </div>
-  `;
+    <div class="sub-body">
+      <div class="tiers" id="tiers">
+        <div class="tier selected" data-plan="free" tabindex="0" role="button">
+          <div class="tier-badge">Selected</div>
+          <div class="tier-name">Free</div>
+          <div class="tier-price">$0</div>
+          <div class="tier-note">Try Forge essentials. Build, preview, and learn.</div>
+        </div>
+        <div class="tier" data-plan="starter" tabindex="0" role="button">
+          <div class="tier-name">Starter</div>
+          <div class="tier-price">$19</div>
+          <div class="tier-note">More renders + priority templates.</div>
+        </div>
+        <div class="tier" data-plan="pro" tabindex="0" role="button">
+          <div class="tier-name">Pro</div>
+          <div class="tier-price">$49</div>
+          <div class="tier-note">Team-ready workflows + advanced exports.</div>
+        </div>
+      </div>
+    </div>
+    <div class="sub-foot">
+      <div class="sub-legal">We’ll default you to Free unless you choose otherwise.</div>
+      <button class="sub-cta" id="sub-cta" type="button">Continue with Free</button>
+    </div>
+  </div>
+</div>
 
-  canvas.addPanel({ id: 'room-builder', title: 'Room Builder', content: wrap, locked: true });
-
-  // ---- Auth gate: bounce to login if there's no valid session ----
-  // Runs before anything else renders meaningfully. A 401 here means
-  // no session cookie or an expired one — send to the login page
-  // rather than showing a room that will just fail on first message.
-  (async function requireSession() {
-    try {
-      const res = await fetch('/api/room-auth');
-      if (!res.ok) {
-        window.location.href = '/room-login.html';
-        return;
-      }
-      const data = await res.json();
-      document.getElementById('whoami').innerText = data.username;
-    } catch (err) {
-      window.location.href = '/room-login.html';
-    }
-  })();
-
-  document.getElementById('logout-btn').addEventListener('click', async () => {
-    try {
-      await fetch('/api/room-auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'logout' }),
-      });
-    } finally {
-      window.location.href = '/room-login.html';
-    }
-  });
-
-  // ---- Project state: the current document plus enough local metadata to
-  // drive safe actions and a clear phone-first workflow. ----
-  function newProjectId() {
-    if (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') return globalThis.crypto.randomUUID();
-    return `room-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-  }
-
-  let currentHtml = '';
-  let currentLabel = 'New project';
-  let currentProjectId = newProjectId();
-
-  const frame = document.getElementById('canvas-frame');
-  const emptyState = document.getElementById('canvas-empty');
-  const pushBtn = document.getElementById('push-btn');
-  const exportBtn = document.getElementById('export-btn');
-  const openPreviewBtn = document.getElementById('open-preview-btn');
-  const refreshBtn = document.getElementById('refresh-btn');
-  const projectState = document.getElementById('project-state');
-  const usagePill = document.getElementById('usage-pill');
-
-  function isNexusImport(html) {
-    return /<!-- NEXUS_SAFETY_SHIM_START -->/i.test(html);
-  }
-
-  function renderHtml(html, { label, projectId } = {}) {
-    // Older saved builds may contain the retired in-project editor bubble.
-    // The movable builder dock is now the one and only conversation surface.
-    html = stripLiveEditWidget(html);
-    currentHtml = html;
-    currentLabel = label || currentLabel || 'Untitled project';
-    if (projectId) currentProjectId = projectId;
-    frame.srcdoc = html;
-    frame.classList.add('visible');
-    emptyState.style.display = 'none';
-    projectState.innerText = `AI Website & App Builder · ${currentLabel}`;
-    exportBtn.disabled = false;
-    openPreviewBtn.disabled = false;
-    refreshBtn.disabled = false;
-    // Opening a PR changes the real Nexus homepage and therefore appears only
-    // for an imported, visibly sandboxed Nexus copy — never for an ordinary
-    // customer project generated from scratch.
-    pushBtn.hidden = !isNexusImport(html);
-    pushBtn.disabled = pushBtn.hidden;
-  }
-
-  function resetProject() {
-    currentHtml = '';
-    currentLabel = 'New project';
-    currentProjectId = newProjectId();
-    projectState.innerText = `AI Website & App Builder · ${currentLabel}`;
-    frame.srcdoc = '';
-    frame.classList.remove('visible');
-    emptyState.style.display = '';
-    exportBtn.disabled = true;
-    openPreviewBtn.disabled = true;
-    refreshBtn.disabled = true;
-    pushBtn.hidden = true;
-    pushBtn.disabled = true;
-  }
-
-  function stripLiveEditWidget(html) {
-    return html.replace(/<!-- NEXUS_LIVE_EDIT_WIDGET_START -->[\s\S]*?<!-- NEXUS_LIVE_EDIT_WIDGET_END -->\n?/i, '');
-  }
-
-  function portableHtml() {
-    return stripSafetyShim(stripLiveEditWidget(currentHtml));
-  }
-
-  function projectBlobUrl() {
-    return URL.createObjectURL(new Blob([portableHtml()], { type: 'text/html;charset=utf-8' }));
-  }
-
-  document.getElementById('new-btn').addEventListener('click', () => {
-    if (currentHtml && !window.confirm('Start a new project? Your saved versions will stay in Projects.')) return;
-    resetProject();
-    chatHistory.replaceChildren();
-    showWelcomeGuide({ returning: true });
-    setChatOpen(true);
-    chatInput.focus();
-  });
-
-  exportBtn.addEventListener('click', () => {
-    if (!currentHtml) return;
-    const url = projectBlobUrl();
-    const download = document.createElement('a');
-    download.href = url;
-    download.download = 'nexus-project.html';
-    download.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  });
-
-  openPreviewBtn.addEventListener('click', () => {
-    if (!currentHtml) return;
-    const url = projectBlobUrl();
-    window.open(url, '_blank', 'noopener,noreferrer');
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
-  });
-
-  refreshBtn.addEventListener('click', () => {
-    if (!currentHtml) return;
-    frame.srcdoc = currentHtml;
-  });
-
-  function setPreviewViewport(viewport) {
-    const nextViewport = ['responsive', 'tablet', 'phone'].includes(viewport) ? viewport : 'responsive';
-    document.querySelector('.canvas').dataset.viewport = nextViewport;
-    document.querySelectorAll('.device-btn').forEach((candidate) => {
-      candidate.setAttribute('aria-pressed', String(candidate.dataset.viewport === nextViewport));
-    });
-  }
-
-  document.querySelectorAll('.device-btn').forEach((button) => {
-    button.addEventListener('click', () => setPreviewViewport(button.dataset.viewport));
-  });
-
-  async function refreshUsage() {
-    try {
-      const res = await fetch('/api/room-usage', { headers: { Accept: 'application/json' }, cache: 'no-store' });
-      if (!res.ok) return;
-      const { usage } = await res.json();
-      if (usage.unlimited) {
-        usagePill.innerText = 'Owner · unlimited';
-        usagePill.title = 'Owner account is exempt from creative credit limits';
-        return;
-      }
-      usagePill.innerText = `${usage.remaining} credits left`;
-      usagePill.title = `${usage.consumed} used of ${usage.limit} this period`;
-    } catch {
-      usagePill.innerText = 'Usage unavailable';
-    }
-  }
-
-  refreshUsage();
-
-  // ---- History panel -------------------------------------------
-  const historyBtn = document.getElementById('history-btn');
-  const historyPanel = document.getElementById('history-panel');
-  const historyList = document.getElementById('history-list');
-
-  function formatWhen(ts) {
-    const diffMin = Math.round((Date.now() - ts) / 60000);
-    if (diffMin < 1) return 'just now';
-    if (diffMin < 60) return `${diffMin}m ago`;
-    const diffHr = Math.round(diffMin / 60);
-    if (diffHr < 24) return `${diffHr}h ago`;
-    return new Date(ts).toLocaleDateString();
-  }
-
-  async function loadHistoryList() {
-    historyList.className = 'history-empty';
-    historyList.innerText = 'Loading…';
-    try {
-      const res = await fetch('/api/room-history');
-      const data = await res.json();
-      const builds = data.builds || [];
-      if (builds.length === 0) {
-        historyList.innerText = 'No saved builds yet.';
-        return;
-      }
-      historyList.className = '';
-      historyList.innerHTML = '';
-      builds.forEach((b) => {
-        const item = document.createElement('div');
-        item.className = 'history-item';
-        item.innerHTML = `<div class="label"></div><div class="meta"></div>`;
-        item.querySelector('.label').innerText = b.label;
-        item.querySelector('.meta').innerText = formatWhen(b.createdAt);
-        item.addEventListener('click', () => loadBuild(b.id));
-        const download = document.createElement('a');
-        download.textContent = 'Download HTML';
-        download.href = '/api/room-history?id=' + encodeURIComponent(b.id) + '&download=html';
-        download.setAttribute('download', 'nexus-build.html');
-        download.style.cssText = 'display:inline-block;padding:12px 0;color:var(--cyan)';
-        download.title = 'Download generated code. Review before opening; external services are not bundled.';
-        download.addEventListener('click', (event) => event.stopPropagation());
-        item.appendChild(download);
-        historyList.appendChild(item);
-      });
-    } catch (err) {
-      historyList.className = 'history-empty';
-      historyList.innerText = "Couldn't load history.";
-    }
-  }
-
-  async function loadBuild(id) {
-    try {
-      const res = await fetch('/api/room-history?id=' + encodeURIComponent(id));
-      const data = await res.json();
-      if (data.build) {
-        const projectId = data.build.projectId || data.build.id;
-        renderHtml(data.build.html, { label: data.build.label || 'Saved project', projectId });
-        await loadProjectConversation(projectId);
-        addBubble('nex', `Loaded "${data.build.label}" from history.`);
-        showNextSteps();
-        historyPanel.classList.remove('open');
-        historyBtn.classList.remove('active');
-      }
-    } catch (err) {
-      addBubble('nex', "Couldn't load that build.");
-    }
-  }
-
-  historyBtn.addEventListener('click', () => {
-    const opening = !historyPanel.classList.contains('open');
-    historyPanel.classList.toggle('open', opening);
-    historyBtn.classList.toggle('active', opening);
-    if (opening) loadHistoryList();
-  });
-
-  // ---- Chat -------------------------------------------
-  const chatHistory = document.getElementById('chat-history');
-  const chatInput = document.getElementById('chat-input');
-  const sendBtn = document.getElementById('send-btn');
-  const photoBtn = document.getElementById('photo-btn');
-  const photoInput = document.getElementById('photo-input');
-  const attachmentTray = document.getElementById('attachment-tray');
-  const chatToggle = document.getElementById('chat-toggle');
-  const chatToggleLabel = document.getElementById('chat-toggle-label');
-  const chatStatus = document.getElementById('chat-status');
-  const chatPanel = wrap.querySelector('.chat-panel');
-  const chatToolbar = wrap.querySelector('.chat-toolbar');
-  const roomSurface = wrap.querySelector('.room');
-  const mobileLayout = window.matchMedia('(max-width: 720px)');
-  const chatPositionKey = 'nexus-room-chat-position-v2';
-  const acceptedImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
-  let pendingAttachments = [];
-
-  function blobToAttachment(blob, name) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.addEventListener('load', () => resolve({
-        name,
-        mediaType: blob.type,
-        data: String(reader.result || '').split(',')[1] || '',
-        previewUrl: URL.createObjectURL(blob),
-      }));
-      reader.addEventListener('error', () => reject(new Error('Could not read that image')));
-      reader.readAsDataURL(blob);
-    });
-  }
-
-  function canvasBlob(canvas, type, quality) {
-    return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
-  }
-
-  async function prepareAttachment(file) {
-    if (!acceptedImageTypes.has(file.type)) throw new Error('Choose a JPG, PNG, or WebP image.');
-    if (file.size > 10_000_000) throw new Error('Choose an image under 10 MB.');
-    if (file.size <= 650_000) return blobToAttachment(file, file.name);
-
-    const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-    canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    bitmap.close();
-    let blob = await canvasBlob(canvas, 'image/webp', .82);
-    if (blob?.size > 750_000) {
-      const smaller = document.createElement('canvas');
-      const retryScale = Math.min(1, 1100 / Math.max(canvas.width, canvas.height));
-      smaller.width = Math.max(1, Math.round(canvas.width * retryScale));
-      smaller.height = Math.max(1, Math.round(canvas.height * retryScale));
-      smaller.getContext('2d').drawImage(canvas, 0, 0, smaller.width, smaller.height);
-      blob = await canvasBlob(smaller, 'image/webp', .7);
-    }
-    if (!blob || blob.size > 750_000) throw new Error('That image could not be compressed enough.');
-    return blobToAttachment(blob, file.name.replace(/\.[^.]+$/u, '') + '.webp');
-  }
-
-  function renderAttachments() {
-    attachmentTray.replaceChildren();
-    pendingAttachments.forEach((attachment, index) => {
-      const card = document.createElement('div');
-      card.className = 'attachment-card';
-      const image = document.createElement('img');
-      image.src = attachment.previewUrl;
-      image.alt = attachment.name;
-      const remove = document.createElement('button');
-      remove.type = 'button';
-      remove.className = 'attachment-remove';
-      remove.setAttribute('aria-label', `Remove ${attachment.name}`);
-      remove.textContent = '×';
-      remove.addEventListener('click', () => {
-        URL.revokeObjectURL(pendingAttachments[index].previewUrl);
-        pendingAttachments.splice(index, 1);
-        renderAttachments();
-      });
-      card.append(image, remove);
-      attachmentTray.append(card);
-    });
-    attachmentTray.hidden = pendingAttachments.length === 0;
-    photoBtn.disabled = sendBtn.disabled || pendingAttachments.length >= 3;
-  }
-
-  function clearAttachments() {
-    pendingAttachments.forEach((attachment) => URL.revokeObjectURL(attachment.previewUrl));
-    pendingAttachments = [];
-    photoInput.value = '';
-    renderAttachments();
-  }
-
-  function attachmentPayload(attachments) {
-    return attachments.map(({name, mediaType, data}) => ({name, mediaType, data}));
-  }
-
-  photoBtn.addEventListener('click', () => photoInput.click());
-  photoInput.addEventListener('change', async () => {
-    const available = 3 - pendingAttachments.length;
-    const files = [...(photoInput.files || [])].slice(0, available);
-    if (!files.length) return;
-    photoBtn.disabled = true;
-    chatStatus.innerText = 'Preparing photos';
-    try {
-      for (const file of files) pendingAttachments.push(await prepareAttachment(file));
-      renderAttachments();
-      chatStatus.innerText = `${pendingAttachments.length} photo${pendingAttachments.length === 1 ? '' : 's'} ready`;
-    } catch (error) {
-      chatStatus.innerText = error.message;
-      renderAttachments();
-    } finally {
-      photoInput.value = '';
-      if (pendingAttachments.length < 3) photoBtn.disabled = false;
-    }
-  });
-
-  function clampChatPosition(left, top) {
-    const margin = 8;
-    return {
-      left: Math.max(margin, Math.min(left, roomSurface.clientWidth - chatPanel.offsetWidth - margin)),
-      top: Math.max(margin, Math.min(top, roomSurface.clientHeight - chatPanel.offsetHeight - margin)),
-    };
-  }
-
-  function setChatPosition(left, top, persist = false) {
-    const position = clampChatPosition(left, top);
-    chatPanel.style.left = position.left + 'px';
-    chatPanel.style.top = position.top + 'px';
-    chatPanel.style.right = 'auto';
-    chatPanel.style.bottom = 'auto';
-    if (persist) {
-      try { localStorage.setItem(chatPositionKey, JSON.stringify(position)); } catch {}
-    }
-  }
-
-  function reclampChatPosition() {
-    if (!chatPanel.style.left) return;
-    const roomRect = roomSurface.getBoundingClientRect();
-    const chatRect = chatPanel.getBoundingClientRect();
-    setChatPosition(chatRect.left - roomRect.left, chatRect.top - roomRect.top);
-  }
-
-  function setChatOpen(open) {
-    wrap.classList.toggle('chat-open', open);
-    chatToggle.setAttribute('aria-expanded', String(open));
-    chatToggle.setAttribute('aria-label', open ? 'Minimize Nex chat' : 'Open Nex chat');
-    chatToggleLabel.innerText = open ? 'Minimize' : 'Open conversation';
-    requestAnimationFrame(reclampChatPosition);
-  }
-
-  chatToggle.addEventListener('click', () => {
-    setChatOpen(!wrap.classList.contains('chat-open'));
-  });
-
-  setChatOpen(!mobileLayout.matches);
-  mobileLayout.addEventListener('change', (event) => setChatOpen(!event.matches));
-
-  requestAnimationFrame(() => {
-    try {
-      const savedPosition = JSON.parse(localStorage.getItem(chatPositionKey) || 'null');
-      if (savedPosition && Number.isFinite(savedPosition.left) && Number.isFinite(savedPosition.top)) {
-        setChatPosition(savedPosition.left, savedPosition.top);
-      }
-    } catch {}
-  });
-
-  let chatDrag = null;
-  chatToolbar.addEventListener('pointerdown', (event) => {
-    if (event.button !== 0 || event.target.closest('button, input, textarea')) return;
-    const roomRect = roomSurface.getBoundingClientRect();
-    const chatRect = chatPanel.getBoundingClientRect();
-    chatDrag = {
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      left: chatRect.left - roomRect.left,
-      top: chatRect.top - roomRect.top,
-    };
-    chatToolbar.setPointerCapture(event.pointerId);
-    event.preventDefault();
-  });
-
-  chatToolbar.addEventListener('pointermove', (event) => {
-    if (!chatDrag || event.pointerId !== chatDrag.pointerId) return;
-    setChatPosition(
-      chatDrag.left + event.clientX - chatDrag.startX,
-      chatDrag.top + event.clientY - chatDrag.startY,
-    );
-  });
-
-  function finishChatDrag(event) {
-    if (!chatDrag || event.pointerId !== chatDrag.pointerId) return;
-    const roomRect = roomSurface.getBoundingClientRect();
-    const chatRect = chatPanel.getBoundingClientRect();
-    setChatPosition(chatRect.left - roomRect.left, chatRect.top - roomRect.top, true);
-    if (chatToolbar.hasPointerCapture(event.pointerId)) chatToolbar.releasePointerCapture(event.pointerId);
-    chatDrag = null;
-  }
-
-  chatToolbar.addEventListener('pointerup', finishChatDrag);
-  chatToolbar.addEventListener('pointercancel', finishChatDrag);
-  window.addEventListener('resize', () => requestAnimationFrame(reclampChatPosition));
-
-  function addBubble(role, text) {
-    const el = document.createElement('div');
-    el.className = 'bubble ' + role;
-    el.innerText = text;
-    chatHistory.appendChild(el);
-    chatHistory.scrollTop = chatHistory.scrollHeight;
-    return el;
-  }
-
-  async function loadProjectConversation(projectId) {
-    try {
-      const res = await fetch('/api/room-conversation?projectId=' + encodeURIComponent(projectId), {
-        headers: { Accept: 'application/json' },
-        cache: 'no-store',
-      });
-      if (!res.ok) return false;
-      const data = await res.json();
-      if (!Array.isArray(data.turns) || data.turns.length === 0) return false;
-      chatHistory.replaceChildren();
-      data.turns.forEach((turn) => addBubble(turn.role === 'assistant' ? 'nex' : 'user', turn.text));
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  const starterGuides = {
-    business: {
-      label: 'Business website',
-      draft: 'Build a professional business website for ',
-      question: 'Great. Tell me the business name, what it does, and the main action visitors should take—like requesting a quote or booking a call.',
-    },
-    landing: {
-      label: 'Landing page',
-      draft: 'Build a polished landing page for ',
-      question: 'Tell me what you’re launching, who it’s for, and the one action you want visitors to take.',
-    },
-    portfolio: {
-      label: 'Portfolio',
-      draft: 'Build a polished portfolio for ',
-      question: 'Tell me whose work we’re showing, their specialty, and what a visitor should do after viewing it.',
-    },
-    app: {
-      label: 'App or tool',
-      draft: 'Build a working app or tool that ',
-      question: 'Tell me who will use it, the main job it should do, and its most important interaction. I’ll start with one complete working flow.',
-    },
-  };
-
-  function markQuickActionsUsed() {
-    chatHistory.querySelectorAll('.quick-actions:not(.is-used)').forEach((row) => row.classList.add('is-used'));
-  }
-
-  function addQuickActions(actions) {
-    const row = document.createElement('div');
-    row.className = 'quick-actions';
-    actions.forEach(({ label, run }) => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'quick-action';
-      button.innerText = label;
-      button.addEventListener('click', () => {
-        if (row.classList.contains('is-used')) return;
-        markQuickActionsUsed();
-        run();
-      });
-      row.appendChild(button);
-    });
-    chatHistory.appendChild(row);
-    chatHistory.scrollTop = chatHistory.scrollHeight;
-    return row;
-  }
-
-  function setPromptDraft(text) {
-    setChatOpen(true);
-    chatInput.value = text;
-    chatInput.dispatchEvent(new Event('input'));
-    chatInput.focus();
-    chatInput.setSelectionRange(text.length, text.length);
-  }
-
-  function addAssistantSuggestions(suggestions) {
-    if (!Array.isArray(suggestions) || suggestions.length === 0) return;
-    addQuickActions(suggestions.map((suggestion) => ({
-      label: suggestion,
-      run: () => setPromptDraft(suggestion),
-    })));
-  }
-
-  function executeWorkspaceCommand(command) {
-    if (command === 'preview_phone') {
-      setPreviewViewport('phone');
-      return null;
-    }
-    if (command === 'preview_tablet') {
-      setPreviewViewport('tablet');
-      return null;
-    }
-    if (command === 'preview_fit') {
-      setPreviewViewport('responsive');
-      return null;
-    }
-    if (command === 'open_projects') {
-      historyPanel.classList.add('open');
-      historyBtn.classList.add('active');
-      loadHistoryList();
-      return null;
-    }
-    if (command === 'open_preview') {
-      if (!currentHtml) return 'Build or open a project first, then I can open its preview.';
-      openPreviewBtn.click();
-      return null;
-    }
-    if (command === 'export_project') {
-      if (!currentHtml) return 'Build or open a project first, then I can export it.';
-      exportBtn.click();
-      return null;
-    }
-    return 'I can’t run that workspace action.';
-  }
-
-  function chooseStarter(key) {
-    const guide = starterGuides[key];
-    if (!guide) return;
-    markQuickActionsUsed();
-    setChatOpen(true);
-    addBubble('user', guide.label);
-    addBubble('nex', guide.question);
-    setPromptDraft(guide.draft);
-    try { localStorage.setItem('nexus-room-guide-seen-v1', '1'); } catch {}
-  }
-
-  function showWelcomeGuide({ returning = false } = {}) {
-    addBubble(
-      'nex',
-      returning
-        ? 'New project ready. Describe the whole idea or choose a starting point. If the instant builder reaches its limit, I’ll bring in the Nexus Build Team automatically.'
-        : 'Welcome to Nexus Forge. I’m Nex—describe the site or app you want, and I’ll build it. If it needs more than one pass, I’ll bring in the Nexus Build Team automatically.',
-    );
-    addQuickActions(Object.entries(starterGuides).map(([key, guide]) => ({
-      label: guide.label,
-      run: () => chooseStarter(key),
-    })));
-  }
-
-  function showNextSteps({ saved = true } = {}) {
-    addBubble(
-      'nex',
-      saved
-        ? 'Your version is saved. Move me aside to inspect it, then choose a next step or describe any change in your own words.'
-        : 'Move me aside to inspect this version, then choose a next step or describe any change in your own words. Export it now if you want to keep this copy.',
-    );
-    addQuickActions([
-      {
-        label: 'Polish mobile',
-        run: () => sendMessage('Polish the mobile experience: improve spacing, tap targets, text sizing, and layout without changing the core design.'),
-      },
-      {
-        label: 'Refine design',
-        run: () => setPromptDraft('Refine the visual design by '),
-      },
-      {
-        label: 'Add a feature',
-        run: () => setPromptDraft('Add a feature that '),
-      },
-      {
-        label: 'Export help',
-        run: () => {
-          addBubble('user', 'How do I take this with me?');
-          addBubble('nex', 'Use Export at the top to download the current project as a self-contained HTML file. Your saved versions stay available under Projects.');
-          exportBtn.focus();
-        },
-      },
-    ]);
-  }
-
-  // Voice uses the browser's built-in speech APIs and remains opt-in. No
-  // recording or transcript is stored outside the normal build request.
-  const micBtn = document.getElementById('mic-btn');
-  const voiceBtn = document.getElementById('voice-btn');
-  const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
-  const speechOutputSupported = 'speechSynthesis' in window;
-  let voiceEnabled = false;
-  let recognition = null;
-
-  try { voiceEnabled = localStorage.getItem('nexus-room-voice-v1') === 'true'; } catch {}
-
-  function updateVoiceButton() {
-    voiceBtn.setAttribute('aria-pressed', String(voiceEnabled));
-    voiceBtn.innerText = voiceEnabled ? 'Audio on' : 'Audio';
-  }
-
-  function speakUpdate(text) {
-    if (!voiceEnabled || !speechOutputSupported) return;
-    window.speechSynthesis.cancel();
-    const message = new SpeechSynthesisUtterance(text);
-    message.rate = 1.02;
-    window.speechSynthesis.speak(message);
-  }
-
-  if (speechOutputSupported) {
-    updateVoiceButton();
-    voiceBtn.addEventListener('click', () => {
-      voiceEnabled = !voiceEnabled;
-      try { localStorage.setItem('nexus-room-voice-v1', String(voiceEnabled)); } catch {}
-      if (!voiceEnabled) window.speechSynthesis.cancel();
-      updateVoiceButton();
-    });
-  } else {
-    voiceBtn.remove();
-  }
-
-  if (SpeechRecognitionImpl) {
-    recognition = new SpeechRecognitionImpl();
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.lang = 'en-US';
-    recognition.addEventListener('start', () => {
-      micBtn.classList.add('listening');
-      micBtn.innerText = 'Listening';
-      chatStatus.innerText = 'Listening';
-    });
-    recognition.addEventListener('end', () => {
-      micBtn.classList.remove('listening');
-      micBtn.innerText = 'Mic';
-      if (!sendBtn.disabled) chatStatus.innerText = 'Ready';
-    });
-    recognition.addEventListener('error', () => {
-      micBtn.classList.remove('listening');
-      micBtn.innerText = 'Mic';
-      chatStatus.innerText = 'Ready';
-    });
-    recognition.addEventListener('result', (event) => {
-      let transcript = '';
-      for (let index = event.resultIndex; index < event.results.length; index += 1) {
-        transcript += event.results[index][0].transcript;
-      }
-      chatInput.value = transcript;
-      chatInput.dispatchEvent(new Event('input'));
-    });
-    micBtn.addEventListener('click', () => {
-      if (speechOutputSupported) window.speechSynthesis.cancel();
-      recognition.start();
-    });
-  } else {
-    micBtn.remove();
-  }
-
-  chatInput.addEventListener('input', () => {
-    chatInput.style.height = 'auto';
-    chatInput.style.height = `${Math.min(chatInput.scrollHeight, 112)}px`;
-  });
-
-  let hasSeenGuide = false;
-  try { hasSeenGuide = localStorage.getItem('nexus-room-guide-seen-v1') === '1'; } catch {}
-  showWelcomeGuide({ returning: hasSeenGuide });
-  document.querySelectorAll('[data-starter]').forEach((button) => {
-    button.addEventListener('click', () => chooseStarter(button.dataset.starter));
-  });
-
-  // ---- Import / Push -------------------------------------------
-  // Import: fetch the ACTUAL live public/index.html (same-origin, so
-  // this is a plain fetch, not an API call) and inject a safety shim
-  // before rendering it into the canvas. The shim:
-  //  - overrides window.fetch to always reject, so nothing in the
-  //    imported page can hit a real endpoint (a real chat message, a
-  //    real queue action) no matter how the sandboxed srcdoc iframe
-  //    resolves relative URLs;
-  //  - polyfills localStorage with an in-memory stand-in, because the
-  //    canvas iframe has no allow-same-origin and the real page's
-  //    unguarded localStorage.getItem call would otherwise throw and
-  //    break the rest of its script;
-  //  - shows a visible "SAFE COPY" banner so it's never mistaken for
-  //    the live page.
-  // Push: strips that shim back out and posts the result to
-  // /api/room-push, which opens a real branch + PR — never merges.
-  const SAFETY_SHIM = `<!-- NEXUS_SAFETY_SHIM_START -->
-<div style="position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#E8A94D;color:#0A0E14;font:600 12px 'JetBrains Mono',monospace;text-align:center;padding:6px;">SAFE COPY — imported from the real Nexus Labs, not live. Redesign freely.</div>
 <script>
-(function(){
-  window.fetch = function(){ return Promise.reject(new Error('Live network calls are disabled in this copy.')); };
-  var memoryStore = {};
-  var fakeStorage = {
-    getItem: function(k){ return Object.prototype.hasOwnProperty.call(memoryStore, k) ? memoryStore[k] : null; },
-    setItem: function(k, v){ memoryStore[k] = String(v); },
-    removeItem: function(k){ delete memoryStore[k]; },
-    clear: function(){ memoryStore = {}; }
-  };
-  try { Object.defineProperty(window, 'localStorage', { value: fakeStorage, configurable: true }); } catch (e) {}
-})();
-<\/script>
-<!-- NEXUS_SAFETY_SHIM_END -->`;
+  (function () {
+    const STORAGE_KEY = 'forge_sub_modal_seen_v1';
+    const overlay = document.getElementById('sub-overlay');
+    const closeBtn = document.getElementById('sub-close');
+    const ctaBtn = document.getElementById('sub-cta');
+    const tiers = document.getElementById('tiers');
 
-  function injectSafetyShim(html) {
-    if (/<body[^>]*>/i.test(html)) {
-      return html.replace(/<body([^>]*)>/i, '<body$1>\n' + SAFETY_SHIM);
+    if (!overlay || !closeBtn || !ctaBtn || !tiers) return;
+
+    const plans = {
+      free: { label: 'Free', cta: 'Continue with Free' },
+      starter: { label: 'Starter', cta: 'Continue with Starter' },
+      pro: { label: 'Pro', cta: 'Continue with Pro' }
+    };
+
+    function getSelectedPlan() {
+      const selected = tiers.querySelector('.tier.selected');
+      return selected ? selected.getAttribute('data-plan') : 'free';
     }
-    return SAFETY_SHIM + html;
-  }
 
-  function stripSafetyShim(html) {
-    return html.replace(/<!-- NEXUS_SAFETY_SHIM_START -->[\s\S]*?<!-- NEXUS_SAFETY_SHIM_END -->\n?/i, '');
-  }
-
-  document.getElementById('import-btn').addEventListener('click', async () => {
-    try {
-      const res = await fetch('/index.html');
-      const raw = await res.text();
-      renderHtml(injectSafetyShim(raw), { label: 'Nexus homepage redesign' });
-      addBubble('nex', 'Imported a safe Nexus homepage copy. Network calls are disabled here. Make your changes, then Open PR when it is ready for review.');
-    } catch (err) {
-      addBubble('nex', "Couldn't import the home page.");
-    }
-  });
-
-  pushBtn.addEventListener('click', async () => {
-    if (!currentHtml || pushBtn.disabled || !isNexusImport(currentHtml)) return;
-    pushBtn.disabled = true;
-    addBubble('user', 'Open a PR for this Nexus design');
-    const pushingBubble = addBubble('nex', 'Opening a PR with this design…');
-    try {
-      const res = await fetch('/api/room-push', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ html: currentHtml }),
+    function setSelectedPlan(plan) {
+      tiers.querySelectorAll('.tier').forEach(el => {
+        const is = el.getAttribute('data-plan') === plan;
+        el.classList.toggle('selected', is);
+        const badge = el.querySelector('.tier-badge');
+        if (badge) badge.style.display = is ? 'inline-block' : 'none';
       });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        pushingBubble.innerText = 'Failed to open the PR: ' + (data.error || 'unknown error');
-      } else {
-        pushingBubble.innerText = `PR opened: ${data.html_url} — not merged, needs review.`;
-      }
-    } catch (err) {
-      pushingBubble.innerText = 'Something went wrong opening the PR.';
-    } finally {
-      pushBtn.disabled = false;
+      ctaBtn.textContent = plans[plan]?.cta || plans.free.cta;
     }
-  });
 
-  function restoreComposer({ focus = false } = {}) {
-    chatStatus.innerText = 'Ready';
-    sendBtn.disabled = false;
-    photoBtn.disabled = pendingAttachments.length >= 3;
-    chatInput.disabled = false;
-    chatInput.style.height = 'auto';
-    if (focus && wrap.classList.contains('chat-open')) chatInput.focus();
-    refreshUsage();
-  }
-
-  async function runProjectBuild(instruction, customerMessage, wasEdit, attachments = []) {
-    chatStatus.innerText = 'Building';
-    const buildingBubble = addBubble(
-      'nex',
-      wasEdit ? 'Updating the current version…' : 'Creating the first working version…',
-    );
-    const slowNotice = setTimeout(() => {
-      buildingBubble.innerText = 'Still building… interactive projects can take a minute.';
-    }, 20000);
-    const abortCtrl = new AbortController();
-    const clientTimeout = setTimeout(() => abortCtrl.abort(), 115000);
-    let offerNextSteps = false;
-    let saveSucceeded = false;
-
-    try {
-      const res = await fetch('/api/room-chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: instruction,
-          displayMessage: customerMessage,
-          currentHtml,
-          projectId: currentProjectId,
-          attachments: attachmentPayload(attachments),
-        }),
-        signal: abortCtrl.signal,
-      });
-      if (res.status === 401) {
-        clearTimeout(slowNotice);
-        buildingBubble.innerText = 'Your session expired — redirecting to sign in.';
-        setTimeout(() => { window.location.href = '/room-login.html'; }, 1200);
-        return;
-      }
-      if (!res.ok) {
-        const failure = await res.json().catch(() => ({}));
-        buildingBubble.innerText = res.status === 429 && failure.code === 'ROOM_CREDITS_EXHAUSTED'
-          ? failure.error + ' Check your Room usage before trying again.'
-          : failure.error || 'The Room could not start that build.';
-        return;
-      }
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let gotHtml = false;
-      let generatedHtml = '';
-      let saveNote = '';
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const chunks = buffer.split('\n\n');
-        buffer = chunks.pop() || '';
-        for (const chunk of chunks) {
-          if (!chunk.startsWith('data: ')) continue;
-          const event = JSON.parse(chunk.slice(6));
-          if (event.action === 'html') {
-            gotHtml = true;
-            generatedHtml = event.html;
-            clearTimeout(slowNotice);
-            renderHtml(generatedHtml, { label: customerMessage.slice(0, 64) });
-            if (mobileLayout.matches) setChatOpen(false);
-          } else if (event.action === 'progress') {
-            buildingBubble.innerText = event.message || 'Still building…';
-          } else if (event.action === 'saved') {
-            currentProjectId = event.projectId || currentProjectId;
-            saveSucceeded = true;
-          } else if (event.action === 'save_error') {
-            saveNote = ' (' + event.message + ')';
-          } else if (event.action === 'done') {
-            clearTimeout(slowNotice);
-            buildingBubble.innerText = gotHtml
-              ? (saveSucceeded
-                  ? (wasEdit ? 'Update complete and saved.' : 'First version complete and saved.')
-                  : (wasEdit ? 'Update complete.' : 'First version complete.')) + saveNote
-              : "Didn't get a page back — try rephrasing that.";
-            if (gotHtml) {
-              offerNextSteps = true;
-              chatInput.placeholder = 'Ask Nex or describe the next change…';
-              speakUpdate('Your build is ready.');
-            }
-          } else if (event.action === 'error') {
-            clearTimeout(slowNotice);
-            buildingBubble.innerText = 'Ran into an issue: ' + event.message;
-          } else if (event.action === 'team_escalation') {
-            clearTimeout(slowNotice);
-            buildingBubble.classList.add('team');
-            buildingBubble.innerText = event.message;
-            speakUpdate('I sent this build to the Nexus Build Team.');
-          } else if (event.action === 'team_escalation_error') {
-            clearTimeout(slowNotice);
-            buildingBubble.innerText = event.message;
-          }
-        }
-      }
-    } catch (err) {
-      clearTimeout(slowNotice);
-      buildingBubble.innerText = err.name === 'AbortError'
-        ? 'That build took too long and was stopped. Try a smaller first step, then we can add the rest.'
-        : 'Something went wrong reaching the builder.';
-    } finally {
-      clearTimeout(clientTimeout);
-      restoreComposer();
-      if (offerNextSteps) showNextSteps({ saved: saveSucceeded });
+    function openModal() {
+      if (overlay.classList.contains('open')) return;
+      overlay.classList.add('open');
+      setSelectedPlan(getSelectedPlan() || 'free');
+      // Avoid scroll jump on mobile
+      document.body.style.overflow = 'hidden';
     }
-  }
 
-  // Every customer message goes to their project-scoped Web Builder Nex first.
-  // Nex can answer, operate a safe local control, or hand a precise instruction
-  // to the streamed builder. A normal question never becomes an accidental edit.
-  async function sendMessage(messageOverride) {
-    const selectedAttachments = pendingAttachments.slice();
-    const typedMessage = (typeof messageOverride === 'string' ? messageOverride : chatInput.value).trim();
-    const message = typedMessage || (selectedAttachments.length ? 'Look at these images and help me use them on the site.' : '');
-    if (!message || sendBtn.disabled) return;
-    markQuickActionsUsed();
-    try { localStorage.setItem('nexus-room-guide-seen-v1', '1'); } catch {}
-    setChatOpen(true);
-    addBubble('user', message + (selectedAttachments.length ? ` · ${selectedAttachments.length} photo${selectedAttachments.length === 1 ? '' : 's'}` : ''));
-    chatInput.value = '';
-    chatInput.dispatchEvent(new Event('input'));
-    sendBtn.disabled = true;
-    photoBtn.disabled = true;
-    chatInput.disabled = true;
-    chatStatus.innerText = 'Thinking';
-    const nexBubble = addBubble('nex', 'Thinking through that…');
-    let refocusAfterTurn = true;
-
-    try {
-      const res = await fetch('/api/room-assistant', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message,
-          projectId: currentProjectId,
-          projectLabel: currentLabel,
-          currentHtml,
-          viewport: document.querySelector('.canvas').dataset.viewport,
-          attachments: attachmentPayload(selectedAttachments),
-        }),
-      });
-      if (res.status === 401) {
-        nexBubble.innerText = 'Your session expired — redirecting to sign in.';
-        setTimeout(() => { window.location.href = '/room-login.html'; }, 1200);
-        return;
-      }
-      const decision = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        nexBubble.innerText = decision.error || 'I couldn’t answer that right now. Try again in a moment.';
-        return;
-      }
-      clearAttachments();
-      nexBubble.innerText = decision.message;
-      if (decision.kind === 'reply') {
-        addAssistantSuggestions(decision.suggestions);
-        speakUpdate(decision.message);
-        return;
-      }
-      if (decision.kind === 'team') {
-        nexBubble.classList.add('team');
-        speakUpdate('I sent this build to the Nexus Build Team.');
-        return;
-      }
-      if (decision.kind === 'command') {
-        refocusAfterTurn = false;
-        const commandError = executeWorkspaceCommand(decision.command);
-        if (commandError) nexBubble.innerText = commandError;
-        return;
-      }
-      if (decision.kind !== 'build' || !decision.instruction) {
-        nexBubble.innerText = 'I need a little more detail before I can help with that.';
-        return;
-      }
-      const wasEdit = Boolean(currentHtml);
-      refocusAfterTurn = false;
-      await runProjectBuild(decision.instruction, message, wasEdit, selectedAttachments);
-    } catch {
-      nexBubble.innerText = 'I couldn’t reach the Web Builder right now. Try again in a moment.';
-    } finally {
-      if (sendBtn.disabled) restoreComposer({ focus: refocusAfterTurn });
+    function closeModal(markSeen) {
+      overlay.classList.remove('open');
+      document.body.style.overflow = '';
+      if (markSeen) localStorage.setItem(STORAGE_KEY, '1');
     }
-  }
 
-  sendBtn.addEventListener('click', () => sendMessage());
-  chatInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
+    function markAndClose() {
+      localStorage.setItem(STORAGE_KEY, '1');
+      closeModal(false);
     }
-  });
 
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeModal(true);
+    });
+
+    closeBtn.addEventListener('click', () => closeModal(true));
+
+    ctaBtn.addEventListener('click', () => {
+      // v1: no backend wiring yet. Just acknowledge selection.
+      // Later: we’ll call the real billing endpoint here.
+      markAndClose();
+    });
+
+    tiers.addEventListener('click', (e) => {
+      const tier = e.target.closest('.tier');
+      if (!tier) return;
+      setSelectedPlan(tier.getAttribute('data-plan'));
+    });
+
+    tiers.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const tier = e.target.closest('.tier');
+      if (!tier) return;
+      setSelectedPlan(tier.getAttribute('data-plan'));
+    });
+
+    function shouldOpen() {
+      try {
+        return !localStorage.getItem(STORAGE_KEY);
+      } catch {
+        return true;
+      }
+    }
+
+    function firstTouchHandler() {
+      if (!shouldOpen()) return;
+      openModal();
+      window.removeEventListener('touchstart', firstTouchHandler, true);
+      window.removeEventListener('click', firstTouchHandler, true);
+    }
+
+    window.addEventListener('touchstart', firstTouchHandler, { capture: true, passive: true });
+    window.addEventListener('click', firstTouchHandler, { capture: true });
+  })();
 </script>
 </body>
 </html>
