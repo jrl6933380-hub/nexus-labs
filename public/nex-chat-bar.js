@@ -4,6 +4,48 @@
  * Embedded in the Conference Room and other rooms.
  */
 
+export function canSendNexMessage({ typedText, attachedVisual, visionMode }) {
+  return Boolean(typedText || attachedVisual || visionMode);
+}
+
+export async function handleAttachmentSelection({ file, prepareAttachment, clearAttachment, addMessage }) {
+  if (!file) {
+    return false;
+  }
+  try {
+    await prepareAttachment(file);
+    return true;
+  } catch (err) {
+    clearAttachment();
+    addMessage(err.message || 'That image could not be attached.', 'nex-system');
+    return false;
+  }
+}
+
+export function getBoundedImageScale(width, height, maxDimension = 1280) {
+  return Math.min(1, maxDimension / Math.max(width || 1, height || 1));
+}
+
+export function showSuccessfulNexReply({ data, clearAttachment, addMessage, speak }) {
+  const replyText = data.reply || 'Nex completed the request without a text reply.';
+  clearAttachment();
+  addMessage(replyText, 'nex-response');
+  speak(replyText);
+  return replyText;
+}
+
+let activeViewportFrameCacheInvalidator = null;
+let viewportFrameCacheListenersBound = false;
+
+function bindViewportFrameCacheInvalidation(invalidator) {
+  activeViewportFrameCacheInvalidator = invalidator;
+  if (viewportFrameCacheListenersBound || typeof window === 'undefined') return;
+  const clearActiveViewportFrameCache = () => activeViewportFrameCacheInvalidator?.();
+  window.addEventListener('scroll', clearActiveViewportFrameCache, { passive: true });
+  window.addEventListener('resize', clearActiveViewportFrameCache);
+  viewportFrameCacheListenersBound = true;
+}
+
 export function createNexChatBar() {
   const container = document.createElement('div');
   container.className = 'nex-chat-bar-container';
@@ -598,6 +640,13 @@ export function createNexChatBar() {
   let visionStream = null;
   let visionVideo = null;
   let visionMode = null;
+  let cachedViewportFrame = null;
+  let cachedViewportSignature = '';
+
+  function clearViewportFrameCache() {
+    cachedViewportFrame = null;
+    cachedViewportSignature = '';
+  }
 
   function stopVision() {
     visionStream?.getTracks().forEach((track) => track.stop());
@@ -642,15 +691,19 @@ export function createNexChatBar() {
   function captureViewportFrame() {
     const width = Math.max(1, Math.round(window.innerWidth));
     const height = Math.max(1, Math.round(window.innerHeight));
+    const viewportSignature = `${width}x${height}:${Math.round(window.scrollX)}:${Math.round(window.scrollY)}`;
+    if (cachedViewportFrame && cachedViewportSignature === viewportSignature) {
+      return { ...cachedViewportFrame, captured_at: Date.now() };
+    }
     const canvas = document.createElement('canvas');
     canvas.width = Math.min(width, 1280);
     canvas.height = Math.max(1, Math.round(height * (canvas.width / width)));
     const context = canvas.getContext('2d', { alpha: false });
-    const scale = canvas.width / width;
-    context.scale(scale, scale);
     const bodyStyle = getComputedStyle(document.body);
     context.fillStyle = bodyStyle.backgroundColor === 'rgba(0, 0, 0, 0)' ? '#ffffff' : bodyStyle.backgroundColor;
-    context.fillRect(0, 0, width, height);
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    const scale = canvas.width / width;
+    context.scale(scale, scale);
 
     const elements = [...document.querySelectorAll('body *')]
       .filter((element) => !element.closest('#nexChatBar') && isVisibleInViewport(element) && !isPrivateControl(element))
@@ -686,12 +739,13 @@ export function createNexChatBar() {
         context.restore();
       }
     }
-    return {
+    cachedViewportFrame = {
       image_data_url: canvas.toDataURL('image/jpeg', 0.72),
       width: canvas.width,
       height: canvas.height,
-      captured_at: Date.now(),
     };
+    cachedViewportSignature = viewportSignature;
+    return { ...cachedViewportFrame, captured_at: Date.now() };
   }
 
   async function captureVisualFrame() {
@@ -734,7 +788,7 @@ export function createNexChatBar() {
       const image = new Image();
       image.src = source;
       await image.decode();
-      const scale = Math.min(1, 1280 / image.naturalWidth, 1280 / image.naturalHeight);
+      const scale = getBoundedImageScale(image.naturalWidth, image.naturalHeight);
       const canvas = document.createElement('canvas');
       canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
       canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
@@ -753,15 +807,19 @@ export function createNexChatBar() {
     }
   }
 
-  attachBtn.addEventListener('click', () => attachmentInput.click());
+  bindViewportFrameCacheInvalidation(clearViewportFrameCache);
+  attachBtn.addEventListener('click', () => {
+    attachmentInput.value = '';
+    attachmentInput.click();
+  });
   attachmentRemove.addEventListener('click', clearAttachment);
   attachmentInput.addEventListener('change', async () => {
-    try {
-      await prepareAttachment(attachmentInput.files?.[0]);
-    } catch (err) {
-      clearAttachment();
-      addMessage(err.message || 'That image could not be attached.', 'nex-system');
-    }
+    await handleAttachmentSelection({
+      file: attachmentInput.files?.[0],
+      prepareAttachment,
+      clearAttachment,
+      addMessage,
+    });
   });
 
   visionToggle.setAttribute('aria-pressed', 'false');
@@ -776,8 +834,14 @@ export function createNexChatBar() {
         ? 'Mobile Vision is on. Nex will receive a privacy-filtered visual map of the current viewport with each message.'
         : 'Visual sharing is on. Nex will receive one current-tab frame with each message until you turn it off.', 'nex-system');
     } catch (err) {
+      const attemptedVisionMode = visionMode || (navigator.mediaDevices?.getDisplayMedia ? 'display' : 'viewport');
       stopVision();
-      addMessage(err.name === 'NotAllowedError' ? 'Visual sharing was cancelled.' : (err.message || 'Visual sharing could not start.'), 'nex-system');
+      addMessage(
+        attemptedVisionMode === 'viewport'
+          ? (err.message || 'Mobile Vision could not start.')
+          : (err.name === 'NotAllowedError' ? 'Visual sharing was cancelled.' : (err.message || 'Visual sharing could not start.')),
+        'nex-system',
+      );
     }
   });
 
@@ -886,7 +950,7 @@ export function createNexChatBar() {
 
   async function send() {
     const typedText = input.value.trim();
-    if (!typedText && !attachedVisual) return;
+    if (!canSendNexMessage({ typedText, attachedVisual, visionMode })) return;
     const text = typedText || 'Look at this image.';
     const visualForMessage = attachedVisual || await captureVisualFrame();
 
@@ -934,10 +998,7 @@ export function createNexChatBar() {
         }
       }
       if (!data) throw new Error('Nex did not return a response.');
-      const replyText = data.reply || 'Nex completed the request without a text reply.';
-      clearAttachment();
-      addMessage(replyText, 'nex-response');
-      speak(replyText);
+      showSuccessfulNexReply({ data, clearAttachment, addMessage, speak });
       if (data.navigation?.type === 'room' && typeof data.navigation.url === 'string') {
         const event = new CustomEvent('nexus:navigate', { detail: data.navigation });
         window.dispatchEvent(event);
@@ -1020,14 +1081,14 @@ export function createNexChatBar() {
 }
 
 // Auto-initialize if imported in HTML
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    if (!document.getElementById('nexChatBar')) {
-      document.body.appendChild(createNexChatBar());
-    }
-  });
-} else {
-  if (!document.getElementById('nexChatBar')) {
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      if (!document.getElementById('nexChatBar')) {
+        document.body.appendChild(createNexChatBar());
+      }
+    });
+  } else if (!document.getElementById('nexChatBar')) {
     document.body.appendChild(createNexChatBar());
   }
 }
