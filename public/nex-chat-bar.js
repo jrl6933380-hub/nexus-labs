@@ -541,18 +541,30 @@ export function createNexChatBar() {
 
   let visionStream = null;
   let visionVideo = null;
+  let visionMode = null;
 
   function stopVision() {
     visionStream?.getTracks().forEach((track) => track.stop());
     visionStream = null;
     visionVideo = null;
+    visionMode = null;
     visionToggle.classList.remove('active');
     visionToggle.setAttribute('aria-pressed', 'false');
     visionToggle.querySelector('span').textContent = 'Vision';
   }
 
   async function startVision() {
-    if (!navigator.mediaDevices?.getDisplayMedia) throw new Error('Visual sharing is not supported by this browser.');
+    if (!navigator.mediaDevices?.getDisplayMedia) {
+      // Mobile Safari/Chrome do not expose desktop-style tab capture. In
+      // that case Vision renders a privacy-filtered map of the visible page
+      // into a canvas for each message. It is not hidden-page access and it
+      // deliberately excludes the Nex dock and sensitive form controls.
+      visionMode = 'viewport';
+      visionToggle.classList.add('active');
+      visionToggle.setAttribute('aria-pressed', 'true');
+      visionToggle.querySelector('span').textContent = 'Seeing';
+      return;
+    }
     visionStream = await navigator.mediaDevices.getDisplayMedia({
       video: { displaySurface: 'browser', frameRate: { ideal: 1, max: 2 } },
       audio: false,
@@ -564,13 +576,70 @@ export function createNexChatBar() {
     visionVideo.srcObject = visionStream;
     visionVideo.muted = true;
     await visionVideo.play();
+    visionMode = 'display';
     visionStream.getVideoTracks()[0]?.addEventListener('ended', stopVision, { once: true });
     visionToggle.classList.add('active');
     visionToggle.setAttribute('aria-pressed', 'true');
     visionToggle.querySelector('span').textContent = 'Seeing';
   }
 
+  function captureViewportFrame() {
+    const width = Math.max(1, Math.round(window.innerWidth));
+    const height = Math.max(1, Math.round(window.innerHeight));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.min(width, 1280);
+    canvas.height = Math.max(1, Math.round(height * (canvas.width / width)));
+    const context = canvas.getContext('2d', { alpha: false });
+    const scale = canvas.width / width;
+    context.scale(scale, scale);
+    const bodyStyle = getComputedStyle(document.body);
+    context.fillStyle = bodyStyle.backgroundColor === 'rgba(0, 0, 0, 0)' ? '#ffffff' : bodyStyle.backgroundColor;
+    context.fillRect(0, 0, width, height);
+
+    const elements = [...document.querySelectorAll('body *')]
+      .filter((element) => !element.closest('#nexChatBar') && isVisibleInViewport(element) && !isPrivateControl(element))
+      .slice(0, 500);
+    for (const element of elements) {
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      const left = Math.max(0, rect.left);
+      const top = Math.max(0, rect.top);
+      const drawWidth = Math.min(width - left, rect.width);
+      const drawHeight = Math.min(height - top, rect.height);
+      if (drawWidth <= 0 || drawHeight <= 0) continue;
+      if (style.backgroundColor !== 'rgba(0, 0, 0, 0)' && style.backgroundColor !== 'transparent') {
+        context.fillStyle = style.backgroundColor;
+        context.fillRect(left, top, drawWidth, drawHeight);
+      }
+      if (style.borderTopWidth !== '0px' && style.borderTopColor !== 'rgba(0, 0, 0, 0)') {
+        context.strokeStyle = style.borderTopColor;
+        context.lineWidth = Math.min(4, parseFloat(style.borderTopWidth) || 1);
+        context.strokeRect(left, top, drawWidth, drawHeight);
+      }
+      const text = element.children.length === 0 ? shorten(element.innerText || element.textContent, 180) : '';
+      if (text) {
+        const fontSize = Math.max(8, Math.min(32, parseFloat(style.fontSize) || 14));
+        context.save();
+        context.beginPath();
+        context.rect(left, top, drawWidth, drawHeight);
+        context.clip();
+        context.fillStyle = style.color || '#111827';
+        context.font = `${style.fontWeight || 400} ${fontSize}px ${style.fontFamily || 'sans-serif'}`;
+        context.textBaseline = 'top';
+        context.fillText(text, left + (parseFloat(style.paddingLeft) || 0), top + (parseFloat(style.paddingTop) || 0), Math.max(1, drawWidth));
+        context.restore();
+      }
+    }
+    return {
+      image_data_url: canvas.toDataURL('image/jpeg', 0.72),
+      width: canvas.width,
+      height: canvas.height,
+      captured_at: Date.now(),
+    };
+  }
+
   async function captureVisualFrame() {
+    if (visionMode === 'viewport') return captureViewportFrame();
     if (!visionVideo || !visionStream?.active || visionVideo.readyState < 2) return null;
     const sourceWidth = visionVideo.videoWidth;
     const sourceHeight = visionVideo.videoHeight;
@@ -591,13 +660,15 @@ export function createNexChatBar() {
 
   visionToggle.setAttribute('aria-pressed', 'false');
   visionToggle.addEventListener('click', async () => {
-    if (visionStream) {
+    if (visionMode) {
       stopVision();
       return;
     }
     try {
       await startVision();
-      addMessage('Visual sharing is on. Nex will receive one current-tab frame with each message until you turn it off.', 'nex-system');
+      addMessage(visionMode === 'viewport'
+        ? 'Mobile Vision is on. Nex will receive a privacy-filtered visual map of the current viewport with each message.'
+        : 'Visual sharing is on. Nex will receive one current-tab frame with each message until you turn it off.', 'nex-system');
     } catch (err) {
       stopVision();
       addMessage(err.name === 'NotAllowedError' ? 'Visual sharing was cancelled.' : (err.message || 'Visual sharing could not start.'), 'nex-system');
