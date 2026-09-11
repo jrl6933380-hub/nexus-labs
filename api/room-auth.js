@@ -12,6 +12,7 @@ import {
   parseCookies,
   serializeSessionCookie,
   SESSION_COOKIE,
+  isOperatorUser,
 } from '../lib/roomAuth.js';
 
 export default async function handler(req, res) {
@@ -21,7 +22,7 @@ export default async function handler(req, res) {
     try {
       const username = await getRequestUser(req);
       if (!username) return res.status(401).json({ error: 'Not signed in' });
-      return res.status(200).json({ username });
+      return res.status(200).json({ username, operator: isOperatorUser(username) });
     } catch (err) {
       console.error('room-auth: me check failed:', err.message);
       return res.status(500).json({ error: 'Could not check session' });
@@ -39,7 +40,7 @@ export default async function handler(req, res) {
       const user = await createUser(username, password, inviteCode);
       const token = await createSession(user.username);
       res.setHeader('Set-Cookie', serializeSessionCookie(token));
-      return res.status(200).json({ username: user.username });
+      return res.status(200).json({ username: user.username, operator: isOperatorUser(user.username) });
     }
 
     if (action === 'login') {
@@ -47,7 +48,7 @@ export default async function handler(req, res) {
       if (!user) return res.status(401).json({ error: 'Wrong username or password.' });
       const token = await createSession(user.username);
       res.setHeader('Set-Cookie', serializeSessionCookie(token));
-      return res.status(200).json({ username: user.username });
+      return res.status(200).json({ username: user.username, operator: isOperatorUser(user.username) });
     }
 
     if (action === 'logout') {
