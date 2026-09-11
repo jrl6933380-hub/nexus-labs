@@ -28,7 +28,6 @@ const KV_URL = process.env.KV_REST_API_URL;
 const KV_TOKEN = process.env.KV_REST_API_TOKEN;
 const RECENT_KEY = 'nex:recent-conversation';
 const RECENT_LIMIT = 24; // ~12 exchanges
-function buildHandoffDirective(message){return /\b(make|build|add|fix|create|change|update)\b/i.test(String(message||''))?'\n\n## Handoff Gate\nBefore broad exploration or a multi-step build, call prepare_build_handoff with the goal, repo, likely files, and acceptance criteria. Use its returned packet as the bounded context pipe, then build and call return_handoff_result with evidence.':''}
 
 function normalizeScreenSnapshot(input) {
   if (!input || typeof input !== 'object') return null;
@@ -145,8 +144,9 @@ export default async function handler(req, res) {
   const wantsBuildStream = String(req.headers.accept || '').includes('text/event-stream')
     && !isDisengageCommand(message)
     && !isEngageCommand(message);
+  let buildStreamStarted = false;
   const sendBuildEvent = (event, payload) => {
-    if (wantsBuildStream) res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
+    if (buildStreamStarted) res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
   };
 
   // model is an optional tier override from the model picker: 'cheap',
@@ -155,13 +155,6 @@ export default async function handler(req, res) {
   const forcedTier = MODEL_TIERS[model] ? model : null;
 
   try {
-    if (wantsBuildStream) {
-      res.statusCode = 200;
-      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
-      res.setHeader('Cache-Control', 'no-cache, no-transform');
-      res.flushHeaders?.();
-      sendBuildEvent('stage', { state: 'running', tool: 'planning', label: 'Planning build' });
-    }
     // Deliberate test hook — send this exact phrase to force a real error,
     // useful for confirming Sentry (or any error monitoring) is actually working.
     if (message.trim() === 'TEST_SENTRY_ERROR') {
@@ -226,6 +219,18 @@ export default async function handler(req, res) {
       });
     }
 
+    // Do not start the stream until every command/mode response that uses
+    // normal JSON has returned. Starting it earlier made a disengaged Nex try
+    // to send JSON after SSE headers, producing ERR_HTTP_HEADERS_SENT.
+    if (wantsBuildStream) {
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.flushHeaders?.();
+      buildStreamStarted = true;
+      sendBuildEvent('stage', { state: 'running', tool: 'planning', label: 'Planning build' });
+    }
+
     // Hyperfocus trigger phrases ("bring Claude in on this for
     // hyperfocus", "show active hyperfocus", "hyperfocus complete") are
     // recognized deterministically (regex, not model judgment) so they
@@ -238,9 +243,12 @@ export default async function handler(req, res) {
     // regex can't. The directive is never shown to Mr. Lopez or saved
     // to the visible transcript — only the message he actually typed is.
     const hyperfocusTrigger = detectHyperfocusTrigger(message);
-    const messageForModel = (hyperfocusTrigger
+    // Owner chat is direct-work-first. Handoff and pipeline tools stay
+    // available, but ordinary build verbs must not silently force Nex into a
+    // context-packaging workflow.
+    const messageForModel = hyperfocusTrigger
       ? `${message}\n\n${buildHyperfocusDirective(hyperfocusTrigger)}`
-      : message) + buildHandoffDirective(message);
+      : message;
 
     const operatorUser = await getRequestUser(req).catch(() => null);
     const clientContext = normalizeClientContext(workspace);
@@ -291,7 +299,7 @@ export default async function handler(req, res) {
     console.error('Nex chat handler crashed:', err);
     Sentry.captureException(err);
     await Sentry.flush(2000); // wait for Sentry to actually send before the function ends
-    if (wantsBuildStream) {
+    if (buildStreamStarted) {
       sendBuildEvent('error', { error: 'Internal system error processing your message.' });
       return res.end();
     }
