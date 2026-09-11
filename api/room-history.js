@@ -5,12 +5,15 @@
 // GET ?id=<id>      -> one full saved build, including its html — only
 //                      ever looked up within the caller's own history,
 //                      so there's no cross-account access by id guessing.
+// Downloading the html (?download=html) additionally requires a paid
+// plan — Free tier can preview and iterate, but exporting code is one
+// of the things that unlocks with the Hosted tier and above.
 
 import { listBuilds, getBuild } from '../lib/roomHistory.js';
-import { getRequestUser } from '../lib/roomAuth.js';
+import { getRequestUser, getUserPlan, isPaidPlan } from '../lib/roomAuth.js';
 
 // Dependencies are injectable so ownership is exercised through the real handler.
-export function createHistoryHandler({ resolveUser = getRequestUser, readBuild = getBuild, readList = listBuilds } = {}) {
+export function createHistoryHandler({ resolveUser = getRequestUser, readBuild = getBuild, readList = listBuilds, resolvePlan = getUserPlan } = {}) {
 return async function handler(req, res) {
   res.setHeader('Cache-Control', 'private, no-store');
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -34,6 +37,13 @@ return async function handler(req, res) {
       const build = await readBuild(username, id);
       if (!build) return res.status(404).json({ error: 'Build not found' });
       if (download === 'html') {
+        const plan = await resolvePlan(username);
+        if (!isPaidPlan(plan)) {
+          return res.status(402).json({
+            error: 'Exporting your code requires a paid plan.',
+            code: 'EXPORT_REQUIRES_PAID_PLAN',
+          });
+        }
         if (typeof build.html !== 'string') throw new Error('Build HTML unavailable');
         // Never use a model-authored label or request input as a header/filename.
         res.setHeader('Content-Type', 'application/octet-stream');
