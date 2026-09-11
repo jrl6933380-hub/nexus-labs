@@ -31,6 +31,7 @@ import { getRequestUser } from '../lib/roomAuth.js';
 import { roomMeter } from '../lib/roomMetering.js';
 import { roomConversations } from '../lib/roomConversation.js';
 import { attachmentManifest, attachmentMessageContent, embedRoomAttachments, parseRoomAttachments } from '../lib/roomAttachments.js';
+import { roomEscalator } from '../lib/roomEscalation.js';
 
 const ANTHROPIC_ENDPOINT = 'https://api.anthropic.com/v1/messages';
 
@@ -146,6 +147,27 @@ export default async function handler(req, res) {
   };
 
   const isEdit = Boolean(currentHtml);
+  let escalationSent = false;
+  const escalate = async (reason) => {
+    if (escalationSent) return;
+    escalationSent = true;
+    try {
+      const ticket = await roomEscalator.queue({
+        userId: username,
+        projectId,
+        request: typeof displayMessage === 'string' && displayMessage.trim() ? displayMessage.trim() : message,
+        reason,
+        currentHtml,
+      });
+      send({ action: 'team_escalation', ...ticket });
+    } catch (escalationError) {
+      console.error('room-chat: Build Team escalation failed:', escalationError.message);
+      send({
+        action: 'team_escalation_error',
+        message: 'I could not finish this build or reach the Build Team queue. Your request is still saved in this conversation—please try again shortly.',
+      });
+    }
+  };
 
   // Start the downstream SSE response immediately, then keep it active
   // while Anthropic streams the response to this function.
@@ -194,7 +216,7 @@ export default async function handler(req, res) {
     if (!response.ok || !response.body) {
       const bodyText = await response.text().catch(() => '');
       console.error('room-chat: anthropic streaming request failed', response.status, bodyText.slice(0, 300));
-      send({ action: 'error', message: 'Something went wrong reaching the model — try again in a moment.' });
+      await escalate(`The instant builder provider returned HTTP ${response.status}.`);
       return;
     }
 
@@ -245,7 +267,7 @@ export default async function handler(req, res) {
       const patches = parsePatchBlocks(raw);
       if (patches.length === 0) {
         console.error('room-chat: patch mode but no parseable OLD/NEW blocks:', raw.slice(0, 200));
-        send({ action: 'error', message: "Got a response I couldn't apply — try rephrasing that." });
+        await escalate('The instant builder returned an edit that could not be applied safely.');
         return;
       }
       let working = currentHtml;
@@ -259,10 +281,7 @@ export default async function handler(req, res) {
       }
       if (notFound.length > 0) {
         console.error('room-chat: patch text not found in current HTML:', notFound);
-        send({
-          action: 'error',
-          message: "Couldn't locate part of what to change — try describing it a bit more specifically (e.g. which section, or what it currently says).",
-        });
+        await escalate('The requested edit could not be matched safely to the current project.');
         return;
       }
       html = working;
@@ -277,7 +296,7 @@ export default async function handler(req, res) {
 
     if (!html.toLowerCase().startsWith('<!doctype') && !html.toLowerCase().startsWith('<html')) {
       console.error('room-chat: response did not look like a full HTML document:', html.slice(0, 200));
-      send({ action: 'error', message: "Got a response that wasn't a full page — try rephrasing that." });
+      await escalate('The instant builder did not return a complete browser page.');
       return;
     }
 
@@ -289,10 +308,7 @@ export default async function handler(req, res) {
       const truncated = stopReason === 'max_tokens' || !/<\/html>\s*$/i.test(html);
       if (truncated) {
         console.error('room-chat: response was truncated (stop_reason:', stopReason + ')', 'length:', html.length);
-        send({
-          action: 'error',
-          message: "That build was too ambitious to finish in one response — it got cut off partway through. Try asking for something a bit simpler, or break it into fewer features at once (e.g. build the core page first, then ask to add the quiz/animations after).",
-        });
+        await escalate('The requested build exceeded the instant builder output limit.');
         return;
       }
     }
@@ -340,9 +356,9 @@ export default async function handler(req, res) {
     clearTimeout(timer);
     console.error('room-chat handler crashed:', err.message);
     if (err.name === 'AbortError') {
-      send({ action: 'error', message: 'That took too long to build (over ~110 seconds) — try asking for something a bit simpler.' });
+      await escalate('The requested build exceeded the instant builder time limit.');
     } else {
-      send({ action: 'error', message: 'Something went wrong building that.' });
+      await escalate(`The instant builder failed: ${err.message}`);
     }
   } finally {
     try {

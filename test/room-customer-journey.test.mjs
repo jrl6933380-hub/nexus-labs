@@ -9,7 +9,7 @@ test('first-time customers can choose a guided start or type directly', () => {
   for (const starter of ['business', 'landing', 'portfolio', 'app']) {
     assert.match(roomSource, new RegExp(`data-starter="${starter}"`));
   }
-  assert.match(roomSource, /Already know what you want\? Type it directly into Nex\./);
+  assert.match(roomSource, /Describe the result you want\. Nex handles the build plan\./);
   assert.match(roomSource, /function showWelcomeGuide/);
 });
 
@@ -28,7 +28,7 @@ test('generated projects stay free of Room Builder chrome', () => {
 });
 
 test('the single dock is a conversational, project-aware Web Builder Nex', () => {
-  assert.match(roomSource, />Web Pro</);
+  assert.match(roomSource, />Forge AI</);
   assert.match(roomSource, /fetch\('\/api\/room-assistant'/);
   assert.match(roomSource, /fetch\('\/api\/room-conversation\?projectId='/);
   assert.match(roomSource, /executeWorkspaceCommand/);
@@ -45,4 +45,14 @@ test('customers can attach and remove compressed images before sending them to N
   assert.match(roomSource, /pendingAttachments\.splice/);
   assert.match(roomSource, /attachments: attachmentPayload\(selectedAttachments\)/);
   assert.match(apiSource, /embedRoomAttachments\(stripLiveEditWidget\(html\), attachments\)/);
+});
+
+test('Nexus Forge explains the product and surfaces the Build Team fallback', async () => {
+  const loginSource = await readFile(new URL('../public/room-login.html', import.meta.url), 'utf8');
+  assert.match(loginSource, /Nexus Forge/);
+  assert.match(loginSource, /AI Website &amp; App Builder/);
+  assert.match(loginSource, /Invite-only early access/);
+  assert.match(roomSource, /Build Team automatically/);
+  assert.match(roomSource, /event\.action === 'team_escalation'/);
+  assert.match(apiSource, /roomEscalator\.queue/);
 });

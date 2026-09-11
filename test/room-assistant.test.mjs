@@ -14,7 +14,7 @@ function response() {
 }
 
 function harness(decision, { user = 'alice' } = {}) {
-  const calls = { reserve: [], settle: [], append: [], route: 0, routeInput: null };
+  const calls = { reserve: [], settle: [], append: [], escalate: [], route: 0, routeInput: null };
   const handler = createAssistantHandler({
     resolveUser: async () => user,
     meter: {
@@ -32,6 +32,12 @@ function harness(decision, { user = 'alice' } = {}) {
       calls.route += 1;
       calls.routeInput = input;
       return { data: { content: [{ type: 'text', text: JSON.stringify(decision) }] } };
+    },
+    escalator: {
+      async queue(input) {
+        calls.escalate.push(input);
+        return { id: 'forge-1-ticket', pipelineId: 'pipeline-1', status: 'lanes_running', message: 'Build Team ticket forge-1-ticket is queued.' };
+      },
     },
   });
   return { handler, calls };
@@ -93,10 +99,33 @@ test('attached images reach Nex as vision input with a stable build token', asyn
   assert.equal(content[1].source.data, png);
 });
 
+test('a capability wall opens a real Build Team ticket and returns the verified message', async () => {
+  const { handler, calls } = harness({
+    kind: 'team',
+    message: 'This needs the Build Team.',
+    instruction: 'Build a multi-route booking app with a secure server workflow.',
+  });
+  const res = response();
+  await handler({
+    method: 'POST',
+    body: { message: 'Build my booking platform', projectId: 'p1', currentHtml: '<!doctype html><html></html>' },
+  }, res);
+  assert.equal(res.code, 200);
+  assert.equal(res.body.kind, 'team');
+  assert.equal(res.body.id, 'forge-1-ticket');
+  assert.equal(calls.escalate.length, 1);
+  assert.match(calls.escalate[0].request, /booking app/);
+  assert.match(calls.append[0][2][1].text, /Build Team ticket/);
+});
+
 test('only allowlisted workspace commands can cross the assistant boundary', () => {
   assert.deepEqual(
     parseAssistantDecision('{"kind":"command","command":"preview_phone","message":"Showing phone view."}'),
     { kind: 'command', command: 'preview_phone', message: 'Showing phone view.' },
+  );
+  assert.deepEqual(
+    parseAssistantDecision('{"kind":"team","message":"This needs the team.","instruction":"Build the complete multi-route app."}'),
+    { kind: 'team', message: 'This needs the team.', instruction: 'Build the complete multi-route app.' },
   );
   assert.throws(
     () => parseAssistantDecision('{"kind":"command","command":"merge_pr","message":"Doing it."}'),
