@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { canSendNexMessage } from '../public/nex-chat-bar.js';
 
 const chatBar = await readFile(new URL('../public/nex-chat-bar.js', import.meta.url), 'utf8');
 
@@ -25,4 +26,10 @@ test('attachment clears only after Nex returns a successful response', () => {
   const catchIndex = chatBar.indexOf("} catch (err) {", clearIndex);
   assert.ok(clearIndex > -1);
   assert.ok(catchIndex > clearIndex);
+});
+
+test('vision mode still allows a send without typed text or an attachment', () => {
+  assert.equal(canSendNexMessage({ typedText: '', attachedVisual: null, visionMode: 'viewport' }), true);
+  assert.equal(canSendNexMessage({ typedText: '', attachedVisual: null, visionMode: 'display' }), true);
+  assert.equal(canSendNexMessage({ typedText: '', attachedVisual: null, visionMode: null }), false);
 });

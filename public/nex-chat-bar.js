@@ -4,6 +4,10 @@
  * Embedded in the Conference Room and other rooms.
  */
 
+export function canSendNexMessage({ typedText, attachedVisual, visionMode }) {
+  return Boolean(typedText || attachedVisual || visionMode);
+}
+
 export function createNexChatBar() {
   const container = document.createElement('div');
   container.className = 'nex-chat-bar-container';
@@ -886,7 +890,7 @@ export function createNexChatBar() {
 
   async function send() {
     const typedText = input.value.trim();
-    if (!typedText && !attachedVisual) return;
+    if (!canSendNexMessage({ typedText, attachedVisual, visionMode })) return;
     const text = typedText || 'Look at this image.';
     const visualForMessage = attachedVisual || await captureVisualFrame();
 
@@ -1020,14 +1024,14 @@ export function createNexChatBar() {
 }
 
 // Auto-initialize if imported in HTML
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    if (!document.getElementById('nexChatBar')) {
-      document.body.appendChild(createNexChatBar());
-    }
-  });
-} else {
-  if (!document.getElementById('nexChatBar')) {
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      if (!document.getElementById('nexChatBar')) {
+        document.body.appendChild(createNexChatBar());
+      }
+    });
+  } else if (!document.getElementById('nexChatBar')) {
     document.body.appendChild(createNexChatBar());
   }
 }
