@@ -822,8 +822,14 @@ export function createNexChatBar() {
         ? 'Mobile Vision is on. Nex will receive a privacy-filtered visual map of the current viewport with each message.'
         : 'Visual sharing is on. Nex will receive one current-tab frame with each message until you turn it off.', 'nex-system');
     } catch (err) {
+      const attemptedVisionMode = visionMode || (navigator.mediaDevices?.getDisplayMedia ? 'display' : 'viewport');
       stopVision();
-      addMessage(err.name === 'NotAllowedError' ? 'Visual sharing was cancelled.' : (err.message || 'Visual sharing could not start.'), 'nex-system');
+      addMessage(
+        attemptedVisionMode === 'viewport'
+          ? (err.message || 'Mobile Vision could not start.')
+          : (err.name === 'NotAllowedError' ? 'Visual sharing was cancelled.' : (err.message || 'Visual sharing could not start.')),
+        'nex-system',
+      );
     }
   });
 
