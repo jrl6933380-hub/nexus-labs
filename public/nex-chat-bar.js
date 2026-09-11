@@ -8,6 +8,21 @@ export function canSendNexMessage({ typedText, attachedVisual, visionMode }) {
   return Boolean(typedText || attachedVisual || visionMode);
 }
 
+export async function handleAttachmentSelection({ file, prepareAttachment, clearAttachment, addMessage }) {
+  if (!file) {
+    clearAttachment();
+    return false;
+  }
+  try {
+    await prepareAttachment(file);
+    return true;
+  } catch (err) {
+    clearAttachment();
+    addMessage(err.message || 'That image could not be attached.', 'nex-system');
+    return false;
+  }
+}
+
 export function createNexChatBar() {
   const container = document.createElement('div');
   container.className = 'nex-chat-bar-container';
@@ -602,6 +617,13 @@ export function createNexChatBar() {
   let visionStream = null;
   let visionVideo = null;
   let visionMode = null;
+  let cachedViewportFrame = null;
+  let cachedViewportSignature = '';
+
+  function clearViewportFrameCache() {
+    cachedViewportFrame = null;
+    cachedViewportSignature = '';
+  }
 
   function stopVision() {
     visionStream?.getTracks().forEach((track) => track.stop());
@@ -646,6 +668,10 @@ export function createNexChatBar() {
   function captureViewportFrame() {
     const width = Math.max(1, Math.round(window.innerWidth));
     const height = Math.max(1, Math.round(window.innerHeight));
+    const viewportSignature = `${width}x${height}:${Math.round(window.scrollX)}:${Math.round(window.scrollY)}`;
+    if (cachedViewportFrame && cachedViewportSignature === viewportSignature) {
+      return { ...cachedViewportFrame, captured_at: Date.now() };
+    }
     const canvas = document.createElement('canvas');
     canvas.width = Math.min(width, 1280);
     canvas.height = Math.max(1, Math.round(height * (canvas.width / width)));
@@ -690,12 +716,13 @@ export function createNexChatBar() {
         context.restore();
       }
     }
-    return {
+    cachedViewportFrame = {
       image_data_url: canvas.toDataURL('image/jpeg', 0.72),
       width: canvas.width,
       height: canvas.height,
-      captured_at: Date.now(),
     };
+    cachedViewportSignature = viewportSignature;
+    return { ...cachedViewportFrame, captured_at: Date.now() };
   }
 
   async function captureVisualFrame() {
@@ -757,15 +784,20 @@ export function createNexChatBar() {
     }
   }
 
-  attachBtn.addEventListener('click', () => attachmentInput.click());
+  window.addEventListener('scroll', clearViewportFrameCache, { passive: true });
+  window.addEventListener('resize', clearViewportFrameCache);
+  attachBtn.addEventListener('click', () => {
+    clearAttachment();
+    attachmentInput.click();
+  });
   attachmentRemove.addEventListener('click', clearAttachment);
   attachmentInput.addEventListener('change', async () => {
-    try {
-      await prepareAttachment(attachmentInput.files?.[0]);
-    } catch (err) {
-      clearAttachment();
-      addMessage(err.message || 'That image could not be attached.', 'nex-system');
-    }
+    await handleAttachmentSelection({
+      file: attachmentInput.files?.[0],
+      prepareAttachment,
+      clearAttachment,
+      addMessage,
+    });
   });
 
   visionToggle.setAttribute('aria-pressed', 'false');

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { canSendNexMessage } from '../public/nex-chat-bar.js';
+import { canSendNexMessage, handleAttachmentSelection } from '../public/nex-chat-bar.js';
 
 const chatBar = await readFile(new URL('../public/nex-chat-bar.js', import.meta.url), 'utf8');
 
@@ -32,4 +32,31 @@ test('vision mode still allows a send without typed text or an attachment', () =
   assert.equal(canSendNexMessage({ typedText: '', attachedVisual: null, visionMode: 'viewport' }), true);
   assert.equal(canSendNexMessage({ typedText: '', attachedVisual: null, visionMode: 'display' }), true);
   assert.equal(canSendNexMessage({ typedText: '', attachedVisual: null, visionMode: null }), false);
+});
+
+test('cancelling attachment selection clears any pending image state', async () => {
+  const calls = [];
+  const result = await handleAttachmentSelection({
+    file: undefined,
+    prepareAttachment: async () => calls.push('prepare'),
+    clearAttachment: () => calls.push('clear'),
+    addMessage: () => calls.push('message'),
+  });
+  assert.equal(result, false);
+  assert.deepEqual(calls, ['clear']);
+});
+
+test('failed attachment preparation clears state and reports the error', async () => {
+  const calls = [];
+  const result = await handleAttachmentSelection({
+    file: { name: 'broken.webp' },
+    prepareAttachment: async () => {
+      calls.push('prepare');
+      throw new Error('broken image');
+    },
+    clearAttachment: () => calls.push('clear'),
+    addMessage: (text, type) => calls.push(['message', text, type]),
+  });
+  assert.equal(result, false);
+  assert.deepEqual(calls, ['prepare', 'clear', ['message', 'broken image', 'nex-system']]);
 });
