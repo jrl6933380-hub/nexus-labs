@@ -6,6 +6,7 @@
 
 import { initSentry, Sentry } from '../lib/sentry.js';
 import { askNex, MODEL_TIERS } from '../lib/nexBrain.js';
+import { recordUsage } from '../lib/budget.js';
 
 // ============================================================
 // SHORT-TERM ROLLING BUFFER — just enough for mid-conversation
@@ -112,6 +113,12 @@ export default async function handler(req, res) {
     const runningHistory = recent.filter((msg) => msg.role !== 'system');
 
     const { reply, updatedHistory, model: answeredModel, usage } = await askNex(message, runningHistory, forcedTier);
+
+    // Bank this turn's spend against the monthly budget BEFORE
+    // returning, so the meter is accurate the moment the reply lands.
+    // recordUsage swallows its own errors on purpose — budget
+    // bookkeeping must never cost Mr. Lopez an actual answer.
+    await recordUsage(answeredModel, usage);
 
     // Store which model actually answered and token usage alongside the
     // message itself, so "who answered" and token count survive a page
