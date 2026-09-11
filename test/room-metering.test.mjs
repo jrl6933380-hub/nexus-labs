@@ -126,6 +126,53 @@ test('professional Nex conversation uses a lightweight assistant credit', async 
   assert.equal(summary.remaining, 19);
 });
 
+test('configured owner is exempt while every other account keeps the hard ceiling', async () => {
+  const redis = fakeRedis();
+  const meter = createRoomMeter({
+    command: redis.command,
+    now,
+    config: { creditsLimit: 10, freshBuildCredits: 10, exemptUserIds: ['owner'] },
+  });
+
+  for (let index = 0; index < 3; index += 1) {
+    const reservation = await meter.reserveBuild({ userId: 'owner', requestId: `owner-${index}` });
+    assert.equal(reservation.ok, true);
+    assert.equal(reservation.unlimited, true);
+    assert.equal(reservation.reserved, 0);
+    const settlement = await meter.settleBuild({
+      userId: 'owner',
+      period: reservation.period,
+      reservationId: reservation.reservationId,
+      success: true,
+    });
+    assert.equal(settlement.charged, 0);
+  }
+
+  const ownerUsage = await meter.getUsageSummary('owner');
+  assert.equal(ownerUsage.unlimited, true);
+  assert.equal(ownerUsage.limit, null);
+  assert.equal(redis.hashes.size, 0);
+
+  const firstCustomer = await meter.reserveBuild({ userId: 'alice', requestId: 'customer-1' });
+  const secondCustomer = await meter.reserveBuild({ userId: 'alice', requestId: 'customer-2' });
+  assert.equal(firstCustomer.ok, true);
+  assert.equal(secondCustomer.ok, false);
+  assert.equal(secondCustomer.remaining, 0);
+});
+
+test('owner exemption is an exact username match', async () => {
+  const redis = fakeRedis();
+  const meter = createRoomMeter({
+    command: redis.command,
+    now,
+    config: { creditsLimit: 10, freshBuildCredits: 10, exemptUserIds: 'owner' },
+  });
+  await meter.reserveBuild({ userId: 'owner', requestId: 'owner-1' });
+  await meter.reserveBuild({ userId: 'Owner', requestId: 'customer-1' });
+  const rejected = await meter.reserveBuild({ userId: 'Owner', requestId: 'customer-2' });
+  assert.equal(rejected.ok, false);
+});
+
 test('hard ceiling rejects a reservation that would exceed the account limit', async () => {
   const redis = fakeRedis();
   const meter = createRoomMeter({ command: redis.command, now, config: { creditsLimit: 10, freshBuildCredits: 10 } });
