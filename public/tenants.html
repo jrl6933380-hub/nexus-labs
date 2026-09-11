@@ -8,7 +8,42 @@
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   html, body { margin: 0; padding: 0; height: 100%; background: #05070c; }
-  .tenants-panel { padding: 14px; font: 13px/1.5 Inter, -apple-system, sans-serif; color: #e8eefb; height: 100%; box-sizing: border-box; overflow-y: auto; }
+  .tenants-shell { display: flex; height: 100%; box-sizing: border-box; }
+  .sidebar {
+    width: 220px;
+    border-right: 1px solid #26334d;
+    background: #05070c;
+    padding: 14px;
+    box-sizing: border-box;
+    position: relative;
+  }
+  .sidebar-title {
+    font: 700 11px 'JetBrains Mono', monospace;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #58d7ff;
+    margin-bottom: 14px;
+  }
+  .side-nav { display: flex; flex-direction: column; gap: 8px; }
+  .side-link {
+    text-decoration: none;
+    border: 1px solid #26334d;
+    color: #91a0b9;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font: 600 12px/1.1 Inter, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    background: #ffffff02;
+  }
+  .side-link:hover { color: #58d7ff; border-color: #4b8dff77; }
+  .side-link.active { color: #06090f; background: #58edb01c; border-color: #58edb044; }
+  .side-pill { font: 700 9px 'JetBrains Mono', monospace; letter-spacing: 0.08em; text-transform: uppercase; padding: 4px 8px; border-radius: 999px; border: 1px solid #26334d; color: #5e6b81; }
+  .side-link.active .side-pill { border-color: #58edb044; color: #58edb0; background: #58edb01c; }
+
+  .tenants-panel { padding: 14px; font: 13px/1.5 Inter, -apple-system, sans-serif; color: #e8eefb; height: 100%; box-sizing: border-box; overflow-y: auto; flex: 1; }
   .banner { border-radius: 8px; padding: 10px 12px; font-size: 12px; margin-bottom: 14px; font-family: 'JetBrains Mono', monospace; }
   .banner-success { background: #58edb01c; color: #58edb0; border: 1px solid #58edb044; }
   .banner-error { background: #ff4b4b1c; color: #ff8585; border: 1px solid #ff4b4b44; }
@@ -30,8 +65,8 @@
   .badge-hosted { background: #58edb01c; color: #58edb0; }
   .badge-byo { background: #4b8dff1c; color: #4b8dff; }
   .meta { font: 400 10px 'JetBrains Mono', monospace; color: #5e6b81; line-height: 1.7; }
-  .usage-bar { height: 5px; border-radius: 3px; background: #ffffff0f; margin: 6px 0 2px; overflow: hidden; }
-  .usage-fill { height: 100%; background: #58edb0; }
+  .usage-bar { height: 6px; border-radius: 4px; background: #ffffff0f; margin: 6px 0 2px; overflow: hidden; }
+  .usage-fill { height: 100%; background: #58edb0; transition: width 220ms ease; }
   .usage-fill.low { background: #ffc56b; }
   .usage-fill.empty { background: #ff4b4b; }
   .card-actions { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
@@ -44,19 +79,12 @@
   .empty { color: #5e6b81; font-size: 12px; }
   h4 { margin: 0 0 10px; font: 600 9px 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.16em; color: #5e6b81; }
 
-  .canvas-title-bar {
-    position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 10000;
-    font: 700 11px 'JetBrains Mono', monospace; letter-spacing: 0.1em; text-transform: uppercase;
-    color: #58d7ff; background: #111827e8; border: 1px solid #3c5a84; border-radius: 8px;
-    padding: 7px 16px; backdrop-filter: blur(12px);
+  .global-banner {
+    position: sticky;
+    top: 10px;
+    z-index: 5;
+    margin-bottom: 14px;
   }
-  .return-link {
-    position: fixed; top: 12px; left: 12px; z-index: 10000;
-    font: 700 10px 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.06em;
-    color: #91a0b9; text-decoration: none; background: #111827e8; border: 1px solid #26334d;
-    border-radius: 8px; padding: 8px 12px; backdrop-filter: blur(12px);
-  }
-  .return-link:hover { color: #58d7ff; border-color: #4b8dff77; }
 </style>
 </head>
 <body>
@@ -77,29 +105,67 @@
   returnLink.textContent = '← Dashboard';
   document.body.appendChild(returnLink);
 
+  // Replace the old fixed-position title styles by reusing existing
+  // CSS classes that already ship elsewhere in nexus-space.css.
+  // If those classes ever disappear, the sidebar still renders.
+
   const canvas = mountCanvas({ canvasId: 'tenants', canvasTitle: 'Tenant Hub' });
 
+  const shell = document.createElement('div');
+  shell.className = 'tenants-shell';
+
+  const sidebar = document.createElement('div');
+  sidebar.className = 'sidebar';
+  sidebar.innerHTML = `
+    <div class="sidebar-title">Nexus Forge</div>
+    <div class="side-nav">
+      <a class="side-link active" href="/tenants.html">
+        <span>Tenants</span>
+        <span class="side-pill">Usage</span>
+      </a>
+      <a class="side-link" href="/connectors.html">
+        <span>Connectors</span>
+        <span class="side-pill">OAuth</span>
+      </a>
+      <a class="side-link" href="/memory.html">
+        <span>Memory</span>
+        <span class="side-pill">RAG</span>
+      </a>
+    </div>
+  `;
+
+  const tenantsPanel = document.createElement('div');
+  tenantsPanel.className = 'tenants-panel';
+
   const createBody = document.createElement('div');
-  createBody.className = 'tenants-panel';
   createBody.innerHTML = `
     <div id="oauth-banner"></div>
     <h4>New tenant</h4>
     <form id="create-form">
       <input type="text" id="tenant-name" placeholder="Tenant name" required>
       <select id="tenant-mode" aria-label="Tenant mode">
-        <option value="hosted">Hosted (no external account needed)</option>
-        <option value="byo">Bring your own (GitHub/Vercel)</option>
+        <option value="hosted">Hosted (billing + managed credits)</option>
+        <option value="byo">Bring your own (no managed quota)</option>
       </select>
       <div class="error" id="create-error"></div>
       <button type="submit" id="create-submit">Create tenant</button>
     </form>
+    <div class="meta" style="margin-top:10px; max-width: 520px;">
+      Hosted tenants are covered by the global spend ceiling and per-tenant quotas.
+      BYO tenants are intentionally un-metered by Nex.
+    </div>
   `;
-  canvas.addPanel({ id: 'tenants-create', title: 'New Tenant', content: createBody, x: 80, y: 80, w: 360, h: 300 });
 
   const listBody = document.createElement('div');
-  listBody.className = 'tenants-panel';
   listBody.innerHTML = '<h4>Your tenants</h4><div id="tenant-list"><div class="empty">Loading…</div></div>';
-  canvas.addPanel({ id: 'tenants-list', title: 'Your Tenants', content: listBody, x: 480, y: 80, w: 420, h: 480 });
+
+  tenantsPanel.appendChild(createBody);
+  tenantsPanel.appendChild(listBody);
+
+  shell.appendChild(sidebar);
+  shell.appendChild(tenantsPanel);
+
+  canvas.addPanel({ id: 'tenants-shell', title: 'Tenant Hub', content: shell, x: 60, y: 60, w: 860, h: 620 });
 
   const OAUTH_ERROR_MESSAGES = {
     github_denied: 'GitHub connection was cancelled.',
@@ -115,6 +181,7 @@
     const connected = params.get('connected');
     const error = params.get('error');
     const banner = document.getElementById('oauth-banner');
+    if (!banner) return;
     if (connected) {
       banner.innerHTML = `<div class="banner banner-success">Connected ${connected} successfully.</div>`;
     } else if (error) {
@@ -145,7 +212,7 @@
       if (!res.ok) return null;
       const data = await res.json();
       return data.usage || null;
-    } catch (err) {
+    } catch {
       return null;
     }
   }
@@ -163,7 +230,7 @@
         return;
       }
       window.location.href = data.url;
-    } catch (err) {
+    } catch {
       alert('Could not reach the server.');
     }
   }
@@ -221,64 +288,75 @@
     list.querySelectorAll('.export-btn').forEach((btn) => {
       btn.addEventListener('click', () => exportTenant(btn.dataset.tenantId));
     });
-    list.querySelectorAll('[data-connect-provider]').forEach((btn) => {
-      btn.addEventListener('click', () => connectProvider(btn.dataset.connectTenant, btn.dataset.connectProvider));
+
+    list.querySelectorAll('.connect-btn').forEach((btn) => {
+      const tid = btn.dataset.connectTenant;
+      const prov = btn.dataset.connectProvider;
+      if (!tid || !prov) return;
+      btn.addEventListener('click', () => connectProvider(tid, prov));
     });
   }
 
   async function loadTenants() {
-    const list = document.getElementById('tenant-list');
     try {
-      const res = await fetch('/api/tenants', { credentials: 'include' });
-      if (res.status === 401) {
-        window.location.href = '/room-login.html?next=' + encodeURIComponent(nextPath);
-        return;
-      }
+      const res = await fetch('/api/tenants?action=list', { credentials: 'include' });
+      if (!res.ok) return;
       const data = await res.json();
-      renderTenants(data.tenants || []);
-    } catch (err) {
-      list.innerHTML = '<div class="empty">Could not load tenants.</div>';
+      await renderTenants(data.tenants || []);
+    } catch {
+      // no-op
     }
   }
 
-  document.getElementById('create-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const errorEl = document.getElementById('create-error');
-    const submitBtn = document.getElementById('create-submit');
-    errorEl.innerText = '';
-    submitBtn.disabled = true;
-    try {
-      const res = await fetch('/api/tenants', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          action: 'create',
-          name: document.getElementById('tenant-name').value.trim(),
-          mode: document.getElementById('tenant-mode').value,
-        }),
+  async function createTenant({ name, mode } = {}) {
+    const res = await fetch('/api/board', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ action: 'create_tenant', name, mode }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || 'Create failed');
+    }
+    const data = await res.json();
+    return data.tenant;
+  }
+
+  function showCreateError(msg) {
+    const err = document.getElementById('create-error');
+    if (!err) return;
+    err.textContent = msg || '';
+  }
+
+  canvas.onReady?.(() => {
+    showOAuthBanner();
+    loadTenants();
+
+    const form = document.getElementById('create-form');
+    const submit = document.getElementById('create-submit');
+    if (form) {
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const name = document.getElementById('tenant-name')?.value?.trim();
+        const mode = document.getElementById('tenant-mode')?.value;
+        if (!name) return;
+        showCreateError('');
+        if (submit) submit.disabled = true;
+        try {
+          await createTenant({ name, mode });
+          // Simple refresh for now
+          loadTenants();
+          form.reset();
+        } catch (err) {
+          showCreateError(err.message);
+        } finally {
+          if (submit) submit.disabled = false;
+        }
       });
-      const data = await res.json();
-      if (res.status === 401) {
-        window.location.href = '/room-login.html?next=' + encodeURIComponent(nextPath);
-        return;
-      }
-      if (!res.ok) {
-        errorEl.innerText = data.error || 'Could not create tenant.';
-        submitBtn.disabled = false;
-        return;
-      }
-      document.getElementById('tenant-name').value = '';
-      submitBtn.disabled = false;
-      loadTenants();
-    } catch (err) {
-      errorEl.innerText = 'Could not reach the server.';
-      submitBtn.disabled = false;
     }
   });
 
-  showOAuthBanner();
-  loadTenants();
 </script>
 </body>
 </html>
