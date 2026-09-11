@@ -34,7 +34,16 @@ export function createNexChatBar() {
         </div>
       </div>
       
+      <div class="nex-attachment-preview" id="nexAttachmentPreview" hidden>
+        <img id="nexAttachmentImage" alt="Image ready to send to Nex" />
+        <span id="nexAttachmentName"></span>
+        <button type="button" id="nexAttachmentRemove" aria-label="Remove attached image" title="Remove image">×</button>
+      </div>
       <div class="nex-chat-input-area">
+        <input type="file" id="nexAttachmentInput" accept="image/jpeg,image/png,image/webp" hidden />
+        <button class="nex-attach-btn" id="nexAttach" type="button" aria-label="Add a picture for Nex to see" title="Add picture">
+          <span aria-hidden="true">Pic</span>
+        </button>
         <input 
           type="text" 
           class="nex-chat-input" 
@@ -310,6 +319,45 @@ export function createNexChatBar() {
       flex-shrink: 0;
     }
 
+    .nex-attachment-preview {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 8px 16px;
+      background: rgba(93, 184, 255, .06);
+      border-top: 1px solid var(--nex-border);
+      color: var(--nex-text-dim);
+      font-size: 11px;
+    }
+
+    .nex-attachment-preview[hidden] { display: none; }
+
+    .nex-attachment-preview img {
+      width: 42px;
+      height: 42px;
+      object-fit: cover;
+      border-radius: 7px;
+      border: 1px solid var(--nex-border);
+    }
+
+    .nex-attachment-preview span {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .nex-attachment-preview button {
+      border: 1px solid var(--nex-border);
+      border-radius: 7px;
+      background: transparent;
+      color: var(--nex-text-dim);
+      cursor: pointer;
+      width: 28px;
+      height: 28px;
+      font-size: 18px;
+    }
+
     .nex-chat-input {
       flex: 1;
       background: rgba(255, 255, 255, 0.04);
@@ -333,6 +381,7 @@ export function createNexChatBar() {
       box-shadow: 0 0 0 2px rgba(46, 127, 255, 0.2);
     }
 
+    .nex-attach-btn,
     .nex-mic-btn {
       background: rgba(255, 255, 255, 0.04);
       border: 1px solid var(--nex-border);
@@ -345,6 +394,7 @@ export function createNexChatBar() {
       flex-shrink: 0;
     }
 
+    .nex-attach-btn:hover,
     .nex-mic-btn:hover {
       border-color: var(--nex-accent);
       color: var(--nex-text);
@@ -429,6 +479,12 @@ export function createNexChatBar() {
   const input = container.querySelector('#nexInput');
   const sendBtn = container.querySelector('#nexSend');
   const micBtn = container.querySelector('#nexMic');
+  const attachBtn = container.querySelector('#nexAttach');
+  const attachmentInput = container.querySelector('#nexAttachmentInput');
+  const attachmentPreview = container.querySelector('#nexAttachmentPreview');
+  const attachmentImage = container.querySelector('#nexAttachmentImage');
+  const attachmentName = container.querySelector('#nexAttachmentName');
+  const attachmentRemove = container.querySelector('#nexAttachmentRemove');
   const voiceToggle = container.querySelector('#nexVoiceToggle');
   const visionToggle = container.querySelector('#nexVisionToggle');
   const messagesEl = container.querySelector('#nexMessages');
@@ -658,6 +714,56 @@ export function createNexChatBar() {
     };
   }
 
+  let attachedVisual = null;
+
+  function clearAttachment() {
+    attachedVisual = null;
+    attachmentInput.value = '';
+    attachmentImage.removeAttribute('src');
+    attachmentName.textContent = '';
+    attachmentPreview.hidden = true;
+  }
+
+  async function prepareAttachment(file) {
+    if (!file || !['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      throw new Error('Choose a JPEG, PNG, or WebP image.');
+    }
+    if (file.size > 12_000_000) throw new Error('That image is over the 12 MB upload limit.');
+    const source = URL.createObjectURL(file);
+    try {
+      const image = new Image();
+      image.src = source;
+      await image.decode();
+      const scale = Math.min(1, 1280 / image.naturalWidth, 1280 / image.naturalHeight);
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+      canvas.getContext('2d', { alpha: false }).drawImage(image, 0, 0, canvas.width, canvas.height);
+      attachedVisual = {
+        image_data_url: canvas.toDataURL('image/jpeg', 0.8),
+        width: canvas.width,
+        height: canvas.height,
+        captured_at: Date.now(),
+      };
+      attachmentImage.src = attachedVisual.image_data_url;
+      attachmentName.textContent = file.name || 'Attached image';
+      attachmentPreview.hidden = false;
+    } finally {
+      URL.revokeObjectURL(source);
+    }
+  }
+
+  attachBtn.addEventListener('click', () => attachmentInput.click());
+  attachmentRemove.addEventListener('click', clearAttachment);
+  attachmentInput.addEventListener('change', async () => {
+    try {
+      await prepareAttachment(attachmentInput.files?.[0]);
+    } catch (err) {
+      clearAttachment();
+      addMessage(err.message || 'That image could not be attached.', 'nex-system');
+    }
+  });
+
   visionToggle.setAttribute('aria-pressed', 'false');
   visionToggle.addEventListener('click', async () => {
     if (visionMode) {
@@ -779,10 +885,12 @@ export function createNexChatBar() {
   }
 
   async function send() {
-    const text = input.value.trim();
-    if (!text) return;
+    const typedText = input.value.trim();
+    if (!typedText && !attachedVisual) return;
+    const text = typedText || 'Look at this image.';
+    const visualForMessage = attachedVisual || await captureVisualFrame();
 
-    addMessage(text, 'nex-user');
+    addMessage(attachedVisual ? `${text} [picture attached]` : text, 'nex-user');
     input.value = '';
     input.disabled = true;
     sendBtn.disabled = true;
@@ -796,7 +904,7 @@ export function createNexChatBar() {
           workspace: {
             active_view: window.location.pathname,
             screen: captureWorkspaceSnapshot(),
-            visual: await captureVisualFrame(),
+            visual: visualForMessage,
           },
         }),
       });
@@ -827,6 +935,7 @@ export function createNexChatBar() {
       }
       if (!data) throw new Error('Nex did not return a response.');
       const replyText = data.reply || 'Nex completed the request without a text reply.';
+      clearAttachment();
       addMessage(replyText, 'nex-response');
       speak(replyText);
       if (data.navigation?.type === 'room' && typeof data.navigation.url === 'string') {
