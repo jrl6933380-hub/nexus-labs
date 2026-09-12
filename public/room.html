@@ -942,9 +942,47 @@
       usagePill.title = `${usage.consumed} used of ${usage.limit} this period`;
       buildCreditCopy.innerText = `${usage.remaining} build credits left`;
       buildCreditFill.style.width = `${percentRemaining}%`;
-      buildCreditMeter.classList.toggle('is-low', percentRemaining <= 20);
+      const isLow = percentRemaining <= 20;
+      buildCreditMeter.classList.toggle('is-low', isLow);
       buildCreditTrack.setAttribute('aria-valuenow', String(percentRemaining));
       buildCreditTrack.setAttribute('aria-valuetext', `${usage.remaining} of ${usage.limit} build credits remaining`);
+      let creditPackNudge = document.getElementById('credit-pack-nudge');
+      if (isLow) {
+        if (!creditPackNudge) {
+          creditPackNudge = document.createElement('button');
+          creditPackNudge.id = 'credit-pack-nudge';
+          creditPackNudge.type = 'button';
+          creditPackNudge.style.cssText = 'margin-left:8px;padding:4px 10px;border-radius:6px;border:1px solid #4DD8E877;background:#4DD8E818;color:#4DD8E8;font:700 10px var(--mono,monospace);cursor:pointer;';
+          creditPackNudge.textContent = 'Buy 30 credits — $6';
+          creditPackNudge.addEventListener('click', async () => {
+            creditPackNudge.disabled = true;
+            const original = creditPackNudge.textContent;
+            creditPackNudge.textContent = 'Redirecting…';
+            try {
+              const res = await fetch('/api/checkout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ priceId: 'price_1UEjoFDh5Di7LYi3DGorrLRb' }),
+              });
+              const data = await res.json().catch(() => ({}));
+              if (res.status === 401) {
+                window.location.href = '/room-login.html?next=' + encodeURIComponent(location.pathname);
+                return;
+              }
+              if (!res.ok || !data.url) throw new Error(data.error || 'Checkout failed');
+              window.location.href = data.url;
+            } catch (err) {
+              creditPackNudge.disabled = false;
+              creditPackNudge.textContent = original;
+              alert(err.message || 'Could not start checkout.');
+            }
+          });
+          usagePill.insertAdjacentElement('afterend', creditPackNudge);
+        }
+      } else if (creditPackNudge) {
+        creditPackNudge.remove();
+      }
     } catch {
       usagePill.innerText = 'Usage unavailable';
       buildCreditCopy.innerText = 'Build credits unavailable';
