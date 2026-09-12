@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Nexus Forge — Caller</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0b0d12; color: #e8eaed; padding: 16px 12px 40px;
+  }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .sub { color: #9aa0a6; font-size: 13px; margin-bottom: 16px; }
+  #state { color: #9aa0a6; font-size: 14px; padding: 24px 4px; }
+  .card {
+    background: #14171f; border: 1px solid #262b36; border-radius: 14px;
+    padding: 14px; margin-bottom: 12px;
+  }
+  .biz { font-size: 16px; font-weight: 600; margin: 0 0 2px; }
+  .meta { color: #9aa0a6; font-size: 13px; margin-bottom: 8px; }
+  .points { font-size: 13px; color: #c7cad1; margin: 6px 0 10px; padding-left: 18px; }
+  .points li { margin-bottom: 2px; }
+  .row { display: flex; gap: 8px; margin-bottom: 8px; }
+  .call-btn {
+    flex: 1; text-align: center; background: #2e7d32; color: white; text-decoration: none;
+    padding: 12px; border-radius: 10px; font-weight: 600; font-size: 15px;
+  }
+  select, textarea, input[type=date] {
+    width: 100%; background: #0b0d12; color: #e8eaed; border: 1px solid #333844;
+    border-radius: 8px; padding: 8px; font-size: 14px; margin-bottom: 8px;
+  }
+  textarea { min-height: 60px; resize: vertical; }
+  .save-btn {
+    width: 100%; background: #3b5bfd; color: white; border: none; border-radius: 8px;
+    padding: 10px; font-weight: 600; font-size: 14px;
+  }
+  .saved { color: #4caf50; font-size: 12px; margin-top: 6px; display: none; }
+  .empty { text-align: center; color: #9aa0a6; padding: 40px 16px; }
+</style>
+</head>
+<body>
+  <h1>Your leads</h1>
+  <div class="sub">Nexus Forge — tap to call, log the outcome after.</div>
+  <div id="state">Loading…</div>
+  <div id="list"></div>
+
+<script>
+const DISPOSITIONS = [
+  ['', 'Log outcome…'],
+  ['no_answer', 'No answer'],
+  ['voicemail_left', 'Voicemail left'],
+  ['follow_up', 'Follow up'],
+  ['interested', 'Interested'],
+  ['demo_requested', 'Demo requested'],
+  ['appointment_booked', 'Appointment booked'],
+  ['not_interested', 'Not interested'],
+  ['do_not_call', 'Do not call'],
+  ['wrong_number', 'Wrong number'],
+  ['already_has_provider', 'Already has provider'],
+];
+
+async function loadLeads() {
+  const stateEl = document.getElementById('state');
+  const listEl = document.getElementById('list');
+  try {
+    const res = await fetch('/api/forge-leads', { credentials: 'include' });
+    if (res.status === 401) {
+      stateEl.textContent = 'Please sign in first.';
+      setTimeout(() => { window.location.href = '/room.html'; }, 1200);
+      return;
+    }
+    if (res.status === 403) {
+      stateEl.textContent = "This account doesn't have Forge caller access yet. Ask a manager to grant it.";
+      return;
+    }
+    if (!res.ok) throw new Error('load failed');
+    const { leads } = await res.json();
+    stateEl.style.display = 'none';
+    const active = leads.filter((l) => !l.suppressed);
+    if (!active.length) {
+      listEl.innerHTML = '<div class="empty">No leads assigned yet.</div>';
+      return;
+    }
+    listEl.innerHTML = active.map(renderCard).join('');
+    active.forEach(wireCard);
+  } catch (err) {
+    stateEl.textContent = 'Could not load leads. Pull to refresh.';
+  }
+}
+
+function renderCard(lead) {
+  const points = (lead.talkingPoints || []).map((p) => `<li>${escapeHtml(p)}</li>`).join('');
+  const options = DISPOSITIONS.map(([v, label]) =>
+    `<option value="${v}" ${lead.lastDisposition === v ? 'selected' : ''}>${label}</option>`
+  ).join('');
+  return `
+    <div class="card" data-id="${lead.id}">
+      <p class="biz">${escapeHtml(lead.businessName)}</p>
+      <p class="meta">${escapeHtml(lead.category || '')} ${lead.location ? '· ' + escapeHtml(lead.location) : ''}</p>
+      ${lead.websiteStatus ? `<p class="meta">Site: ${escapeHtml(lead.websiteStatus)}</p>` : ''}
+      ${points ? `<ul class="points">${points}</ul>` : ''}
+      <div class="row">
+        <a class="call-btn" href="tel:${escapeAttr(lead.phone)}">Call ${escapeHtml(lead.phone)}</a>
+      </div>
+      <select class="disposition">${options}</select>
+      <textarea class="notes" placeholder="Notes from the call…">${escapeHtml(lead.notes || '')}</textarea>
+      <input type="date" class="followup" value="${lead.followUpDate || ''}" />
+      <button class="save-btn">Save outcome</button>
+      <div class="saved">Saved.</div>
+    </div>`;
+}
+
+function wireCard(lead) {
+  const card = document.querySelector(`.card[data-id="${lead.id}"]`);
+  if (!card) return;
+  card.querySelector('.save-btn').addEventListener('click', async () => {
+    const disposition = card.querySelector('.disposition').value;
+    const notes = card.querySelector('.notes').value;
+    const followUpDate = card.querySelector('.followup').value;
+    if (!disposition) { alert('Pick an outcome first.'); return; }
+    const res = await fetch('/api/forge-leads', {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: lead.id, disposition, notes, followUpDate: followUpDate || null }),
+    });
+    const savedEl = card.querySelector('.saved');
+    if (res.ok) {
+      savedEl.style.display = 'block';
+      setTimeout(() => { savedEl.style.display = 'none'; }, 1500);
+      if (disposition === 'do_not_call' || disposition === 'wrong_number') {
+        setTimeout(loadLeads, 800);
+      }
+    } else {
+      alert('Could not save. Try again.');
+    }
+  });
+}
+
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function escapeAttr(s) { return escapeHtml(s); }
+
+loadLeads();
+</script>
+</body>
+</html>
