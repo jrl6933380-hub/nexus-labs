@@ -225,6 +225,18 @@
 
   const canvas = mountCanvas({ canvasTitle: 'Venture Factory' });
 
+  // A phone opens on a launcher, not three overlapping desktop windows.
+  // Respect an existing user choice, but start each homepage panel minimized
+  // the first time this dashboard is used on a mobile viewport.
+  if (window.matchMedia('(max-width: 720px)').matches) {
+    for (const id of ['board-summary', 'agent-list', 'room-list']) {
+      const key = `nexus-panel-collapsed:dashboard:${id}`;
+      try {
+        if (localStorage.getItem(key) === null) localStorage.setItem(key, '1');
+      } catch {}
+    }
+  }
+
   // Spaces are destinations, not previews. Every normal click opens the
   // requested workspace directly; only the explicit Room Builder entry may
   // open the Forge workspace at /room.html.
