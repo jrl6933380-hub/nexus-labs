@@ -10,6 +10,9 @@
 import { getBuild } from '../lib/roomHistory.js';
 import { getRequestUser, getUserPlan, isPaidPlan } from '../lib/roomAuth.js';
 import { deployStaticSite } from '../lib/vercel.js';
+import { getAgentConfig } from '../lib/siteAgent.js';
+
+const SITE_URL = process.env.SITE_URL || 'https://nexus-labs-sigma.vercel.app';
 
 function slugForProject(username, id) {
   // Vercel project names: lowercase letters, digits, hyphens only.
@@ -50,8 +53,15 @@ export function createPublishHandler({
       if (typeof build.html !== 'string' || !build.html) {
         return res.status(422).json({ error: 'This build has no content to publish yet.' });
       }
-      const projectName = slugForProject(username, build.projectId || id);
-      const result = await publish({ projectName, html: build.html });
+      let html = build.html;
+      const projectId = build.projectId || id;
+      const agentConfig = await getAgentConfig(projectId);
+      if (agentConfig?.enabled && html.includes('</body>')) {
+        const widgetTag = `<script src="${SITE_URL}/site-agent-widget.js" data-project="${projectId}"></script>`;
+        html = html.replace('</body>', `${widgetTag}\n</body>`);
+      }
+      const projectName = slugForProject(username, projectId);
+      const result = await publish({ projectName, html });
       if (!result.deployed) {
         return res.status(502).json({ error: 'Publish failed.', reason: result.reason || null });
       }
