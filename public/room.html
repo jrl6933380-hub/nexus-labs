@@ -422,8 +422,34 @@
   .builder-brand { display: grid; min-width: 0; gap: 1px; }
   .title { font-family: var(--sans); font-size: 14px; font-weight: 680; letter-spacing: .01em; }
   .project-state { color: var(--text-faint); font: 500 11px/1.2 var(--sans); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .header-actions { flex-wrap: nowrap; min-width: 0; overflow-x: auto; scrollbar-width: none; }
-  .header-actions::-webkit-scrollbar { display: none; }
+  .header-menu { position: relative; margin-left: auto; flex: 0 0 auto; }
+  .menu-toggle {
+    display: inline-grid; place-items: center; width: 40px; height: 40px; padding: 0;
+    border: 1px solid var(--border); border-radius: 10px; background: rgba(255,255,255,.035);
+    color: var(--text); cursor: pointer;
+  }
+  .menu-toggle:hover, .menu-toggle:focus-visible, .menu-toggle[aria-expanded="true"] {
+    border-color: rgba(93,184,255,.55); background: rgba(93,184,255,.1); outline: none;
+  }
+  .menu-icon, .menu-icon::before, .menu-icon::after {
+    display: block; width: 18px; height: 2px; border-radius: 999px; background: currentColor;
+  }
+  .menu-icon { position: relative; }
+  .menu-icon::before, .menu-icon::after { content: ''; position: absolute; left: 0; }
+  .menu-icon::before { top: -6px; }
+  .menu-icon::after { top: 6px; }
+  .header-actions {
+    display: none; position: absolute; top: calc(100% + 8px); right: 0; z-index: 45;
+    width: min(270px, calc(100vw - 24px)); max-height: min(520px, calc(100dvh - 86px));
+    padding: 8px; overflow-y: auto; flex-direction: column; align-items: stretch; gap: 6px;
+    border: 1px solid var(--border); border-radius: 14px; background: rgba(17,24,34,.98);
+    box-shadow: 0 24px 70px rgba(0,0,0,.58); backdrop-filter: blur(18px);
+  }
+  .header-menu.open .header-actions { display: flex; }
+  .header-actions .back-link, .header-actions .history-btn {
+    width: 100%; min-height: 42px; justify-content: flex-start; text-align: left;
+  }
+  .header-actions .usage-pill { justify-content: center; }
   .back-link, .history-btn {
     min-height: 36px; padding: 7px 11px; border-radius: 9px; white-space: nowrap;
     color: var(--text-dim); font: 600 12px var(--sans); background: rgba(255,255,255,.025);
@@ -506,7 +532,7 @@
     .title { font-size: 13px; }
     .project-state { font-size: 10px; }
     .usage-pill { display: none; }
-    .header-actions { margin-left: auto; }
+    .menu-toggle { width: 38px; height: 38px; }
     .back-link, .history-btn { min-height: 36px; padding: 7px 10px; }
     .room { grid-template-rows: minmax(0, 1fr) auto; }
     .chat-panel { height: 112px; }
@@ -601,15 +627,20 @@
         <span class="title">Nexus Forge</span>
         <span class="project-state" id="project-state">AI Website &amp; App Builder · New project</span>
       </div>
-      <div class="header-actions">
-        <span class="usage-pill" id="usage-pill">Usage —</span>
-        <button class="history-btn" id="new-btn" type="button">New</button>
-        <span id="whoami"></span>
-        <button class="history-btn" id="import-btn" type="button">Import Nexus</button>
-        <button class="history-btn" id="export-btn" type="button" disabled>Export</button>
-        <button class="history-btn push-btn" id="push-btn" type="button" hidden disabled>Open PR</button>
-        <button class="history-btn primary" id="history-btn" type="button">Projects</button>
-        <button class="back-link" id="logout-btn" type="button">Sign out</button>
+      <div class="header-menu" id="header-menu">
+        <button class="menu-toggle" id="menu-toggle" type="button" aria-label="Open builder options" aria-expanded="false" aria-controls="header-actions">
+          <span class="menu-icon" aria-hidden="true"></span>
+        </button>
+        <div class="header-actions" id="header-actions" role="menu">
+          <span class="usage-pill" id="usage-pill">Usage —</span>
+          <button class="history-btn" id="new-btn" type="button" role="menuitem">New project</button>
+          <span id="whoami"></span>
+          <button class="history-btn" id="import-btn" type="button" role="menuitem">Import Nexus</button>
+          <button class="history-btn" id="export-btn" type="button" role="menuitem" disabled>Export</button>
+          <button class="history-btn push-btn" id="push-btn" type="button" role="menuitem" hidden disabled>Open PR</button>
+          <button class="history-btn primary" id="history-btn" type="button" role="menuitem">Projects</button>
+          <button class="back-link" id="logout-btn" type="button" role="menuitem">Sign out</button>
+        </div>
       </div>
       <div id="history-panel">
         <div id="history-list" class="history-empty">Loading…</div>
@@ -707,6 +738,31 @@
       window.location.href = '/room-login.html';
     }
   })();
+
+  const headerMenu = document.getElementById('header-menu');
+  const menuToggle = document.getElementById('menu-toggle');
+
+  function setHeaderMenuOpen(open) {
+    headerMenu.classList.toggle('open', open);
+    menuToggle.setAttribute('aria-expanded', String(open));
+    menuToggle.setAttribute('aria-label', open ? 'Close builder options' : 'Open builder options');
+  }
+
+  menuToggle.addEventListener('click', (event) => {
+    event.stopPropagation();
+    setHeaderMenuOpen(!headerMenu.classList.contains('open'));
+  });
+  headerMenu.addEventListener('click', (event) => event.stopPropagation());
+  document.addEventListener('click', () => setHeaderMenuOpen(false));
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && headerMenu.classList.contains('open')) {
+      setHeaderMenuOpen(false);
+      menuToggle.focus();
+    }
+  });
+  document.getElementById('header-actions').addEventListener('click', (event) => {
+    if (event.target.closest('button:not(#history-btn)')) setHeaderMenuOpen(false);
+  });
 
   document.getElementById('logout-btn').addEventListener('click', async () => {
     try {
@@ -924,6 +980,7 @@
 
   historyBtn.addEventListener('click', () => {
     const opening = !historyPanel.classList.contains('open');
+    setHeaderMenuOpen(false);
     historyPanel.classList.toggle('open', opening);
     historyBtn.classList.toggle('active', opening);
     if (opening) loadHistoryList();
