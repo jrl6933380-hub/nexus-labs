@@ -1028,13 +1028,47 @@
         item.querySelector('.label').innerText = b.label;
         item.querySelector('.meta').innerText = formatWhen(b.createdAt);
         item.addEventListener('click', () => loadBuild(b.id));
+        const hostBtn = document.createElement('button');
+        hostBtn.type = 'button';
+        hostBtn.textContent = 'Host live';
+        hostBtn.style.cssText = 'display:inline-block;padding:12px 14px 12px 0;background:none;border:none;color:var(--cyan);font:700 12px var(--mono,monospace);cursor:pointer;';
+        hostBtn.title = 'Deploy this build to a real, live URL.';
+        hostBtn.addEventListener('click', async (event) => {
+          event.stopPropagation();
+          const original = hostBtn.textContent;
+          hostBtn.disabled = true;
+          hostBtn.textContent = 'Hosting…';
+          try {
+            const res = await fetch('/api/room-publish', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: b.id }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.status === 402) {
+              hostBtn.disabled = false;
+              hostBtn.textContent = original;
+              window.location.href = '/room-login.html?next=' + encodeURIComponent(location.pathname);
+              return;
+            }
+            if (!res.ok || !data.url) throw new Error(data.error || 'Could not host this build.');
+            hostBtn.textContent = 'Live →';
+            hostBtn.onclick = (e2) => { e2.stopPropagation(); window.open(data.url, '_blank', 'noopener'); };
+            hostBtn.disabled = false;
+          } catch (err) {
+            hostBtn.disabled = false;
+            hostBtn.textContent = original;
+            alert(err.message || 'Could not host this build.');
+          }
+        });
         const download = document.createElement('a');
         download.textContent = 'Download HTML';
         download.href = '/api/room-history?id=' + encodeURIComponent(b.id) + '&download=html';
         download.setAttribute('download', 'nexus-build.html');
-        download.style.cssText = 'display:inline-block;padding:12px 0;color:var(--cyan)';
+        download.style.cssText = 'display:inline-block;padding:12px 0;color:var(--text-dim);font-size:11px;';
         download.title = 'Download generated code. Review before opening; external services are not bundled.';
         download.addEventListener('click', (event) => event.stopPropagation());
+        item.appendChild(hostBtn);
         item.appendChild(download);
         historyList.appendChild(item);
       });
