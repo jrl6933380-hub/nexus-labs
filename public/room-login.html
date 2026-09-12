@@ -221,10 +221,12 @@
     <input type="password" id="login-password" placeholder="Password" autocomplete="current-password" required>
     <div class="error" id="login-error"></div>
     <button type="submit" id="login-submit">Sign in</button>
+    <button type="button" id="forgot-password-link" style="background:none;border:none;color:var(--text-dim);font:600 11px var(--mono);text-decoration:underline;cursor:pointer;padding:2px 0;">Forgot password?</button>
   </form>
 
   <form id="signup-form" class="hidden">
     <input type="text" id="signup-username" placeholder="Choose a username" autocomplete="username" required>
+    <input type="email" id="signup-email" placeholder="Email (for password resets)" autocomplete="email" required>
     <input type="password" id="signup-password" placeholder="Choose a password (8+ characters)" autocomplete="new-password" required>
     <div class="error" id="signup-error"></div>
     <button type="submit" id="signup-submit">Create account</button>
@@ -271,6 +273,25 @@
     </div>
     <p class="tier-note">Need more later? Usage packs add 30 build credits for $6, available anytime inside the builder.</p>
     <p class="tier-note"><button class="tier-action-annual" type="button" data-checkout="price_1UEjoFDh5Di7LYi3DGorrLRb" style="display:inline;width:auto;">Buy 30 credits now — $6</button></p>
+  </div>
+</section>
+
+<section class="tier-modal hidden" id="reset-modal" role="dialog" aria-modal="true" aria-labelledby="reset-title">
+  <div class="tier-dialog" style="max-width:420px;">
+    <div class="tier-heading">
+      <div class="eyebrow">Nex</div>
+      <h2 id="reset-title" style="font-size:22px;">Password reset</h2>
+    </div>
+    <div id="reset-chat-log" style="display:grid;gap:10px;margin:18px 0;"></div>
+    <form id="reset-request-form">
+      <input type="text" id="reset-username" placeholder="Your username" autocomplete="username" required style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;font-family:var(--sans);margin-bottom:10px;box-sizing:border-box;">
+      <button type="submit" id="reset-request-submit" style="width:100%;padding:10px;border-radius:8px;border:none;background:var(--blue);color:#06090F;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;">Send reset link</button>
+    </form>
+    <form id="reset-complete-form" class="hidden">
+      <input type="password" id="reset-new-password" placeholder="New password (8+ characters)" autocomplete="new-password" required style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;font-family:var(--sans);margin-bottom:10px;box-sizing:border-box;">
+      <button type="submit" id="reset-complete-submit" style="width:100%;padding:10px;border-radius:8px;border:none;background:var(--blue);color:#06090F;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;">Set new password</button>
+    </form>
+    <button type="button" id="reset-close" style="width:100%;margin-top:12px;padding:10px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text-dim);font:700 11px var(--mono);cursor:pointer;">Close</button>
   </div>
 </section>
 
