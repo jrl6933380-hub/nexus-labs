@@ -184,6 +184,23 @@
     letter-spacing: .08em;
   }
 
+  .build-credit-meter {
+    display: grid;
+    grid-template-columns: auto minmax(70px, 1fr);
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(4, 9, 17, .48);
+    color: var(--text-dim);
+    font: 600 10px/1.2 var(--mono);
+  }
+  .build-credit-copy { white-space: nowrap; }
+  .build-credit-track { height: 5px; overflow: hidden; border-radius: 999px; background: rgba(136,145,163,.18); }
+  .build-credit-fill { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--blue), var(--cyan)); transition: width .28s ease; }
+  .build-credit-meter.is-low .build-credit-fill { background: linear-gradient(90deg, var(--red), var(--amber)); }
+  .build-credit-meter.is-unlimited .build-credit-fill { width: 100%; }
+
   .chat-history {
     flex: 1;
     overflow-y: auto;
@@ -595,6 +612,7 @@
   .room-builder-wrap:not(.chat-open) .chat-specialty { display: none; }
   .room-builder-wrap:not(.chat-open) .chat-history,
   .room-builder-wrap:not(.chat-open) .input-row,
+  .room-builder-wrap:not(.chat-open) .build-credit-meter,
   .room-builder-wrap:not(.chat-open) .chat-status,
   .room-builder-wrap:not(.chat-open) .voice-btn { display: none; }
   .room-builder-wrap:not(.chat-open) .chat-toolbar { border-bottom: 0; }
@@ -660,6 +678,12 @@
             <span class="chat-status" id="chat-status" role="status" aria-live="polite">Ready</span>
             <button class="voice-btn" id="voice-btn" type="button" aria-label="Toggle spoken build updates" aria-pressed="false">Audio</button>
           </div>
+        </div>
+        <div class="build-credit-meter" id="build-credit-meter" aria-label="Build credits remaining">
+          <span class="build-credit-copy" id="build-credit-copy">Build credits —</span>
+          <span class="build-credit-track" id="build-credit-track" role="progressbar" aria-label="Build credits remaining" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <span class="build-credit-fill" id="build-credit-fill"></span>
+          </span>
         </div>
         <div class="chat-history" id="chat-history"></div>
         <div class="attachment-tray" id="attachment-tray" aria-label="Attached images" hidden></div>
@@ -795,6 +819,10 @@
   const refreshBtn = document.getElementById('refresh-btn');
   const projectState = document.getElementById('project-state');
   const usagePill = document.getElementById('usage-pill');
+  const buildCreditMeter = document.getElementById('build-credit-meter');
+  const buildCreditCopy = document.getElementById('build-credit-copy');
+  const buildCreditTrack = document.getElementById('build-credit-track');
+  const buildCreditFill = document.getElementById('build-credit-fill');
 
   function isNexusImport(html) {
     return /<!-- NEXUS_SAFETY_SHIM_START -->/i.test(html);
@@ -896,15 +924,33 @@
       const res = await fetch('/api/room-usage', { headers: { Accept: 'application/json' }, cache: 'no-store' });
       if (!res.ok) return;
       const { usage } = await res.json();
+      buildCreditMeter.classList.remove('is-low', 'is-unlimited');
       if (usage.unlimited) {
         usagePill.innerText = 'Owner · unlimited';
         usagePill.title = 'Owner account is exempt from creative credit limits';
+        buildCreditCopy.innerText = 'Build credits · unlimited';
+        buildCreditMeter.classList.add('is-unlimited');
+        buildCreditFill.style.width = '100%';
+        buildCreditTrack.setAttribute('aria-valuenow', '100');
+        buildCreditTrack.setAttribute('aria-valuetext', 'Unlimited build credits');
         return;
       }
+      const percentRemaining = usage.limit > 0
+        ? Math.max(0, Math.min(100, Math.round((usage.remaining / usage.limit) * 100)))
+        : 0;
       usagePill.innerText = `${usage.remaining} credits left`;
       usagePill.title = `${usage.consumed} used of ${usage.limit} this period`;
+      buildCreditCopy.innerText = `${usage.remaining} build credits left`;
+      buildCreditFill.style.width = `${percentRemaining}%`;
+      buildCreditMeter.classList.toggle('is-low', percentRemaining <= 20);
+      buildCreditTrack.setAttribute('aria-valuenow', String(percentRemaining));
+      buildCreditTrack.setAttribute('aria-valuetext', `${usage.remaining} of ${usage.limit} build credits remaining`);
     } catch {
       usagePill.innerText = 'Usage unavailable';
+      buildCreditCopy.innerText = 'Build credits unavailable';
+      buildCreditFill.style.width = '0%';
+      buildCreditTrack.setAttribute('aria-valuenow', '0');
+      buildCreditTrack.setAttribute('aria-valuetext', 'Build credit usage unavailable');
     }
   }
 
