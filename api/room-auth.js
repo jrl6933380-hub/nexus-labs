@@ -33,11 +33,11 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { action, username, password, email } = req.body || {};
+  const { action, username, password, email, securityQuestion, securityAnswer } = req.body || {};
 
   try {
     if (action === 'signup') {
-      const user = await createUser(username, password, email);
+      const user = await createUser(username, password, email, securityQuestion, securityAnswer);
       const token = await createSession(user.username);
       res.setHeader('Set-Cookie', serializeSessionCookie(token));
       return res.status(200).json({ username: user.username, operator: isOperatorUser(user.username) });
