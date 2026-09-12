@@ -11,8 +11,9 @@
 
 import { getRequestUser } from '../lib/roomAuth.js';
 import { isForgeWorker, isForgeManager } from '../lib/forgeRoles.js';
-import { createLead, listLeads, assignLead, recordDisposition } from '../lib/forgeLeads.js';
+import { createLead, listLeads, assignLead, recordDisposition, updateLeadEnrichment } from '../lib/forgeLeads.js';
 import { generatePitchScript } from '../lib/forgePitch.js';
+import { fetchBusinessSignals } from '../lib/forgePlaces.js';
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'private, no-store');
@@ -36,7 +37,19 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       if (!manager) return res.status(403).json({ error: 'Manager access required.' });
       const lead = await createLead(req.body || {}, { createdBy: username });
-      return res.status(201).json({ lead });
+      // Best-effort enrichment — never blocks or fails lead creation.
+      // If GOOGLE_PLACES_API_KEY isn't set, or the lookup finds nothing,
+      // this just leaves rating/reviewCount/placesWebsite as null.
+      let enriched = lead;
+      const signals = await fetchBusinessSignals(lead.businessName, lead.location).catch(() => null);
+      if (signals) {
+        enriched = await updateLeadEnrichment(lead.id, {
+          rating: signals.rating,
+          reviewCount: signals.reviewCount,
+          placesWebsite: signals.website,
+        }).catch(() => lead);
+      }
+      return res.status(201).json({ lead: enriched });
     }
 
     if (req.method === 'PATCH') {
