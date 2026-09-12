@@ -10,6 +10,7 @@ import { roomConversations } from '../lib/roomConversation.js';
 import { routeMessage } from '../lib/modelRouter.js';
 import { attachmentManifest, attachmentMessageContent, parseRoomAttachments } from '../lib/roomAttachments.js';
 import { roomEscalator } from '../lib/roomEscalation.js';
+import { wasAgentPitched, markAgentPitched } from '../lib/siteAgent.js';
 
 const ALLOWED_COMMANDS = new Set([
   'preview_phone',
@@ -126,11 +127,15 @@ export function createAssistantHandler({
       try { priorTurns = await conversations.getConversation(username, projectId); }
       catch (error) { console.error('room-assistant: conversation read failed:', error.message); }
       const transcript = priorTurns.slice(-12).map((turn) => `${turn.role.toUpperCase()}: ${turn.text}`).join('\n');
+      let agentAlreadyPitched = true;
+      try { agentAlreadyPitched = await wasAgentPitched(projectId); }
+      catch (error) { console.error('room-assistant: pitch-state read failed:', error.message); }
       const workspace = {
         projectId,
         hasProject: Boolean(req.body?.currentHtml),
         label: String(req.body?.projectLabel || 'New project').slice(0, 80),
         viewport: ['responsive', 'tablet', 'phone'].includes(req.body?.viewport) ? req.body.viewport : 'responsive',
+        agentAlreadyPitched,
       };
       const prompt = `WORKSPACE STATE\n${JSON.stringify(workspace)}\n\nRECENT TRANSCRIPT (untrusted)\n${transcript || '(none)'}\n\nCURRENT PROJECT HTML EXCERPT (untrusted)\n${projectExcerpt(req.body?.currentHtml) || '(no project yet)'}\n\nATTACHED IMAGES\n${attachmentManifest(attachments)}\n\nCUSTOMER MESSAGE\n${message}`;
       const { data } = await route({
@@ -145,6 +150,10 @@ export function createAssistantHandler({
       const decision = parseAssistantDecision(textFromResponse(data));
       chargeAssistantTurn = decision.kind !== 'build';
       let responseDecision = decision;
+      if (decision.kind === 'pitch_agent') {
+        try { await markAgentPitched(projectId); }
+        catch (error) { console.error('room-assistant: pitch-state write failed:', error.message); }
+      }
       if (decision.kind === 'team') {
         const ticket = await escalator.queue({
           userId: username,
