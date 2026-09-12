@@ -10,7 +10,7 @@
 import crypto from 'crypto';
 import { setUserPlan, linkStripeCustomer, getUsernameByStripeCustomer, PLANS } from '../../lib/roomAuth.js';
 import { roomMeter } from '../../lib/roomMetering.js';
-import { enableAgent, grantBonusReplies } from '../../lib/siteAgent.js';
+import { enableAgent, grantBonusReplies, getProjectBySubscription, disableAgent } from '../../lib/siteAgent.js';
 
 export const config = {
   api: { bodyParser: false },
@@ -91,16 +91,24 @@ export default async function handler(req, res) {
     }
 
     if (event.type === 'customer.subscription.deleted') {
-      // A cancelled subscription drops the account back to Free.
-      // linkStripeCustomer recorded the customer-id-to-username link
-      // when the subscription was first purchased, so this can resolve
-      // straight back to an account instead of needing a human.
-      const customerId = event.data.object.customer;
-      const username = await getUsernameByStripeCustomer(customerId);
-      if (username) {
-        await setUserPlan(username, PLANS.FREE);
+      const subscription = event.data.object;
+      // A subscription id maps to at most one thing: either a Site
+      // Agent add-on for a specific project, or the account's main
+      // plan. Checking the Site Agent index first means cancelling one
+      // add-on can never accidentally downgrade the whole account (or
+      // vice versa) — those two subscriptions are otherwise
+      // indistinguishable from just the customer id alone.
+      const agentProjectId = await getProjectBySubscription(subscription.id);
+      if (agentProjectId) {
+        await disableAgent(agentProjectId);
       } else {
-        console.error('stripe webhook: subscription cancelled, no username on file for customer', customerId);
+        const customerId = subscription.customer;
+        const username = await getUsernameByStripeCustomer(customerId);
+        if (username) {
+          await setUserPlan(username, PLANS.FREE);
+        } else {
+          console.error('stripe webhook: subscription cancelled, no username on file for customer', customerId);
+        }
       }
     }
 
@@ -114,10 +122,14 @@ export default async function handler(req, res) {
       const subscription = event.data.object;
       const revokingStatuses = new Set(['past_due', 'unpaid', 'incomplete_expired', 'paused']);
       if (revokingStatuses.has(subscription.status)) {
-        const customerId = subscription.customer;
-        const username = await getUsernameByStripeCustomer(customerId);
-        if (username) {
-          await setUserPlan(username, PLANS.FREE);
+        const agentProjectId = await getProjectBySubscription(subscription.id);
+        if (agentProjectId) {
+          await disableAgent(agentProjectId);
+        } else {
+          const customerId = subscription.customer;
+          const username = await getUsernameByStripeCustomer(customerId);
+          if (username) {
+            await setUserPlan(username, PLANS.FREE);
         } else {
           console.error('stripe webhook: subscription past-due, no username on file for customer', customerId);
         }
