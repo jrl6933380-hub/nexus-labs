@@ -136,22 +136,19 @@
 
   const canvas = mountCanvas({ canvasTitle: 'Venture Factory' });
 
-  // Room list — until "rooms" become real saved views on this same
-  // canvas, this is the bridge: real links to each existing room's own
-  // detail page, so nothing already built is unreachable from here.
-  // Kept in sync by hand with the `scenes` registry in nexus-space.js
-  // (same duplication already present between that file and
-  // lib/rooms.js) — a shared source is a good later cleanup, not a
-  // blocker for this bridge working today.
+  // Spaces open the matching scene in NexusSpace. Room Builder is the one
+  // deliberate exception: it is the customer-facing Forge workspace and may
+  // navigate to /room.html. Keeping that exception explicit prevents another
+  // Space click from being interpreted as an implicit Builder request.
   const ROOMS = [
-    { nav: 'Mission', title: 'Command Deck', detail: '/mission-control.html' },
-    { nav: 'Conference', title: 'Conference Room', detail: '/conference-room.html' },
+    { nav: 'Mission', title: 'Command Deck', detail: '/nexus-space.html#command' },
+    { nav: 'Conference', title: 'Conference Room', detail: '/nexus-space.html#conference' },
     { nav: 'Builder', title: 'Room Builder', detail: '/room.html' },
-    { nav: 'Story', title: 'Story Studio', detail: '/story-studio.html' },
-    { nav: 'Memory', title: 'Memory Archive', detail: '/memory.html' },
-    { nav: 'Approvals', title: 'Approval Queue', detail: '/queue.html' },
-    { nav: 'Connectors', title: 'Connector Bay', detail: '/connectors.html' },
-    { nav: 'Tenants', title: 'Tenant Hub', detail: '/tenants.html' },
+    { nav: 'Story', title: 'Story Studio', detail: '/nexus-space.html#story' },
+    { nav: 'Memory', title: 'Memory Archive', detail: '/nexus-space.html#memory' },
+    { nav: 'Approvals', title: 'Approval Queue', detail: '/nexus-space.html#queue' },
+    { nav: 'Connectors', title: 'Connector Bay', detail: '/nexus-space.html#connectors' },
+    { nav: 'Tenants', title: 'Tenant Hub', detail: '/nexus-space.html#tenants' },
   ];
 
   const roomBody = document.createElement('div');
