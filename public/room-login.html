@@ -176,6 +176,8 @@
   .tier-action.primary { border-color: var(--blue); background: var(--blue); color: #06090F; }
   .tier-action:disabled { opacity: .5; cursor: default; }
   .tier-note { margin-top: 16px; text-align: center; color: var(--text-dim); font-size: 11px; }
+  .tier-action-annual { width: 100%; margin-top: 6px; padding: 0; border: none; background: none; color: var(--cyan); font: 600 10px var(--mono); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+  .tier-action-annual:disabled { opacity: .5; cursor: default; text-decoration: none; }
 
   @media (max-width: 760px) {
     body { align-items: flex-start; padding: 28px 18px; }
@@ -224,10 +226,8 @@
   <form id="signup-form" class="hidden">
     <input type="text" id="signup-username" placeholder="Choose a username" autocomplete="username" required>
     <input type="password" id="signup-password" placeholder="Choose a password (8+ characters)" autocomplete="new-password" required>
-    <input type="text" id="signup-invite" placeholder="Invite code" required>
     <div class="error" id="signup-error"></div>
     <button type="submit" id="signup-submit">Create account</button>
-    <div class="hint">Invite-only early access. Use the code included with your invitation.</div>
   </form>
   <p class="trust"><strong>Your work stays private to your account.</strong> Creative credits are shown inside the builder, and failed instant builds are automatically handed to the Build Team.</p>
 </section>
@@ -238,7 +238,7 @@
     <div class="tier-heading">
       <div class="eyebrow">Account created</div>
       <h2 id="tier-title">Choose how you want to build</h2>
-      <p>Your account starts on Free. See every Forge tier now; paid activation will unlock here when billing is connected.</p>
+      <p>Your account starts on Free. Pick a paid tier below to activate it now, or continue on Free and upgrade anytime.</p>
     </div>
     <div class="tier-grid">
       <article class="tier-card">
@@ -249,24 +249,27 @@
       </article>
       <article class="tier-card featured">
         <div class="tier-name">Hosted</div>
-        <div class="tier-status">For publishing without setup</div>
+        <div class="tier-status">$12/mo · live hosting + custom domain</div>
         <ul class="tier-features"><li>More build credits</li><li>Nexus-managed hosting</li><li>Simple publishing flow</li></ul>
-        <button class="tier-action" type="button" disabled>Paid activation coming soon</button>
+        <button class="tier-action primary" type="button" data-checkout="price_1UEjnpDh5Di7LYi3L6SfmKOu">Go Hosted — $12/mo</button>
+        <button class="tier-action-annual" type="button" data-checkout="price_1UEjnvDh5Di7LYi3Mk6MpnmX">or $120/yr — 2 months free</button>
       </article>
       <article class="tier-card">
         <div class="tier-name">Growth</div>
-        <div class="tier-status">For active sites and apps</div>
+        <div class="tier-status">$24/mo · higher limits, priority Build Team</div>
         <ul class="tier-features"><li>Higher usage limits</li><li>More active projects</li><li>Priority Build Team path</li></ul>
-        <button class="tier-action" type="button" disabled>Paid activation coming soon</button>
+        <button class="tier-action" type="button" data-checkout="price_1UEjnzDh5Di7LYi3LDjvkHQY">Go Growth — $24/mo</button>
+        <button class="tier-action-annual" type="button" data-checkout="price_1UEjo3Dh5Di7LYi33tCAb4W8">or $240/yr — 2 months free</button>
       </article>
       <article class="tier-card">
         <div class="tier-name">Unlimited</div>
-        <div class="tier-status">For high-volume building</div>
+        <div class="tier-status">$59/mo · highest limits, for teams</div>
         <ul class="tier-features"><li>Highest usage limits</li><li>Large project capacity</li><li>Best for teams and agencies</li></ul>
-        <button class="tier-action" type="button" disabled>Paid activation coming soon</button>
+        <button class="tier-action" type="button" data-checkout="price_1UEjo7Dh5Di7LYi3fAAwsqmy">Go Unlimited — $59/mo</button>
+        <button class="tier-action-annual" type="button" data-checkout="price_1UEjoBDh5Di7LYi3O69yUjQS">or $590/yr — 2 months free</button>
       </article>
     </div>
-    <p class="tier-note">Need more later? Usage packs add 30 build credits for $4. No charge is made from this screen.</p>
+    <p class="tier-note">Need more later? Usage packs add 30 build credits for $6, available anytime inside the builder.</p>
   </div>
 </section>
 
@@ -351,11 +354,44 @@
       {
         username: document.getElementById('signup-username').value.trim(),
         password: document.getElementById('signup-password').value,
-        inviteCode: document.getElementById('signup-invite').value.trim(),
       },
       document.getElementById('signup-error'),
       document.getElementById('signup-submit')
     );
+  });
+
+  // Paid tier buttons: reachable once signed in (the tier modal shows
+  // right after signup, and the login flow lands here too). A 401
+  // means Checkout was clicked before a session existed — send back
+  // to the signup tab rather than failing silently.
+  document.querySelectorAll('[data-checkout]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const priceId = button.dataset.checkout;
+      const original = button.textContent;
+      button.disabled = true;
+      button.textContent = 'Redirecting…';
+      try {
+        const res = await fetch('/api/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ priceId }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 401) {
+          showSignup();
+          button.disabled = false;
+          button.textContent = original;
+          return;
+        }
+        if (!res.ok || !data.url) throw new Error(data.error || 'Checkout failed');
+        window.location.href = data.url;
+      } catch (err) {
+        button.disabled = false;
+        button.textContent = original;
+        alert(err.message || 'Could not start checkout.');
+      }
+    });
   });
 </script>
 
