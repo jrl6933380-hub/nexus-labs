@@ -14,6 +14,23 @@ test('conference room is an operational workshop with focus and project benches'
   assert.match(html, /Create a real Board task/);
 });
 
+test('every project bench opens a live maintenance workbench', () => {
+  assert.match(html, /id="maintenanceDialog"/);
+  assert.match(html, /Actual checklist/);
+  assert.match(html, /Just Nex/);
+  assert.match(html, /Bring in build team/);
+  assert.match(js, /data-action="maintain"/);
+  assert.match(js, /openMaintenance\(id\)/);
+});
+
+test('maintenance items and notes use real shared Board state', () => {
+  assert.match(js, /\[maintenance:\$\{root\.id\}\]/);
+  assert.match(js, /action:'create_task'/);
+  assert.match(js, /action:'post_message'/);
+  assert.match(js, /startMaintenanceBtn/);
+  assert.doesNotMatch(js, /fakeChecklist|demoMaintenance/i);
+});
+
 test('workshop mutations use real Board and dispatcher endpoints', () => {
   assert.match(js, /post\('\/api\/board'.*action:'create_task'/s);
   assert.match(js, /post\('\/api\/board'.*action:'claim_task'/s);
@@ -33,6 +50,7 @@ test('workshop is responsive and keeps task controls usable on phone screens', (
   assert.match(css, /@media\(max-width:640px\)/);
   assert.match(css, /\.benches\{grid-template-columns:1fr/);
   assert.match(css, /\.task-controls\{display:grid/);
+  assert.match(css, /@media\(max-width:700px\).*\.maintenance-grid\{grid-template-columns:1fr/s);
 });
 
 test('untrusted Board fields are escaped before HTML rendering', () => {
