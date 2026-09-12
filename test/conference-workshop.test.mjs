@@ -42,10 +42,36 @@ test('detail view makes active AI work visually explicit', () => {
   assert.match(css, /@keyframes livePulse/);
 });
 
-test('maintenance items and notes use real shared Board state', () => {
+test('workbench messages reach Nex with the selected task attached', () => {
+  assert.match(html, /Talk with Nex here/);
+  assert.match(html, /id="activeContext"/);
+  assert.match(html, /id="workbenchPresence"/);
+  assert.match(js, /contextualMessage\(root,note\)/);
+  assert.match(js, /post\('\/api\/chat'/);
+  assert.match(js, /WORKSHOP CONTEXT/);
+  assert.doesNotMatch(js, /Maintenance note posted to the shared activity stream/);
+});
+
+test('conversation and live worker state remain visible inside the entry', () => {
+  assert.match(js, /loadConversation\(root\.id\)/);
+  assert.match(js, /saveConversation/);
+  assert.match(js, /Nex is responding/);
+  assert.match(js, /working now/);
+  assert.match(css, /\.conversation-entry\.from-justin/);
+  assert.match(css, /\.workbench-presence\.working/);
+});
+
+test('new work can create a named venture canvas and linked first task', () => {
+  assert.match(html, /name="venture"/);
+  assert.match(html, /Create a real venture or task/);
+  assert.match(js, /action:'create_canvas'/);
+  assert.match(js, /canvas_id:canvasId/);
+  assert.match(js, /openMaintenance\(created\.task\.id\)/);
+});
+
+test('maintenance items use real shared Board state', () => {
   assert.match(js, /\[maintenance:\$\{root\.id\}\]/);
   assert.match(js, /action:'create_task'/);
-  assert.match(js, /action:'post_message'/);
   assert.match(js, /startMaintenanceBtn/);
   assert.doesNotMatch(js, /fakeChecklist|demoMaintenance/i);
 });
