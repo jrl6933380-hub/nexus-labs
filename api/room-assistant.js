@@ -4,6 +4,7 @@
 // into a clear instruction for the existing streamed builder.
 
 import { getRequestUser } from '../lib/roomAuth.js';
+import { getOrCreateAnonId } from '../lib/anonSession.js';
 import { roomMeter } from '../lib/roomMetering.js';
 import { roomConversations } from '../lib/roomConversation.js';
 import { routeMessage } from '../lib/modelRouter.js';
@@ -96,7 +97,7 @@ export function createAssistantHandler({
       console.error('room-assistant: session lookup failed:', error.message);
       return res.status(500).json({ error: 'Room session is temporarily unavailable' });
     }
-    if (!username) return res.status(401).json({ error: 'Sign in required' });
+    if (!username) username = getOrCreateAnonId(req, res);
 
     let attachments;
     try { attachments = parseRoomAttachments(req.body?.attachments); }
