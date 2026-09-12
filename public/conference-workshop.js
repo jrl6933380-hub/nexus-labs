@@ -43,4 +43,12 @@ $('maintenanceChecklist').addEventListener('change',(event)=>{if(event.target.na
 $('maintenanceTaskForm').addEventListener('submit',async(event)=>{event.preventDefault();const root=maintenanceRoot(),data=new FormData(event.currentTarget);if(!root)return;const owner=state.maintenance.mode==='nex'?'nex':undefined;try{const created=await post('/api/board',{action:'create_task',title:data.get('title'),description:`[maintenance:${root.id}] Workbench item for ${root.title}.`,owner});state.maintenance.selectedId=created.task.id;event.currentTarget.reset();notify('Maintenance item added to the real Board.');}catch(error){notify(error.message,true)}});
 $('maintenanceNoteForm').addEventListener('submit',async(event)=>{event.preventDefault();const root=maintenanceRoot(),data=new FormData(event.currentTarget);if(!root)return;try{await post('/api/board',{action:'post_message',message:`[maintenance:${root.id}] ${data.get('note')}`});event.currentTarget.reset();notify('Maintenance note posted to the shared activity stream.');}catch(error){notify(error.message,true)}});
 $('startMaintenanceBtn').addEventListener('click',()=>{const id=state.maintenance.selectedId||state.maintenance.rootId;if(!id)return;const preferred=state.maintenance.mode==='nex'?'nex':'';routeTask(id,preferred)});
+$('openMaintenanceChatBtn').addEventListener('click',()=>{
+  maintenanceDialog.close();
+  const chat=document.getElementById('nexChatBar');
+  if(!chat)return notify('Nex chat is still loading. Try once more.',true);
+  chat.classList.remove('collapsed');
+  const input=document.getElementById('nexInput');
+  requestAnimationFrame(()=>input?.focus());
+});
 startPolling(render,{intervalMs:3000});
