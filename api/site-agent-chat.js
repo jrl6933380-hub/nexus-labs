@@ -12,7 +12,7 @@
 // a static fallback message, not an error, so the widget can show it
 // gracefully instead of breaking.
 
-import { getAgentConfig, consumeAgentReply } from '../lib/siteAgent.js';
+import { getAgentConfig, consumeAgentReply, checkRateLimit } from '../lib/siteAgent.js';
 import { getLatestBuildByProject } from '../lib/roomHistory.js';
 
 const ANTHROPIC_ENDPOINT = 'https://api.anthropic.com/v1/messages';
@@ -43,6 +43,17 @@ export default async function handler(req, res) {
     const config = await getAgentConfig(projectId);
     if (!config || !config.enabled) {
       return res.status(404).json({ error: 'No assistant is set up for this site.' });
+    }
+
+    const forwardedFor = req.headers['x-forwarded-for'];
+    const visitorIp = (Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor)?.split(',')[0]?.trim()
+      || req.socket?.remoteAddress
+      || 'unknown';
+    const rateLimit = await checkRateLimit(projectId, visitorIp);
+    if (!rateLimit.allowed) {
+      // Also deliberately 200: a burst of clicking shouldn't look like
+      // a broken widget to a real visitor, it should just slow down.
+      return res.status(200).json({ message: "You're sending messages a bit fast — give it a few seconds and try again.", rateLimited: true });
     }
 
     const usage = await consumeAgentReply(projectId);
