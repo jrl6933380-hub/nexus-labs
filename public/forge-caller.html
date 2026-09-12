@@ -3,146 +3,299 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Nexus Forge — Caller</title>
+<title>Nexus Forge — Field</title>
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
   body {
     margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: #0b0d12; color: #e8eaed; padding: 16px 12px 40px;
+    background: #14100b; color: #f2e9dd; padding-bottom: 40px;
   }
-  h1 { font-size: 18px; margin: 0 0 4px; }
-  .sub { color: #9aa0a6; font-size: 13px; margin-bottom: 16px; }
-  #state { color: #9aa0a6; font-size: 14px; padding: 24px 4px; }
-  .card {
-    background: #14171f; border: 1px solid #262b36; border-radius: 14px;
-    padding: 14px; margin-bottom: 12px;
+  .topbar {
+    position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px; background: #1c150d; border-bottom: 2px solid #d97b2f;
   }
-  .biz { font-size: 16px; font-weight: 600; margin: 0 0 2px; }
-  .meta { color: #9aa0a6; font-size: 13px; margin-bottom: 8px; }
-  .points { font-size: 13px; color: #c7cad1; margin: 6px 0 10px; padding-left: 18px; }
-  .points li { margin-bottom: 2px; }
-  .row { display: flex; gap: 8px; margin-bottom: 8px; }
+  .hamburger {
+    width: 40px; height: 40px; border-radius: 10px; border: 1px solid #3a2c1c; background: #241a10;
+    color: #f2e9dd; font-size: 18px; cursor: pointer;
+  }
+  .topbar h1 { font-size: 15px; margin: 0; flex: 1; }
+  .badge { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: #14100b; background: #d97b2f; padding: 3px 8px; border-radius: 999px; font-weight: 700; }
+
+  .drawer-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 40; display: none; }
+  .drawer-backdrop.open { display: block; }
+  .drawer {
+    position: fixed; top: 0; left: 0; bottom: 0; width: min(300px, 85vw); z-index: 41;
+    background: #1c150d; border-right: 1px solid #3a2c1c; transform: translateX(-100%); transition: transform .2s ease;
+    overflow-y: auto; padding: 14px 10px;
+  }
+  .drawer.open { transform: translateX(0); }
+  .drawer h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #c9a97a; margin: 6px 8px 10px; }
+  .queue-item {
+    display: block; width: 100%; text-align: left; background: #241a10; border: 1px solid #3a2c1c;
+    border-radius: 10px; padding: 10px; margin-bottom: 8px; color: #f2e9dd; cursor: pointer;
+  }
+  .queue-item.selected { border-color: #d97b2f; background: #2b1f13; }
+  .queue-item .biz { font-weight: 600; font-size: 14px; }
+  .queue-item .meta { font-size: 11px; color: #a9977d; margin-top: 2px; }
+  .queue-item .disp { display: inline-block; margin-top: 5px; font-size: 10px; padding: 2px 7px; border-radius: 999px; background: #3a2c1c; color: #d9b98a; }
+
+  main { padding: 16px 14px; max-width: 640px; margin: 0 auto; }
+  .empty-main { color: #a9977d; text-align: center; padding: 60px 20px; }
+  .lead-header h2 { font-size: 19px; margin: 0 0 2px; }
+  .lead-header .meta { color: #a9977d; font-size: 13px; margin-bottom: 14px; }
+
   .call-btn {
-    flex: 1; text-align: center; background: #2e7d32; color: white; text-decoration: none;
-    padding: 12px; border-radius: 10px; font-weight: 600; font-size: 15px;
+    display: block; text-align: center; background: #2e7d32; color: white; text-decoration: none;
+    padding: 13px; border-radius: 10px; font-weight: 700; font-size: 16px; margin-bottom: 16px;
   }
+
+  section.panel { background: #1c150d; border: 1px solid #3a2c1c; border-radius: 12px; margin-bottom: 14px; overflow: hidden; }
+  section.panel > .panel-head {
+    display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; cursor: pointer;
+    font-weight: 600; font-size: 13px; color: #f0dfc5;
+  }
+  section.panel > .panel-body { padding: 0 14px 14px; display: none; font-size: 13.5px; line-height: 1.55; }
+  section.panel.open > .panel-body { display: block; }
+  .panel-head .chev { color: #a9977d; }
+
+  .script-line { margin-bottom: 10px; }
+  .script-label { color: #d97b2f; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 2px; }
+  .obj { border-top: 1px solid #3a2c1c; padding-top: 8px; margin-top: 8px; }
+  .obj .q { color: #f0dfc5; font-weight: 600; }
+  .obj .a { color: #d9cdb8; }
+
+  .site-actions { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+  .site-actions button {
+    background: #d97b2f; color: #14100b; border: none; border-radius: 8px; padding: 9px 13px; font-weight: 700; font-size: 12px; cursor: pointer;
+  }
+  .site-actions button.secondary { background: #241a10; color: #f0dfc5; border: 1px solid #3a2c1c; }
+  .site-frame-wrap { border: 1px solid #3a2c1c; border-radius: 10px; overflow: hidden; height: 360px; margin-bottom: 10px; background: #0b0806; }
+  .site-frame-wrap iframe { width: 100%; height: 100%; border: 0; }
+  .site-status { font-size: 12px; color: #a9977d; margin-bottom: 8px; }
+  .edit-row { display: flex; gap: 8px; }
+  .edit-row input {
+    flex: 1; background: #0b0806; border: 1px solid #3a2c1c; border-radius: 8px; padding: 9px; color: #f2e9dd; font-size: 13px;
+  }
+  .edit-row button { background: #3b5bfd; color: white; border: none; border-radius: 8px; padding: 9px 14px; font-weight: 600; font-size: 13px; }
+
   select, textarea, input[type=date] {
-    width: 100%; background: #0b0d12; color: #e8eaed; border: 1px solid #333844;
+    width: 100%; background: #0b0806; color: #f2e9dd; border: 1px solid #3a2c1c;
     border-radius: 8px; padding: 8px; font-size: 14px; margin-bottom: 8px;
   }
   textarea { min-height: 60px; resize: vertical; }
-  .save-btn {
-    width: 100%; background: #3b5bfd; color: white; border: none; border-radius: 8px;
-    padding: 10px; font-weight: 600; font-size: 14px;
-  }
+  .save-btn { width: 100%; background: #3b5bfd; color: white; border: none; border-radius: 8px; padding: 10px; font-weight: 600; font-size: 14px; }
   .saved { color: #4caf50; font-size: 12px; margin-top: 6px; display: none; }
-  .empty { text-align: center; color: #9aa0a6; padding: 40px 16px; }
+  #state { color: #a9977d; padding: 24px 14px; }
 </style>
 </head>
 <body>
-  <h1>Your leads</h1>
-  <div class="sub">Nexus Forge — tap to call, log the outcome after.</div>
+  <div class="topbar">
+    <button class="hamburger" id="menu-btn" aria-label="Open lead queue">☰</button>
+    <h1>Nexus Forge — Field</h1>
+    <span class="badge">On shift</span>
+  </div>
+
+  <div class="drawer-backdrop" id="drawer-backdrop"></div>
+  <div class="drawer" id="drawer">
+    <h2>Your leads</h2>
+    <div id="queue-list"></div>
+  </div>
+
   <div id="state">Loading…</div>
-  <div id="list"></div>
+  <main id="main" hidden>
+    <div class="empty-main" id="empty-main">Tap ☰ and pick a lead to get started.</div>
+    <div id="lead-view" hidden></div>
+  </main>
 
 <script>
 const DISPOSITIONS = [
-  ['', 'Log outcome…'],
-  ['no_answer', 'No answer'],
-  ['voicemail_left', 'Voicemail left'],
-  ['follow_up', 'Follow up'],
-  ['interested', 'Interested'],
-  ['demo_requested', 'Demo requested'],
-  ['appointment_booked', 'Appointment booked'],
-  ['not_interested', 'Not interested'],
-  ['do_not_call', 'Do not call'],
-  ['wrong_number', 'Wrong number'],
-  ['already_has_provider', 'Already has provider'],
+  ['', 'Log outcome…'], ['no_answer', 'No answer'], ['voicemail_left', 'Voicemail left'],
+  ['follow_up', 'Follow up'], ['interested', 'Interested'], ['demo_requested', 'Demo requested'],
+  ['appointment_booked', 'Appointment booked'], ['not_interested', 'Not interested'],
+  ['do_not_call', 'Do not call'], ['wrong_number', 'Wrong number'], ['already_has_provider', 'Already has provider'],
 ];
+
+let leads = [];
+let selectedId = null;
+
+function escapeHtml(s) {
+  const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+  return String(s || '').replace(/[&<>"']/g, function (c) { return map[c]; });
+}
 
 async function loadLeads() {
   const stateEl = document.getElementById('state');
-  const listEl = document.getElementById('list');
+  const main = document.getElementById('main');
   try {
     const res = await fetch('/api/forge-leads', { credentials: 'include' });
-    if (res.status === 401) {
-      stateEl.textContent = 'Please sign in first.';
-      setTimeout(() => { window.location.href = '/room.html'; }, 1200);
-      return;
-    }
-    if (res.status === 403) {
-      stateEl.textContent = "This account doesn't have Forge caller access yet. Ask a manager to grant it.";
-      return;
-    }
+    if (res.status === 401) { stateEl.textContent = 'Please sign in first.'; setTimeout(function () { window.location.href = '/room.html'; }, 1200); return; }
+    if (res.status === 403) { stateEl.textContent = "This account doesn't have Forge field access yet. Ask a manager to grant it."; return; }
     if (!res.ok) throw new Error('load failed');
-    const { leads } = await res.json();
-    stateEl.style.display = 'none';
-    const active = leads.filter((l) => !l.suppressed);
-    if (!active.length) {
-      listEl.innerHTML = '<div class="empty">No leads assigned yet.</div>';
-      return;
-    }
-    listEl.innerHTML = active.map(renderCard).join('');
-    active.forEach(wireCard);
+    const data = await res.json();
+    leads = (data.leads || []).filter(function (l) { return !l.suppressed; });
+    stateEl.hidden = true;
+    main.hidden = false;
+    renderQueue();
+    if (selectedId) renderLead(selectedId);
   } catch (err) {
     stateEl.textContent = 'Could not load leads. Pull to refresh.';
   }
 }
 
-function renderCard(lead) {
-  const points = (lead.talkingPoints || []).map((p) => `<li>${escapeHtml(p)}</li>`).join('');
-  const options = DISPOSITIONS.map(([v, label]) =>
-    `<option value="${v}" ${lead.lastDisposition === v ? 'selected' : ''}>${label}</option>`
-  ).join('');
-  return `
-    <div class="card" data-id="${lead.id}">
-      <p class="biz">${escapeHtml(lead.businessName)}</p>
-      <p class="meta">${escapeHtml(lead.category || '')} ${lead.location ? '· ' + escapeHtml(lead.location) : ''}</p>
-      ${lead.websiteStatus ? `<p class="meta">Site: ${escapeHtml(lead.websiteStatus)}</p>` : ''}
-      ${points ? `<ul class="points">${points}</ul>` : ''}
-      <div class="row">
-        <a class="call-btn" href="tel:${escapeAttr(lead.phone)}">Call ${escapeHtml(lead.phone)}</a>
-      </div>
-      <select class="disposition">${options}</select>
-      <textarea class="notes" placeholder="Notes from the call…">${escapeHtml(lead.notes || '')}</textarea>
-      <input type="date" class="followup" value="${lead.followUpDate || ''}" />
-      <button class="save-btn">Save outcome</button>
-      <div class="saved">Saved.</div>
-    </div>`;
+function renderQueue() {
+  const list = document.getElementById('queue-list');
+  if (!leads.length) { list.innerHTML = '<div style="color:#a9977d;font-size:13px;padding:10px;">No leads assigned yet.</div>'; return; }
+  list.innerHTML = leads.map(function (l) {
+    const dispLabel = l.lastDisposition ? l.lastDisposition.replace(/_/g, ' ') : 'new';
+    return '<button type="button" class="queue-item' + (l.id === selectedId ? ' selected' : '') + '" data-id="' + l.id + '">' +
+      '<div class="biz">' + escapeHtml(l.businessName) + '</div>' +
+      '<div class="meta">' + escapeHtml(l.category || '') + '</div>' +
+      '<span class="disp">' + escapeHtml(dispLabel) + '</span>' +
+    '</button>';
+  }).join('');
+  list.querySelectorAll('.queue-item').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      selectedId = btn.dataset.id;
+      closeDrawer();
+      renderLead(selectedId);
+      renderQueue();
+    });
+  });
 }
 
-function wireCard(lead) {
-  const card = document.querySelector(`.card[data-id="${lead.id}"]`);
-  if (!card) return;
-  card.querySelector('.save-btn').addEventListener('click', async () => {
-    const disposition = card.querySelector('.disposition').value;
-    const notes = card.querySelector('.notes').value;
-    const followUpDate = card.querySelector('.followup').value;
+function panelHtml(id, title, bodyHtml, openByDefault) {
+  return '<section class="panel' + (openByDefault ? ' open' : '') + '" id="' + id + '">' +
+    '<div class="panel-head" data-toggle="' + id + '"><span>' + title + '</span><span class="chev">▾</span></div>' +
+    '<div class="panel-body">' + bodyHtml + '</div>' +
+  '</section>';
+}
+
+function scriptBodyHtml(pitch) {
+  const weaknesses = pitch.weaknesses.map(function (w) { return '<div>• ' + escapeHtml(w) + '</div>'; }).join('');
+  const questions = pitch.discoveryQuestions.map(function (q) { return '<div>• ' + escapeHtml(q) + '</div>'; }).join('');
+  const objections = pitch.objections.map(function (o) {
+    return '<div class="obj"><div class="q">"' + escapeHtml(o.objection) + '"</div><div class="a">' + escapeHtml(o.response) + '</div></div>';
+  }).join('');
+  return '' +
+    '<div class="script-line"><div class="script-label">Opener</div>' + escapeHtml(pitch.opener) + '</div>' +
+    '<div class="script-line"><div class="script-label">Why you called</div>' + weaknesses + '</div>' +
+    '<div class="script-line"><div class="script-label">Discovery questions</div>' + questions + '</div>' +
+    '<div class="script-line"><div class="script-label">Show the demo</div>' + escapeHtml(pitch.demoLine) + '</div>' +
+    '<div class="script-line"><div class="script-label">Objections</div>' + objections + '</div>' +
+    '<div class="script-line"><div class="script-label">Upsell</div>' + escapeHtml(pitch.upsell) + '</div>' +
+    '<div class="script-line"><div class="script-label">Next step</div>' + escapeHtml(pitch.nextStep) + '</div>';
+}
+
+function siteBodyHtml(lead) {
+  let statusLine = '';
+  let frame = '';
+  let showGenerate = lead.siteStatus === 'none' || lead.siteStatus === 'error';
+  if (lead.siteStatus === 'generating') statusLine = 'Building the preview… this can take up to a minute.';
+  if (lead.siteStatus === 'error') statusLine = 'Something went wrong generating this one — try again.';
+  if (lead.siteStatus === 'ready' && lead.siteHtml) {
+    frame = '<div class="site-frame-wrap"><iframe id="site-frame" sandbox="allow-scripts allow-forms" title="Demo site preview"></iframe></div>';
+  }
+  return '' +
+    '<div class="site-actions">' +
+      (showGenerate ? '<button type="button" id="generate-site-btn">Generate site preview</button>' : '') +
+      (lead.siteStatus === 'ready' ? '<button type="button" class="secondary" id="regen-site-btn">Regenerate</button>' : '') +
+    '</div>' +
+    (statusLine ? '<div class="site-status">' + statusLine + '</div>' : '') +
+    frame +
+    (lead.siteStatus === 'ready' ? '<div class="edit-row"><input id="edit-instruction" placeholder="e.g. make it feel more upscale…" /><button type="button" id="edit-site-btn">Send</button></div>' : '');
+}
+
+function renderLead(id) {
+  const lead = leads.find(function (l) { return l.id === id; });
+  document.getElementById('empty-main').hidden = true;
+  const view = document.getElementById('lead-view');
+  view.hidden = false;
+  if (!lead) { view.innerHTML = ''; return; }
+
+  const options = DISPOSITIONS.map(function (pair) {
+    return '<option value="' + pair[0] + '"' + (lead.lastDisposition === pair[0] ? ' selected' : '') + '>' + pair[1] + '</option>';
+  }).join('');
+
+  view.innerHTML = '' +
+    '<div class="lead-header"><h2>' + escapeHtml(lead.businessName) + '</h2>' +
+      '<div class="meta">' + escapeHtml(lead.category || '') + (lead.location ? ' · ' + escapeHtml(lead.location) : '') + '</div>' +
+    '</div>' +
+    '<a class="call-btn" href="tel:' + escapeHtml(lead.phone) + '">Call ' + escapeHtml(lead.phone) + '</a>' +
+    panelHtml('panel-script', 'Pitch script', scriptBodyHtml(lead.pitch), true) +
+    panelHtml('panel-site', 'Site preview', siteBodyHtml(lead), lead.siteStatus !== 'none') +
+    panelHtml('panel-log', 'Log this call', '' +
+      '<select id="disposition">' + options + '</select>' +
+      '<textarea id="notes" placeholder="Notes from the call…">' + escapeHtml(lead.notes || '') + '</textarea>' +
+      '<input type="date" id="followup" value="' + (lead.followUpDate || '') + '" />' +
+      '<button class="save-btn" id="save-outcome">Save outcome</button>' +
+      '<div class="saved" id="saved-msg">Saved.</div>', false);
+
+  view.querySelectorAll('.panel-head').forEach(function (head) {
+    head.addEventListener('click', function () {
+      document.getElementById(head.dataset.toggle).classList.toggle('open');
+    });
+  });
+
+  const siteFrame = document.getElementById('site-frame');
+  if (siteFrame && lead.siteHtml) siteFrame.srcdoc = lead.siteHtml;
+
+  const generateBtn = document.getElementById('generate-site-btn');
+  if (generateBtn) generateBtn.addEventListener('click', function () { runSiteAction(lead.id, 'generate'); });
+  const regenBtn = document.getElementById('regen-site-btn');
+  if (regenBtn) regenBtn.addEventListener('click', function () { runSiteAction(lead.id, 'generate'); });
+  const editBtn = document.getElementById('edit-site-btn');
+  if (editBtn) editBtn.addEventListener('click', function () {
+    const instruction = document.getElementById('edit-instruction').value.trim();
+    if (!instruction) return;
+    runSiteAction(lead.id, 'edit', instruction);
+  });
+
+  document.getElementById('save-outcome').addEventListener('click', async function () {
+    const disposition = document.getElementById('disposition').value;
+    const notes = document.getElementById('notes').value;
+    const followUpDate = document.getElementById('followup').value;
     if (!disposition) { alert('Pick an outcome first.'); return; }
     const res = await fetch('/api/forge-leads', {
-      method: 'PATCH',
-      credentials: 'include',
+      method: 'PATCH', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: lead.id, disposition, notes, followUpDate: followUpDate || null }),
     });
-    const savedEl = card.querySelector('.saved');
     if (res.ok) {
-      savedEl.style.display = 'block';
-      setTimeout(() => { savedEl.style.display = 'none'; }, 1500);
-      if (disposition === 'do_not_call' || disposition === 'wrong_number') {
-        setTimeout(loadLeads, 800);
-      }
+      document.getElementById('saved-msg').style.display = 'block';
+      setTimeout(loadLeads, 800);
     } else {
       alert('Could not save. Try again.');
     }
   });
 }
 
-function escapeHtml(s) {
-  return String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+async function runSiteAction(leadId, action, instruction) {
+  const lead = leads.find(function (l) { return l.id === leadId; });
+  if (lead) { lead.siteStatus = 'generating'; renderLead(leadId); }
+  try {
+    const res = await fetch('/api/forge-site', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leadId: leadId, action: action, instruction: instruction }),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || 'Site action failed.'); await loadLeads(); return; }
+    const idx = leads.findIndex(function (l) { return l.id === leadId; });
+    if (idx !== -1) leads[idx] = Object.assign({}, leads[idx], data.lead, { pitch: leads[idx].pitch });
+    renderLead(leadId);
+    renderQueue();
+  } catch (err) {
+    alert('Network error.');
+    await loadLeads();
+  }
 }
-function escapeAttr(s) { return escapeHtml(s); }
+
+function openDrawer() { document.getElementById('drawer').classList.add('open'); document.getElementById('drawer-backdrop').classList.add('open'); }
+function closeDrawer() { document.getElementById('drawer').classList.remove('open'); document.getElementById('drawer-backdrop').classList.remove('open'); }
+
+document.getElementById('menu-btn').addEventListener('click', openDrawer);
+document.getElementById('drawer-backdrop').addEventListener('click', closeDrawer);
 
 loadLeads();
 </script>
