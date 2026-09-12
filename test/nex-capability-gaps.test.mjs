@@ -42,6 +42,11 @@ test('Nex exposes queue inspection and Vercel read tools with dispatch-safe sche
     'list_vercel_projects',
     'list_vercel_deployments',
     'get_vercel_build_logs',
+    'merge_pull_request',
+    'check_deployment_status',
+    'test_code',
+    'get_reference_link',
+    'attach_task_result',
   ]) {
     assert.ok(byName.has(name), `${name} should be exposed`);
   }
@@ -49,6 +54,9 @@ test('Nex exposes queue inspection and Vercel read tools with dispatch-safe sche
   assert.deepEqual(byName.get('list_vercel_deployments').input_schema.required, ['project_id']);
   assert.deepEqual(byName.get('get_vercel_build_logs').input_schema.required, ['deployment_id']);
   assert.deepEqual(byName.get('direct_story_actor').input_schema.required, ['panel_index','actor','direction']);
+  assert.deepEqual(byName.get('merge_pull_request').input_schema.required, ['owner', 'repo', 'pull_number']);
+  assert.deepEqual(byName.get('test_code').input_schema.required, ['language', 'code']);
+  assert.deepEqual(byName.get('attach_task_result').input_schema.required, ['id', 'result']);
 });
 
 test('Vercel deployment summaries preserve branch, commit, and failure status', () => {
