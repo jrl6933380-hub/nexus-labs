@@ -73,15 +73,14 @@
           <button class="work-btn green" type="submit">Add task</button>
         </form>
       </section>
-      <section class="maintenance-pane">
-        <div class="panel-title">Work live</div>
-        <div class="panel-sub">Send context to the shared activity stream, assign the work, then watch status refresh here.</div>
-        <form id="maintenanceNoteForm" class="maintenance-note">
-          <textarea name="note" required maxlength="2000" placeholder="Tell Nex what changed, what is broken, or what you want done next"></textarea>
-          <button class="work-btn primary" type="submit">Send maintenance note</button>
+      <section class="maintenance-pane conversation-pane">
+        <div class="conversation-head"><div><div class="panel-title">Talk with Nex here</div><div class="panel-sub">This conversation stays attached to this exact entry. Replies, dispatches, and worker progress update in one place.</div></div><div id="workbenchPresence" class="workbench-presence"><span></span><strong>Ready</strong></div></div>
+        <div id="activeContext" class="active-context"></div>
+        <div class="maintenance-stream conversation-stream" id="maintenanceStream" role="log" aria-live="polite"></div>
+        <form id="maintenanceNoteForm" class="maintenance-note contextual-chat-form">
+          <textarea name="note" required maxlength="4000" placeholder="Talk to Nex about this entry — ask a question, change direction, or tell me to dispatch work"></textarea>
+          <div class="maintenance-actions"><button class="work-btn primary" type="submit" id="sendContextMessageBtn">Send to Nex</button><button type="button" class="work-btn" id="startMaintenanceBtn">Dispatch selected work</button><button type="button" class="work-link" id="openMaintenanceChatBtn">Continue in global chat</button></div>
         </form>
-        <div class="maintenance-actions"><button type="button" class="work-btn primary" id="startMaintenanceBtn">Start selected work</button><button type="button" class="work-link" id="openMaintenanceChatBtn">Open Nex chat</button></div>
-        <div class="maintenance-stream" id="maintenanceStream" aria-live="polite"></div>
       </section>
     </div>
   </div>
@@ -89,7 +88,8 @@
 
 <dialog class="task-dialog" id="taskDialog">
   <form class="dialog-body" id="taskForm">
-    <div><div class="workshop-kicker">Put work on a bench</div><h2 class="dialog-title">Create a real Board task</h2></div>
+    <div><div class="workshop-kicker">Put work on a bench</div><h2 class="dialog-title">Create a real venture or task</h2></div>
+    <div class="field"><label for="ventureName">Venture name (optional)</label><input id="ventureName" name="venture" maxlength="100" placeholder="Name it to create a persistent venture canvas"></div>
     <div class="field"><label for="taskTitle">Outcome</label><input id="taskTitle" name="title" required maxlength="160" placeholder="What should exist when this is done?"></div>
     <div class="field"><label for="taskDescription">Context and definition of done</label><textarea id="taskDescription" name="description" maxlength="4000" placeholder="Constraints, acceptance checks, and what not to touch"></textarea></div>
     <div class="field"><label for="taskOwner">First owner</label><select id="taskOwner" name="owner"><option value="nex">Nex — orchestrate and build</option><option value="">Unassigned — choose later</option></select></div>
@@ -99,6 +99,6 @@
 </dialog>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <script type="module" src="/conference-workshop.js"></script>
-<script type="module">import '/nex-chat-bar.js?v=20260912-2';</script>
+<script type="module">import '/nex-chat-bar.js?v=20260912-3';</script>
 </body>
 </html>
