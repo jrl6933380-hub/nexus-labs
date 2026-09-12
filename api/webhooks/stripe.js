@@ -130,8 +130,9 @@ export default async function handler(req, res) {
           const username = await getUsernameByStripeCustomer(customerId);
           if (username) {
             await setUserPlan(username, PLANS.FREE);
-        } else {
-          console.error('stripe webhook: subscription past-due, no username on file for customer', customerId);
+          } else {
+            console.error('stripe webhook: subscription past-due, no username on file for customer', customerId);
+          }
         }
       }
     }
