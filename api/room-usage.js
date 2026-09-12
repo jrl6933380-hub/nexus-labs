@@ -9,6 +9,7 @@
 // frontend a number to accidentally render.
 
 import { getRequestUser } from '../lib/roomAuth.js';
+import { publicForgePricing } from '../lib/forgePricing.js';
 import { roomMeter } from '../lib/roomMetering.js';
 
 export function createUsageHandler({ resolveUser = getRequestUser, meter = roomMeter } = {}) {
@@ -26,7 +27,7 @@ export function createUsageHandler({ resolveUser = getRequestUser, meter = roomM
       const daily = dailyFull.unlimited
         ? { unlimited: true, percentRemaining: 100 }
         : { unlimited: false, percentRemaining: dailyFull.percentRemaining };
-      return res.status(200).json({ usage, daily });
+      return res.status(200).json({ usage, daily, pricing: publicForgePricing() });
     } catch (err) {
       console.error('room-usage handler failed:', err.message);
       return res.status(500).json({ error: 'Could not load Room usage' });
