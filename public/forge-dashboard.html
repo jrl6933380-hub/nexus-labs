@@ -37,6 +37,18 @@
     <a href="/forge-admin.html">Forge Admin</a>
     <a href="/room.html?builder=1">Open Builder</a>
   </div>
+
+  <h2>Import leads</h2>
+  <div class="card" style="background:#14171f;border:1px solid #262b36;border-radius:12px;padding:14px;max-width:460px;margin-bottom:20px;">
+    <label style="display:block;font-size:12px;color:#9aa0a6;margin-bottom:4px;">Category</label>
+    <input id="import-category" placeholder="e.g. plumbers" style="width:100%;background:#0b0d12;color:#e8eaed;border:1px solid #333844;border-radius:8px;padding:9px;margin-bottom:10px;" />
+    <label style="display:block;font-size:12px;color:#9aa0a6;margin-bottom:4px;">Location</label>
+    <input id="import-location" placeholder="e.g. Tulsa, OK" style="width:100%;background:#0b0d12;color:#e8eaed;border:1px solid #333844;border-radius:8px;padding:9px;margin-bottom:10px;" />
+    <label style="display:block;font-size:12px;color:#9aa0a6;margin-bottom:4px;">Assign to (optional worker username)</label>
+    <input id="import-assignee" placeholder="leave blank to import unassigned" style="width:100%;background:#0b0d12;color:#e8eaed;border:1px solid #333844;border-radius:8px;padding:9px;margin-bottom:10px;" />
+    <button id="import-go" style="width:100%;background:#3b5bfd;color:white;border:none;border-radius:8px;padding:11px;font-weight:600;">Search &amp; import</button>
+    <div id="import-status" style="margin-top:10px;font-size:13px;"></div>
+  </div>
   <div id="state">Loading…</div>
   <div id="content" hidden>
     <div class="cards" id="cards"></div>
@@ -286,6 +298,31 @@ function escapeHtml(s) {
 
 load();
 loadCustomers();
+
+document.getElementById('import-go').addEventListener('click', async function () {
+  const category = document.getElementById('import-category').value.trim();
+  const location = document.getElementById('import-location').value.trim();
+  const assignedTo = document.getElementById('import-assignee').value.trim();
+  const statusEl = document.getElementById('import-status');
+  if (!category || !location) { statusEl.textContent = 'Enter both a category and a location.'; statusEl.style.color = '#e57373'; return; }
+  statusEl.textContent = 'Searching… this can take a few seconds.';
+  statusEl.style.color = '#9aa0a6';
+  try {
+    const res = await fetch('/api/forge-import', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category: category, location: location, assignedTo: assignedTo || null }),
+    });
+    const data = await res.json();
+    if (!res.ok) { statusEl.textContent = data.error || 'Import failed.'; statusEl.style.color = '#e57373'; return; }
+    statusEl.textContent = 'Imported ' + data.createdCount + ' new lead(s)' + (data.skippedCount ? ', skipped ' + data.skippedCount + ' already on file' : '') + '.';
+    statusEl.style.color = '#4caf50';
+    load();
+  } catch (err) {
+    statusEl.textContent = 'Network error.';
+    statusEl.style.color = '#e57373';
+  }
+});
 </script>
 </body>
 </html>
