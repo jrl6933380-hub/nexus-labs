@@ -10,6 +10,7 @@
 import crypto from 'crypto';
 import { setUserPlan, linkStripeCustomer, getUsernameByStripeCustomer, PLANS } from '../../lib/roomAuth.js';
 import { roomMeter } from '../../lib/roomMetering.js';
+import { enableAgent, grantBonusReplies } from '../../lib/siteAgent.js';
 
 export const config = {
   api: { bodyParser: false },
@@ -80,6 +81,12 @@ export default async function handler(req, res) {
       } else if (kind === 'credit_pack') {
         const credits = Number(session.metadata.credits) || 0;
         if (credits > 0) await roomMeter.grantBonusCredits(username, credits);
+      } else if (kind === 'site_agent' && session.metadata?.projectId) {
+        const monthlyLimit = Number(session.metadata.monthlyLimit) || 500;
+        await enableAgent(session.metadata.projectId, { username, monthlyLimit, stripeSubscriptionId: session.subscription || null });
+      } else if (kind === 'site_agent_reply_pack' && session.metadata?.projectId) {
+        const replies = Number(session.metadata.replies) || 0;
+        if (replies > 0) await grantBonusReplies(session.metadata.projectId, replies);
       }
     }
 
