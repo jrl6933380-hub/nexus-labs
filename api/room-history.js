@@ -11,6 +11,7 @@
 
 import { listBuilds, getBuild } from '../lib/roomHistory.js';
 import { getRequestUser, getUserPlan, isPaidPlan } from '../lib/roomAuth.js';
+import { getOrCreateAnonId } from '../lib/anonSession.js';
 
 // Dependencies are injectable so ownership is exercised through the real handler.
 export function createHistoryHandler({ resolveUser = getRequestUser, readBuild = getBuild, readList = listBuilds, resolvePlan = getUserPlan } = {}) {
@@ -22,10 +23,8 @@ return async function handler(req, res) {
   }
 
   try {
-  const username = await resolveUser(req);
-  if (!username) {
-    return res.status(401).json({ error: 'Sign in required' });
-  }
+  let username = await resolveUser(req);
+  if (!username) username = getOrCreateAnonId(req, res);
 
     const { id, download } = req.query || {};
     if ((id !== undefined && (typeof id !== 'string' || !id || id.length > 200)) ||
