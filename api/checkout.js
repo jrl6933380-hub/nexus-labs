@@ -50,9 +50,13 @@ export default async function handler(req, res) {
     const username = await getRequestUser(req);
     if (!username) return res.status(401).json({ error: 'Sign in first.' });
 
-    const { priceId } = req.body || {};
+    const { priceId, projectId } = req.body || {};
     const resolved = resolveCheckoutPrice(priceId);
     if (!resolved) return res.status(400).json({ error: 'Unknown price.' });
+    const isProjectScoped = resolved.kind === 'site_agent' || resolved.kind === 'site_agent_reply_pack';
+    if (isProjectScoped && (typeof projectId !== 'string' || !/^[a-zA-Z0-9_-]{1,120}$/.test(projectId))) {
+      return res.status(400).json({ error: 'A valid project is required for this purchase.' });
+    }
 
     const session = await stripeRequest('checkout/sessions', {
       mode: resolved.mode,
@@ -63,6 +67,8 @@ export default async function handler(req, res) {
       'metadata[kind]': resolved.kind,
       ...(resolved.kind === 'plan' ? { 'metadata[plan]': resolved.plan } : {}),
       ...(resolved.kind === 'credit_pack' ? { 'metadata[credits]': resolved.credits } : {}),
+      ...(resolved.kind === 'site_agent' ? { 'metadata[projectId]': projectId, 'metadata[monthlyLimit]': resolved.monthlyLimit } : {}),
+      ...(resolved.kind === 'site_agent_reply_pack' ? { 'metadata[projectId]': projectId, 'metadata[replies]': resolved.replies } : {}),
       success_url: `${SITE_URL}/room.html?checkout=success`,
       cancel_url: `${SITE_URL}/room-login.html?checkout=cancelled`,
     });
