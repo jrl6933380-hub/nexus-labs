@@ -11,7 +11,7 @@ test('conference room is an operational workshop with focus and project benches'
   assert.match(html, /id="focusTitle"/);
   assert.match(html, /id="benches"/);
   assert.match(html, /id="agentRoster"/);
-  assert.match(html, /Create a real Board task/);
+  assert.match(html, /Create a real venture or task/);
 });
 
 test('every project bench opens a live maintenance workbench', () => {
