@@ -12,6 +12,7 @@
 import { getRequestUser } from '../lib/roomAuth.js';
 import { isForgeWorker, isForgeManager } from '../lib/forgeRoles.js';
 import { createLead, listLeads, assignLead, recordDisposition } from '../lib/forgeLeads.js';
+import { generatePitchScript } from '../lib/forgePitch.js';
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'private, no-store');
@@ -28,7 +29,8 @@ export default async function handler(req, res) {
       const wantsAll = req.query?.scope === 'all';
       if (wantsAll && !manager) return res.status(403).json({ error: 'Manager access required.' });
       const leads = await listLeads(wantsAll ? {} : { assignedTo: username });
-      return res.status(200).json({ leads });
+      const withPitch = leads.map((lead) => ({ ...lead, pitch: generatePitchScript(lead) }));
+      return res.status(200).json({ leads: withPitch });
     }
 
     if (req.method === 'POST') {
