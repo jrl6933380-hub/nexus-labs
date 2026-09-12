@@ -90,18 +90,18 @@ test('fresh and edit reservations use separate credit costs', async () => {
   const meter = createRoomMeter({
     command: redis.command,
     now,
-    config: { creditsLimit: 20, freshBuildCredits: 10, editCredits: 2 },
+    config: { creditsLimit: 25, freshBuildCredits: 15, editCredits: 2 },
   });
   const fresh = await meter.reserveBuild({ userId: 'alice', kind: 'fresh', requestId: 'fresh-1' });
   const edit = await meter.reserveBuild({ userId: 'alice', kind: 'edit', requestId: 'edit-1' });
   assert.equal(fresh.ok, true);
-  assert.equal(fresh.reserved, 10);
+  assert.equal(fresh.reserved, 15);
   assert.equal(edit.ok, true);
   assert.equal(edit.reserved, 2);
   const summary = await meter.getUsageSummary('alice');
   assert.deepEqual(
     { consumed: summary.consumed, reserved: summary.reserved, remaining: summary.remaining },
-    { consumed: 0, reserved: 12, remaining: 8 },
+    { consumed: 0, reserved: 17, remaining: 8 },
   );
 });
 
