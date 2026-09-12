@@ -55,7 +55,7 @@
   if (!hasMissionControlChat && !isLoginScreen && !document.getElementById('nexChatBar')) {
     const nexChat = document.createElement('script');
     nexChat.type = 'module';
-    nexChat.src = '/nex-chat-bar.js';
+    nexChat.src = '/nex-chat-bar.js?v=20260912-2';
     document.body.appendChild(nexChat);
   }
 })();
