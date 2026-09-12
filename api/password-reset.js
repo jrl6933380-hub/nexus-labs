@@ -16,7 +16,7 @@
 // verifies the requester, so a leaked token is equivalent to a leaked
 // password until it's used or expires.
 
-import { getUserEmail, setUserPassword } from '../lib/roomAuth.js';
+import { getUserEmail, setUserPassword, getSecurityQuestion, verifySecurityAnswer } from '../lib/roomAuth.js';
 import { createResetToken, consumeResetToken } from '../lib/passwordReset.js';
 import { sendEmail } from '../lib/emailSender.js';
 
@@ -32,6 +32,30 @@ export default async function handler(req, res) {
   const { action, username, token, password } = req.body || {};
 
   try {
+    if (action === 'get-question') {
+      if (typeof username !== 'string' || !username.trim()) {
+        return res.status(400).json({ error: 'Enter your username first.' });
+      }
+      const question = await getSecurityQuestion(username.trim());
+      return res.status(200).json({ question });
+    }
+
+    if (action === 'verify-answer') {
+      const { answer } = req.body || {};
+      if (typeof username !== 'string' || !username.trim() || typeof answer !== 'string' || !answer.trim()) {
+        return res.status(400).json({ error: 'Enter an answer.' });
+      }
+      const correct = await verifySecurityAnswer(username.trim(), answer);
+      if (!correct) {
+        return res.status(400).json({ error: "That answer doesn't match." });
+      }
+      // Correct answer issues the same kind of single-use token the
+      // emailed link would — the "reset" action below doesn't care
+      // which path produced it.
+      const resetToken = await createResetToken(username.trim());
+      return res.status(200).json({ token: resetToken });
+    }
+
     if (action === 'request') {
       if (typeof username !== 'string' || !username.trim()) {
         return res.status(400).json({ error: 'Enter your username first.' });
