@@ -97,6 +97,26 @@ export default async function handler(req, res) {
       }
     }
 
+    if (event.type === 'customer.subscription.updated') {
+      // A failed renewal doesn't cancel the subscription right away —
+      // Stripe moves it to past_due/unpaid and retries for days before
+      // finally cancelling (which fires subscription.deleted above).
+      // Waiting for that final event would mean days of free access on
+      // a card that's already failing, so downgrade the moment the
+      // subscription leaves a paying status instead of waiting it out.
+      const subscription = event.data.object;
+      const revokingStatuses = new Set(['past_due', 'unpaid', 'incomplete_expired', 'paused']);
+      if (revokingStatuses.has(subscription.status)) {
+        const customerId = subscription.customer;
+        const username = await getUsernameByStripeCustomer(customerId);
+        if (username) {
+          await setUserPlan(username, PLANS.FREE);
+        } else {
+          console.error('stripe webhook: subscription past-due, no username on file for customer', customerId);
+        }
+      }
+    }
+
     return res.status(200).json({ received: true });
   } catch (err) {
     console.error('stripe webhook handling error:', err.message);
