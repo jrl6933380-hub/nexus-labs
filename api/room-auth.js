@@ -1,7 +1,7 @@
 // api/room-auth.js
-// Signup (invite-code gated), login, logout, and "who am I" for the
-// live-canvas room's test-group accounts. See lib/roomAuth.js for the
-// storage/session design.
+// Signup (open registration), login, logout, and "who am I" for
+// Nexus Forge accounts. See lib/roomAuth.js for the storage/session
+// design.
 
 import {
   createUser,
@@ -33,11 +33,11 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { action, username, password, inviteCode } = req.body || {};
+  const { action, username, password } = req.body || {};
 
   try {
     if (action === 'signup') {
-      const user = await createUser(username, password, inviteCode);
+      const user = await createUser(username, password);
       const token = await createSession(user.username);
       res.setHeader('Set-Cookie', serializeSessionCookie(token));
       return res.status(200).json({ username: user.username, operator: isOperatorUser(user.username) });
