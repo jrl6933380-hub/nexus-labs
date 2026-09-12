@@ -1823,6 +1823,39 @@
         speakUpdate('I sent this build to the Nexus Build Team.');
         return;
       }
+      if (decision.kind === 'pitch_agent') {
+        speakUpdate(decision.message);
+        const pitchBtn = document.createElement('button');
+        pitchBtn.type = 'button';
+        pitchBtn.textContent = 'Yes, set one up — $19/mo';
+        pitchBtn.style.cssText = 'margin-top:8px;padding:8px 14px;border-radius:8px;border:1px solid #4DD8E877;background:#4DD8E818;color:#4DD8E8;font:700 11px var(--mono);cursor:pointer;';
+        pitchBtn.addEventListener('click', async () => {
+          pitchBtn.disabled = true;
+          const original = pitchBtn.textContent;
+          pitchBtn.textContent = 'Redirecting…';
+          try {
+            const res2 = await fetch('/api/checkout', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ priceId: 'price_1UElHMDh5Di7LYi31nzqKcEH', projectId: currentProjectId }),
+            });
+            const data2 = await res2.json().catch(() => ({}));
+            if (res2.status === 401) {
+              window.location.href = '/room-login.html?next=' + encodeURIComponent(location.pathname);
+              return;
+            }
+            if (!res2.ok || !data2.url) throw new Error(data2.error || 'Checkout failed');
+            window.location.href = data2.url;
+          } catch (err) {
+            pitchBtn.disabled = false;
+            pitchBtn.textContent = original;
+            alert(err.message || 'Could not start checkout.');
+          }
+        });
+        nexBubble.insertAdjacentElement('afterend', pitchBtn);
+        return;
+      }
       if (decision.kind === 'command') {
         refocusAfterTurn = false;
         const commandError = executeWorkspaceCommand(decision.command);
