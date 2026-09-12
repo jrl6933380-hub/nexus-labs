@@ -660,6 +660,7 @@
           <button class="history-btn" id="export-btn" type="button" role="menuitem" disabled>Export</button>
           <button class="history-btn push-btn" id="push-btn" type="button" role="menuitem" hidden disabled>Open PR</button>
           <button class="history-btn primary" id="history-btn" type="button" role="menuitem">Projects</button>
+          <button class="history-btn" id="forge-admin-btn" type="button" role="menuitem" hidden>Forge Admin</button>
           <button class="back-link" id="logout-btn" type="button" role="menuitem">Sign out</button>
         </div>
       </div>
@@ -761,6 +762,11 @@
       // Only a server-authenticated operator gets the persistent Nexus chat,
       // shared history, and Vision controls layered over this workspace.
       if (data.operator === true) mountOperatorNexDock();
+      // Forge Admin (grant roles, create worker accounts) is operator-only —
+      // same server-authenticated flag that unlocks the Nex dock, not a
+      // client-side guess. The button is just a menu shortcut; api/forge-admin.js
+      // re-checks isOperatorUser on every request regardless.
+      if (data.operator === true) document.getElementById('forge-admin-btn').hidden = false;
     } catch (err) {
       window.location.href = '/room-login.html';
     }
@@ -789,6 +795,10 @@
   });
   document.getElementById('header-actions').addEventListener('click', (event) => {
     if (event.target.closest('button:not(#history-btn)')) setHeaderMenuOpen(false);
+  });
+
+  document.getElementById('forge-admin-btn').addEventListener('click', () => {
+    window.location.href = '/forge-admin.html';
   });
 
   document.getElementById('logout-btn').addEventListener('click', async () => {
