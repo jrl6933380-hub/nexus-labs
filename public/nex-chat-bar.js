@@ -999,12 +999,15 @@ export function createNexChatBar() {
       }
       if (!data) throw new Error('Nex did not return a response.');
       showSuccessfulNexReply({ data, clearAttachment, addMessage, speak });
-      if (data.navigation?.type === 'room' && typeof data.navigation.url === 'string') {
+      if (data.navigation?.type === 'room' && typeof data.navigation.url === 'string' && window.NexusSpace) {
+        // Room navigation belongs to the visual room switcher. The shared Nex
+        // dock appears across operator pages, so falling back to
+        // window.location.assign here made an ordinary chat response hijack
+        // unrelated buttons/pages and send them into Forge. Deliberate links
+        // to Room Builder still work; only implicit global redirects are
+        // disabled outside NexusSpace.
         const event = new CustomEvent('nexus:navigate', { detail: data.navigation });
         window.dispatchEvent(event);
-        if (!window.NexusSpace && data.navigation.url.startsWith('/') && !data.navigation.url.startsWith('//')) {
-          window.location.assign(data.navigation.url);
-        }
       }
     } catch (err) {
       addMessage(err.message || 'Message failed to send. Try again.', 'nex-system');
