@@ -1620,9 +1620,12 @@
       }
       if (!res.ok) {
         const failure = await res.json().catch(() => ({}));
-        buildingBubble.innerText = res.status === 429 && failure.code === 'ROOM_CREDITS_EXHAUSTED'
-          ? failure.error + ' Check your Room usage before trying again.'
-          : failure.error || 'The Room could not start that build.';
+        if (res.status === 429 && failure.code === 'ROOM_CREDITS_EXHAUSTED') {
+          buildingBubble.innerHTML = (failure.error || 'You have used all your build credits for this period.')
+            + ' <a href="/room-login.html" style="color:var(--cyan);text-decoration:underline">Upgrade for more credits →</a>';
+        } else {
+          buildingBubble.innerText = failure.error || 'The Room could not start that build.';
+        }
         return;
       }
 
