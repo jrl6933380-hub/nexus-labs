@@ -55,13 +55,14 @@ export function parseAssistantDecision(raw) {
   const end = cleaned.lastIndexOf('}');
   if (start < 0 || end <= start) throw new Error('Assistant response was not JSON');
   const parsed = JSON.parse(cleaned.slice(start, end + 1));
-  if (!['reply', 'build', 'team', 'command'].includes(parsed.kind)) throw new Error('Unknown assistant decision');
+  if (!['reply', 'build', 'team', 'command', 'pitch_agent'].includes(parsed.kind)) throw new Error('Unknown assistant decision');
   const message = String(parsed.message || '').trim().slice(0, 1_000);
   if (!message) throw new Error('Assistant message is required');
   const suggestions = Array.isArray(parsed.suggestions)
     ? parsed.suggestions.map((value) => String(value).trim().slice(0, 80)).filter(Boolean).slice(0, 3)
     : [];
   if (parsed.kind === 'reply') return { kind: 'reply', message, suggestions };
+  if (parsed.kind === 'pitch_agent') return { kind: 'pitch_agent', message };
   if (parsed.kind === 'build') {
     const instruction = String(parsed.instruction || '').trim().slice(0, 6_000);
     if (!instruction) throw new Error('Build instruction is required');
