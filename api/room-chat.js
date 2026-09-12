@@ -28,6 +28,7 @@
 
 import { saveBuild } from '../lib/roomHistory.js';
 import { getRequestUser } from '../lib/roomAuth.js';
+import { getOrCreateAnonId } from '../lib/anonSession.js';
 import { roomMeter } from '../lib/roomMetering.js';
 import { roomConversations } from '../lib/roomConversation.js';
 import { attachmentManifest, attachmentMessageContent, embedRoomAttachments, parseRoomAttachments } from '../lib/roomAttachments.js';
@@ -108,10 +109,8 @@ export default async function handler(req, res) {
   const message = typedMessage || (attachments.length ? 'Use the attached image in the project.' : '');
   if (!message) return res.status(400).json({ error: 'Missing message' });
 
-  const username = await getRequestUser(req);
-  if (!username) {
-    return res.status(401).json({ error: 'Sign in required' });
-  }
+  let username = await getRequestUser(req);
+  if (!username) username = getOrCreateAnonId(req, res);
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return res.status(500).json({ error: 'ANTHROPIC_API_KEY is not configured for this environment.' });
