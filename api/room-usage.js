@@ -9,6 +9,7 @@
 // frontend a number to accidentally render.
 
 import { getRequestUser } from '../lib/roomAuth.js';
+import { getOrCreateAnonId } from '../lib/anonSession.js';
 import { publicForgePricing } from '../lib/forgePricing.js';
 import { roomMeter } from '../lib/roomMetering.js';
 
@@ -20,8 +21,8 @@ export function createUsageHandler({ resolveUser = getRequestUser, meter = roomM
       return res.status(405).json({ error: 'Method Not Allowed' });
     }
     try {
-      const username = await resolveUser(req);
-      if (!username) return res.status(401).json({ error: 'Sign in required' });
+      let username = await resolveUser(req);
+      if (!username) username = getOrCreateAnonId(req, res);
       const usage = await meter.getUsageSummary(username);
       const dailyFull = await meter.getDailyUsageSummary(username);
       const daily = dailyFull.unlimited
