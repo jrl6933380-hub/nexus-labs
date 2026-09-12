@@ -59,6 +59,9 @@
     <div class="empty" id="worker-empty" hidden>No leads assigned to anyone yet.</div>
 
     <h2>Forge customers</h2>
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#c7cad1;margin-bottom:8px;">
+      <input type="checkbox" id="attention-toggle" /> Only show accounts that need attention (past due, unpaid, or usage stopped)
+    </label>
     <table id="customers-table">
       <thead><tr><th>Account</th><th>Plan</th><th>Usage</th><th>Billing</th><th>Actions</th></tr></thead>
       <tbody></tbody>
@@ -96,11 +99,33 @@ async function loadCustomers() {
     const res = await fetch('/api/forge-customers', { credentials: 'include' });
     if (!res.ok) throw new Error('load failed');
     const { customers } = await res.json();
-    renderCustomers(customers);
+    allCustomers = customers;
+    renderCustomers(filteredSortedCustomers());
   } catch (err) {
     document.getElementById('customers-empty').hidden = false;
     document.getElementById('customers-empty').textContent = 'Could not load customer accounts.';
   }
+}
+
+let allCustomers = [];
+
+function needsAttention(c) {
+  const pastDue = c.billing && (c.billing.status === 'past_due' || c.billing.status === 'unpaid');
+  const stopped = c.usage && !c.usage.unlimited && c.usage.remaining === 0;
+  return Boolean(pastDue || stopped);
+}
+
+function filteredSortedCustomers() {
+  const onlyAttention = document.getElementById('attention-toggle').checked;
+  const list = onlyAttention ? allCustomers.filter(needsAttention) : allCustomers.slice();
+  // Needs-attention accounts float to the top; ties broken by username
+  // so the order doesn't jitter between reloads.
+  return list.sort(function (a, b) {
+    const aFlag = needsAttention(a) ? 0 : 1;
+    const bFlag = needsAttention(b) ? 0 : 1;
+    if (aFlag !== bFlag) return aFlag - bFlag;
+    return a.username.localeCompare(b.username);
+  });
 }
 
 function billingLabel(billing) {
@@ -125,18 +150,19 @@ function usageLabel(usage) {
 function renderCustomers(customers) {
   const tbody = document.querySelector('#customers-table tbody');
   const empty = document.getElementById('customers-empty');
-  if (!customers.length) { tbody.innerHTML = ''; empty.hidden = false; return; }
+  if (!customers.length) { tbody.innerHTML = ''; empty.hidden = false; empty.textContent = document.getElementById('attention-toggle').checked ? 'Nothing needs attention right now.' : 'No paid or Stripe-linked accounts yet.'; return; }
   empty.hidden = true;
   tbody.innerHTML = customers.map(function (c) {
     const billingText = billingLabel(c.billing);
     const isPastDue = c.billing && (c.billing.status === 'past_due' || c.billing.status === 'unpaid');
     const usageText = usageLabel(c.usage);
     const isStopped = c.usage && c.usage.remaining === 0 && !c.usage.unlimited;
+    const flagged = needsAttention(c);
     const planOptions = PLAN_OPTIONS.map(function (p) {
       return '<option value="' + p + '"' + (p === c.plan ? ' selected' : '') + '>' + p + '</option>';
     }).join('');
-    return '<tr data-username="' + escapeHtml(c.username) + '">' +
-      '<td>' + escapeHtml(c.username) + '</td>' +
+    return '<tr data-username="' + escapeHtml(c.username) + '"' + (flagged ? ' style="background:rgba(229,115,115,.06)"' : '') + '>' +
+      '<td>' + (flagged ? '⚠️ ' : '') + escapeHtml(c.username) + '</td>' +
       '<td><select class="plan-select">' + planOptions + '</select></td>' +
       '<td class="' + (isStopped ? 'overdue' : '') + '">' + escapeHtml(usageText) + '</td>' +
       '<td class="' + (isPastDue ? 'overdue' : '') + '">' + escapeHtml(billingText) + '</td>' +
@@ -188,6 +214,10 @@ async function postCustomerAction(body) {
     alert('Network error.');
   }
 }
+
+document.getElementById('attention-toggle').addEventListener('change', function () {
+  renderCustomers(filteredSortedCustomers());
+});
 
 function renderCards(totals) {
   const items = [
