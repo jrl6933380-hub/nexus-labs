@@ -10,48 +10,126 @@
   body { margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:#0b0d12; color:#e8eaed; padding:20px 16px; }
   h1 { font-size:18px; margin:0 0 4px; }
   .sub { color:#9aa0a6; font-size:13px; margin-bottom:20px; }
+  .tabs { display:flex; gap:8px; margin-bottom:14px; max-width:420px; }
+  .tab { flex:1; padding:10px; text-align:center; border-radius:8px; border:1px solid #262b36; background:#14171f; color:#9aa0a6; font-size:13px; font-weight:600; cursor:pointer; }
+  .tab.active { color:#e8eaed; border-color:#3b5bfd; background:#171d2f; }
   .card { background:#14171f; border:1px solid #262b36; border-radius:14px; padding:16px; max-width:420px; }
+  .card[hidden] { display:none; }
   label { display:block; font-size:13px; color:#9aa0a6; margin:12px 0 4px; }
   input, select { width:100%; background:#0b0d12; color:#e8eaed; border:1px solid #333844; border-radius:8px; padding:10px; font-size:14px; }
-  button { margin-top:16px; width:100%; background:#3b5bfd; color:white; border:none; border-radius:8px; padding:12px; font-weight:600; font-size:14px; }
-  #msg { margin-top:12px; font-size:13px; }
+  button.go { margin-top:16px; width:100%; background:#3b5bfd; color:white; border:none; border-radius:8px; padding:12px; font-weight:600; font-size:14px; }
+  #msg1, #msg2 { margin-top:12px; font-size:13px; }
   .ok { color:#4caf50; } .err { color:#e57373; }
   .hint { color:#9aa0a6; font-size:12px; margin-top:16px; }
+  .credbox { margin-top:10px; padding:10px; background:#0b0d12; border:1px solid #333844; border-radius:8px; font-size:13px; font-family: ui-monospace, monospace; display:none; white-space:pre-wrap; }
+  .credbox.show { display:block; }
 </style>
 </head>
 <body>
-  <h1>Grant Forge access</h1>
-  <div class="sub">Operator only. Promotes an existing Room account to a Forge role.</div>
-  <div class="card">
-    <label>Room username (they must already have an account — <a href="/room.html" style="color:#8ab4f8">sign up here</a> first)</label>
-    <input id="username" placeholder="e.g. jsmith" />
+  <h1>Forge Admin</h1>
+  <div class="sub">Operator only.</div>
+
+  <div class="tabs">
+    <div class="tab active" id="tab-create">Create account</div>
+    <div class="tab" id="tab-grant">Grant to existing</div>
+  </div>
+
+  <div class="card" id="card-create">
+    <label>Username</label>
+    <input id="c-username" placeholder="e.g. jsmith" />
+    <label>Password (you set this — send it to them yourself)</label>
+    <input id="c-password" type="text" placeholder="at least 8 characters" />
     <label>Role</label>
-    <select id="role">
+    <select id="c-role">
       <option value="forge_worker">Worker — can call assigned leads</option>
       <option value="forge_manager">Manager — can also create/assign leads</option>
     </select>
-    <button id="go">Grant access</button>
-    <div id="msg"></div>
-    <div class="hint">Once granted, they can open <a href="/forge-caller.html" style="color:#8ab4f8">/forge-caller.html</a> on their phone.</div>
+    <button class="go" id="c-go">Create account</button>
+    <div id="msg1"></div>
+    <div class="credbox" id="credbox"></div>
+    <div class="hint">No sign-up flow for them at all — this creates the login directly. Copy the box above into Discord.</div>
   </div>
+
+  <div class="card" id="card-grant" hidden>
+    <label>Room username (they already have an account)</label>
+    <input id="g-username" placeholder="e.g. jsmith" />
+    <label>Role</label>
+    <select id="g-role">
+      <option value="forge_worker">Worker — can call assigned leads</option>
+      <option value="forge_manager">Manager — can also create/assign leads</option>
+    </select>
+    <button class="go" id="g-go">Grant access</button>
+    <div id="msg2"></div>
+    <div class="hint">Use this only if they already signed up themselves at <a href="/room.html" style="color:#8ab4f8">/room.html</a>.</div>
+  </div>
+
+  <div class="hint" style="max-width:420px">Once granted, they can open <a href="/forge-caller.html" style="color:#8ab4f8">/forge-caller.html</a> on their phone.</div>
+
 <script>
-document.getElementById('go').addEventListener('click', async () => {
-  const targetUsername = document.getElementById('username').value.trim();
-  const role = document.getElementById('role').value;
-  const msg = document.getElementById('msg');
-  msg.textContent = ''; msg.className = '';
-  if (!targetUsername) { msg.textContent = 'Enter a username.'; msg.className = 'err'; return; }
-  try {
-    const res = await fetch('/api/forge-admin', {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ targetUsername, role }),
-    });
-    const data = await res.json();
-    if (res.ok) { msg.textContent = `Done — ${targetUsername} is now ${role}.`; msg.className = 'ok'; }
+function wireTabs() {
+  const tabCreate = document.getElementById('tab-create');
+  const tabGrant = document.getElementById('tab-grant');
+  const cardCreate = document.getElementById('card-create');
+  const cardGrant = document.getElementById('card-grant');
+  tabCreate.addEventListener('click', () => {
+    tabCreate.classList.add('active'); tabGrant.classList.remove('active');
+    cardCreate.hidden = false; cardGrant.hidden = true;
+  });
+  tabGrant.addEventListener('click', () => {
+    tabGrant.classList.add('active'); tabCreate.classList.remove('active');
+    cardGrant.hidden = false; cardCreate.hidden = true;
+  });
+}
+
+async function postAdmin(body) {
+  const res = await fetch('/api/forge-admin', {
+    method: 'POST', credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  return { ok: res.ok, data };
+}
+
+function wireCreate() {
+  document.getElementById('c-go').addEventListener('click', async () => {
+    const targetUsername = document.getElementById('c-username').value.trim();
+    const password = document.getElementById('c-password').value;
+    const role = document.getElementById('c-role').value;
+    const msg = document.getElementById('msg1');
+    const credbox = document.getElementById('credbox');
+    msg.textContent = ''; msg.className = ''; credbox.classList.remove('show');
+    if (!targetUsername) { msg.textContent = 'Enter a username.'; msg.className = 'err'; return; }
+    if (!password || password.length < 8) { msg.textContent = 'Password needs to be at least 8 characters.'; msg.className = 'err'; return; }
+    const { ok, data } = await postAdmin({ action: 'create', targetUsername, password, role });
+    if (ok) {
+      msg.textContent = `Account created — ${targetUsername} is now ${role}.`;
+      msg.className = 'ok';
+      credbox.textContent = `Username: ${targetUsername}\nPassword: ${password}\nLogin at: ${location.origin}/room-login.html`;
+      credbox.classList.add('show');
+    } else {
+      msg.textContent = data.error || 'Failed.';
+      msg.className = 'err';
+    }
+  });
+}
+
+function wireGrant() {
+  document.getElementById('g-go').addEventListener('click', async () => {
+    const targetUsername = document.getElementById('g-username').value.trim();
+    const role = document.getElementById('g-role').value;
+    const msg = document.getElementById('msg2');
+    msg.textContent = ''; msg.className = '';
+    if (!targetUsername) { msg.textContent = 'Enter a username.'; msg.className = 'err'; return; }
+    const { ok, data } = await postAdmin({ targetUsername, role });
+    if (ok) { msg.textContent = `Done — ${targetUsername} is now ${role}.`; msg.className = 'ok'; }
     else { msg.textContent = data.error || 'Failed.'; msg.className = 'err'; }
-  } catch { msg.textContent = 'Network error.'; msg.className = 'err'; }
-});
+  });
+}
+
+wireTabs();
+wireCreate();
+wireGrant();
 </script>
 </body>
 </html>
