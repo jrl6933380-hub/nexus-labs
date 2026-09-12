@@ -21,9 +21,22 @@ test('NexusSpace still handles deliberate in-place room navigation', () => {
   assert.match(nexusSpace, /window\.NexusSpace\.open\(room\)/);
 });
 
-test('dashboard keeps an explicit customer-facing Room Builder link', () => {
-  assert.match(
-    dashboard,
-    /title: 'Room Builder', detail: '\/room\.html'/,
-  );
+test('dashboard Spaces open their matching scenes and only Builder opens Forge', () => {
+  const expectedScenes = [
+    ['Command Deck', 'command'],
+    ['Conference Room', 'conference'],
+    ['Story Studio', 'story'],
+    ['Memory Archive', 'memory'],
+    ['Approval Queue', 'queue'],
+    ['Connector Bay', 'connectors'],
+    ['Tenant Hub', 'tenants'],
+  ];
+  for (const [title, scene] of expectedScenes) {
+    assert.match(
+      dashboard,
+      new RegExp(`title: '${title}', detail: '\\/nexus-space\\.html#${scene}'`),
+    );
+  }
+  assert.match(dashboard, /title: 'Room Builder', detail: '\/room\.html'/);
+  assert.equal((dashboard.match(/detail: '\/room\.html'/g) || []).length, 1);
 });
