@@ -23,6 +23,25 @@ test('every project bench opens a live maintenance workbench', () => {
   assert.match(js, /openMaintenance\(id\)/);
 });
 
+test('entries open a comprehensive live project breakdown', () => {
+  assert.match(html, /id="detailDialog"/);
+  assert.match(html, /What this is/);
+  assert.match(html, /Current position/);
+  assert.match(html, /Progress history/);
+  assert.match(html, /Evidence and result/);
+  assert.match(js, /data-action="details"/);
+  assert.match(js, /openDetail\(id\)/);
+  assert.match(js, /renderDetail/);
+});
+
+test('detail view makes active AI work visually explicit', () => {
+  assert.match(html, /id="detailLiveAgent"/);
+  assert.match(js, /isActivelyWorking/);
+  assert.match(js, /Working now/);
+  assert.match(css, /\.detail-live\.working/);
+  assert.match(css, /@keyframes livePulse/);
+});
+
 test('maintenance items and notes use real shared Board state', () => {
   assert.match(js, /\[maintenance:\$\{root\.id\}\]/);
   assert.match(js, /action:'create_task'/);

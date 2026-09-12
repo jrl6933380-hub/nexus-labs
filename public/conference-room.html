@@ -36,6 +36,23 @@
   </div>
 </main>
 
+<dialog class="task-dialog detail-dialog" id="detailDialog">
+  <div class="detail-shell">
+    <header class="maintenance-head">
+      <div><div class="workshop-kicker">Project intelligence</div><h2 class="dialog-title" id="detailTitle">Entry breakdown</h2><div class="panel-sub" id="detailSubtitle">Live Board truth, without the fog.</div></div>
+      <button type="button" class="work-btn" id="closeDetailBtn">Close</button>
+    </header>
+    <div id="detailLiveAgent" class="detail-live" aria-live="polite"></div>
+    <div class="detail-grid">
+      <section class="detail-pane"><div class="panel-title">What this is</div><div id="detailDescription" class="detail-copy"></div></section>
+      <section class="detail-pane"><div class="panel-title">Current position</div><div id="detailPosition" class="detail-facts"></div></section>
+      <section class="detail-pane"><div class="panel-title">Progress history</div><div id="detailHistory" class="detail-history"></div></section>
+      <section class="detail-pane"><div class="panel-title">Evidence and result</div><div id="detailEvidence" class="detail-copy"></div></section>
+    </div>
+    <div class="detail-actions"><button type="button" class="work-btn primary" id="detailMaintainBtn">Open maintenance workbench</button><button type="button" class="work-link" id="detailChatBtn">Talk through this with Nex</button></div>
+  </div>
+</dialog>
+
 <dialog class="task-dialog maintenance-dialog" id="maintenanceDialog">
   <div class="maintenance-shell">
     <header class="maintenance-head">
