@@ -2,94 +2,52 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Nexus // Conference Room</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nexus // Justin + Nex Workshop</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/nexus-stark.css">
-<style>
-  :root { --bg:#070a11; --panel:#111827; --line:#26334d; --text:#e8eefb; --dim:#91a0b9; --faint:#5e6b81; --blue:#4b8dff; --green:#58edb0; --mono:'JetBrains Mono',monospace; --sans:Inter,-apple-system,sans-serif; }
-  * { box-sizing:border-box; }
-  body { margin:0; min-height:100vh; overflow-x:hidden; background:#05070c; color:var(--text); font-family:var(--sans); }
-  .room-shell { min-height:100vh; padding:24px 18px 72px; position:relative; isolation:isolate; overflow:hidden; background:
-    radial-gradient(ellipse 62% 34% at 50% 18%, #2468c42c, transparent 70%),
-    radial-gradient(ellipse 42% 30% at 83% 82%, #7a4eff12, transparent 72%),
-    linear-gradient(180deg,#121b2c 0%,#090e18 43%,#05070c 100%); }
-  .room-shell::before { content:""; position:absolute; z-index:-1; inset:0; opacity:.45; background-image:linear-gradient(#5a79a50e 1px,transparent 1px),linear-gradient(90deg,#5a79a50e 1px,transparent 1px); background-size:42px 42px; mask-image:linear-gradient(to bottom,black,transparent 92%); }
-  .room-shell::after { content:""; position:absolute; z-index:-1; inset:0; pointer-events:none; background:radial-gradient(ellipse at center,transparent 35%,#02040acc 100%); }
-  .topbar { max-width:1120px; margin:0 auto 18px; display:flex; justify-content:space-between; align-items:center; gap:16px; font-family:var(--mono); }
-  .eyebrow { color:var(--blue); letter-spacing:.19em; font-size:10px; text-transform:uppercase; }
-  .title { margin:5px 0 0; font-size:20px; letter-spacing:.04em; }
-  .top-actions { display:flex; align-items:center; gap:9px; }
-  .badge,.back-link { font-size:10px; border:1px solid #4febb455; border-radius:99px; padding:7px 10px; text-decoration:none; color:var(--green); background:#4febb40d; }
-  .badge.disconnected { color:#ff7979; border-color:#ff797955; background:#ff79790d; }
-  .back-link { color:var(--dim); border-color:var(--line); background:#0f1522aa; border-radius:7px; }
-  .scene { width:min(1120px,100%); height:clamp(540px,66vw,700px); margin:auto; position:relative; overflow:hidden; border:1px solid #32476b; border-radius:22px; background:
-    linear-gradient(102deg,transparent 0 17%,#35588b12 17.1% 17.4%,transparent 17.5% 82.5%,#35588b12 82.6% 82.9%,transparent 83%),
-    radial-gradient(ellipse 48% 56% at 50% 40%,#18365d80,transparent 72%),
-    linear-gradient(180deg,#1a2a44 0%,#0d1727 49%,#070b12 50%,#05070d 100%);
-    box-shadow:0 28px 80px #000a,inset 0 1px #7eaaff38; }
-  .ceiling { position:absolute; inset:0 0 49%; background:linear-gradient(150deg,#21385a 0%,#0d1728 60%,#08101b); clip-path:polygon(0 0,100% 0,74% 100%,26% 100%); }
-  .ceiling::after { content:""; position:absolute; left:15%; right:15%; top:0; height:62%; background:linear-gradient(90deg,transparent,#7cbbff43 45%,#d4ecff7a 50%,#7cbbff43 55%,transparent); filter:blur(3px); clip-path:polygon(0 0,100% 0,78% 100%,22% 100%); }
-  .window { position:absolute; top:13%; width:23%; height:38%; border:1px solid #77aaff55; background:linear-gradient(#7d9bd425,#111f3e55),radial-gradient(circle at 63% 26%,#cae1ffdd 0 1px,transparent 2px),radial-gradient(circle at 22% 39%,#8ac6ffcc 0 1px,transparent 2px),radial-gradient(circle at 76% 67%,#8ac6ffbb 0 1px,transparent 2px),linear-gradient(175deg,#1d4c89 0%,#091527 70%); box-shadow:inset 0 0 30px #1a76ff25,0 0 20px #2c77df1c; }
-  .window::after { content:""; position:absolute; inset:0; background:linear-gradient(90deg,transparent 49%,#7ea8df4d 50% 51%,transparent 52%),linear-gradient(transparent 49%,#7ea8df4d 50% 51%,transparent 52%); }
-  .window-left { left:5%; transform:perspective(500px) rotateY(14deg); } .window-right { right:5%; transform:perspective(500px) rotateY(-14deg); }
-  .wall-console { position:absolute; left:50%; top:13%; transform:translateX(-50%); width:27%; height:25%; border:1px solid #5378ab61; background:linear-gradient(145deg,#1b2d4a,#0a1321); box-shadow:inset 0 0 28px #1b81ef19; }
-  .wall-console::before { content:"NEXUS LIVE LINK"; position:absolute; inset:13% 10%; display:grid; place-items:center; font:600 clamp(8px,1vw,12px) var(--mono); letter-spacing:.18em; color:#8bc0ff; text-align:center; background:repeating-linear-gradient(0deg,#55a5ff0c 0 1px,transparent 1px 6px); border:1px solid #54a0f02b; text-shadow:0 0 12px #76b8ff; }
-  .floor { position:absolute; inset:50% 0 0; background:linear-gradient(90deg,#0a1220,#101b2e 50%,#0a1220); clip-path:polygon(26% 0,74% 0,100% 100%,0 100%); }
-  .floor::after { content:""; position:absolute; inset:0; background:repeating-linear-gradient(90deg,transparent 0 9.9%,#5a8dca1d 10% 10.15%),repeating-linear-gradient(0deg,transparent 0 15.9%,#5a8dca12 16% 16.15%); transform:perspective(260px) rotateX(53deg) scale(1.8); transform-origin:top; }
-  .table { position:absolute; z-index:3; left:50%; top:56%; width:43%; aspect-ratio:1.8; transform:translate(-50%,-50%); border-radius:50%; background:radial-gradient(ellipse at 45% 34%,#375477,#172536 55%,#070b11 74%); border:2px solid #4b7199; box-shadow:inset 0 7px 18px #83c5ff38,inset 0 -22px 28px #000b,0 24px 30px #000b,0 0 45px #247cf22b; }
-  .table::before { content:""; position:absolute; inset:9% 18%; border-radius:50%; border:1px solid #75b5f05c; box-shadow:0 0 20px #3984ef4f,inset 0 0 18px #2f86ff38; }
-  .table::after { content:""; position:absolute; left:50%; top:50%; width:28%; aspect-ratio:1; transform:translate(-50%,-50%); border-radius:50%; border:1px solid #56d9ff88; background:radial-gradient(circle,#71ddffba 0 5%,#2774c244 36%,transparent 70%); box-shadow:0 0 25px #3aa8ffb3; }
-  .table-copy { position:absolute; z-index:5; left:50%; top:56%; width:27%; transform:translate(-50%,-50%); text-align:center; pointer-events:none; font-family:var(--mono); }
-  .goal { font-size:clamp(9px,1.05vw,13px); font-weight:700; text-shadow:0 2px 8px #000; line-height:1.35; }
-  .progress { margin-top:6px; font-size:8px; color:#b0c9e9; letter-spacing:.14em; text-transform:uppercase; }
-  #seats { position:absolute; z-index:7; inset:0; }
-  .seat { --agent:#8ca0be; position:absolute; width:126px; text-align:center; transform:translate(-50%,-50%); filter:drop-shadow(0 12px 12px #0008); }
-  .seat[data-slot="0"] { left:50%; top:26%; } .seat[data-slot="1"] { left:83%; top:43%; } .seat[data-slot="2"] { left:72%; top:76%; } .seat[data-slot="3"] { left:28%; top:76%; } .seat[data-slot="4"] { left:17%; top:43%; }
-  .chair { margin:auto; width:60px; height:52px; border:2px solid color-mix(in srgb,var(--agent) 72%,#fff); border-radius:22px 22px 12px 12px; background:linear-gradient(145deg,color-mix(in srgb,var(--agent) 42%,#192235),#0a101b 75%); box-shadow:inset 0 4px 10px #ffffff21,0 0 18px color-mix(in srgb,var(--agent) 32%,transparent); position:relative; }
-  .chair::after { content:""; position:absolute; inset:auto 10px -14px; height:14px; border-left:2px solid #475773; border-right:2px solid #475773; }
-  .avatar { width:38px; height:38px; margin:-25px auto 8px; display:grid; place-items:center; border-radius:50%; border:2px solid var(--agent); color:#eaf4ff; background:#0a111d; box-shadow:0 0 0 4px #08101bdd,0 0 19px color-mix(in srgb,var(--agent) 50%,transparent); font:700 13px var(--mono); position:relative; }
-  .avatar.active { animation:pulse 1.7s ease-in-out infinite; } @keyframes pulse { 50% { box-shadow:0 0 0 5px #08101bdd,0 0 31px var(--agent); } }
-  .seat-name { font:700 11px var(--mono); color:var(--agent); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .seat-state { margin-top:3px; font:9px var(--mono); color:#b7c6db; text-transform:uppercase; letter-spacing:.08em; }
-  .speech-bubble { margin:7px auto 0; width:126px; padding:6px 8px; border:1px solid color-mix(in srgb,var(--agent) 35%,#26334d); border-radius:7px; background:#0a101dde; color:#c8d7ea; font-size:10px; line-height:1.32; backdrop-filter:blur(6px); max-height:44px; overflow:hidden; }
-  .footer-strip { width:min(1120px,100%); margin:16px auto 0; display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
-  .chip { font:10px var(--mono); color:var(--dim); border:1px solid var(--line); border-radius:999px; padding:6px 10px; background:#0d1421aa; }
-  .empty-room-hint { position:absolute; inset:0; display:grid; place-items:center; font:12px var(--mono); color:var(--faint); }
-  @media (max-width:640px) { .room-shell { padding:16px 10px 50px; } .title { font-size:15px; } .scene { height:590px; border-radius:15px; } .seat { width:90px; } .seat[data-slot="0"]{top:23%}.seat[data-slot="1"]{left:83%;top:41%}.seat[data-slot="2"]{left:72%;top:73%}.seat[data-slot="3"]{left:28%;top:73%}.seat[data-slot="4"]{left:17%;top:41%} .speech-bubble{display:none}.table{width:58%;top:55%}.table-copy{width:38%;top:55%}.window{width:25%;}.top-actions .back-link{display:none} }
-</style>
+<link rel="stylesheet" href="/conference-workshop.css">
 </head>
 <body>
-<main class="room-shell">
-  <header class="topbar">
-    <div><div class="eyebrow">Nexus Labs // Active Workspace</div><h1 class="title">CONFERENCE ROOM</h1></div>
-    <div class="top-actions"><span class="badge" id="liveBadge">● LIVE</span><a class="back-link" href="/">← Board view</a></div>
+<main class="workshop">
+  <header class="workshop-top">
+    <div><div class="workshop-kicker">Nexus Labs // Operational Workshop</div><h1 class="workshop-title">JUSTIN + NEX WORKSHOP</h1></div>
+    <div class="workshop-actions"><span class="work-link" id="liveBadge">● LIVE</span><a class="work-link" href="/">Board</a><button class="work-btn green" id="newTaskBtn">＋ New task</button></div>
   </header>
-  <section class="scene" aria-live="polite" aria-label="Live agent conference room">
-    <div class="ceiling"></div><div class="window window-left"></div><div class="window window-right"></div><div class="wall-console"></div><div class="floor"></div>
-    <div class="table"></div>
-    <div class="table-copy"><div class="goal" id="tableGoal">Standing by for a mission…</div><div class="progress" id="tableProgress">0% of current objective</div></div>
-    <div id="seats"></div>
+
+  <section class="focus-ribbon" aria-live="polite">
+    <div class="focus-icon">◎</div>
+    <div><div class="focus-label">One thing now</div><div class="focus-title" id="focusTitle">Choose the next thing worth finishing</div><div class="focus-next" id="focusNext">Loading the real Board…</div></div>
+    <div class="focus-meter"><div class="meter-track"><div class="meter-fill" id="focusFill"></div></div><div class="meter-copy" id="focusCopy">Connecting…</div><button class="work-btn primary" id="focusAction" style="width:100%;margin-top:8px">Do next action</button></div>
   </section>
-  <div class="footer-strip" id="footerStrip"></div>
+
+  <div class="workshop-grid">
+    <section class="work-panel">
+      <div class="panel-head"><div><div class="panel-title">Project benches</div><div class="panel-sub" id="taskCount">Live work from the shared Board</div></div><div class="filter-row"><button class="filter-btn active" data-filter="active">Active</button><button class="filter-btn" data-filter="mine">Ours</button><button class="filter-btn" data-filter="waiting">Needs attention</button><button class="filter-btn" data-filter="all">All</button></div></div>
+      <div class="benches" id="benches"></div>
+    </section>
+
+    <aside class="side-stack">
+      <section class="work-panel"><div class="panel-head"><div><div class="panel-title">Agent toolbox</div><div class="panel-sub">Assign, then route through real capability checks</div></div></div><div class="side-body" id="agentRoster"></div></section>
+      <section class="work-panel"><div class="panel-head"><div><div class="panel-title">Safety rails</div><div class="panel-sub">Parallel without turning the repo into soup</div></div></div><div class="side-body safety-list"><div class="safety-item"><span class="safety-check">✓</span><span>Dispatcher checks availability and capability before work starts.</span></div><div class="safety-item"><span class="safety-check">✓</span><span>Task leases and idempotency prevent two workers from silently doing the same job.</span></div><div class="safety-item"><span class="safety-check">✓</span><span>Medium/high-risk actions stop for explicit approval.</span></div><div class="safety-item"><span class="safety-check">✓</span><span>Merges, live changes, and destructive actions remain gated.</span></div></div></section>
+      <section class="work-panel"><div class="panel-head"><div><div class="panel-title">Open the work</div><div class="panel-sub">Jump straight to the operational surfaces</div></div></div><div class="side-body quick-grid"><a class="work-link" href="/mission-control.html">Command</a><a class="work-link" href="/queue.html">Approvals</a><a class="work-link" href="/connectors.html">Agents</a><a class="work-link" href="/tenants.html">Projects</a></div></section>
+    </aside>
+  </div>
 </main>
-<script type="module">
-  import { safeText, startPolling, visualFor, currentTaskFor } from '/mission-engine.js';
-  const STATUS_PROGRESS={idle:5,planning:22,building:58,testing:82,waiting_for_justin:92,blocked:45,complete:100};
-  const ACTIVE=new Set(['planning','building','testing']);
-  const seats=document.getElementById('seats'),goal=document.getElementById('tableGoal'),progressEl=document.getElementById('tableProgress'),live=document.getElementById('liveBadge'),footer=document.getElementById('footerStrip');
-  function render(board) {
-    const tasks=board.tasks||[], agents=(board.agents||[]).slice(0,5), open=tasks.filter(t=>t.status!=='complete');
-    live.textContent=board.disconnected?'○ DISCONNECTED':'● LIVE'; live.classList.toggle('disconnected',Boolean(board.disconnected));
-    goal.textContent=open[0]?.title||tasks[0]?.title||(board.disconnected?'Telemetry disconnected':'Standing by for a mission…');
-    const pct=tasks.length?Math.round(tasks.reduce((sum,t)=>sum+(STATUS_PROGRESS[t.status]||0),0)/tasks.length):0; progressEl.textContent=`${pct}% of current objective`;
-    seats.innerHTML=agents.length?agents.map((agent,index)=>{const visual=visualFor(agent),task=currentTaskFor(agent,tasks),status=task?.status||agent.status||'idle',name=agent.display_name||visual.label,initial=safeText(name.slice(0,1).toUpperCase()),bubble=task?`<div class="speech-bubble">${safeText(task.title)}</div>`:'';
-      return `<article class="seat" data-slot="${index}" style="--agent:${visual.color}"><div class="chair"></div><div class="avatar ${ACTIVE.has(status)?'active':''}">${initial}</div><div class="seat-name">${safeText(name)}</div><div class="seat-state">${safeText(status)}</div>${bubble}</article>`;}).join(''):'<div class="empty-room-hint">No agents seated right now.</div>';
-    footer.innerHTML=`<span class="chip">${tasks.filter(t=>t.status==='complete').length}/${tasks.length} tasks complete</span><span class="chip">${agents.length} agents seated</span>${(board.telemetry?.needs_approval||0)?`<span class="chip">Needs you · ${board.telemetry.needs_approval}</span>`:''}`;
-  }
-  startPolling(render,{intervalMs:2000});
-</script>
+
+<dialog class="task-dialog" id="taskDialog">
+  <form class="dialog-body" id="taskForm">
+    <div><div class="workshop-kicker">Put work on a bench</div><h2 class="dialog-title">Create a real Board task</h2></div>
+    <div class="field"><label for="taskTitle">Outcome</label><input id="taskTitle" name="title" required maxlength="160" placeholder="What should exist when this is done?"></div>
+    <div class="field"><label for="taskDescription">Context and definition of done</label><textarea id="taskDescription" name="description" maxlength="4000" placeholder="Constraints, acceptance checks, and what not to touch"></textarea></div>
+    <div class="field"><label for="taskOwner">First owner</label><select id="taskOwner" name="owner"><option value="nex">Nex — orchestrate and build</option><option value="">Unassigned — choose later</option></select></div>
+    <label style="display:flex;gap:8px;align-items:center;font-size:12px;color:var(--work-dim)"><input type="checkbox" name="start" value="yes"> Route it immediately after creation</label>
+    <div class="dialog-actions"><button type="button" class="work-btn" id="cancelTaskBtn">Cancel</button><button class="work-btn green" type="submit">Add to workshop</button></div>
+  </form>
+</dialog>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script type="module" src="/conference-workshop.js"></script>
 <script type="module">import '/nex-chat-bar.js?v=20260912-2';</script>
 </body>
 </html>
