@@ -17,6 +17,7 @@ test('approveQueueItem executes a queued delete_board_task by calling deleteTask
   const storedTask = JSON.stringify({ id: 'task-abc', title: 'TEST — Claude Routine wake' });
 
   const calls = [];
+  let taskDeleted = false;
   global.fetch = async (_url, options) => {
     const command = JSON.parse(options.body);
     calls.push(command);
@@ -24,9 +25,10 @@ test('approveQueueItem executes a queued delete_board_task by calling deleteTask
       return { ok: true, async json() { return { result: JSON.stringify(queuedItem) }; } };
     }
     if (command[0] === 'HGET' && command[1] === 'nexus:board:tasks') {
-      return { ok: true, async json() { return { result: storedTask }; } };
+      return { ok: true, async json() { return { result: taskDeleted ? null : storedTask }; } };
     }
     if (command[0] === 'HDEL') {
+      if (command[1] === 'nexus:board:tasks') taskDeleted = true;
       return { ok: true, async json() { return { result: 1 }; } };
     }
     throw new Error(`unexpected command ${JSON.stringify(command)}`);
@@ -42,6 +44,35 @@ test('approveQueueItem executes a queued delete_board_task by calling deleteTask
   assert.equal(hdelCommands.length, 2);
   assert.ok(hdelCommands.some((c) => c[1] === 'nexus:board:tasks' && c[2] === 'task-abc'));
   assert.ok(hdelCommands.some((c) => c[1] === 'nex:queue' && c[2] === 'q1'));
+});
+
+test('approveQueueItem leaves the approval queued when deletion cannot be verified', async () => {
+  const queuedItem = {
+    id: 'q-failed',
+    tool: 'delete_board_task',
+    input: { id: 'task-still-there' },
+    description: 'Delete task that resists deletion',
+    created_at: 1,
+  };
+  const storedTask = JSON.stringify({ id: 'task-still-there', title: 'Still here' });
+  const calls = [];
+  global.fetch = async (_url, options) => {
+    const command = JSON.parse(options.body);
+    calls.push(command);
+    if (command[0] === 'HGET' && command[1] === 'nex:queue') {
+      return { ok: true, async json() { return { result: JSON.stringify(queuedItem) }; } };
+    }
+    if (command[0] === 'HGET' && command[1] === 'nexus:board:tasks') {
+      return { ok: true, async json() { return { result: storedTask }; } };
+    }
+    if (command[0] === 'HDEL' && command[1] === 'nexus:board:tasks') {
+      return { ok: true, async json() { return { result: 1 }; } };
+    }
+    throw new Error(`unexpected command ${JSON.stringify(command)}`);
+  };
+
+  await assert.rejects(() => approveQueueItem('q-failed'), /Task deletion verification failed/);
+  assert.ok(!calls.some((c) => c[0] === 'HDEL' && c[1] === 'nex:queue'));
 });
 
 test('approveQueueItem surfaces a clear error when the queued task id no longer exists', async () => {
