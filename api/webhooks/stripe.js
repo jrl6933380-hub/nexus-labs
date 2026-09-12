@@ -7,7 +7,7 @@
 // functions (no framework) like the rest of this repo's api/ routes.
 
 import crypto from 'crypto';
-import { setUserPlan } from '../../lib/roomAuth.js';
+import { setUserPlan, linkStripeCustomer, getUsernameByStripeCustomer, PLANS } from '../../lib/roomAuth.js';
 import { roomMeter } from '../../lib/roomMetering.js';
 
 export const config = {
@@ -75,6 +75,7 @@ export default async function handler(req, res) {
         console.error('stripe webhook: checkout.session.completed with no username', session.id);
       } else if (kind === 'plan' && session.metadata?.plan) {
         await setUserPlan(username, session.metadata.plan);
+        if (session.customer) await linkStripeCustomer(username, session.customer);
       } else if (kind === 'credit_pack') {
         const credits = Number(session.metadata.credits) || 0;
         if (credits > 0) await roomMeter.grantBonusCredits(username, credits);
@@ -82,14 +83,17 @@ export default async function handler(req, res) {
     }
 
     if (event.type === 'customer.subscription.deleted') {
-      // A cancelled subscription should drop the account back to
-      // Free, but Stripe only gives us the Customer id here, not the
-      // username — checkout.session.completed set metadata on the
-      // *session*, and that link isn't persisted anywhere yet. Logged
-      // so it's visible rather than silently dropped, until a
-      // customer-id-to-username mapping is added (e.g. storing the
-      // Stripe customer id on the user record at checkout time).
-      console.error('stripe webhook: subscription cancelled, manual downgrade needed', event.data.object.id);
+      // A cancelled subscription drops the account back to Free.
+      // linkStripeCustomer recorded the customer-id-to-username link
+      // when the subscription was first purchased, so this can resolve
+      // straight back to an account instead of needing a human.
+      const customerId = event.data.object.customer;
+      const username = await getUsernameByStripeCustomer(customerId);
+      if (username) {
+        await setUserPlan(username, PLANS.FREE);
+      } else {
+        console.error('stripe webhook: subscription cancelled, no username on file for customer', customerId);
+      }
     }
 
     return res.status(200).json({ received: true });
