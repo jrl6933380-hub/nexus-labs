@@ -27,6 +27,7 @@ function make(overrides = {}) {
     consumeReply: async () => ({ allowed: true }),
     rateLimit: async () => ({ allowed: true }),
     readBuild: async () => ({ html: '<main>Open weekdays</main>' }),
+    modelApiKey: 'test-key',
     callModel: async () => ({
       ok: true,
       json: async () => ({ content: [{ type: 'text', text: 'We are open weekdays.' }] }),
