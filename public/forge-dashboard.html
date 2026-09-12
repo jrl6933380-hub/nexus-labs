@@ -57,6 +57,13 @@
       <tbody></tbody>
     </table>
     <div class="empty" id="worker-empty" hidden>No leads assigned to anyone yet.</div>
+
+    <h2>Forge customers</h2>
+    <table id="customers-table">
+      <thead><tr><th>Account</th><th>Plan</th><th>Usage</th><th>Billing</th><th>Actions</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="empty" id="customers-empty" hidden>No paid or Stripe-linked accounts yet.</div>
   </div>
 
 <script>
@@ -79,6 +86,106 @@ async function load() {
     renderWorkers(m.byWorker);
   } catch (err) {
     stateEl.textContent = 'Could not load metrics.';
+  }
+}
+
+const PLAN_OPTIONS = ['free', 'hosted', 'growth', 'unlimited'];
+
+async function loadCustomers() {
+  try {
+    const res = await fetch('/api/forge-customers', { credentials: 'include' });
+    if (!res.ok) throw new Error('load failed');
+    const { customers } = await res.json();
+    renderCustomers(customers);
+  } catch (err) {
+    document.getElementById('customers-empty').hidden = false;
+    document.getElementById('customers-empty').textContent = 'Could not load customer accounts.';
+  }
+}
+
+function billingLabel(billing) {
+  if (!billing) return 'No subscription';
+  const parts = [billing.status || 'unknown'];
+  if (billing.status === 'past_due' || billing.status === 'unpaid') parts.push('— payment due');
+  if (billing.cancelAtPeriodEnd) parts.push('(cancels at period end)');
+  if (billing.currentPeriodEnd) {
+    const d = new Date(billing.currentPeriodEnd * 1000);
+    parts.push('· renews ' + d.toLocaleDateString());
+  }
+  return parts.join(' ');
+}
+
+function usageLabel(usage) {
+  if (!usage) return '—';
+  if (usage.unlimited) return 'unlimited';
+  const stopped = usage.remaining === 0;
+  return (usage.remaining + '/' + usage.limit + ' left') + (stopped ? ' — usage stopped' : '');
+}
+
+function renderCustomers(customers) {
+  const tbody = document.querySelector('#customers-table tbody');
+  const empty = document.getElementById('customers-empty');
+  if (!customers.length) { tbody.innerHTML = ''; empty.hidden = false; return; }
+  empty.hidden = true;
+  tbody.innerHTML = customers.map(function (c) {
+    const billingText = billingLabel(c.billing);
+    const isPastDue = c.billing && (c.billing.status === 'past_due' || c.billing.status === 'unpaid');
+    const usageText = usageLabel(c.usage);
+    const isStopped = c.usage && c.usage.remaining === 0 && !c.usage.unlimited;
+    const planOptions = PLAN_OPTIONS.map(function (p) {
+      return '<option value="' + p + '"' + (p === c.plan ? ' selected' : '') + '>' + p + '</option>';
+    }).join('');
+    return '<tr data-username="' + escapeHtml(c.username) + '">' +
+      '<td>' + escapeHtml(c.username) + '</td>' +
+      '<td><select class="plan-select">' + planOptions + '</select></td>' +
+      '<td class="' + (isStopped ? 'overdue' : '') + '">' + escapeHtml(usageText) + '</td>' +
+      '<td class="' + (isPastDue ? 'overdue' : '') + '">' + escapeHtml(billingText) + '</td>' +
+      '<td>' +
+        '<input type="number" class="credit-input" placeholder="credits" style="width:70px" min="1" /> ' +
+        '<button type="button" class="grant-btn">Grant</button> ' +
+        '<button type="button" class="plan-btn">Set plan</button>' +
+        (c.billing && c.billing.status === 'active' ? ' <button type="button" class="cancel-btn">Cancel sub</button>' : '') +
+      '</td>' +
+    '</tr>';
+  }).join('');
+
+  tbody.querySelectorAll('tr').forEach(function (row) {
+    const targetUsername = row.dataset.username;
+    const grantBtn = row.querySelector('.grant-btn');
+    const planBtn = row.querySelector('.plan-btn');
+    const cancelBtn = row.querySelector('.cancel-btn');
+    grantBtn.addEventListener('click', async function () {
+      const credits = parseInt(row.querySelector('.credit-input').value, 10);
+      if (!credits || credits < 1) { alert('Enter a positive number of credits.'); return; }
+      await postCustomerAction({ action: 'grant_bonus_credits', username: targetUsername, credits: credits });
+    });
+    planBtn.addEventListener('click', async function () {
+      const plan = row.querySelector('.plan-select').value;
+      await postCustomerAction({ action: 'set_user_plan', username: targetUsername, plan: plan });
+    });
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', async function () {
+        if (!window.confirm('Cancel this subscription in Stripe?')) return;
+        const rowBilling = customers.find(function (c) { return c.username === targetUsername; });
+        if (!rowBilling || !rowBilling.billing) return;
+        await postCustomerAction({ action: 'cancel_subscription', subscription_id: rowBilling.billing.subscriptionId });
+      });
+    }
+  });
+}
+
+async function postCustomerAction(body) {
+  try {
+    const res = await fetch('/api/forge-customers', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || 'Action failed.'); return; }
+    loadCustomers();
+  } catch (err) {
+    alert('Network error.');
   }
 }
 
@@ -148,6 +255,7 @@ function escapeHtml(s) {
 }
 
 load();
+loadCustomers();
 </script>
 </body>
 </html>
