@@ -136,19 +136,18 @@
 
   const canvas = mountCanvas({ canvasTitle: 'Venture Factory' });
 
-  // Spaces open the matching scene in NexusSpace. Room Builder is the one
-  // deliberate exception: it is the customer-facing Forge workspace and may
-  // navigate to /room.html. Keeping that exception explicit prevents another
-  // Space click from being interpreted as an implicit Builder request.
+  // Spaces are destinations, not previews. Every normal click opens the
+  // requested workspace directly; only the explicit Room Builder entry may
+  // open the Forge workspace at /room.html.
   const ROOMS = [
-    { nav: 'Mission', title: 'Command Deck', detail: '/nexus-space.html#command' },
-    { nav: 'Conference', title: 'Conference Room', detail: '/nexus-space.html#conference' },
+    { nav: 'Mission', title: 'Command Deck', detail: '/mission-control.html' },
+    { nav: 'Conference', title: 'Conference Room', detail: '/conference-room.html' },
     { nav: 'Builder', title: 'Room Builder', detail: '/room.html' },
-    { nav: 'Story', title: 'Story Studio', detail: '/nexus-space.html#story' },
-    { nav: 'Memory', title: 'Memory Archive', detail: '/nexus-space.html#memory' },
-    { nav: 'Approvals', title: 'Approval Queue', detail: '/nexus-space.html#queue' },
-    { nav: 'Connectors', title: 'Connector Bay', detail: '/nexus-space.html#connectors' },
-    { nav: 'Tenants', title: 'Tenant Hub', detail: '/nexus-space.html#tenants' },
+    { nav: 'Story', title: 'Story Studio', detail: '/story-studio.html' },
+    { nav: 'Memory', title: 'Memory Archive', detail: '/memory.html' },
+    { nav: 'Approvals', title: 'Approval Queue', detail: '/queue.html' },
+    { nav: 'Connectors', title: 'Connector Bay', detail: '/connectors.html' },
+    { nav: 'Tenants', title: 'Tenant Hub', detail: '/tenants.html' },
   ];
 
   const roomBody = document.createElement('div');
