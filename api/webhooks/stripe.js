@@ -1,5 +1,6 @@
 // api/webhooks/stripe.js
 // Verifies and handles Stripe webhook events for Nexus Forge billing.
+// (Redeploy marker: picks up STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET.)
 // Needs the RAW request body to verify Stripe's signature, so
 // automatic body parsing is turned off for this route (config export
 // below) and the body is read and verified by hand — same reasoning
