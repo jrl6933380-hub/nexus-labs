@@ -227,6 +227,15 @@
   <form id="signup-form" class="hidden">
     <input type="text" id="signup-username" placeholder="Choose a username" autocomplete="username" required>
     <input type="email" id="signup-email" placeholder="Email (for password resets)" autocomplete="email" required>
+    <select id="signup-security-question" required style="padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;font-family:var(--sans);">
+      <option value="" disabled selected>Choose a security question</option>
+      <option>What was the name of your first pet?</option>
+      <option>What city were you born in?</option>
+      <option>What was your childhood best friend's first name?</option>
+      <option>What was the make of your first car?</option>
+      <option>What is your mother's maiden name?</option>
+    </select>
+    <input type="text" id="signup-security-answer" placeholder="Your answer" autocomplete="off" required>
     <input type="password" id="signup-password" placeholder="Choose a password (8+ characters)" autocomplete="new-password" required>
     <div class="error" id="signup-error"></div>
     <button type="submit" id="signup-submit">Create account</button>
@@ -285,7 +294,12 @@
     <div id="reset-chat-log" style="display:grid;gap:10px;margin:18px 0;"></div>
     <form id="reset-request-form">
       <input type="text" id="reset-username" placeholder="Your username" autocomplete="username" required style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;font-family:var(--sans);margin-bottom:10px;box-sizing:border-box;">
-      <button type="submit" id="reset-request-submit" style="width:100%;padding:10px;border-radius:8px;border:none;background:var(--blue);color:#06090F;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;">Send reset link</button>
+      <button type="submit" id="reset-request-submit" style="width:100%;padding:10px;border-radius:8px;border:none;background:var(--blue);color:#06090F;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;">Continue</button>
+    </form>
+    <form id="reset-answer-form" class="hidden">
+      <input type="text" id="reset-answer" placeholder="Your answer" autocomplete="off" required style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;font-family:var(--sans);margin-bottom:10px;box-sizing:border-box;">
+      <button type="submit" id="reset-answer-submit" style="width:100%;padding:10px;border-radius:8px;border:none;background:var(--blue);color:#06090F;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;">Verify answer</button>
+      <button type="button" id="reset-email-instead" style="width:100%;margin-top:8px;padding:0;border:none;background:none;color:var(--text-dim);font:600 11px var(--mono);text-decoration:underline;cursor:pointer;">Email me a link instead</button>
     </form>
     <form id="reset-complete-form" class="hidden">
       <input type="password" id="reset-new-password" placeholder="New password (8+ characters)" autocomplete="new-password" required style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;font-family:var(--sans);margin-bottom:10px;box-sizing:border-box;">
@@ -377,6 +391,8 @@
         username: document.getElementById('signup-username').value.trim(),
         password: document.getElementById('signup-password').value,
         email: document.getElementById('signup-email').value.trim(),
+        securityQuestion: document.getElementById('signup-security-question').value,
+        securityAnswer: document.getElementById('signup-security-answer').value,
       },
       document.getElementById('signup-error'),
       document.getElementById('signup-submit')
@@ -420,18 +436,25 @@
 
 <script>
   // ---- Password reset ("chat with Nex") ----
-  // Scripted, not a live model call: this is a deterministic two-step
-  // flow (request a link, then use it) with no branching a real
-  // conversation would need, and the token is the only thing that
-  // actually proves identity here — a live LLM turn would add cost
-  // and prompt-injection surface for zero functional benefit. The
-  // chat-bubble presentation is just Nex's voice on top of that.
+  // Scripted, not a live model call: this is a deterministic flow
+  // (ask username, ask security question, set new password) with no
+  // branching a real conversation would need, and the reset token is
+  // the only thing that actually proves identity here — a live LLM
+  // turn would add cost and prompt-injection surface for zero
+  // functional benefit. The chat-bubble presentation is just Nex's
+  // voice on top of that. The security question is the free, no-email
+  // path; "email me a link instead" is the same request-a-link flow
+  // from before, kept as a fallback (it only reaches your own inbox
+  // until a sending domain is verified in Resend).
   const resetModal = document.getElementById('reset-modal');
   const resetChatLog = document.getElementById('reset-chat-log');
   const resetRequestForm = document.getElementById('reset-request-form');
+  const resetAnswerForm = document.getElementById('reset-answer-form');
   const resetCompleteForm = document.getElementById('reset-complete-form');
   const forgotLink = document.getElementById('forgot-password-link');
   const resetClose = document.getElementById('reset-close');
+  let pendingResetUsername = '';
+  let pendingResetToken = '';
 
   function nexSay(text) {
     const bubble = document.createElement('div');
@@ -440,17 +463,20 @@
     resetChatLog.appendChild(bubble);
   }
 
+  function showResetStep(step) {
+    resetRequestForm.classList.toggle('hidden', step !== 'request');
+    resetAnswerForm.classList.toggle('hidden', step !== 'answer');
+    resetCompleteForm.classList.toggle('hidden', step !== 'complete');
+  }
+
   function openResetModal({ step } = { step: 'request' }) {
     resetChatLog.innerHTML = '';
     if (step === 'request') {
       nexSay("Hey, I'm Nex. What's the username on the account you're locked out of?");
-      resetRequestForm.classList.remove('hidden');
-      resetCompleteForm.classList.add('hidden');
     } else {
       nexSay('Got it — pick a new password and you\'re back in.');
-      resetRequestForm.classList.add('hidden');
-      resetCompleteForm.classList.remove('hidden');
     }
+    showResetStep(step);
     resetModal.classList.remove('hidden');
   }
 
@@ -459,28 +485,75 @@
 
   resetRequestForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const username = document.getElementById('reset-username').value.trim();
+    pendingResetUsername = document.getElementById('reset-username').value.trim();
     const submitBtn = document.getElementById('reset-request-submit');
     submitBtn.disabled = true;
     try {
       const res = await fetch('/api/password-reset', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'request', username }),
+        body: JSON.stringify({ action: 'get-question', username: pendingResetUsername }),
       });
       const data = await res.json().catch(() => ({}));
-      nexSay(data.message || data.error || 'Something went wrong — try again in a moment.');
-      resetRequestForm.classList.add('hidden');
+      submitBtn.disabled = false;
+      if (!res.ok) {
+        nexSay(data.error || 'Something went wrong — try again in a moment.');
+        return;
+      }
+      nexSay(data.question);
+      showResetStep('answer');
     } catch {
       nexSay('Could not reach the server — try again in a moment.');
       submitBtn.disabled = false;
     }
   });
 
+  resetAnswerForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const answer = document.getElementById('reset-answer').value;
+    const submitBtn = document.getElementById('reset-answer-submit');
+    submitBtn.disabled = true;
+    try {
+      const res = await fetch('/api/password-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'verify-answer', username: pendingResetUsername, answer }),
+      });
+      const data = await res.json().catch(() => ({}));
+      submitBtn.disabled = false;
+      if (!res.ok) {
+        nexSay(data.error || "That answer doesn't match — try again, or email yourself a link instead.");
+        document.getElementById('reset-answer').value = '';
+        return;
+      }
+      pendingResetToken = data.token;
+      nexSay('Got it — pick a new password and you\'re back in.');
+      showResetStep('complete');
+    } catch {
+      nexSay('Could not reach the server — try again in a moment.');
+      submitBtn.disabled = false;
+    }
+  });
+
+  document.getElementById('reset-email-instead').addEventListener('click', async () => {
+    try {
+      const res = await fetch('/api/password-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'request', username: pendingResetUsername }),
+      });
+      const data = await res.json().catch(() => ({}));
+      nexSay(data.message || data.error || 'Something went wrong — try again in a moment.');
+      showResetStep(null);
+    } catch {
+      nexSay('Could not reach the server — try again in a moment.');
+    }
+  });
+
   resetCompleteForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const password = document.getElementById('reset-new-password').value;
-    const token = new URLSearchParams(window.location.search).get('reset');
+    const token = new URLSearchParams(window.location.search).get('reset') || pendingResetToken;
     const submitBtn = document.getElementById('reset-complete-submit');
     submitBtn.disabled = true;
     try {
@@ -492,7 +565,7 @@
       const data = await res.json().catch(() => ({}));
       nexSay(data.message || data.error || 'Something went wrong.');
       if (res.ok) {
-        resetCompleteForm.classList.add('hidden');
+        showResetStep(null);
         history.replaceState(null, '', '/room-login.html');
       } else {
         submitBtn.disabled = false;
