@@ -376,6 +376,7 @@
       {
         username: document.getElementById('signup-username').value.trim(),
         password: document.getElementById('signup-password').value,
+        email: document.getElementById('signup-email').value.trim(),
       },
       document.getElementById('signup-error'),
       document.getElementById('signup-submit')
@@ -415,6 +416,97 @@
       }
     });
   });
+</script>
+
+<script>
+  // ---- Password reset ("chat with Nex") ----
+  // Scripted, not a live model call: this is a deterministic two-step
+  // flow (request a link, then use it) with no branching a real
+  // conversation would need, and the token is the only thing that
+  // actually proves identity here — a live LLM turn would add cost
+  // and prompt-injection surface for zero functional benefit. The
+  // chat-bubble presentation is just Nex's voice on top of that.
+  const resetModal = document.getElementById('reset-modal');
+  const resetChatLog = document.getElementById('reset-chat-log');
+  const resetRequestForm = document.getElementById('reset-request-form');
+  const resetCompleteForm = document.getElementById('reset-complete-form');
+  const forgotLink = document.getElementById('forgot-password-link');
+  const resetClose = document.getElementById('reset-close');
+
+  function nexSay(text) {
+    const bubble = document.createElement('div');
+    bubble.style.cssText = 'padding:10px 12px;border-radius:10px;background:var(--panel);border:1px solid var(--border);font-size:13px;line-height:1.5;color:var(--text);';
+    bubble.textContent = text;
+    resetChatLog.appendChild(bubble);
+  }
+
+  function openResetModal({ step } = { step: 'request' }) {
+    resetChatLog.innerHTML = '';
+    if (step === 'request') {
+      nexSay("Hey, I'm Nex. What's the username on the account you're locked out of?");
+      resetRequestForm.classList.remove('hidden');
+      resetCompleteForm.classList.add('hidden');
+    } else {
+      nexSay('Got it — pick a new password and you\'re back in.');
+      resetRequestForm.classList.add('hidden');
+      resetCompleteForm.classList.remove('hidden');
+    }
+    resetModal.classList.remove('hidden');
+  }
+
+  forgotLink.addEventListener('click', () => openResetModal({ step: 'request' }));
+  resetClose.addEventListener('click', () => resetModal.classList.add('hidden'));
+
+  resetRequestForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username = document.getElementById('reset-username').value.trim();
+    const submitBtn = document.getElementById('reset-request-submit');
+    submitBtn.disabled = true;
+    try {
+      const res = await fetch('/api/password-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'request', username }),
+      });
+      const data = await res.json().catch(() => ({}));
+      nexSay(data.message || data.error || 'Something went wrong — try again in a moment.');
+      resetRequestForm.classList.add('hidden');
+    } catch {
+      nexSay('Could not reach the server — try again in a moment.');
+      submitBtn.disabled = false;
+    }
+  });
+
+  resetCompleteForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const password = document.getElementById('reset-new-password').value;
+    const token = new URLSearchParams(window.location.search).get('reset');
+    const submitBtn = document.getElementById('reset-complete-submit');
+    submitBtn.disabled = true;
+    try {
+      const res = await fetch('/api/password-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reset', token, password }),
+      });
+      const data = await res.json().catch(() => ({}));
+      nexSay(data.message || data.error || 'Something went wrong.');
+      if (res.ok) {
+        resetCompleteForm.classList.add('hidden');
+        history.replaceState(null, '', '/room-login.html');
+      } else {
+        submitBtn.disabled = false;
+      }
+    } catch {
+      nexSay('Could not reach the server — try again in a moment.');
+      submitBtn.disabled = false;
+    }
+  });
+
+  // A reset link lands here as ?reset=<token> — open straight to step 2.
+  if (new URLSearchParams(window.location.search).get('reset')) {
+    openResetModal({ step: 'complete' });
+  }
 </script>
 
 </body>
