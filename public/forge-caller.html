@@ -47,7 +47,11 @@
 
   .call-btn {
     display: block; text-align: center; background: #2e7d32; color: white; text-decoration: none;
-    padding: 13px; border-radius: 10px; font-weight: 700; font-size: 16px; margin-bottom: 16px;
+    padding: 13px; border-radius: 10px; font-weight: 700; font-size: 16px; margin-bottom: 8px;
+  }
+  .answered-btn {
+    display: block; width: 100%; text-align: center; background: #241a10; color: #d97b2f;
+    border: 1px solid #d97b2f; padding: 11px; border-radius: 10px; font-weight: 700; font-size: 13px; margin-bottom: 16px; cursor: pointer;
   }
 
   section.panel { background: #1c150d; border: 1px solid #3a2c1c; border-radius: 12px; margin-bottom: 14px; overflow: hidden; }
@@ -222,6 +226,7 @@ function renderLead(id) {
       '<div class="meta">' + escapeHtml(lead.category || '') + (lead.location ? ' · ' + escapeHtml(lead.location) : '') + '</div>' +
     '</div>' +
     '<a class="call-btn" href="tel:' + escapeHtml(lead.phone) + '">Call ' + escapeHtml(lead.phone) + '</a>' +
+    '<button type="button" class="answered-btn" id="answered-btn">They answered — build the site now</button>' +
     panelHtml('panel-script', 'Pitch script', scriptBodyHtml(lead.pitch), true) +
     panelHtml('panel-site', 'Site preview', siteBodyHtml(lead), lead.siteStatus !== 'none') +
     panelHtml('panel-log', 'Log this call', '' +
@@ -239,6 +244,17 @@ function renderLead(id) {
 
   const siteFrame = document.getElementById('site-frame');
   if (siteFrame && lead.siteHtml) siteFrame.srcdoc = lead.siteHtml;
+
+  const answeredBtn = document.getElementById('answered-btn');
+  if (answeredBtn) {
+    // No way to detect a real answer through a tel: link — this is the
+    // one-tap trigger for the moment the worker hears "hello", so a
+    // generation only ever happens for a call that actually connected.
+    answeredBtn.addEventListener('click', function () {
+      document.getElementById('panel-site').classList.add('open');
+      runSiteAction(lead.id, 'generate');
+    });
+  }
 
   const generateBtn = document.getElementById('generate-site-btn');
   if (generateBtn) generateBtn.addEventListener('click', function () { runSiteAction(lead.id, 'generate'); });
