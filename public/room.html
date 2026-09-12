@@ -757,6 +757,14 @@
       }
       const data = await res.json();
       document.getElementById('whoami').innerText = data.username;
+      // Operator accounts run the business now, not the builder — land
+      // on the metrics dashboard by default. ?builder=1 (linked from the
+      // dashboard's nav) opts back into the AI builder for the rare case
+      // an operator needs it directly.
+      if (data.operator === true && new URLSearchParams(window.location.search).get('builder') !== '1') {
+        window.location.href = '/forge-dashboard.html';
+        return;
+      }
       // The regular Forge AI panel remains the customer-facing project builder.
       // Only a server-authenticated operator gets the persistent Nexus chat,
       // shared history, and Vision controls layered over this workspace.
