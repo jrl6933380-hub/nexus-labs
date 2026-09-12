@@ -141,6 +141,42 @@
   .trust { margin-top: 18px; color: var(--text-dim); font-size: 12px; line-height: 1.5; }
   .trust strong { color: var(--text); }
 
+  .tier-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: grid;
+    place-items: center;
+    padding: 22px;
+    background: rgba(4, 7, 12, .82);
+    backdrop-filter: blur(12px);
+  }
+  .tier-modal.hidden { display: none; }
+  .tier-dialog {
+    width: min(940px, 100%);
+    max-height: calc(100vh - 44px);
+    overflow: auto;
+    padding: 28px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: #0e1522;
+    box-shadow: 0 32px 110px rgba(0,0,0,.65);
+  }
+  .tier-heading { text-align: center; }
+  .tier-heading h2 { margin-top: 8px; font-size: clamp(25px, 4vw, 38px); }
+  .tier-heading p { margin: 9px auto 0; max-width: 620px; color: var(--text-dim); line-height: 1.5; }
+  .tier-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 24px; }
+  .tier-card { display: flex; min-height: 240px; flex-direction: column; padding: 18px; border: 1px solid var(--border); border-radius: 14px; background: var(--panel); }
+  .tier-card.featured { border-color: rgba(77,216,232,.75); box-shadow: 0 0 0 1px rgba(77,216,232,.15); }
+  .tier-name { font: 700 15px var(--mono); color: var(--cyan); }
+  .tier-status { margin-top: 8px; min-height: 34px; color: var(--text-dim); font-size: 12px; line-height: 1.4; }
+  .tier-features { display: grid; gap: 8px; margin: 16px 0 20px; color: var(--text); font-size: 12px; line-height: 1.4; list-style: none; }
+  .tier-features li::before { content: '✓'; margin-right: 7px; color: var(--cyan); }
+  .tier-action { width: 100%; margin-top: auto; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--text); font: 700 11px var(--mono); cursor: pointer; }
+  .tier-action.primary { border-color: var(--blue); background: var(--blue); color: #06090F; }
+  .tier-action:disabled { opacity: .5; cursor: default; }
+  .tier-note { margin-top: 16px; text-align: center; color: var(--text-dim); font-size: 11px; }
+
   @media (max-width: 760px) {
     body { align-items: flex-start; padding: 28px 18px; }
     .shell { grid-template-columns: 1fr; gap: 28px; }
@@ -148,6 +184,10 @@
     .lead { font-size: 16px; }
     .steps { display: none; }
     .card { max-width: 440px; margin: 0 auto; }
+    .tier-modal { align-items: end; padding: 12px; }
+    .tier-dialog { max-height: calc(100vh - 24px); padding: 22px 16px; border-radius: 18px; }
+    .tier-grid { grid-template-columns: 1fr; }
+    .tier-card { min-height: 0; }
   }
 </style>
 </head>
@@ -193,11 +233,50 @@
 </section>
 </main>
 
+<section class="tier-modal hidden" id="tier-modal" role="dialog" aria-modal="true" aria-labelledby="tier-title">
+  <div class="tier-dialog">
+    <div class="tier-heading">
+      <div class="eyebrow">Account created</div>
+      <h2 id="tier-title">Choose how you want to build</h2>
+      <p>Your account starts on Free. See every Forge tier now; paid activation will unlock here when billing is connected.</p>
+    </div>
+    <div class="tier-grid">
+      <article class="tier-card">
+        <div class="tier-name">Free</div>
+        <div class="tier-status">Included with your new account</div>
+        <ul class="tier-features"><li>Build with Nex</li><li>Save private projects</li><li>Monthly creative credits</li></ul>
+        <button class="tier-action primary" id="continue-free" type="button">Continue with Free</button>
+      </article>
+      <article class="tier-card featured">
+        <div class="tier-name">Hosted</div>
+        <div class="tier-status">For publishing without setup</div>
+        <ul class="tier-features"><li>More build credits</li><li>Nexus-managed hosting</li><li>Simple publishing flow</li></ul>
+        <button class="tier-action" type="button" disabled>Paid activation coming soon</button>
+      </article>
+      <article class="tier-card">
+        <div class="tier-name">Growth</div>
+        <div class="tier-status">For active sites and apps</div>
+        <ul class="tier-features"><li>Higher usage limits</li><li>More active projects</li><li>Priority Build Team path</li></ul>
+        <button class="tier-action" type="button" disabled>Paid activation coming soon</button>
+      </article>
+      <article class="tier-card">
+        <div class="tier-name">Unlimited</div>
+        <div class="tier-status">For high-volume building</div>
+        <ul class="tier-features"><li>Highest usage limits</li><li>Large project capacity</li><li>Best for teams and agencies</li></ul>
+        <button class="tier-action" type="button" disabled>Paid activation coming soon</button>
+      </article>
+    </div>
+    <p class="tier-note">No charge is made from this screen.</p>
+  </div>
+</section>
+
 <script>
   const tabLogin = document.getElementById('tab-login');
   const tabSignup = document.getElementById('tab-signup');
   const loginForm = document.getElementById('login-form');
   const signupForm = document.getElementById('signup-form');
+  const tierModal = document.getElementById('tier-modal');
+  const continueFree = document.getElementById('continue-free');
 
   function showLogin() {
     tabLogin.classList.add('active');
@@ -236,6 +315,11 @@
         submitBtn.disabled = false;
         return;
       }
+      if (action === 'signup') {
+        tierModal.classList.remove('hidden');
+        continueFree.focus();
+        return;
+      }
       window.location.href = nextPath;
     } catch (err) {
       errorEl.innerText = 'Could not reach the server.';
@@ -254,6 +338,10 @@
       document.getElementById('login-error'),
       document.getElementById('login-submit')
     );
+  });
+
+  continueFree.addEventListener('click', () => {
+    window.location.href = nextPath;
   });
 
   signupForm.addEventListener('submit', (e) => {
