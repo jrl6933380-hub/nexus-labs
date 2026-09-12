@@ -688,9 +688,16 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
     let collapsed = false;
     try {
       mobileRect = JSON.parse(localStorage.getItem(`nexus-mobile-panel-v2:${canvasId}:${id}`));
-      collapsed = localStorage.getItem(`nexus-panel-collapsed:${canvasId}:${id}`) === '1';
+      const collapsedKey = `nexus-panel-collapsed:${canvasId}:${id}`;
+      const savedCollapsed = localStorage.getItem(collapsedKey);
+      collapsed = savedCollapsed === '1';
+      if (isMobileViewport() && savedCollapsed === null && !locked) {
+        collapsed = true;
+        localStorage.setItem(collapsedKey, '1');
+      }
     } catch {
       // Safe clamping still works when storage is unavailable.
+      collapsed = isMobileViewport() && !locked;
     }
     if (locked) collapsed = false;
     const entry = { el, dragging: false, resizing: false, collapsed, title, remoteRect: { x, y, w, h }, mobileRect };
