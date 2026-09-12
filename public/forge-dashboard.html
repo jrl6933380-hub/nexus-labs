@@ -298,6 +298,31 @@ function escapeHtml(s) {
 
 load();
 loadCustomers();
+
+document.getElementById('import-go').addEventListener('click', async function () {
+  const category = document.getElementById('import-category').value.trim();
+  const location = document.getElementById('import-location').value.trim();
+  const assignedTo = document.getElementById('import-assignee').value.trim();
+  const statusEl = document.getElementById('import-status');
+  if (!category || !location) { statusEl.textContent = 'Enter both a category and a location.'; statusEl.style.color = '#e57373'; return; }
+  statusEl.textContent = 'Searching… this can take a few seconds.';
+  statusEl.style.color = '#9aa0a6';
+  try {
+    const res = await fetch('/api/forge-import', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category: category, location: location, assignedTo: assignedTo || null }),
+    });
+    const data = await res.json();
+    if (!res.ok) { statusEl.textContent = data.error || 'Import failed.'; statusEl.style.color = '#e57373'; return; }
+    statusEl.textContent = 'Imported ' + data.createdCount + ' new lead(s)' + (data.skippedCount ? ', skipped ' + data.skippedCount + ' already on file' : '') + '.';
+    statusEl.style.color = '#4caf50';
+    load();
+  } catch (err) {
+    statusEl.textContent = 'Network error.';
+    statusEl.style.color = '#e57373';
+  }
+});
 </script>
 </body>
 </html>
