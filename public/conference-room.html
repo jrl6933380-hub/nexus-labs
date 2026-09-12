@@ -36,6 +36,40 @@
   </div>
 </main>
 
+<dialog class="task-dialog maintenance-dialog" id="maintenanceDialog">
+  <div class="maintenance-shell">
+    <header class="maintenance-head">
+      <div><div class="workshop-kicker">Live project maintenance</div><h2 class="dialog-title" id="maintenanceTitle">Maintenance workbench</h2><div class="panel-sub" id="maintenanceStatus">Connected to the real Board</div></div>
+      <button type="button" class="work-btn" id="closeMaintenanceBtn">Close</button>
+    </header>
+    <div class="maintenance-mode" role="group" aria-label="Workbench execution mode">
+      <button type="button" class="filter-btn active" data-maintenance-mode="nex">Just Nex</button>
+      <button type="button" class="filter-btn" data-maintenance-mode="team">Bring in build team</button>
+    </div>
+    <div class="maintenance-grid">
+      <section class="maintenance-pane">
+        <div class="panel-title">Actual checklist</div>
+        <div class="panel-sub">Every item below is a real Board task, not decorative productivity confetti.</div>
+        <div id="maintenanceChecklist" class="maintenance-checklist"></div>
+        <form id="maintenanceTaskForm" class="maintenance-add">
+          <input name="title" required maxlength="160" placeholder="Add an update, fix, or improvement">
+          <button class="work-btn green" type="submit">Add task</button>
+        </form>
+      </section>
+      <section class="maintenance-pane">
+        <div class="panel-title">Work live</div>
+        <div class="panel-sub">Send context to the shared activity stream, assign the work, then watch status refresh here.</div>
+        <form id="maintenanceNoteForm" class="maintenance-note">
+          <textarea name="note" required maxlength="2000" placeholder="Tell Nex what changed, what is broken, or what you want done next"></textarea>
+          <button class="work-btn primary" type="submit">Send maintenance note</button>
+        </form>
+        <div class="maintenance-actions"><button type="button" class="work-btn primary" id="startMaintenanceBtn">Start selected work</button><a class="work-link" href="#nex-chat">Open Nex chat</a></div>
+        <div class="maintenance-stream" id="maintenanceStream" aria-live="polite"></div>
+      </section>
+    </div>
+  </div>
+</dialog>
+
 <dialog class="task-dialog" id="taskDialog">
   <form class="dialog-body" id="taskForm">
     <div><div class="workshop-kicker">Put work on a bench</div><h2 class="dialog-title">Create a real Board task</h2></div>
