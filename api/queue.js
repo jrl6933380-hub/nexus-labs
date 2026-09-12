@@ -4,7 +4,8 @@
 // its approve/reject logic with the SMS webhook (api/sms-webhook.js)
 // via lib/queue.js, so both paths behave identically.
 
-import { listQueue, approveQueueItem, rejectQueueItem, notifyQueue } from '../lib/queue.js';
+import { listQueue, addToQueue, approveQueueItem, rejectQueueItem, notifyQueue } from '../lib/queue.js';
+import { readBoard } from '../lib/board.js';
 
 export default async function handler(req, res) {
   try {
@@ -16,6 +17,23 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       const { id, action } = req.body || {};
       if (!id || !action) return res.status(400).json({ error: 'Missing id or action' });
+
+      if (action === 'queue_task_delete') {
+        const board = await readBoard();
+        const task = (board.tasks || []).find((candidate) => candidate.id === id);
+        if (!task) return res.status(404).json({ error: `Task not found: ${id}` });
+
+        const items = await listQueue();
+        const existing = items.find((item) => item.tool === 'delete_board_task' && item.input?.id === id);
+        if (existing) return res.status(200).json({ queued: true, existing: true, item: existing });
+
+        const item = await addToQueue({
+          tool: 'delete_board_task',
+          input: { id },
+          description: `Delete Board task “${task.title}”`,
+        });
+        return res.status(200).json({ queued: true, existing: false, item });
+      }
 
       if (action === 'reject') {
         try {
