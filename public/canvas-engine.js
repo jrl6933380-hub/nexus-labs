@@ -342,6 +342,80 @@ function injectStyles() {
       .nexus-canvas-panel-toggle { width: 40px; height: 40px; border-radius: 10px; }
       .nexus-canvas-resize-handle { display: block; width: 44px; height: 44px; }
       .nexus-canvas-resize-handle::after { right: 9px; bottom: 9px; width: 10px; height: 10px; border-color: var(--nx-accent); }
+
+      /* Every minimized canvas panel becomes a phone-style app tile. The
+         engine supplies grid coordinates and an icon, so this also covers
+         venture panels and future panel types without page-specific CSS. */
+      #nexus-canvas-root .nexus-canvas-panel.is-collapsed {
+        left: var(--nx-mobile-tile-left, 12px) !important;
+        top: var(--nx-mobile-tile-top, 92px) !important;
+        width: 96px !important;
+        height: 108px !important;
+        min-width: 96px !important;
+        min-height: 108px !important;
+        border: 0;
+        border-radius: 22px;
+        background: transparent;
+        box-shadow: none;
+        backdrop-filter: none;
+        overflow: visible;
+      }
+      #nexus-canvas-root .nexus-canvas-panel.is-collapsed .nexus-canvas-panel-header {
+        display: grid;
+        place-items: center;
+        width: 96px;
+        height: 108px;
+        min-height: 108px;
+        box-sizing: border-box;
+        padding: 0 4px 5px;
+        border: 0;
+        border-radius: 22px;
+        background: transparent;
+        overflow: visible;
+        cursor: pointer;
+      }
+      #nexus-canvas-root .nexus-canvas-panel.is-collapsed .nexus-canvas-panel-title-group,
+      #nexus-canvas-root .nexus-canvas-panel.is-collapsed .nexus-canvas-panel-title {
+        display: grid;
+        place-items: center;
+        gap: 7px;
+        width: 100%;
+        overflow: visible;
+      }
+      #nexus-canvas-root .nexus-canvas-panel.is-collapsed .nexus-canvas-panel-title {
+        color: #eef6ff;
+        font: 600 11px/1.15 var(--nx-sans);
+        text-align: center;
+        white-space: normal;
+        text-shadow: 0 2px 10px #000;
+      }
+      #nexus-canvas-root .nexus-canvas-panel.is-collapsed .nexus-canvas-panel-title::before {
+        content: attr(data-app-icon);
+        display: grid;
+        place-items: center;
+        width: 68px;
+        height: 68px;
+        border: 1px solid rgba(134, 203, 255, .36);
+        border-radius: 19px;
+        background: linear-gradient(145deg, hsl(var(--nx-app-hue, 207) 64% 43%), hsl(var(--nx-app-hue, 207) 56% 14%));
+        box-shadow: inset 0 1px rgba(255,255,255,.18), 0 12px 28px rgba(0,0,0,.42);
+        color: #eff9ff;
+        font: 700 25px/1 var(--nx-mono);
+      }
+      #nexus-canvas-root .nexus-canvas-panel.is-collapsed .nexus-canvas-panel-toggle {
+        position: absolute;
+        inset: 0;
+        z-index: 2;
+        width: 100%;
+        height: 100%;
+        border: 0;
+        border-radius: 22px;
+        opacity: 0;
+      }
+      #nexus-canvas-root .nexus-canvas-panel.is-collapsed:focus-within .nexus-canvas-panel-title::before {
+        outline: 2px solid var(--nx-accent);
+        outline-offset: 3px;
+      }
       .nexus-build-feedback { top: max(10px, env(safe-area-inset-top)); right: 10px; max-width: min(190px, calc(100vw - 62px)); }
       #nexus-canvas-backdrop-control { left: 12px !important; bottom: max(12px, env(safe-area-inset-bottom)) !important; }
       .canvas-title-bar { top: max(10px, env(safe-area-inset-top)) !important; max-width: 48vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -515,11 +589,20 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
 
   function refreshPanels() {
     const mobile = isMobileViewport();
+    const view = interactionViewport();
+    const tileWidth = 96;
+    const tileGap = Math.max(8, Math.floor((view.width - 24 - tileWidth * 3) / 2));
     let panelIndex = 0;
     for (const entry of panels.values()) {
       if (mobile) {
+        const column = panelIndex % 3;
+        const row = Math.floor(panelIndex / 3);
+        entry.el.style.setProperty('--nx-mobile-tile-left', `${12 + column * (tileWidth + tileGap)}px`);
+        entry.el.style.setProperty('--nx-mobile-tile-top', `${Math.max(92, 76 + row * 116)}px`);
         applyRect(entry.el, entry.mobileRect || entry.remoteRect, panelIndex, !entry.mobileRect);
       } else {
+        entry.el.style.removeProperty('--nx-mobile-tile-left');
+        entry.el.style.removeProperty('--nx-mobile-tile-top');
         applyRect(entry.el, entry.remoteRect);
       }
       entry.el.hidden = false;
@@ -570,6 +653,11 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
     const titleLabel = document.createElement('span');
     titleLabel.className = 'nexus-canvas-panel-title';
     titleLabel.textContent = title;
+    const appIcons = { 'room-list': '⌂', 'agent-list': '◎', 'board-summary': '▥', notes: '✎' };
+    titleLabel.dataset.appIcon = appIcons[id] || String(title || id || 'N').trim().charAt(0).toUpperCase() || 'N';
+    let hue = 0;
+    for (const character of String(id)) hue = (hue * 31 + character.charCodeAt(0)) % 360;
+    el.style.setProperty('--nx-app-hue', String(hue));
     titleGroup.append(titleLabel);
     header.appendChild(titleGroup);
     el.appendChild(header);
