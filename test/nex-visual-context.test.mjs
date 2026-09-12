@@ -2,6 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { attachVisualFrame, compactModelHistory, formatLiveWorkspaceContext } from '../lib/nexBrain.js';
+import { readFile } from 'node:fs/promises';
+
+const nexBrainSource = await readFile(new URL('../lib/nexBrain.js', import.meta.url), 'utf8');
 
 test('an explicitly shared visual frame is attached only to the latest user turn', () => {
   const history = compactModelHistory([
@@ -30,4 +33,14 @@ test('visual context says exactly what was shared without claiming hidden-page a
 test('no visual frame leaves ordinary text history untouched', () => {
   const history = [{ role: 'user', content: 'plain text' }];
   assert.equal(attachVisualFrame(history, null), history);
+});
+
+test('model request keeps multimodal user content instead of filtering the picture out', () => {
+  assert.match(nexBrainSource, /Array\.isArray\(msg\.content\) && msg\.content\.some/u);
+  assert.match(nexBrainSource, /block\?\.type === 'image'/u);
+  assert.match(nexBrainSource, /content: msg\.content/u);
+  assert.doesNotMatch(
+    nexBrainSource,
+    /const claudeMessages = history\s*\.filter\(\(msg\) => typeof msg\.content === 'string'/u
+  );
 });
