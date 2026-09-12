@@ -20,6 +20,7 @@ export function createSiteAgentHandler({
   rateLimit = checkRateLimit,
   readBuild = getLatestBuildByProject,
   callModel = fetch,
+  modelApiKey = process.env.ANTHROPIC_API_KEY,
 } = {}) {
   return async function handler(req, res) {
     setCors(res);
@@ -62,7 +63,7 @@ export function createSiteAgentHandler({
         });
       }
 
-      if (!process.env.ANTHROPIC_API_KEY) {
+      if (!modelApiKey) {
         return res.status(200).json({ message: CAPACITY_MESSAGE, unavailable: true });
       }
 
@@ -72,7 +73,7 @@ export function createSiteAgentHandler({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': process.env.ANTHROPIC_API_KEY,
+          'x-api-key': modelApiKey,
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
