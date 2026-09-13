@@ -13,6 +13,7 @@ test('casual conversation stays on the cheap direct chat path', () => {
   assert.equal(plan.mode, 'direct');
   assert.equal(plan.minimumTier, 'cheap');
   assert.deepEqual(plan.crew, ['nex']);
+  assert.deepEqual(plan.requireEvidence, []);
 });
 
 test('a normal code change uses the code lane without summoning the full crew', () => {
