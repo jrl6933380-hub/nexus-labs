@@ -25,7 +25,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const r = await fetch('https://console.neon.tech/api/v2/organizations', {
+    const r = await fetch('https://console.neon.tech/api/v2/users/me/organizations', {
       headers: { Authorization: `Bearer ${apiKey}` },
     });
     const text = await r.text();
