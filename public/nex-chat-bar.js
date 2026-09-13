@@ -1118,7 +1118,7 @@ export function createNexChatBar() {
     }
   }
 
-  sendBtn.addEventListener('click', send);
+  sendBtn.addEventListener('click', () => send());
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
