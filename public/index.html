@@ -332,7 +332,7 @@
     const savedUrl = localStorage.getItem('nexus-personal-backdrop');
     if (savedUrl) {
       document.getElementById('backdropUrlInput').value = savedUrl;
-      canvas.setBackdropUrl(savedUrl);
+      canvas.setBackdropUrl(savedUrl, true); // true = personalOnly, don't sync to server
     }
   } catch {}
 </script>
