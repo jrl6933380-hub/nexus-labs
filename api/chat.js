@@ -154,7 +154,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { message, model, workspace } = req.body;
+  const { message, model, workspace, effort, deepThought } = req.body;
   if (!message) return res.status(400).json({ error: 'Missing message' });
   // Control commands return their own immediate JSON payloads before a
   // normal Nex turn begins. Keep them on that established contract; the
@@ -171,6 +171,16 @@ export default async function handler(req, res) {
   // 'standard', or 'heavy'. Anything else (including 'auto', missing,
   // or a typo) falls through to normal auto-routing in askNex.
   const forcedTier = MODEL_TIERS[model] ? model : null;
+
+  // effort is an optional reasoning-depth override from the same picker
+  // row. Anthropic only allows disabling thinking (deepThought: false,
+  // below) at effort high or below, so xhigh/max are deliberately not
+  // offered in the UI at all -- only low/medium/high are valid here.
+  const ALLOWED_EFFORT_LEVELS = new Set(['low', 'medium', 'high']);
+  const forcedEffort = ALLOWED_EFFORT_LEVELS.has(effort) ? effort : undefined;
+  // deepThought is an optional boolean toggle; anything but an explicit
+  // `false` leaves Nex's normal adaptive-thinking-on default untouched.
+  const deepThoughtEnabled = deepThought === false ? false : undefined;
 
   try {
     // Deliberate test hook — send this exact phrase to force a real error,
@@ -281,7 +291,7 @@ export default async function handler(req, res) {
       suggestedReplies,
       pendingApproval,
       degraded,
-    } = await askNex(messageForModel, runningHistory, forcedTier, clientContext, (stage) => sendBuildEvent('stage', stage), {userId:operatorUser,storyProjectId:clientContext.screen?.story_project_id || null});
+    } = await askNex(messageForModel, runningHistory, forcedTier, clientContext, (stage) => sendBuildEvent('stage', stage), {userId:operatorUser,storyProjectId:clientContext.screen?.story_project_id || null, effort:forcedEffort, deepThoughtEnabled});
 
     // If the message sent to the model was augmented with an internal
     // hyperfocus directive, restore Mr. Lopez's original text in the
