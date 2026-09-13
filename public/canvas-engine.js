@@ -623,7 +623,7 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
     const titleLabel = document.createElement('span');
     titleLabel.className = 'nexus-canvas-panel-title';
     titleLabel.textContent = title;
-    const appIcons = { 'room-list': '⌂', 'agent-list': '◎', 'board-summary': '▥', notes: '✎' };
+    const appIcons = { 'room-list': '⌂', 'agent-list': '◎', 'board-summary': '▥', notes: '✎', 'new-venture': '+' };
     titleLabel.dataset.appIcon = appIcons[id] || String(title || id || 'N').trim().charAt(0).toUpperCase() || 'N';
     let hue = 0;
     for (const character of String(id)) hue = (hue * 31 + character.charCodeAt(0)) % 360;
