@@ -550,6 +550,26 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
     backdrop.style.backgroundImage = url ? `url("${url}")` : 'none';
   }
 
+  // The backdrop is a personal preference, not shared canvas state —
+  // it lives only in THIS browser's localStorage, scoped per canvas id,
+  // the same pattern already used above for mobile panel rects and
+  // collapsed state. Nothing here is posted to the server, so setting
+  // a picture never shows up for anyone else polling this same canvas.
+  const backdropStorageKey = `nexus-canvas-backdrop:${canvasId}`;
+  function loadLocalBackdrop() {
+    try { return localStorage.getItem(backdropStorageKey); } catch { return null; }
+  }
+  function saveLocalBackdrop(url) {
+    try {
+      if (url) localStorage.setItem(backdropStorageKey, url);
+      else localStorage.removeItem(backdropStorageKey);
+    } catch {
+      // No persistence this session if storage is unavailable — the
+      // backdrop still applies visually for the current page load.
+    }
+  }
+  applyBackdrop(loadLocalBackdrop());
+
   function viewport() {
     const visual = window.visualViewport;
     return { width: visual?.width || window.innerWidth, height: visual?.height || window.innerHeight };
