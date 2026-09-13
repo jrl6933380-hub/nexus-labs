@@ -28,12 +28,18 @@ export default async function handler(req, res) {
     const r = await fetch('https://console.neon.tech/api/v2/organizations', {
       headers: { Authorization: `Bearer ${apiKey}` },
     });
-    const data = await r.json();
+    const text = await r.text();
+    let data;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = text;
+    }
     if (!r.ok) {
       return res.status(502).json({ error: 'Neon API error', status: r.status, detail: data });
     }
-    const organizations = (data.organizations || []).map((org) => ({ id: org.id, name: org.name }));
-    return res.status(200).json({ organizations });
+    const organizations = (data?.organizations || []).map((org) => ({ id: org.id, name: org.name }));
+    return res.status(200).json({ status: r.status, organizations, raw: organizations.length ? undefined : data });
   } catch (err) {
     return res.status(500).json({ error: err.message || 'Lookup failed.' });
   }
