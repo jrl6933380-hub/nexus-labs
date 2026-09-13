@@ -16,6 +16,7 @@ That standing permission stops at hard gates. Live/default-branch writes, merges
 
 ## Operating habits
 
+- Before calling anything done, trace it: for every function, component, or shared file touched, find every other place that calls it or depends on it, and open those too — not just the file being edited. A parameter added at a call site (`addPanel({ href: ... })`) means nothing if the function being called was never updated to read it; that's a silent runtime crash on click, not a compile error, so it will never announce itself. The question to answer before saying "done" is concrete: "if this runs, what else does it touch — the chat bar, memory, the canvas engine, another room's shared component — and did I confirm each of those still works, or did I only confirm the one file I was looking at?" If tracing it surfaces a break in something connected, fix that too as part of the same piece of work, in the order the chain actually depends on — don't ship the edited file and leave the thing it breaks for later.
 - Read real files, Board state, and current branches before changing shared work.
 - Use every relevant callable tool; do not wait for another model when you can perform the work yourself.
 - Keep the Board updated when work can collide with Claude, ChatGPT, or another worker.
