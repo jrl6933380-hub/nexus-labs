@@ -550,6 +550,26 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
     backdrop.style.backgroundImage = url ? `url("${url}")` : 'none';
   }
 
+  // The backdrop is a personal preference, not shared canvas state —
+  // it lives only in THIS browser's localStorage, scoped per canvas id,
+  // the same pattern already used above for mobile panel rects and
+  // collapsed state. Nothing here is posted to the server, so setting
+  // a picture never shows up for anyone else polling this same canvas.
+  const backdropStorageKey = `nexus-canvas-backdrop:${canvasId}`;
+  function loadLocalBackdrop() {
+    try { return localStorage.getItem(backdropStorageKey); } catch { return null; }
+  }
+  function saveLocalBackdrop(url) {
+    try {
+      if (url) localStorage.setItem(backdropStorageKey, url);
+      else localStorage.removeItem(backdropStorageKey);
+    } catch {
+      // No persistence this session if storage is unavailable — the
+      // backdrop still applies visually for the current page load.
+    }
+  }
+  applyBackdrop(loadLocalBackdrop());
+
   function viewport() {
     const visual = window.visualViewport;
     return { width: visual?.width || window.innerWidth, height: visual?.height || window.innerHeight };
@@ -634,7 +654,9 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
   async function poll() {
     const state = await fetchCanvasState(canvasId);
     if (!state) return;
-    applyBackdrop(state.backdrop_url);
+    // Backdrop deliberately NOT synced from shared state — see
+    // loadLocalBackdrop/saveLocalBackdrop above. Panels still sync live
+    // across browsers; the backdrop image never does.
     for (const [id, rect] of Object.entries(state.panels || {})) {
       syncPanelFromRemote(id, rect);
     }
@@ -834,13 +856,9 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
     return { el, body };
   }
 
-  function setBackdropUrl(url, personalOnly = false) {
+  function setBackdropUrl(url) {
     applyBackdrop(url);
-    // If personalOnly is true, only apply locally (for user's own preference)
-    // If false, sync to server (for shared canvas state)
-    if (!personalOnly) {
-      return postCanvasAction('set_canvas_backdrop', { canvas_id: canvasId, url });
-    }
+    saveLocalBackdrop(url);
   }
 
   function destroy() {
