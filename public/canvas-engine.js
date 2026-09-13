@@ -546,7 +546,9 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
   const panels = new Map(); // id -> { el, dragging, resizing, title, remoteRect, mobileRect }
   let topPanelZ = 2;
 
+  let currentBackdropUrl = null;
   function applyBackdrop(url) {
+    currentBackdropUrl = url || null;
     backdrop.style.backgroundImage = url ? `url("${url}")` : 'none';
   }
 
@@ -654,9 +656,10 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
   async function poll() {
     const state = await fetchCanvasState(canvasId);
     if (!state) return;
-    // Backdrop deliberately NOT synced from shared state — see
-    // loadLocalBackdrop/saveLocalBackdrop above. Panels still sync live
-    // across browsers; the backdrop image never does.
+    // A personal backdrop in localStorage always wins for this browser.
+    // If there isn't one, still honor the shared canvas backdrop so
+    // older callers using setBackdropUrl(url, false) keep working.
+    if (!loadLocalBackdrop()) applyBackdrop(state.backdrop_url);
     for (const [id, rect] of Object.entries(state.panels || {})) {
       syncPanelFromRemote(id, rect);
     }
@@ -856,9 +859,16 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
     return { el, body };
   }
 
-  function setBackdropUrl(url) {
+  function setBackdropUrl(url, personalOnly = false) {
     applyBackdrop(url);
     saveLocalBackdrop(url);
+    if (!personalOnly) {
+      return postCanvasAction('set_canvas_backdrop', { canvas_id: canvasId, url });
+    }
+  }
+
+  function getBackdropUrl() {
+    return currentBackdropUrl;
   }
 
   function destroy() {
@@ -868,5 +878,5 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
   window.addEventListener('resize', refreshPanels);
   window.visualViewport?.addEventListener('resize', refreshPanels);
 
-  return { root, canvasId, addPanel, setBackdropUrl, destroy };
+  return { root, canvasId, addPanel, setBackdropUrl, getBackdropUrl, destroy };
 }
