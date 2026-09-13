@@ -654,7 +654,9 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
   async function poll() {
     const state = await fetchCanvasState(canvasId);
     if (!state) return;
-    applyBackdrop(state.backdrop_url);
+    // Backdrop deliberately NOT synced from shared state — see
+    // loadLocalBackdrop/saveLocalBackdrop above. Panels still sync live
+    // across browsers; the backdrop image never does.
     for (const [id, rect] of Object.entries(state.panels || {})) {
       syncPanelFromRemote(id, rect);
     }
@@ -856,7 +858,7 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
 
   function setBackdropUrl(url) {
     applyBackdrop(url);
-    return postCanvasAction('set_canvas_backdrop', { canvas_id: canvasId, url });
+    saveLocalBackdrop(url);
   }
 
   function destroy() {
