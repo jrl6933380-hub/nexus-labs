@@ -948,9 +948,9 @@ export function createNexChatBar() {
     micBtn.remove();
   }
 
-  async function send() {
-    const typedText = input.value.trim();
-    if (!canSendNexMessage({ typedText, attachedVisual, visionMode })) return;
+  async function send(overrideText) {
+    const typedText = overrideText !== undefined ? overrideText : input.value.trim();
+    if (!overrideText && !canSendNexMessage({ typedText, attachedVisual, visionMode })) return;
     const text = typedText || 'Look at this image.';
     const visualForMessage = attachedVisual || await captureVisualFrame();
 
@@ -999,6 +999,9 @@ export function createNexChatBar() {
       }
       if (!data) throw new Error('Nex did not return a response.');
       showSuccessfulNexReply({ data, clearAttachment, addMessage, speak });
+      if (data.question?.question && Array.isArray(data.question.options) && data.question.options.length) {
+        renderQuestionOptions({ options: data.question.options, addMessage, container: messagesEl, onPick: (choice) => send(choice) });
+      }
       if (data.navigation?.type === 'room' && typeof data.navigation.url === 'string' && window.NexusSpace) {
         // Room navigation belongs to the visual room switcher. The shared Nex
         // dock appears across operator pages, so falling back to
