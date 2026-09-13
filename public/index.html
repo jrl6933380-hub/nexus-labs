@@ -319,9 +319,16 @@
     </div>
   `;
   document.body.appendChild(control);
-  document.getElementById('backdropApplyBtn').addEventListener('click', () => {
-    const input = document.getElementById('backdropUrlInput');
-    canvas.setBackdropUrl(input.value.trim() || null);
+  const backdropUrlInput = document.getElementById('backdropUrlInput');
+  backdropUrlInput.value = canvas.getBackdropUrl() || '';
+  function applyBackdropSelection() {
+    canvas.setBackdropUrl(backdropUrlInput.value.trim() || null, true);
+  }
+  document.getElementById('backdropApplyBtn').addEventListener('click', applyBackdropSelection);
+  backdropUrlInput.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    applyBackdropSelection();
   });
 </script>
 </body>
