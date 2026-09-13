@@ -834,9 +834,13 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
     return { el, body };
   }
 
-  function setBackdropUrl(url) {
+  function setBackdropUrl(url, personalOnly = false) {
     applyBackdrop(url);
-    return postCanvasAction('set_canvas_backdrop', { canvas_id: canvasId, url });
+    // If personalOnly is true, only apply locally (for user's own preference)
+    // If false, sync to server (for shared canvas state)
+    if (!personalOnly) {
+      return postCanvasAction('set_canvas_backdrop', { canvas_id: canvasId, url });
+    }
   }
 
   function destroy() {
