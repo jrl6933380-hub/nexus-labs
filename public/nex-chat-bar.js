@@ -26,6 +26,25 @@ export function getBoundedImageScale(width, height, maxDimension = 1280) {
   return Math.min(1, maxDimension / Math.max(width || 1, height || 1));
 }
 
+// Inline, in-chat version of "what Nex is doing right now" — replaces
+// the old separate floating HUD entirely. Each stage event becomes its
+// own short log line right in the conversation, the same way a tool
+// call and its result show up as two lines when Claude is working:
+// one line when a step starts, a second when it finishes or fails.
+// Deliberately two lines, not one updating line — for a slow step
+// (launching a client project can take a while) seeing "still going"
+// stay on screen is more honest than a line that silently sits there.
+export function addActionMessage(container, { label, state }) {
+  if (!container || !label) return null;
+  const el = document.createElement('div');
+  el.className = `nex-message nex-action nex-action-${state || 'running'}`;
+  const icon = state === 'complete' ? '✓' : state === 'failed' ? '✗' : '⋯';
+  el.innerText = `${icon} ${label}`;
+  container.appendChild(el);
+  container.scrollTop = container.scrollHeight;
+  return el;
+}
+
 export function showSuccessfulNexReply({ data, clearAttachment, addMessage, speak }) {
   const replyText = data.reply || 'Nex completed the request without a text reply.';
   clearAttachment();
