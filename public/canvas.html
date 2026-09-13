@@ -27,19 +27,34 @@
   }
   .return-link:hover { color: #58d7ff; border-color: #4b8dff77; }
   #nexus-canvas-backdrop-control {
-    position: fixed; left: 12px; bottom: 12px; z-index: 10000; display: flex; gap: 6px;
-    background: #111827e8; border: 1px solid #3c5a84; border-radius: 10px; padding: 9px;
+    position: fixed; left: 12px; bottom: 12px; z-index: 10000; z-index: 10000;
+    background: #111827e8; border: 1px solid #3c5a84; border-radius: 10px; padding: 0;
     backdrop-filter: blur(12px); box-shadow: 0 16px 40px #000a; font: 12px Inter, sans-serif;
   }
-  #nexus-canvas-backdrop-control input {
-    width: 220px; background: #ffffff08; border: 1px solid #26334d; border-radius: 6px;
+  #nexus-canvas-backdrop-control-summary {
+    list-style: none; cursor: pointer; color: #8b9ac4; padding: 8px 12px;
+    font: 600 11px 'JetBrains Mono', monospace; user-select: none; display: flex; align-items: center; gap: 6px;
+  }
+  #nexus-canvas-backdrop-control-summary::marker { display: none; }
+  #nexus-canvas-backdrop-control-summary::before { content: '◐'; color: #58d7ff; }
+  #nexus-canvas-backdrop-control[open] #nexus-canvas-backdrop-control-summary {
+    border-bottom: 1px solid #26334d; color: #e8eefb;
+  }
+  .nexus-appearance-fields { display: flex; flex-direction: column; gap: 8px; padding: 10px; }
+  #nexus-canvas-backdrop-control input[type="url"],
+  #nexus-canvas-backdrop-control input[type="file"] {
+    box-sizing: border-box; width: 100%; background: #ffffff08; border: 1px solid #26334d; border-radius: 6px;
     color: #e8eefb; padding: 6px 9px; font: 11px 'JetBrains Mono', monospace;
+  }
+  #nexus-canvas-backdrop-control input[type="file"]::file-selector-button {
+    background: #4b8dff18; border: 1px solid #4b8dff77; color: #58d7ff; border-radius: 4px;
+    padding: 4px 8px; font: 700 9px 'JetBrains Mono', monospace; cursor: pointer; margin-right: 8px;
   }
   #nexus-canvas-backdrop-control input::placeholder { color: #5e6b81; }
   #nexus-canvas-backdrop-control button {
     background: #4b8dff18; border: 1px solid #4b8dff77; color: #58d7ff; border-radius: 6px;
-    padding: 6px 12px; font: 700 9px 'JetBrains Mono', monospace; text-transform: uppercase;
-    letter-spacing: 0.06em; cursor: pointer;
+    padding: 5px 10px; font: 700 9px 'JetBrains Mono', monospace; text-transform: uppercase;
+    letter-spacing: 0.06em; cursor: pointer; align-self: flex-start;
   }
   #nexus-canvas-backdrop-control button:hover { background: #4b8dff32; }
 </style>
@@ -96,16 +111,32 @@
   const control = document.createElement('details');
   control.id = 'nexus-canvas-backdrop-control';
   control.innerHTML = `
-    <summary>Appearance</summary>
+    <summary id="nexus-canvas-backdrop-control-summary">Appearance</summary>
     <div class="nexus-appearance-fields">
-      <input type="url" id="backdropUrlInput" aria-label="Backdrop image URL" placeholder="Backdrop image URL…" />
+      <input type="url" id="backdropUrlInput" aria-label="Backdrop image URL" placeholder="Image URL…" />
+      <input type="file" id="backdropFileInput" accept="image/*" aria-label="Upload backdrop image" />
       <button id="backdropApplyBtn" type="button">Apply</button>
     </div>
   `;
   document.body.appendChild(control);
   document.getElementById('backdropApplyBtn').addEventListener('click', () => {
-    const input = document.getElementById('backdropUrlInput');
-    canvas.setBackdropUrl(input.value.trim() || null);
+    const fileInput = document.getElementById('backdropFileInput');
+    const urlInput = document.getElementById('backdropUrlInput');
+    const file = fileInput.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const dataUrl = e.target?.result;
+        if (typeof dataUrl === 'string') {
+          canvas.setBackdropUrl(dataUrl);
+          fileInput.value = '';
+          urlInput.value = '';
+        }
+      };
+      reader.readAsDataURL(file);
+    } else if (urlInput.value.trim()) {
+      canvas.setBackdropUrl(urlInput.value.trim());
+    }
   });
 </script>
 </body>
