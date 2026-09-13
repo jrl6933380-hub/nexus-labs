@@ -34,6 +34,32 @@ export function showSuccessfulNexReply({ data, clearAttachment, addMessage, spea
   return replyText;
 }
 
+// Renders Nex's mid-task question as tappable chips, right under his
+// explanation bubble — same visual language as the rest of the dock,
+// not a separate popup. Tapping a chip sends that option as the next
+// message (via onPick), same as if it had been typed; the row disables
+// itself after one pick so an old question can't be answered twice.
+export function renderQuestionOptions({ options, container, onPick }) {
+  if (!container || !Array.isArray(options) || !options.length) return null;
+  const row = document.createElement('div');
+  row.className = 'nex-question-options';
+  options.forEach((label) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'nex-question-option';
+    button.innerText = label;
+    button.addEventListener('click', () => {
+      if (row.classList.contains('is-answered')) return;
+      row.classList.add('is-answered');
+      onPick(label); // send(label) adds the user bubble itself — don't double it here
+    });
+    row.appendChild(button);
+  });
+  container.appendChild(row);
+  container.scrollTop = container.scrollHeight;
+  return row;
+}
+
 let activeViewportFrameCacheInvalidator = null;
 let viewportFrameCacheListenersBound = false;
 
@@ -337,6 +363,38 @@ export function createNexChatBar() {
       color: var(--nex-text);
       align-self: flex-start;
       max-width: 85%;
+    }
+
+    .nex-question-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      align-self: flex-start;
+      max-width: 85%;
+      margin: -2px 0 4px;
+    }
+
+    .nex-question-options.is-answered .nex-question-option {
+      opacity: .45;
+      pointer-events: none;
+    }
+
+    .nex-question-option {
+      background: rgba(86, 214, 160, .1);
+      border: 1px solid #56d6a0;
+      color: var(--nex-text);
+      border-radius: 999px;
+      padding: 6px 13px;
+      font-family: var(--nex-sans);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.15s;
+    }
+
+    .nex-question-option:hover {
+      background: rgba(86, 214, 160, .22);
+      transform: translateY(-1px);
     }
 
     .nex-timestamp {
@@ -948,9 +1006,9 @@ export function createNexChatBar() {
     micBtn.remove();
   }
 
-  async function send() {
-    const typedText = input.value.trim();
-    if (!canSendNexMessage({ typedText, attachedVisual, visionMode })) return;
+  async function send(overrideText) {
+    const typedText = overrideText !== undefined ? overrideText : input.value.trim();
+    if (!overrideText && !canSendNexMessage({ typedText, attachedVisual, visionMode })) return;
     const text = typedText || 'Look at this image.';
     const visualForMessage = attachedVisual || await captureVisualFrame();
 
@@ -999,6 +1057,9 @@ export function createNexChatBar() {
       }
       if (!data) throw new Error('Nex did not return a response.');
       showSuccessfulNexReply({ data, clearAttachment, addMessage, speak });
+      if (data.question?.question && Array.isArray(data.question.options) && data.question.options.length) {
+        renderQuestionOptions({ options: data.question.options, container: messagesEl, onPick: (choice) => send(choice) });
+      }
       if (data.navigation?.type === 'room' && typeof data.navigation.url === 'string' && window.NexusSpace) {
         // Room navigation belongs to the visual room switcher. The shared Nex
         // dock appears across operator pages, so falling back to
