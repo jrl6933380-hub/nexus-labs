@@ -416,6 +416,30 @@ function injectStyles() {
         outline: 2px solid var(--nx-accent);
         outline-offset: 3px;
       }
+      /* App-Store-style install ring for a venture still being built.
+         Approximate, not pixel-perfect — anchored to the top of the
+         title box (where the icon square lands, being the ::before
+         content) rather than precisely traced to the icon alone. */
+      #nexus-canvas-root .nexus-canvas-panel.is-collapsed.has-progress .nexus-canvas-panel-title {
+        position: relative;
+      }
+      #nexus-canvas-root .nexus-canvas-panel.is-collapsed.has-progress .nexus-canvas-panel-title::after {
+        content: '';
+        position: absolute;
+        top: -6px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: conic-gradient(var(--nx-accent) calc(var(--nx-progress, 0) * 3.6deg), rgba(255,255,255,.14) 0);
+        -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 4px));
+        mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 4px));
+        animation: nex-progress-pulse 1.6s ease-in-out infinite;
+      }
+      @keyframes nex-progress-pulse {
+        50% { opacity: .55; }
+      }
       .nexus-build-feedback { top: max(10px, env(safe-area-inset-top)); right: 10px; max-width: min(190px, calc(100vw - 62px)); }
       #nexus-canvas-backdrop-control { left: 12px !important; bottom: max(12px, env(safe-area-inset-bottom)) !important; }
       .canvas-title-bar { top: max(10px, env(safe-area-inset-top)) !important; max-width: 48vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -623,7 +647,7 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
     const titleLabel = document.createElement('span');
     titleLabel.className = 'nexus-canvas-panel-title';
     titleLabel.textContent = title;
-    const appIcons = { 'room-list': '⌂', 'agent-list': '◎', 'board-summary': '▥', notes: '✎' };
+    const appIcons = { 'room-list': '⌂', 'agent-list': '◎', 'board-summary': '▥', notes: '✎', 'new-venture': '+' };
     titleLabel.dataset.appIcon = appIcons[id] || String(title || id || 'N').trim().charAt(0).toUpperCase() || 'N';
     let hue = 0;
     for (const character of String(id)) hue = (hue * 31 + character.charCodeAt(0)) % 360;
@@ -720,6 +744,8 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
     toggle.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
+      if (href) { window.location.href = href; return; }
+      if (onActivate) { onActivate(); return; }
       if (!entry.collapsed) saveFinishedRect(currentRect());
       entry.collapsed = !entry.collapsed;
       el.classList.toggle('is-collapsed', entry.collapsed);
