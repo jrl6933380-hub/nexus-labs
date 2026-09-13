@@ -324,7 +324,7 @@
     const url = input.value.trim() || null;
     // Save to personal localStorage — not synced to server, only for this user
     try { localStorage.setItem('nexus-personal-backdrop', url || ''); } catch {}
-    canvas.setBackdropUrl(url);
+    canvas.setBackdropUrl(url, true); // true = personalOnly, don't sync to server
   });
   
   // On page load, restore this user's personal backdrop preference
