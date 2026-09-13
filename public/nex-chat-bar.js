@@ -365,6 +365,38 @@ export function createNexChatBar() {
       max-width: 85%;
     }
 
+    .nex-question-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      align-self: flex-start;
+      max-width: 85%;
+      margin: -2px 0 4px;
+    }
+
+    .nex-question-options.is-answered .nex-question-option {
+      opacity: .45;
+      pointer-events: none;
+    }
+
+    .nex-question-option {
+      background: rgba(86, 214, 160, .1);
+      border: 1px solid #56d6a0;
+      color: var(--nex-text);
+      border-radius: 999px;
+      padding: 6px 13px;
+      font-family: var(--nex-sans);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.15s;
+    }
+
+    .nex-question-option:hover {
+      background: rgba(86, 214, 160, .22);
+      transform: translateY(-1px);
+    }
+
     .nex-timestamp {
       font-family: var(--nex-mono);
       font-size: 10px;
