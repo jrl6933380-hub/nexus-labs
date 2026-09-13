@@ -10,12 +10,21 @@ test('creates a scoped run with a secret-safe perception fingerprint', () => {
   assert.doesNotMatch(JSON.stringify(publicRunState(state)), /hello/);
 });
 
-test('resumes only a real stored Nex turn id', async () => {
+test('resumes only a real stored Nex turn id in the same operator scope', async () => {
   const runId = 'nex-turn-12345678';
-  const state = await loadNexRunState({ resumeRunId: runId }, { getExecutionResume: async () => ({ run_id: runId, state: 'paused', next_safe_action: 'Run tests.' }) });
+  const seeded = createNexRunState({ scopeId: 'mrlopez' });
+  const state = await loadNexRunState({ resumeRunId: runId, scopeId: 'mrlopez' }, { getExecutionResume: async () => ({ run_id: runId, scope_hash: seeded.scopeHash, state: 'paused', next_safe_action: 'Run tests.' }) });
   assert.equal(state.runId, runId);
   assert.equal(state.resumed, true);
   assert.equal(state.nextSafeAction, 'Run tests.');
+});
+
+test('rejects a resume pointer from another operator scope', async () => {
+  const runId = 'nex-turn-12345678';
+  const other = createNexRunState({ scopeId: 'other-user' });
+  const state = await loadNexRunState({ resumeRunId: runId, scopeId: 'mrlopez' }, { getExecutionResume: async () => ({ run_id: runId, scope_hash: other.scopeHash }) });
+  assert.equal(state.resumed, false);
+  assert.notEqual(state.runId, runId);
 });
 
 test('meaningful tools advance branch and file checkpoints', () => {
