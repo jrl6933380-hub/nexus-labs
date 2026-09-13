@@ -321,8 +321,20 @@
   document.body.appendChild(control);
   document.getElementById('backdropApplyBtn').addEventListener('click', () => {
     const input = document.getElementById('backdropUrlInput');
-    canvas.setBackdropUrl(input.value.trim() || null);
+    const url = input.value.trim() || null;
+    // Save to personal localStorage — not synced to server, only for this user
+    try { localStorage.setItem('nexus-personal-backdrop', url || ''); } catch {}
+    canvas.setBackdropUrl(url);
   });
+  
+  // On page load, restore this user's personal backdrop preference
+  try {
+    const savedUrl = localStorage.getItem('nexus-personal-backdrop');
+    if (savedUrl) {
+      document.getElementById('backdropUrlInput').value = savedUrl;
+      canvas.setBackdropUrl(savedUrl);
+    }
+  } catch {}
 </script>
 </body>
 </html>
