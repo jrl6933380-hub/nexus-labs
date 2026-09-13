@@ -71,7 +71,9 @@
   .nex-question-options.is-answered .nex-question-option { opacity: .45; pointer-events: none; }
   .thinking-dots::after { content: ''; animation: dots 1.2s steps(4, end) infinite; }
   @keyframes dots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } 100% { content: ''; } }
-  .model-picker-row { padding: 8px 18px 0; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .model-picker-row { padding: 8px 18px 0; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; flex-shrink: 0; }
+  .deep-thought-toggle { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 10px; color: var(--text-dim); cursor: pointer; user-select: none; }
+  .deep-thought-toggle input { accent-color: var(--blue); width: 13px; height: 13px; cursor: pointer; }
   .model-picker-label { font-family: var(--mono); font-size: 10px; color: var(--text-faint); letter-spacing: 0.05em; text-transform: uppercase; }
   .model-select { background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; color: var(--text); font-family: var(--mono); font-size: 11px; outline: none; }
   .model-select:focus { border-color: var(--blue); }
@@ -235,6 +237,17 @@
         <option value="standard">Sonnet</option>
         <option value="heavy">Opus</option>
       </select>
+      <span class="model-picker-label">Effort:</span>
+      <select class="model-select" id="effortSelect">
+        <option value="">Auto</option>
+        <option value="low">Low</option>
+        <option value="medium">Medium</option>
+        <option value="high">High</option>
+      </select>
+      <label class="deep-thought-toggle">
+        <input type="checkbox" id="deepThoughtToggle" checked />
+        <span>Deep thought</span>
+      </label>
     </div>
     <div class="chat-input-row">
       <input class="chat-input" id="chatInput" type="text" placeholder="Message Nex..." />
@@ -412,6 +425,20 @@
     localStorage.setItem('nex-model-choice', modelSelect.value);
   });
 
+  const effortSelect = document.getElementById('effortSelect');
+  const savedEffort = localStorage.getItem('nex-effort-choice');
+  if (savedEffort) effortSelect.value = savedEffort;
+  effortSelect.addEventListener('change', () => {
+    localStorage.setItem('nex-effort-choice', effortSelect.value);
+  });
+
+  const deepThoughtToggle = document.getElementById('deepThoughtToggle');
+  const savedDeepThought = localStorage.getItem('nex-deep-thought-enabled');
+  if (savedDeepThought !== null) deepThoughtToggle.checked = savedDeepThought !== 'false';
+  deepThoughtToggle.addEventListener('change', () => {
+    localStorage.setItem('nex-deep-thought-enabled', String(deepThoughtToggle.checked));
+  });
+
   let sessionTokens = { input: 0, output: 0 };
 
   function updateTokenTotal() {
@@ -509,7 +536,7 @@
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, model: modelSelect.value || undefined, workspace: { active_view: window.location.pathname } }),
+        body: JSON.stringify({ message: text, model: modelSelect.value || undefined, effort: effortSelect.value || undefined, deepThought: deepThoughtToggle.checked, workspace: { active_view: window.location.pathname } }),
       });
 
       const data = await res.json();
