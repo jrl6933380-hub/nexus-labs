@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite public",
-    "test:a11y": "playwright test"
+    "test:a11y": "playwright test",
+    "test:nex-trials": "node scripts/run-nex-trials.mjs"
   },
   "dependencies": {
     "@sentry/node": "^8.0.0",
