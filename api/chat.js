@@ -181,6 +181,7 @@ export default async function handler(req, res) {
   // deepThought is an optional boolean toggle; anything but an explicit
   // `false` leaves Nex's normal adaptive-thinking-on default untouched.
   const deepThoughtEnabled = deepThought === false ? false : undefined;
+  const deepThoughtRequested = deepThought === true;
 
   try {
     // Deliberate test hook — send this exact phrase to force a real error,
@@ -290,8 +291,9 @@ export default async function handler(req, res) {
       question,
       suggestedReplies,
       pendingApproval,
+      cognitivePlan,
       degraded,
-    } = await askNex(messageForModel, runningHistory, forcedTier, clientContext, (stage) => sendBuildEvent('stage', stage), {userId:operatorUser,storyProjectId:clientContext.screen?.story_project_id || null, effort:forcedEffort, deepThoughtEnabled});
+    } = await askNex(messageForModel, runningHistory, forcedTier, clientContext, (stage) => sendBuildEvent('stage', stage), {userId:operatorUser,storyProjectId:clientContext.screen?.story_project_id || null, effort:forcedEffort, deepThoughtEnabled, deepThoughtRequested});
 
     // If the message sent to the model was augmented with an internal
     // hyperfocus directive, restore Mr. Lopez's original text in the
@@ -321,6 +323,7 @@ export default async function handler(req, res) {
       question,
       suggestedReplies,
       pendingApproval,
+      cognitivePlan,
       degraded,
     };
     if (wantsBuildStream) {
