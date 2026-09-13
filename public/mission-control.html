@@ -457,6 +457,59 @@
     localStorage.setItem('nex-deep-thought-enabled', String(deepThoughtToggle.checked));
   });
 
+  // Skills panel: browse what's available and optionally force one on for
+  // the session, bypassing the (imperfect) automatic keyword matching.
+  // Not persisted across reloads on purpose -- a forced skill is a
+  // deliberate, temporary choice for the task at hand, not a standing
+  // preference like model/effort/deep-thought above.
+  let forcedSkillName = null;
+  const forcedSkillIndicator = document.getElementById('forcedSkillIndicator');
+  const forcedSkillNameEl = document.getElementById('forcedSkillName');
+
+  function setForcedSkill(name) {
+    forcedSkillName = name;
+    forcedSkillNameEl.textContent = name;
+    forcedSkillIndicator.hidden = false;
+  }
+
+  function clearForcedSkill() {
+    forcedSkillName = null;
+    forcedSkillIndicator.hidden = true;
+  }
+
+  document.getElementById('clearForcedSkillBtn').addEventListener('click', clearForcedSkill);
+
+  async function loadSkills() {
+    const listEl = document.getElementById('skillsList');
+    try {
+      const res = await fetch('/api/skills');
+      if (!res.ok) throw new Error('skills unavailable');
+      const data = await res.json();
+      const skills = Array.isArray(data.skills) ? data.skills : [];
+      if (!skills.length) {
+        listEl.innerHTML = '<div class="empty-hint">No skills deployed yet.</div>';
+        return;
+      }
+      listEl.innerHTML = '';
+      for (const skill of skills) {
+        const row = document.createElement('div');
+        row.className = 'skill-row';
+        row.innerHTML = `
+          <div class="skill-name"></div>
+          <div class="skill-desc"></div>
+          <button type="button" class="skill-force-btn">Force in chat →</button>
+        `;
+        row.querySelector('.skill-name').textContent = skill.name;
+        row.querySelector('.skill-desc').textContent = skill.description;
+        row.querySelector('.skill-force-btn').addEventListener('click', () => setForcedSkill(skill.name));
+        listEl.appendChild(row);
+      }
+    } catch (error) {
+      listEl.innerHTML = '<div class="empty-hint">Could not load skills.</div>';
+    }
+  }
+  loadSkills();
+
   let sessionTokens = { input: 0, output: 0 };
 
   function updateTokenTotal() {
