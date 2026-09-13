@@ -34,6 +34,33 @@ export function showSuccessfulNexReply({ data, clearAttachment, addMessage, spea
   return replyText;
 }
 
+// Renders Nex's mid-task question as tappable chips, right under his
+// explanation bubble — same visual language as the rest of the dock,
+// not a separate popup. Tapping a chip sends that option as the next
+// message (via onPick), same as if it had been typed; the row disables
+// itself after one pick so an old question can't be answered twice.
+export function renderQuestionOptions({ options, addMessage, container, onPick }) {
+  if (!container || !Array.isArray(options) || !options.length) return null;
+  const row = document.createElement('div');
+  row.className = 'nex-question-options';
+  options.forEach((label) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'nex-question-option';
+    button.innerText = label;
+    button.addEventListener('click', () => {
+      if (row.classList.contains('is-answered')) return;
+      row.classList.add('is-answered');
+      addMessage(label, 'nex-user');
+      onPick(label);
+    });
+    row.appendChild(button);
+  });
+  container.appendChild(row);
+  container.scrollTop = container.scrollHeight;
+  return row;
+}
+
 let activeViewportFrameCacheInvalidator = null;
 let viewportFrameCacheListenersBound = false;
 
