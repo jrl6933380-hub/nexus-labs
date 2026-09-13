@@ -1069,7 +1069,7 @@ export function createNexChatBar() {
           const payload = raw.match(/^data: (.+)$/m)?.[1];
           if (!type || !payload) continue;
           const eventData = JSON.parse(payload);
-          if (type === 'stage') window.dispatchEvent(new CustomEvent('nexus:build-feedback', { detail: eventData }));
+          if (type === 'stage') addActionMessage(messagesEl, eventData);
           else if (type === 'result') data = eventData;
           else if (type === 'error') throw new Error(eventData.error || 'Nex could not process that message.');
         }
