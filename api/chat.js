@@ -294,6 +294,7 @@ export default async function handler(req, res) {
       cognitivePlan,
       contextManifest,
       completionReceipt,
+      skills,
       degraded,
     } = await askNex(messageForModel, runningHistory, forcedTier, clientContext, (stage) => sendBuildEvent('stage', stage), {userId:operatorUser,storyProjectId:clientContext.screen?.story_project_id || null, effort:forcedEffort, deepThoughtEnabled, deepThoughtRequested});
 
@@ -328,6 +329,7 @@ export default async function handler(req, res) {
       cognitivePlan,
       contextManifest,
       completionReceipt,
+      skills,
       degraded,
     };
     if (wantsBuildStream) {
