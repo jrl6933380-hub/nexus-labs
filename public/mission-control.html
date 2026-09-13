@@ -65,6 +65,10 @@
   .msg-sender { font-family: var(--mono); font-size: 10px; color: var(--text-faint); margin-bottom: 5px; letter-spacing: 0.05em; text-transform: uppercase; }
   .msg-meta { font-family: var(--mono); font-size: 10px; color: var(--text-faint); margin-top: 6px; opacity: 0.75; }
   .msg-meta .model-tag { color: var(--cyan); }
+  .nex-question-options { align-self: flex-start; display: flex; flex-wrap: wrap; gap: 8px; max-width: 82%; margin-top: -6px; }
+  .nex-question-option { color: var(--cyan); background: rgba(77,216,232,.08); border: 1px solid rgba(77,216,232,.35); border-radius: 999px; padding: 8px 12px; font: 600 11px var(--mono); cursor: pointer; }
+  .nex-question-option:hover { background: rgba(77,216,232,.16); border-color: var(--cyan); }
+  .nex-question-options.is-answered .nex-question-option { opacity: .45; pointer-events: none; }
   .thinking-dots::after { content: ''; animation: dots 1.2s steps(4, end) infinite; }
   @keyframes dots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } 100% { content: ''; } }
   .model-picker-row { padding: 8px 18px 0; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
@@ -463,8 +467,31 @@
     }
   }
 
-  async function sendMessage() {
-    const text = chatInput.value.trim();
+  function renderQuestionOptions(options) {
+    if (!Array.isArray(options) || !options.length) return null;
+    const row = document.createElement('div');
+    row.className = 'nex-question-options';
+    options.forEach((label) => {
+      if (typeof label !== 'string' || !label.trim()) return;
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'nex-question-option';
+      button.textContent = label;
+      button.addEventListener('click', () => {
+        if (row.classList.contains('is-answered')) return;
+        row.classList.add('is-answered');
+        sendMessage(label);
+      });
+      row.appendChild(button);
+    });
+    if (!row.children.length) return null;
+    chatScroll.appendChild(row);
+    chatScroll.scrollTop = chatScroll.scrollHeight;
+    return row;
+  }
+
+  async function sendMessage(messageOverride) {
+    const text = typeof messageOverride === 'string' ? messageOverride.trim() : chatInput.value.trim();
     if (!text) return;
 
     addMessage('user', text);
@@ -495,6 +522,9 @@
         const usageText = data.usage ? ` · ${(data.usage.input_tokens + data.usage.output_tokens).toLocaleString()} tokens` : '';
         const metaLine = label ? `<div class="msg-meta"><span class="model-tag">${safeText(label)}</span>${usageText}</div>` : '';
         thinkingMsg.innerHTML = `<div class="msg-sender">Nex</div>${safeText(String(data.reply || ''))}${metaLine}`;
+
+        const tapOptions = data.question?.options?.length ? data.question.options : data.suggestedReplies;
+        renderQuestionOptions(tapOptions);
 
         if (data.usage) {
           sessionTokens.input += data.usage.input_tokens || 0;
