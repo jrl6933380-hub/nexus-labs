@@ -1205,6 +1205,7 @@ export function createNexChatBar() {
           model: modelSelect.value || undefined,
           effort: effortSelect.value || undefined,
           deepThought: deepThoughtEnabled,
+          resumeRunId: localStorage.getItem('nex-active-run-id') || undefined,
           workspace: {
             active_view: window.location.pathname,
             screen: captureWorkspaceSnapshot(),
@@ -1238,6 +1239,11 @@ export function createNexChatBar() {
         }
       }
       if (!data) throw new Error('Nex did not return a response.');
+      if (data.runState?.runId && data.completionReceipt?.status === 'incomplete') {
+        localStorage.setItem('nex-active-run-id', data.runState.runId);
+      } else {
+        localStorage.removeItem('nex-active-run-id');
+      }
       showSuccessfulNexReply({ data, clearAttachment, addMessage, speak });
       if (data.pendingApproval) {
         renderApprovalAction({

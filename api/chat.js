@@ -154,7 +154,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { message, model, workspace, effort, deepThought } = req.body;
+  const { message, model, workspace, effort, deepThought, resumeRunId } = req.body;
   if (!message) return res.status(400).json({ error: 'Missing message' });
   // Control commands return their own immediate JSON payloads before a
   // normal Nex turn begins. Keep them on that established contract; the
@@ -295,8 +295,9 @@ export default async function handler(req, res) {
       contextManifest,
       completionReceipt,
       skills,
+      runState,
       degraded,
-    } = await askNex(messageForModel, runningHistory, forcedTier, clientContext, (stage) => sendBuildEvent('stage', stage), {userId:operatorUser,storyProjectId:clientContext.screen?.story_project_id || null, effort:forcedEffort, deepThoughtEnabled, deepThoughtRequested});
+    } = await askNex(messageForModel, runningHistory, forcedTier, clientContext, (stage) => sendBuildEvent('stage', stage), {userId:operatorUser,storyProjectId:clientContext.screen?.story_project_id || null, effort:forcedEffort, deepThoughtEnabled, deepThoughtRequested, resumeRunId});
 
     // If the message sent to the model was augmented with an internal
     // hyperfocus directive, restore Mr. Lopez's original text in the
@@ -330,6 +331,7 @@ export default async function handler(req, res) {
       contextManifest,
       completionReceipt,
       skills,
+      runState,
       degraded,
     };
     if (wantsBuildStream) {
