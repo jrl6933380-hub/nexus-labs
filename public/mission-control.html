@@ -607,7 +607,7 @@
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, model: modelSelect.value || undefined, effort: effortSelect.value || undefined, deepThought: deepThoughtToggle.checked, workspace: { active_view: window.location.pathname } }),
+        body: JSON.stringify({ message: text, model: modelSelect.value || undefined, effort: effortSelect.value || undefined, deepThought: deepThoughtToggle.checked, forceSkill: forcedSkillName || undefined, workspace: { active_view: window.location.pathname } }),
       });
 
       const data = await res.json();
