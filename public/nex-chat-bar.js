@@ -58,6 +58,35 @@ export function showSuccessfulNexReply({ data, clearAttachment, addMessage, spea
 // not a separate popup. Tapping a chip sends that option as the next
 // message (via onPick), same as if it had been typed; the row disables
 // itself after one pick so an old question can't be answered twice.
+export function renderApprovalAction({ approval, container, onApprove }) {
+  if (!container || approval?.kind !== 'merge_pull_request' || !approval.id) return null;
+  const row = document.createElement('div');
+  row.className = 'nex-approval-action';
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'nex-approval-button';
+  button.innerText = approval.label || 'Approve & merge';
+  button.setAttribute('aria-label', approval.description || button.innerText);
+  button.addEventListener('click', async () => {
+    if (button.disabled) return;
+    button.disabled = true;
+    button.innerText = 'Merging…';
+    try {
+      await onApprove(approval);
+      row.classList.add('is-complete');
+      button.innerText = 'Merged';
+    } catch (err) {
+      button.disabled = false;
+      button.innerText = approval.label || 'Approve & merge';
+      throw err;
+    }
+  });
+  row.appendChild(button);
+  container.appendChild(row);
+  container.scrollTop = container.scrollHeight;
+  return row;
+}
+
 export function renderQuestionOptions({ options, container, onPick }) {
   if (!container || !Array.isArray(options) || !options.length) return null;
   const row = document.createElement('div');
@@ -402,6 +431,26 @@ export function createNexChatBar() {
     .nex-message.nex-action-failed {
       color: #ff7c8c;
     }
+
+    .nex-approval-action {
+      align-self: flex-start;
+      max-width: 85%;
+      margin: -2px 0 4px;
+    }
+
+    .nex-approval-button {
+      background: rgba(86, 214, 160, .14);
+      border: 1px solid #56d6a0;
+      color: var(--nex-text);
+      border-radius: 9px;
+      padding: 8px 14px;
+      font: 650 12px var(--nex-sans);
+      cursor: pointer;
+    }
+
+    .nex-approval-button:hover:not(:disabled) { background: rgba(86, 214, 160, .25); }
+    .nex-approval-button:disabled { cursor: default; opacity: .7; }
+    .nex-approval-action.is-complete .nex-approval-button { border-color: rgba(86, 214, 160, .45); }
 
     .nex-question-options {
       display: flex;
@@ -1095,6 +1144,22 @@ export function createNexChatBar() {
       }
       if (!data) throw new Error('Nex did not return a response.');
       showSuccessfulNexReply({ data, clearAttachment, addMessage, speak });
+      if (data.pendingApproval) {
+        renderApprovalAction({
+          approval: data.pendingApproval,
+          container: messagesEl,
+          onApprove: async (approval) => {
+            const approvalResponse = await fetch('/api/queue', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: approval.id, action: 'approve' }),
+            });
+            const approvalData = await approvalResponse.json().catch(() => ({}));
+            if (!approvalResponse.ok) throw new Error(approvalData.error || 'Merge approval failed.');
+            addMessage('Pull request merged successfully.', 'nex-system');
+          },
+        });
+      }
       const tapOptions = data.question?.options?.length ? data.question.options : data.suggestedReplies;
       if (Array.isArray(tapOptions) && tapOptions.length) {
         renderQuestionOptions({ options: tapOptions, container: messagesEl, onPick: (choice) => send(choice) });
