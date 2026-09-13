@@ -16,7 +16,7 @@ test('context compiler labels provenance, trust, and freshness', () => {
   assert.match(compiled.text, /freshness=generated-at-123/);
   assert.match(compiled.text, /id=m1/);
   assert.equal(compiled.manifest.lane, 'code');
-  assert.equal(compiled.manifest.sources.length, 3);
+  assert.equal(compiled.manifest.sources.length, 4);
 });
 
 test('duplicate memories are included only once', () => {
