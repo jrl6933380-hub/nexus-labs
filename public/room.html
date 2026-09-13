@@ -1376,6 +1376,11 @@
       draft: 'Build a working app or tool that ',
       question: 'Tell me who will use it, the main job it should do, and its most important interaction. I’ll start with one complete working flow.',
     },
+    agent: {
+      label: 'Build an AI Agent',
+      draft: 'Walk me through building my own AI agent that ',
+      question: 'Let’s build this step by step. First: what should this agent actually do — answer customer questions, take bookings, follow up on leads, something else? And where should it live — on a website you already have, a new one, or on its own?',
+    },
   };
 
   function markQuickActionsUsed() {
@@ -1466,7 +1471,7 @@
       'nex',
       returning
         ? 'New project ready. Describe the whole idea or choose a starting point. If the instant builder reaches its limit, I’ll bring in the Nexus Build Team automatically.'
-        : 'Welcome to Nexus Forge. I’m Nex—describe the site or app you want, and I’ll build it. If it needs more than one pass, I’ll bring in the Nexus Build Team automatically.',
+        : 'Welcome to Nexus Forge. I’m Nex—describe the site, app, or AI agent you want, and I’ll build it (agents get a guided, step-by-step walkthrough). If it needs more than one pass, I’ll bring in the Nexus Build Team automatically.',
     );
     addQuickActions(Object.entries(starterGuides).map(([key, guide]) => ({
       label: guide.label,
