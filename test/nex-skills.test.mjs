@@ -27,3 +27,34 @@ test('loads deployed skills and formats them as bounded guidance', async () => {
   const text = formatNexSkills(skills);
   assert.match(text, /Runtime policy and backend approval gates remain authoritative/);
 });
+
+// New tests for the stopword fix + the new system-self-update skill
+test('new system-self-update skill loads and parses from disk', async () => {
+  const skills = await loadRelevantNexSkills('What changed in the new layer you just added?');
+  assert.ok(skills.some((s) => s.name === 'system-self-update'));
+});
+
+test('stopword fix: a common shared word like "you" does not cause an unrelated match', async () => {
+  const skills = await loadRelevantNexSkills('Can you order me a pizza');
+  assert.ok(!skills.some((s) => s.name === 'system-self-update'));
+  assert.equal(skills.length, 0);
+});
+
+test('genuine system-change questions still correctly trigger the new skill', async () => {
+  const cases = [
+    'Justin mentioned a new tool was merged, did anything update?',
+    "Whats new with the system",
+  ];
+  for (const message of cases) {
+    const skills = await loadRelevantNexSkills(message);
+    assert.ok(skills.some((s) => s.name === 'system-self-update'), `expected match for: ${message}`);
+  }
+});
+
+test('unrelated everyday questions do not falsely trigger any skill', async () => {
+  const cases = ["What's the weather like today", 'Did the deploy finish yet'];
+  for (const message of cases) {
+    const skills = await loadRelevantNexSkills(message);
+    assert.equal(skills.length, 0, `expected no match for: ${message}, got ${JSON.stringify(skills.map(s=>s.name))}`);
+  }
+});
