@@ -154,7 +154,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { message, model, workspace, effort, deepThought, resumeRunId } = req.body;
+  const { message, model, workspace, effort, deepThought, resumeRunId, forceSkill } = req.body;
   if (!message) return res.status(400).json({ error: 'Missing message' });
   // Control commands return their own immediate JSON payloads before a
   // normal Nex turn begins. Keep them on that established contract; the
@@ -182,6 +182,12 @@ export default async function handler(req, res) {
   // `false` leaves Nex's normal adaptive-thinking-on default untouched.
   const deepThoughtEnabled = deepThought === false ? false : undefined;
   const deepThoughtRequested = deepThought === true;
+  // forceSkill is an explicit override from the Skills panel's "force
+  // this skill" button. Validated against the same shape as a real
+  // skill name -- an invalid/garbage value just falls through to
+  // normal keyword-matched skill selection rather than erroring.
+  const SKILL_NAME_SHAPE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
+  const forcedSkill = typeof forceSkill === 'string' && SKILL_NAME_SHAPE.test(forceSkill.trim()) ? forceSkill.trim() : undefined;
 
   try {
     // Deliberate test hook — send this exact phrase to force a real error,
@@ -298,7 +304,7 @@ export default async function handler(req, res) {
       runState,
       securityReceipt,
       degraded,
-    } = await askNex(messageForModel, runningHistory, forcedTier, clientContext, (stage) => sendBuildEvent('stage', stage), {userId:operatorUser,storyProjectId:clientContext.screen?.story_project_id || null, effort:forcedEffort, deepThoughtEnabled, deepThoughtRequested, resumeRunId});
+    } = await askNex(messageForModel, runningHistory, forcedTier, clientContext, (stage) => sendBuildEvent('stage', stage), {userId:operatorUser,storyProjectId:clientContext.screen?.story_project_id || null, effort:forcedEffort, deepThoughtEnabled, deepThoughtRequested, resumeRunId, forceSkill:forcedSkill});
 
     // If the message sent to the model was augmented with an internal
     // hyperfocus directive, restore Mr. Lopez's original text in the
