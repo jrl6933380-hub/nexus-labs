@@ -335,6 +335,16 @@ function injectStyles() {
     #nexus-canvas-backdrop-control input:focus-visible,
     #nexus-canvas-backdrop-control button:focus-visible { outline: 2px solid rgba(93, 184, 255, .6); outline-offset: 2px; }
     @media (max-width: 720px) {
+      /* The phone dashboard is an app launcher whose tile rows can extend
+         beyond the viewport. The fixed root previously clipped those rows,
+         leaving no scroll container at all. Let the root own vertical scroll
+         on mobile while keeping horizontal canvas overflow contained. */
+      #nexus-canvas-root {
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior-y: contain;
+        -webkit-overflow-scrolling: touch;
+      }
       .nexus-canvas-brand { top: max(10px, env(safe-area-inset-top)); left: 12px; }
       .nexus-canvas-brand-copy { display: none; }
       .nexus-canvas-panel { border-radius: 14px; min-width: 0; }
