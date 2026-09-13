@@ -737,12 +737,39 @@ export function createNexChatBar() {
   const attachmentImage = container.querySelector('#nexAttachmentImage');
   const attachmentName = container.querySelector('#nexAttachmentName');
   const attachmentRemove = container.querySelector('#nexAttachmentRemove');
+  const modelSelect = container.querySelector('#nexModelSelect');
+  const effortSelect = container.querySelector('#nexEffortSelect');
+  const deepToggle = container.querySelector('#nexDeepToggle');
   const voiceToggle = container.querySelector('#nexVoiceToggle');
   const visionToggle = container.querySelector('#nexVisionToggle');
   const messagesEl = container.querySelector('#nexMessages');
   const toggleBtn = container.querySelector('.nex-chat-toggle');
   const header = container.querySelector('.nex-chat-header');
   const positionKey = 'nex-chat-dock-position-v1';
+
+  // Shared with mission-control.html's own model/effort picker via the
+  // same localStorage keys, so a choice made in either interface carries
+  // over to the other rather than needing to be set twice.
+  const savedModel = localStorage.getItem('nex-model-choice');
+  if (savedModel) modelSelect.value = savedModel;
+  modelSelect.addEventListener('change', () => {
+    localStorage.setItem('nex-model-choice', modelSelect.value);
+  });
+
+  const savedEffort = localStorage.getItem('nex-effort-choice');
+  if (savedEffort) effortSelect.value = savedEffort;
+  effortSelect.addEventListener('change', () => {
+    localStorage.setItem('nex-effort-choice', effortSelect.value);
+  });
+
+  const savedDeepThought = localStorage.getItem('nex-deep-thought-enabled');
+  let deepThoughtEnabled = savedDeepThought === null ? true : savedDeepThought !== 'false';
+  deepToggle.setAttribute('aria-pressed', String(deepThoughtEnabled));
+  deepToggle.addEventListener('click', () => {
+    deepThoughtEnabled = !deepThoughtEnabled;
+    deepToggle.setAttribute('aria-pressed', String(deepThoughtEnabled));
+    localStorage.setItem('nex-deep-thought-enabled', String(deepThoughtEnabled));
+  });
 
   function keepOnScreen(left, top) {
     const width = container.offsetWidth || 196;
@@ -1175,6 +1202,9 @@ export function createNexChatBar() {
         headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
         body: JSON.stringify({
           message: text,
+          model: modelSelect.value || undefined,
+          effort: effortSelect.value || undefined,
+          deepThought: deepThoughtEnabled,
           workspace: {
             active_view: window.location.pathname,
             screen: captureWorkspaceSnapshot(),
