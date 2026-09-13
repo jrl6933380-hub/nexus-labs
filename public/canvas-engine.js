@@ -633,7 +633,7 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
   poll();
   const pollTimer = setInterval(poll, POLL_INTERVAL_MS);
 
-  function addPanel({ id, title, content, x = 80, y = 80, w = 360, h = 280, locked = false }) {
+  function addPanel({ id, title, content, x = 80, y = 80, w = 360, h = 280, locked = false, href = null, onActivate = null, progress = null }) {
     const el = document.createElement('div');
     el.className = 'nexus-canvas-panel';
     el.classList.toggle('is-workspace-locked', locked);
@@ -652,6 +652,10 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
     let hue = 0;
     for (const character of String(id)) hue = (hue * 31 + character.charCodeAt(0)) % 360;
     el.style.setProperty('--nx-app-hue', String(hue));
+    if (progress != null) {
+      el.classList.add('has-progress');
+      el.style.setProperty('--nx-progress', String(Math.max(0, Math.min(100, Number(progress) || 0))));
+    }
     titleGroup.append(titleLabel);
     header.appendChild(titleGroup);
     el.appendChild(header);
