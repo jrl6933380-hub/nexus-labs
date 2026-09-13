@@ -1095,8 +1095,9 @@ export function createNexChatBar() {
       }
       if (!data) throw new Error('Nex did not return a response.');
       showSuccessfulNexReply({ data, clearAttachment, addMessage, speak });
-      if (data.question?.question && Array.isArray(data.question.options) && data.question.options.length) {
-        renderQuestionOptions({ options: data.question.options, container: messagesEl, onPick: (choice) => send(choice) });
+      const tapOptions = data.question?.options?.length ? data.question.options : data.suggestedReplies;
+      if (Array.isArray(tapOptions) && tapOptions.length) {
+        renderQuestionOptions({ options: tapOptions, container: messagesEl, onPick: (choice) => send(choice) });
       }
       if (data.navigation?.type === 'room' && typeof data.navigation.url === 'string' && window.NexusSpace) {
         // Room navigation belongs to the visual room switcher. The shared Nex
