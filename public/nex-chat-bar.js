@@ -384,6 +384,25 @@ export function createNexChatBar() {
       max-width: 85%;
     }
 
+    .nex-message.nex-action {
+      background: none;
+      border-left: none;
+      color: var(--nex-text-faint);
+      font-family: var(--nex-mono);
+      font-size: 11px;
+      padding: 2px 0 2px 8px;
+      align-self: flex-start;
+      max-width: 90%;
+    }
+
+    .nex-message.nex-action-complete {
+      color: var(--nex-text-dim);
+    }
+
+    .nex-message.nex-action-failed {
+      color: #ff7c8c;
+    }
+
     .nex-question-options {
       display: flex;
       flex-wrap: wrap;
