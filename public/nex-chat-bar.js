@@ -1133,6 +1133,16 @@ export function createNexChatBar() {
     try { localStorage.setItem(positionKey, JSON.stringify(next)); } catch {}
   });
 
+  // External trigger for "open the dock and kick off this exact
+  // conversation" — used by the Venture Factory's "+" tile so hitting
+  // it starts a real back-and-forth with Nex instead of a form.
+  window.addEventListener('nexus:nex-prompt', (event) => {
+    const prompt = event.detail?.text;
+    if (!prompt) return;
+    container.classList.remove('collapsed');
+    send(prompt);
+  });
+
   let drag = null;
   header.addEventListener('pointerdown', (event) => {
     if (event.button !== 0 || event.target.closest('button, input')) return;
