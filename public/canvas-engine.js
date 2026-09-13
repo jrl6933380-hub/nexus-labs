@@ -720,6 +720,8 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
     toggle.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
+      if (href) { window.location.href = href; return; }
+      if (onActivate) { onActivate(); return; }
       if (!entry.collapsed) saveFinishedRect(currentRect());
       entry.collapsed = !entry.collapsed;
       el.classList.toggle('is-collapsed', entry.collapsed);
