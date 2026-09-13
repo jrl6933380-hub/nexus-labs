@@ -482,41 +482,11 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
   }
   brand.querySelector('.nexus-canvas-brand-context').textContent = canvasTitle;
   brand.hidden = Boolean(document.querySelector('.return-link'));
-  let feedbackHud = root.querySelector('.nexus-build-feedback');
-  let feedbackHideTimer = null;
-  if (!feedbackHud) {
-    feedbackHud = document.createElement('aside');
-    feedbackHud.className = 'nexus-build-feedback';
-    feedbackHud.setAttribute('aria-live', 'polite');
-    feedbackHud.setAttribute('aria-label', 'Live build feedback');
-    root.appendChild(feedbackHud);
-  }
-  const renderFeedback = (item = null) => {
-    feedbackHud.replaceChildren();
-    feedbackHud.classList.remove('running', 'complete', 'failed');
-    if (!item) {
-      feedbackHud.hidden = true;
-      return;
-    }
-    feedbackHud.hidden = false;
-    feedbackHud.classList.add(item.state || 'running');
-    const dot = document.createElement('span');
-    dot.className = 'nexus-build-feedback-dot';
-    const label = document.createElement('span');
-    label.className = 'nexus-build-feedback-label';
-    label.textContent = `NEX · ${item.label}`;
-    feedbackHud.append(dot, label);
-  };
-  window.addEventListener('nexus:build-feedback', (event) => {
-    const item = event.detail;
-    if (!item?.label) return;
-    clearTimeout(feedbackHideTimer);
-    renderFeedback(item);
-    if (item.state && item.state !== 'running') {
-      feedbackHideTimer = setTimeout(() => renderFeedback(), 3000);
-    }
-  });
-  renderFeedback();
+  // The floating "NEX · doing X" HUD used to live here. It's gone —
+  // that same live progress now renders inline in the Nex chat log
+  // itself (public/nex-chat-bar.js), the same window you're already
+  // reading his replies in, instead of a separate popup elsewhere on
+  // screen.
 
   // Atmosphere layers (grid + vignette) sit behind the backdrop image
   // so the on-brand look shows through when no custom backdrop is

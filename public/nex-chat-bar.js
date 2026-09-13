@@ -26,6 +26,25 @@ export function getBoundedImageScale(width, height, maxDimension = 1280) {
   return Math.min(1, maxDimension / Math.max(width || 1, height || 1));
 }
 
+// Inline, in-chat version of "what Nex is doing right now" — replaces
+// the old separate floating HUD entirely. Each stage event becomes its
+// own short log line right in the conversation, the same way a tool
+// call and its result show up as two lines when Claude is working:
+// one line when a step starts, a second when it finishes or fails.
+// Deliberately two lines, not one updating line — for a slow step
+// (launching a client project can take a while) seeing "still going"
+// stay on screen is more honest than a line that silently sits there.
+export function addActionMessage(container, { label, state }) {
+  if (!container || !label) return null;
+  const el = document.createElement('div');
+  el.className = `nex-message nex-action nex-action-${state || 'running'}`;
+  const icon = state === 'complete' ? '✓' : state === 'failed' ? '✗' : '⋯';
+  el.innerText = `${icon} ${label}`;
+  container.appendChild(el);
+  container.scrollTop = container.scrollHeight;
+  return el;
+}
+
 export function showSuccessfulNexReply({ data, clearAttachment, addMessage, speak }) {
   const replyText = data.reply || 'Nex completed the request without a text reply.';
   clearAttachment();
@@ -363,6 +382,25 @@ export function createNexChatBar() {
       color: var(--nex-text);
       align-self: flex-start;
       max-width: 85%;
+    }
+
+    .nex-message.nex-action {
+      background: none;
+      border-left: none;
+      color: var(--nex-text-faint);
+      font-family: var(--nex-mono);
+      font-size: 11px;
+      padding: 2px 0 2px 8px;
+      align-self: flex-start;
+      max-width: 90%;
+    }
+
+    .nex-message.nex-action-complete {
+      color: var(--nex-text-dim);
+    }
+
+    .nex-message.nex-action-failed {
+      color: #ff7c8c;
     }
 
     .nex-question-options {
@@ -1050,15 +1088,16 @@ export function createNexChatBar() {
           const payload = raw.match(/^data: (.+)$/m)?.[1];
           if (!type || !payload) continue;
           const eventData = JSON.parse(payload);
-          if (type === 'stage') window.dispatchEvent(new CustomEvent('nexus:build-feedback', { detail: eventData }));
+          if (type === 'stage') addActionMessage(messagesEl, eventData);
           else if (type === 'result') data = eventData;
           else if (type === 'error') throw new Error(eventData.error || 'Nex could not process that message.');
         }
       }
       if (!data) throw new Error('Nex did not return a response.');
       showSuccessfulNexReply({ data, clearAttachment, addMessage, speak });
-      if (data.question?.question && Array.isArray(data.question.options) && data.question.options.length) {
-        renderQuestionOptions({ options: data.question.options, container: messagesEl, onPick: (choice) => send(choice) });
+      const tapOptions = data.question?.options?.length ? data.question.options : data.suggestedReplies;
+      if (Array.isArray(tapOptions) && tapOptions.length) {
+        renderQuestionOptions({ options: tapOptions, container: messagesEl, onPick: (choice) => send(choice) });
       }
       if (data.navigation?.type === 'room' && typeof data.navigation.url === 'string' && window.NexusSpace) {
         // Room navigation belongs to the visual room switcher. The shared Nex

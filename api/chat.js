@@ -278,6 +278,7 @@ export default async function handler(req, res) {
       usage,
       navigation,
       question,
+      suggestedReplies,
       degraded,
     } = await askNex(messageForModel, runningHistory, forcedTier, clientContext, (stage) => sendBuildEvent('stage', stage), {userId:operatorUser,storyProjectId:clientContext.screen?.story_project_id || null});
 
@@ -307,6 +308,7 @@ export default async function handler(req, res) {
       usage,
       navigation,
       question,
+      suggestedReplies,
       degraded,
     };
     if (wantsBuildStream) {
