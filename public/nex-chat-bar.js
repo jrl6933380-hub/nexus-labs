@@ -39,7 +39,7 @@ export function showSuccessfulNexReply({ data, clearAttachment, addMessage, spea
 // not a separate popup. Tapping a chip sends that option as the next
 // message (via onPick), same as if it had been typed; the row disables
 // itself after one pick so an old question can't be answered twice.
-export function renderQuestionOptions({ options, addMessage, container, onPick }) {
+export function renderQuestionOptions({ options, container, onPick }) {
   if (!container || !Array.isArray(options) || !options.length) return null;
   const row = document.createElement('div');
   row.className = 'nex-question-options';
@@ -51,8 +51,7 @@ export function renderQuestionOptions({ options, addMessage, container, onPick }
     button.addEventListener('click', () => {
       if (row.classList.contains('is-answered')) return;
       row.classList.add('is-answered');
-      addMessage(label, 'nex-user');
-      onPick(label);
+      onPick(label); // send(label) adds the user bubble itself — don't double it here
     });
     row.appendChild(button);
   });
@@ -1027,7 +1026,7 @@ export function createNexChatBar() {
       if (!data) throw new Error('Nex did not return a response.');
       showSuccessfulNexReply({ data, clearAttachment, addMessage, speak });
       if (data.question?.question && Array.isArray(data.question.options) && data.question.options.length) {
-        renderQuestionOptions({ options: data.question.options, addMessage, container: messagesEl, onPick: (choice) => send(choice) });
+        renderQuestionOptions({ options: data.question.options, container: messagesEl, onPick: (choice) => send(choice) });
       }
       if (data.navigation?.type === 'room' && typeof data.navigation.url === 'string' && window.NexusSpace) {
         // Room navigation belongs to the visual room switcher. The shared Nex
