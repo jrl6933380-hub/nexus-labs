@@ -767,31 +767,50 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
     const tileGap = Math.max(8, Math.floor((view.width - 24 - tileWidth * 3) / 2));
 
     if (mobile) {
-      const visible = resolveVisibleItems([...panels.keys()], folders);
+      let visible;
+      try {
+        visible = resolveVisibleItems([...panels.keys()], folders);
+      } catch (error) {
+        // A malformed folders object (e.g. leftover localStorage data
+        // from before this feature was fully working) must never blank
+        // the whole home screen. Self-heal: drop the corrupted grouping
+        // and fall back to every tile shown plainly, which is always
+        // renderable since it doesn't depend on folders at all.
+        console.error('resolveVisibleItems failed on corrupted folder data -- clearing it and showing plain tiles:', error);
+        folders = {};
+        saveFolders();
+        visible = [...panels.keys()].map((id) => ({ id, isFolder: false }));
+      }
       for (const entry of panels.values()) entry.el.hidden = true;
       for (const el of folderElements.values()) el.hidden = true;
       let panelIndex = 0;
       for (const item of visible) {
-        const column = panelIndex % 3;
-        const row = Math.floor(panelIndex / 3);
-        const left = `${12 + column * (tileWidth + tileGap)}px`;
-        const top = `${Math.max(92, 76 + row * 116)}px`;
-        if (item.isFolder) {
-          folderRegistry.set(item.id, item);
-          const el = getOrCreateFolderElement(item);
-          el.style.setProperty('--nx-mobile-tile-left', left);
-          el.style.setProperty('--nx-mobile-tile-top', top);
-          const badge = el.querySelector('.nexus-canvas-folder-count');
-          if (badge) badge.textContent = String(item.children.length);
-          el.hidden = false;
-          el.classList.toggle('is-jiggling', editMode);
-        } else {
-          const entry = panels.get(item.id);
-          if (!entry) continue;
-          entry.el.style.setProperty('--nx-mobile-tile-left', left);
-          entry.el.style.setProperty('--nx-mobile-tile-top', top);
-          applyRect(entry.el, entry.mobileRect || entry.remoteRect, panelIndex, !entry.mobileRect);
-          entry.el.hidden = false;
+        try {
+          const column = panelIndex % 3;
+          const row = Math.floor(panelIndex / 3);
+          const left = `${12 + column * (tileWidth + tileGap)}px`;
+          const top = `${Math.max(92, 76 + row * 116)}px`;
+          if (item.isFolder) {
+            folderRegistry.set(item.id, item);
+            const el = getOrCreateFolderElement(item);
+            el.style.setProperty('--nx-mobile-tile-left', left);
+            el.style.setProperty('--nx-mobile-tile-top', top);
+            const badge = el.querySelector('.nexus-canvas-folder-count');
+            if (badge) badge.textContent = String(item.children.length);
+            el.hidden = false;
+            el.classList.toggle('is-jiggling', editMode);
+          } else {
+            const entry = panels.get(item.id);
+            if (!entry) continue;
+            entry.el.style.setProperty('--nx-mobile-tile-left', left);
+            entry.el.style.setProperty('--nx-mobile-tile-top', top);
+            applyRect(entry.el, entry.mobileRect || entry.remoteRect, panelIndex, !entry.mobileRect);
+            entry.el.hidden = false;
+          }
+        } catch (error) {
+          // One bad tile (folder or plain) must never take the rest of
+          // the home screen down with it -- skip it, log it, keep going.
+          console.error(`Failed to render tile "${item?.id}", skipping it:`, error);
         }
         panelIndex += 1;
       }
