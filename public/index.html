@@ -278,6 +278,60 @@
   }
   loadVentures();
 
+  // "All Apps" drawer. Every app lives here permanently; the checkbox
+  // controls whether it ALSO gets a home-screen tile. Taps only --
+  // no long-press, no drag, no gesture handling anywhere in this
+  // feature.
+  const drawer = document.createElement('div');
+  drawer.id = 'nexus-app-drawer';
+  drawer.innerHTML = '<div class="nexus-app-drawer-sheet"><div class="nexus-app-drawer-title">All Apps</div><div class="nexus-app-drawer-hint">Uncheck an app to remove its tile from the home screen. Nothing is deleted — everything stays here.</div><div class="nexus-app-drawer-list"></div><button type="button" class="nexus-app-drawer-close">Done</button></div>';
+  drawer.addEventListener('click', (event) => {
+    if (event.target === drawer) drawer.classList.remove('is-open');
+  });
+  drawer.querySelector('.nexus-app-drawer-close').addEventListener('click', () => {
+    drawer.classList.remove('is-open');
+    // Re-render so toggles take effect immediately rather than
+    // needing a manual refresh.
+    window.location.reload();
+  });
+  document.body.appendChild(drawer);
+
+  function openAppDrawer() {
+    const list = drawer.querySelector('.nexus-app-drawer-list');
+    list.innerHTML = '';
+    for (const app of allApps) {
+      const row = document.createElement('label');
+      row.className = 'nexus-app-drawer-row';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = !isHidden(app.id);
+      checkbox.addEventListener('change', () => {
+        if (checkbox.checked) hiddenApps.delete(app.id);
+        else hiddenApps.add(app.id);
+        saveHiddenApps();
+      });
+      const name = document.createElement('span');
+      name.className = 'nexus-app-drawer-name';
+      name.textContent = app.title;
+      const open = document.createElement('a');
+      open.className = 'nexus-app-drawer-open';
+      open.href = app.href;
+      open.textContent = 'Open →';
+      open.addEventListener('click', (event) => event.stopPropagation());
+      row.append(checkbox, name, open);
+      list.appendChild(row);
+    }
+    drawer.classList.add('is-open');
+  }
+
+  canvas.addPanel({
+    id: 'all-apps',
+    title: 'All Apps',
+    content: document.createElement('div'),
+    x: 80, y: 810, w: 96, h: 108,
+    onActivate: openAppDrawer,
+  });
+
   // Builds a short, human summary of a system_status object (from
   // lib/systemMonitor.js, which piggybacks on this same poll) without
   // needing a server-formatted string — just the counts already present.
