@@ -18,6 +18,7 @@
 
 import {
   readBoard,
+  getTaskById,
   createTask,
   claimTask,
   updateProgress,
@@ -75,6 +76,20 @@ const NEXUS_PUBLIC_URL = process.env.NEXUS_PUBLIC_URL || 'https://nexus-labs-sig
 
 async function handleBoard(req, res) {
   if (req.method === 'GET') {
+    // task_id is a lightweight single-task lookup that bypasses the
+    // full board assembly below entirely — added so a caller whose
+    // read_board dump gets cut off before reaching a task's full
+    // description/result text has a direct way to fetch just that one
+    // task's complete record instead of paging through everything.
+    if (req.query?.task_id) {
+      try {
+        const task = await getTaskById(req.query.task_id);
+        return res.status(200).json({ task });
+      } catch (err) {
+        return res.status(404).json({ error: err.message });
+      }
+    }
+
     // canvas_id is optional — omitted defaults to the 'dashboard'
     // canvas (the homepage), so every existing caller that doesn't
     // know canvases are now plural keeps working unchanged.
