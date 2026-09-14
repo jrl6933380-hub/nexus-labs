@@ -180,6 +180,35 @@
     try { if (localStorage.getItem(key) === null) localStorage.setItem(key, '1'); } catch {}
   }
 
+  // Home-screen visibility. Every app always exists and is always
+  // reachable from the All Apps drawer -- this only controls which
+  // ones also get a tile on the home screen itself, so hiding
+  // something can never strand it. Personal + per-device
+  // (localStorage), same as the backdrop and collapsed-state
+  // preferences the canvas engine already keeps.
+  //
+  // Deliberately implemented as a filter at REGISTRATION time rather
+  // than hiding already-rendered tiles: a hidden app is simply never
+  // added to the canvas, so this cannot interact with the engine's
+  // render/layout loop at all.
+  const HIDDEN_KEY = 'nexus-hidden-apps:dashboard';
+  let hiddenApps = new Set();
+  try {
+    const saved = JSON.parse(localStorage.getItem(HIDDEN_KEY));
+    if (Array.isArray(saved)) hiddenApps = new Set(saved);
+  } catch {}
+  function saveHiddenApps() {
+    try { localStorage.setItem(HIDDEN_KEY, JSON.stringify([...hiddenApps])); } catch {}
+  }
+  const isHidden = (id) => hiddenApps.has(id);
+
+  // Everything registered this load, so the drawer can list apps it
+  // didn't hardcode (ventures are loaded async from /api/ventures).
+  const allApps = [];
+  function registerApp(app) {
+    allApps.push(app);
+  }
+
   // Board summary panel — task counts + recent messages.
   const summaryBody = document.createElement('div');
   summaryBody.className = 'board-summary';
@@ -193,6 +222,8 @@
   canvas.addPanel({ id: 'agent-list', title: 'Agent Network', content: agentBody, x: 780, y: 80, w: 300, h: 280 });
 
   ROOMS.forEach((room, i) => {
+    registerApp({ id: room.id, title: room.title, href: room.href });
+    if (isHidden(room.id)) return;
     canvas.addPanel({ id: room.id, title: room.title, content: document.createElement('div'), href: room.href, x: 80 + i * 108, y: 460, w: 96, h: 108 });
   });
 
