@@ -974,6 +974,7 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
     const toggle = el.querySelector('.nexus-canvas-panel-toggle');
     toggle.addEventListener('pointerdown', (event) => {
       event.stopPropagation();
+      event.preventDefault();
       if (event.button !== 0) return;
       longPressFired = false;
       const startRect = el.getBoundingClientRect();
@@ -1138,6 +1139,7 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
       let tileDrag = null;
       toggle.addEventListener('pointerdown', (event) => {
         event.stopPropagation();
+        event.preventDefault();
         if (event.button !== 0) return;
         tileLongPressFired = false;
         const startRect = el.getBoundingClientRect();
