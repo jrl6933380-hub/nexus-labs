@@ -261,6 +261,8 @@
         const id = `venture-${venture.id}`;
         const key = `nexus-panel-collapsed:dashboard:${id}`;
         try { if (localStorage.getItem(key) === null) localStorage.setItem(key, '1'); } catch {}
+        registerApp({ id, title: venture.name, href: venture.url });
+        if (isHidden(id)) return;
         canvas.addPanel({
           id,
           title: venture.name,
