@@ -8,10 +8,17 @@
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   html, body { margin: 0; padding: 0; height: 100%; background: #05070c; }
-  .notes-panel { padding: 14px; font: 13px/1.5 Inter, -apple-system, sans-serif; color: #e8eefb; height: 100%; box-sizing: border-box; }
+  .notes-panel { padding: 14px; font: 13px/1.5 Inter, -apple-system, sans-serif; color: #e8eefb; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; }
   .notes-panel textarea {
-    width: 100%; height: calc(100% - 10px); resize: none; border: none; outline: none;
+    width: 100%; flex: 1; resize: none; border: none; outline: none;
     background: transparent; color: #e8eefb; font: 13px/1.6 Inter, -apple-system, sans-serif;
+  }
+  .section-status { flex: 0 0 auto; min-height: 14px; padding-top: 6px; color: #5e6b81; font: 500 10px 'JetBrains Mono', monospace; }
+  #add-section-btn {
+    position: fixed; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); z-index: 10000;
+    background: #4b8dff18; border: 1px solid #4b8dff77; color: #58d7ff; border-radius: 10px;
+    padding: 11px 16px; font: 700 11px 'JetBrains Mono', monospace; letter-spacing: 0.04em;
+    backdrop-filter: blur(12px); cursor: pointer;
   }
   .canvas-title-bar {
     position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 10000;
@@ -61,6 +68,7 @@
 </head>
 <body>
 <script type="module">
+  import '/browser-error-reporter.js?v=20260913-1';
   import { mountCanvas } from '/canvas-engine.js?v=20260913-2';
 
   const params = new URLSearchParams(location.search);
@@ -97,16 +105,117 @@
 
   const canvas = mountCanvas({ canvasId, canvasTitle: canvasName });
 
-  // Every new venture canvas starts with one blank notes panel — a
-  // real, usable starting point rather than an empty room with
-  // nothing to do. More panel types are a natural next step once this
-  // shape is confirmed to work.
-  const notesWrap = document.createElement('div');
-  notesWrap.className = 'notes-panel';
-  const textarea = document.createElement('textarea');
-  textarea.placeholder = 'Notes for this venture…';
-  notesWrap.appendChild(textarea);
-  canvas.addPanel({ id: 'notes', title: 'Notes', content: notesWrap, x: 80, y: 100, w: 420, h: 320 });
+  // Default workspace sections for a venture. These are the lenses
+  // Justin actually wants on a venture -- what to build next, how to
+  // make it money, how to sell it, and the technical view -- rather
+  // than one undifferentiated notes box. "Add section" below lets him
+  // create his own beyond these.
+  const DEFAULT_SECTIONS = [
+    { id: 'upgrades', title: 'Upgrades & Optimization', placeholder: 'What to build or improve next\u2026' },
+    { id: 'profitability', title: 'Profitability', placeholder: 'Pricing, margins, ways to make this more profitable\u2026' },
+    { id: 'marketing', title: 'Marketing & Growth', placeholder: 'Positioning, channels, campaigns, who this is for\u2026' },
+    { id: 'dev', title: 'Developer View', placeholder: 'Architecture, technical debt, integrations, gotchas\u2026' },
+  ];
+
+  // Server-side (not localStorage) so Nex can read and contribute to
+  // these too, and so they survive switching devices. The previous
+  // Notes panel here had a textarea wired to nothing at all -- typing
+  // in it and reloading silently lost everything, which is why this
+  // planning ended up living in Board tasks instead.
+  async function saveSection(sectionId, title, body) {
+    try {
+      await fetch('/api/board', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set_canvas_section', canvas_id: canvasId, id: sectionId, title, body }),
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  let savedSections = {};
+  try {
+    const res = await fetch(`/api/board?canvas_id=${encodeURIComponent(canvasId)}`, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      savedSections = data?.canvas?.sections || {};
+    }
+  } catch {
+    // An unreachable API shouldn't leave a blank unusable room -- the
+    // default sections still render, just empty.
+  }
+
+  function buildSectionPanel({ id, title, placeholder, body }, index) {
+    const wrap = document.createElement('div');
+    wrap.className = 'notes-panel';
+
+    const status = document.createElement('div');
+    status.className = 'section-status';
+
+    const textarea = document.createElement('textarea');
+    textarea.placeholder = placeholder || 'Notes\u2026';
+    textarea.value = body || '';
+
+    // Debounced autosave -- no save button to forget to press, but
+    // also not a write on every keystroke.
+    let saveTimer = null;
+    textarea.addEventListener('input', () => {
+      status.textContent = 'Saving\u2026';
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(async () => {
+        const ok = await saveSection(id, title, textarea.value);
+        status.textContent = ok ? 'Saved' : 'Save failed \u2014 check connection';
+        if (ok) setTimeout(() => { if (status.textContent === 'Saved') status.textContent = ''; }, 2000);
+      }, 700);
+    });
+
+    wrap.append(textarea, status);
+    const column = index % 2;
+    const row = Math.floor(index / 2);
+    canvas.addPanel({
+      id: `section-${id}`,
+      title,
+      content: wrap,
+      x: 60 + column * 460,
+      y: 100 + row * 360,
+      w: 420,
+      h: 320,
+    });
+  }
+
+  // Defaults first (stable order), then any custom sections added
+  // later, so the layout doesn't reshuffle as sections get added.
+  const rendered = new Set();
+  DEFAULT_SECTIONS.forEach((section, i) => {
+    rendered.add(section.id);
+    buildSectionPanel({ ...section, body: savedSections[section.id]?.body }, i);
+  });
+  Object.values(savedSections)
+    .filter((section) => section && section.id && !rendered.has(section.id))
+    .forEach((section, i) => {
+      buildSectionPanel(
+        { id: section.id, title: section.title || section.id, body: section.body },
+        DEFAULT_SECTIONS.length + i,
+      );
+    });
+
+  const addSectionBtn = document.createElement('button');
+  addSectionBtn.id = 'add-section-btn';
+  addSectionBtn.type = 'button';
+  addSectionBtn.textContent = '+ Add section';
+  addSectionBtn.addEventListener('click', async () => {
+    const title = window.prompt('Name this section');
+    if (!title || !title.trim()) return;
+    const trimmed = title.trim();
+    const id = trimmed.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)
+      || `section-${Date.now()}`;
+    const ok = await saveSection(id, trimmed, '');
+    if (ok) window.location.reload();
+    else window.alert('Could not create that section \u2014 check your connection and try again.');
+  });
+  document.body.appendChild(addSectionBtn);
 
   const control = document.createElement('details');
   control.id = 'nexus-canvas-backdrop-control';
