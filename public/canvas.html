@@ -13,7 +13,14 @@
     width: 100%; flex: 1; resize: none; border: none; outline: none;
     background: transparent; color: #e8eefb; font: 13px/1.6 Inter, -apple-system, sans-serif;
   }
-  .section-status { flex: 0 0 auto; min-height: 14px; padding-top: 6px; color: #5e6b81; font: 500 10px 'JetBrains Mono', monospace; }
+  .section-status { flex: 0 0 auto; min-height: 14px; color: #5e6b81; font: 500 10px 'JetBrains Mono', monospace; }
+  .section-footer { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 8px; }
+  .ask-nex-btn {
+    flex: 0 0 auto; background: #4b8dff14; border: 1px solid #4b8dff55; color: #58d7ff;
+    border-radius: 8px; padding: 7px 11px; font: 700 10px 'JetBrains Mono', monospace;
+    letter-spacing: 0.03em; cursor: pointer;
+  }
+  .ask-nex-btn:hover { background: #4b8dff2e; }
   #add-section-btn {
     position: fixed; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); z-index: 10000;
     background: #4b8dff18; border: 1px solid #4b8dff77; color: #58d7ff; border-radius: 10px;
@@ -70,6 +77,11 @@
 <script type="module">
   import '/browser-error-reporter.js?v=20260913-1';
   import { mountCanvas } from '/canvas-engine.js?v=20260913-2';
+  // The venture rooms were the one place Nex wasn't available, which
+  // is exactly where strategy conversations belong. Every other room
+  // (dashboard, queue, memory, tenants, conference, connectors,
+  // room builder) already loads this dock.
+  import '/nex-chat-bar.js?v=20260912-2';
 
   const params = new URLSearchParams(location.search);
   const canvasId = params.get('id');
@@ -154,6 +166,23 @@
     const status = document.createElement('div');
     status.className = 'section-status';
 
+    // Hands Nex this section's ACTUAL current text, not just its name,
+    // so the conversation starts grounded in what's written rather
+    // than him having to ask what the section is about. Reads
+    // textarea.value live (not the saved copy) so unsaved edits are
+    // included too.
+    const askNex = document.createElement('button');
+    askNex.type = 'button';
+    askNex.className = 'ask-nex-btn';
+    askNex.textContent = 'Ask Nex about this \u2192';
+    askNex.addEventListener('click', () => {
+      const current = textarea.value.trim();
+      const prompt = current
+        ? `I'm working on the "${title}" section of the ${canvasName} venture. Here's what I have so far:\n\n${current}\n\nHelp me think this through \u2014 what's missing, what would you push on, and what would you do next?`
+        : `I'm working on the "${title}" section of the ${canvasName} venture and it's still empty. Help me figure out what belongs here \u2014 ask me whatever you need to know first.`;
+      window.dispatchEvent(new CustomEvent('nexus:nex-prompt', { detail: { text: prompt } }));
+    });
+
     const textarea = document.createElement('textarea');
     textarea.placeholder = placeholder || 'Notes\u2026';
     textarea.value = body || '';
@@ -171,7 +200,10 @@
       }, 700);
     });
 
-    wrap.append(textarea, status);
+    const footer = document.createElement('div');
+    footer.className = 'section-footer';
+    footer.append(status, askNex);
+    wrap.append(textarea, footer);
     const column = index % 2;
     const row = Math.floor(index / 2);
     canvas.addPanel({
