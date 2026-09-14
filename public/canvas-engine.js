@@ -457,6 +457,127 @@ function injectStyles() {
     }
     @media (prefers-reduced-motion: reduce) {
       #nexus-canvas-backdrop, .nexus-canvas-panel { transition: none; }
+      .nexus-canvas-panel.is-jiggling { animation: none !important; }
+    }
+
+    /* Long-press-to-rearrange ("jiggle mode"), same idea as the iOS
+       home screen: every foldable tile wiggles so it's clear the
+       screen is in edit mode, and a Done pill appears to exit it. */
+    @keyframes nexus-tile-jiggle {
+      0%, 100% { transform: rotate(-1.5deg); }
+      50% { transform: rotate(1.5deg); }
+    }
+    .nexus-canvas-panel.is-jiggling {
+      animation: nexus-tile-jiggle 0.22s ease-in-out infinite;
+      animation-delay: calc(var(--nx-jiggle-offset, 0) * 1s);
+    }
+    .nexus-canvas-panel.is-fold-target .nexus-canvas-panel-title::before {
+      box-shadow: 0 0 0 3px var(--nx-accent), inset 0 1px rgba(255,255,255,.18), 0 12px 28px rgba(0,0,0,.42) !important;
+    }
+    #nexus-canvas-edit-done {
+      position: fixed;
+      top: max(14px, env(safe-area-inset-top));
+      right: 14px;
+      z-index: 500;
+      background: var(--nx-accent);
+      color: #04121f;
+      border: 0;
+      border-radius: 999px;
+      font: 700 13px var(--nx-sans);
+      padding: 8px 18px;
+      display: none;
+    }
+    #nexus-canvas-root.nexus-canvas-edit-mode #nexus-canvas-edit-done { display: block; }
+    .nexus-canvas-folder-count {
+      position: absolute;
+      top: -2px;
+      right: -2px;
+      min-width: 19px;
+      height: 19px;
+      padding: 0 4px;
+      border-radius: 999px;
+      background: var(--nx-danger);
+      color: #2a060b;
+      font: 700 11px var(--nx-mono);
+      display: grid;
+      place-items: center;
+    }
+    #nexus-canvas-folder-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 600;
+      background: rgba(7, 10, 15, .82);
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+    }
+    #nexus-canvas-folder-overlay.is-open { display: flex; }
+    .nexus-canvas-folder-sheet {
+      width: 100%;
+      max-width: 480px;
+      background: var(--nx-surface-raised);
+      border-top-left-radius: 22px;
+      border-top-right-radius: 22px;
+      border: 1px solid var(--nx-line);
+      padding: 18px 16px max(18px, env(safe-area-inset-bottom));
+      max-height: 72vh;
+      overflow-y: auto;
+    }
+    .nexus-canvas-folder-sheet-title {
+      font: 700 15px var(--nx-sans);
+      color: var(--nx-text);
+      margin-bottom: 14px;
+      text-align: center;
+    }
+    .nexus-canvas-folder-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+    .nexus-canvas-folder-item {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      background: none;
+      border: 0;
+      color: var(--nx-text);
+      font: 600 11px var(--nx-sans);
+      text-align: center;
+    }
+    .nexus-canvas-folder-item-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      font: 700 21px var(--nx-mono);
+      color: #eff9ff;
+    }
+    .nexus-canvas-folder-item-remove {
+      position: absolute;
+      top: -6px;
+      right: 6px;
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      background: var(--nx-danger);
+      color: #2a060b;
+      border: 2px solid var(--nx-surface-raised);
+      font: 700 13px var(--nx-mono);
+      display: grid;
+      place-items: center;
+    }
+    .nexus-canvas-folder-close {
+      display: block;
+      margin: 16px auto 0;
+      background: none;
+      border: 1px solid var(--nx-line-strong);
+      color: var(--nx-muted);
+      border-radius: 999px;
+      padding: 8px 22px;
+      font: 600 12px var(--nx-sans);
     }
   `;
   document.head.appendChild(style);
