@@ -19,7 +19,7 @@
 // setBackdropUrl) layers on top of this same atmosphere rather than
 // replacing it outright.
 
-import { clampPosition, defaultMobileRect, finalizeResize } from './canvas-geometry.js';
+import { clampPosition, defaultMobileRect, finalizeResize, foldTiles, unfoldTile, resolveVisibleItems } from './canvas-geometry.js';
 
 const POLL_INTERVAL_MS = 4000;
 const DEFAULT_CANVAS_ID = 'dashboard';
