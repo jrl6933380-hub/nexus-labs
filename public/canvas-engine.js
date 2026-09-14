@@ -739,21 +739,44 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
     const view = interactionViewport();
     const tileWidth = 96;
     const tileGap = Math.max(8, Math.floor((view.width - 24 - tileWidth * 3) / 2));
-    let panelIndex = 0;
-    for (const entry of panels.values()) {
-      if (mobile) {
+
+    if (mobile) {
+      const visible = resolveVisibleItems([...panels.keys()], folders);
+      for (const entry of panels.values()) entry.el.hidden = true;
+      for (const el of folderElements.values()) el.hidden = true;
+      let panelIndex = 0;
+      for (const item of visible) {
         const column = panelIndex % 3;
         const row = Math.floor(panelIndex / 3);
-        entry.el.style.setProperty('--nx-mobile-tile-left', `${12 + column * (tileWidth + tileGap)}px`);
-        entry.el.style.setProperty('--nx-mobile-tile-top', `${Math.max(92, 76 + row * 116)}px`);
-        applyRect(entry.el, entry.mobileRect || entry.remoteRect, panelIndex, !entry.mobileRect);
-      } else {
+        const left = `${12 + column * (tileWidth + tileGap)}px`;
+        const top = `${Math.max(92, 76 + row * 116)}px`;
+        if (item.isFolder) {
+          folderRegistry.set(item.id, item);
+          const el = getOrCreateFolderElement(item);
+          el.style.setProperty('--nx-mobile-tile-left', left);
+          el.style.setProperty('--nx-mobile-tile-top', top);
+          const badge = el.querySelector('.nexus-canvas-folder-count');
+          if (badge) badge.textContent = String(item.children.length);
+          el.hidden = false;
+          el.classList.toggle('is-jiggling', editMode);
+        } else {
+          const entry = panels.get(item.id);
+          if (!entry) continue;
+          entry.el.style.setProperty('--nx-mobile-tile-left', left);
+          entry.el.style.setProperty('--nx-mobile-tile-top', top);
+          applyRect(entry.el, entry.mobileRect || entry.remoteRect, panelIndex, !entry.mobileRect);
+          entry.el.hidden = false;
+        }
+        panelIndex += 1;
+      }
+    } else {
+      for (const entry of panels.values()) {
         entry.el.style.removeProperty('--nx-mobile-tile-left');
         entry.el.style.removeProperty('--nx-mobile-tile-top');
         applyRect(entry.el, entry.remoteRect);
+        entry.el.hidden = false;
       }
-      entry.el.hidden = false;
-      panelIndex += 1;
+      for (const el of folderElements.values()) el.hidden = true;
     }
   }
 
