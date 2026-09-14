@@ -5,8 +5,8 @@ import { getRoom, listRooms } from '../lib/rooms.js';
 test('built-in Nexus rooms stay available without the remote registry', async () => {
   const rooms = await listRooms({ fetchRemote: false });
   assert.deepEqual(rooms.map((room) => room.slug), [
-    'command-center', 'conference-room', 'room-builder', 'story-studio', 'memory-archive',
-    'approval-queue', 'connector-bay', 'tenant-hub',
+    'command-center', 'conference-room', 'room-builder', 'forge-field', 'forge-ops',
+    'story-studio', 'memory-archive', 'approval-queue', 'connector-bay', 'tenant-hub',
   ]);
 });
 
@@ -30,6 +30,8 @@ test('every built-in room has one direct isolated destination', async () => {
     'command-center': '/mission-control.html',
     'conference-room': '/conference-room.html',
     'room-builder': '/room.html',
+    'forge-field': '/forge-caller.html',
+    'forge-ops': '/forge-dashboard.html',
     'story-studio': '/story-studio.html',
     'memory-archive': '/memory.html',
     'approval-queue': '/queue.html',
