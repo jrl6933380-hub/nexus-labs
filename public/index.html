@@ -121,10 +121,92 @@
     .board-summary, .agent-list, .room-list { padding: 16px; }
     .room-list a.room-link { min-height: 50px; }
   }
+
+  #nexus-app-drawer {
+    position: fixed;
+    inset: 0;
+    z-index: 9000;
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    background: rgba(5, 7, 12, .84);
+  }
+  #nexus-app-drawer.is-open { display: flex; }
+  .nexus-app-drawer-sheet {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 520px;
+    max-height: 82vh;
+    overflow-y: auto;
+    padding: 20px 16px max(20px, env(safe-area-inset-bottom));
+    border: 1px solid #26334d;
+    border-top-left-radius: 22px;
+    border-top-right-radius: 22px;
+    background: #111827;
+  }
+  .nexus-app-drawer-title {
+    margin-bottom: 6px;
+    color: #e8eefb;
+    font: 700 16px Inter, sans-serif;
+    text-align: center;
+  }
+  .nexus-app-drawer-hint {
+    margin-bottom: 16px;
+    color: #91a0b9;
+    font: 400 12px/1.45 Inter, sans-serif;
+    text-align: center;
+  }
+  .nexus-app-drawer-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 13px;
+    margin-bottom: 8px;
+    border: 1px solid #26334d;
+    border-radius: 11px;
+    background: #ffffff05;
+  }
+  .nexus-app-drawer-row input[type="checkbox"] {
+    flex: 0 0 auto;
+    width: 20px;
+    height: 20px;
+    accent-color: #4b8dff;
+  }
+  .nexus-app-drawer-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #e8eefb;
+    font: 600 14px Inter, sans-serif;
+  }
+  .nexus-app-drawer-open {
+    flex: 0 0 auto;
+    color: #58d7ff;
+    font: 600 12px 'JetBrains Mono', monospace;
+    text-decoration: none;
+  }
+  .nexus-app-drawer-close {
+    display: block;
+    width: 100%;
+    margin-top: 14px;
+    padding: 13px;
+    border: 1px solid #4b8dff77;
+    border-radius: 11px;
+    background: #4b8dff18;
+    color: #58d7ff;
+    font: 700 13px Inter, sans-serif;
+  }
 </style>
 </head>
 <body>
 <script type="module">
+  // FIRST import on purpose -- this registers the global error and
+  // unhandledrejection handlers before any other module runs, so a
+  // module that throws at import time (the failure mode that blanks
+  // the whole screen) still gets reported to Sentry.
+  import '/browser-error-reporter.js?v=20260913-1';
   import { mountCanvas } from '/canvas-engine.js?v=20260913-2';
   import '/nex-chat-bar.js?v=20260912-2';
 
@@ -170,9 +252,38 @@
   // These are pure link/action tiles with nothing meaningful to expand
   // into — always start collapsed (icon-only), on every viewport, not
   // just mobile.
-  for (const id of [...ROOMS.map((r) => r.id), 'new-venture']) {
+  for (const id of [...ROOMS.map((r) => r.id), 'new-venture', 'all-apps']) {
     const key = `nexus-panel-collapsed:dashboard:${id}`;
     try { if (localStorage.getItem(key) === null) localStorage.setItem(key, '1'); } catch {}
+  }
+
+  // Home-screen visibility. Every app always exists and is always
+  // reachable from the All Apps drawer -- this only controls which
+  // ones also get a tile on the home screen itself, so hiding
+  // something can never strand it. Personal + per-device
+  // (localStorage), same as the backdrop and collapsed-state
+  // preferences the canvas engine already keeps.
+  //
+  // Deliberately implemented as a filter at REGISTRATION time rather
+  // than hiding already-rendered tiles: a hidden app is simply never
+  // added to the canvas, so this cannot interact with the engine's
+  // render/layout loop at all.
+  const HIDDEN_KEY = 'nexus-hidden-apps:dashboard';
+  let hiddenApps = new Set();
+  try {
+    const saved = JSON.parse(localStorage.getItem(HIDDEN_KEY));
+    if (Array.isArray(saved)) hiddenApps = new Set(saved);
+  } catch {}
+  function saveHiddenApps() {
+    try { localStorage.setItem(HIDDEN_KEY, JSON.stringify([...hiddenApps])); } catch {}
+  }
+  const isHidden = (id) => hiddenApps.has(id);
+
+  // Everything registered this load, so the drawer can list apps it
+  // didn't hardcode (ventures are loaded async from /api/ventures).
+  const allApps = [];
+  function registerApp(app) {
+    allApps.push(app);
   }
 
   // Board summary panel — task counts + recent messages.
@@ -188,6 +299,8 @@
   canvas.addPanel({ id: 'agent-list', title: 'Agent Network', content: agentBody, x: 780, y: 80, w: 300, h: 280 });
 
   ROOMS.forEach((room, i) => {
+    registerApp({ id: room.id, title: room.title, href: room.href });
+    if (isHidden(room.id)) return;
     canvas.addPanel({ id: room.id, title: room.title, content: document.createElement('div'), href: room.href, x: 80 + i * 108, y: 460, w: 96, h: 108 });
   });
 
@@ -225,6 +338,8 @@
         const id = `venture-${venture.id}`;
         const key = `nexus-panel-collapsed:dashboard:${id}`;
         try { if (localStorage.getItem(key) === null) localStorage.setItem(key, '1'); } catch {}
+        registerApp({ id, title: venture.name, href: venture.url });
+        if (isHidden(id)) return;
         canvas.addPanel({
           id,
           title: venture.name,
@@ -239,6 +354,60 @@
     }
   }
   loadVentures();
+
+  // "All Apps" drawer. Every app lives here permanently; the checkbox
+  // controls whether it ALSO gets a home-screen tile. Taps only --
+  // no long-press, no drag, no gesture handling anywhere in this
+  // feature.
+  const drawer = document.createElement('div');
+  drawer.id = 'nexus-app-drawer';
+  drawer.innerHTML = '<div class="nexus-app-drawer-sheet"><div class="nexus-app-drawer-title">All Apps</div><div class="nexus-app-drawer-hint">Uncheck an app to remove its tile from the home screen. Nothing is deleted — everything stays here.</div><div class="nexus-app-drawer-list"></div><button type="button" class="nexus-app-drawer-close">Done</button></div>';
+  drawer.addEventListener('click', (event) => {
+    if (event.target === drawer) drawer.classList.remove('is-open');
+  });
+  drawer.querySelector('.nexus-app-drawer-close').addEventListener('click', () => {
+    drawer.classList.remove('is-open');
+    // Re-render so toggles take effect immediately rather than
+    // needing a manual refresh.
+    window.location.reload();
+  });
+  document.body.appendChild(drawer);
+
+  function openAppDrawer() {
+    const list = drawer.querySelector('.nexus-app-drawer-list');
+    list.innerHTML = '';
+    for (const app of allApps) {
+      const row = document.createElement('label');
+      row.className = 'nexus-app-drawer-row';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = !isHidden(app.id);
+      checkbox.addEventListener('change', () => {
+        if (checkbox.checked) hiddenApps.delete(app.id);
+        else hiddenApps.add(app.id);
+        saveHiddenApps();
+      });
+      const name = document.createElement('span');
+      name.className = 'nexus-app-drawer-name';
+      name.textContent = app.title;
+      const open = document.createElement('a');
+      open.className = 'nexus-app-drawer-open';
+      open.href = app.href;
+      open.textContent = 'Open →';
+      open.addEventListener('click', (event) => event.stopPropagation());
+      row.append(checkbox, name, open);
+      list.appendChild(row);
+    }
+    drawer.classList.add('is-open');
+  }
+
+  canvas.addPanel({
+    id: 'all-apps',
+    title: 'All Apps',
+    content: document.createElement('div'),
+    x: 80, y: 810, w: 96, h: 108,
+    onActivate: openAppDrawer,
+  });
 
   // Builds a short, human summary of a system_status object (from
   // lib/systemMonitor.js, which piggybacks on this same poll) without
