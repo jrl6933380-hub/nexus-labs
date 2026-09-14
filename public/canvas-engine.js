@@ -789,6 +789,206 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
   poll();
   const pollTimer = setInterval(poll, POLL_INTERVAL_MS);
 
+  // --- Folders & long-press rearrange mode (mobile home screen) ---
+  // Folders are a personal, per-device grouping (like the localStorage
+  // backdrop above) -- not shared canvas state, since two people
+  // looking at the same dashboard may want to organize it differently.
+  const foldersKey = `nexus-folders:${canvasId}`;
+  let folders = {};
+  try { folders = JSON.parse(localStorage.getItem(foldersKey)) || {}; } catch { folders = {}; }
+  function saveFolders() {
+    try { localStorage.setItem(foldersKey, JSON.stringify(folders)); } catch {}
+  }
+
+  let editMode = false;
+  function setEditMode(next) {
+    editMode = next;
+    root.classList.toggle('nexus-canvas-edit-mode', editMode);
+    for (const entry of panels.values()) {
+      if (entry.isLinkTile) entry.el.classList.toggle('is-jiggling', editMode);
+    }
+    for (const el of folderElements.values()) el.classList.toggle('is-jiggling', editMode);
+  }
+
+  let doneBtn = document.getElementById('nexus-canvas-edit-done');
+  if (!doneBtn) {
+    doneBtn = document.createElement('button');
+    doneBtn.id = 'nexus-canvas-edit-done';
+    doneBtn.type = 'button';
+    doneBtn.textContent = 'Done';
+    doneBtn.addEventListener('click', () => setEditMode(false));
+    root.appendChild(doneBtn);
+  }
+
+  // Finds which OTHER foldable tile (real or folder) the given point is
+  // currently over, for drop-to-fold. Hit tests actual on-screen rects
+  // rather than grid math, so it stays correct regardless of how the
+  // grid is laid out.
+  function findFoldTargetUnder(x, y, excludeId) {
+    for (const [id, entry] of panels) {
+      if (id === excludeId || entry.el.hidden || !entry.isLinkTile) continue;
+      const r = entry.el.getBoundingClientRect();
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return id;
+    }
+    for (const [id, el] of folderElements) {
+      if (id === excludeId || el.hidden) continue;
+      const r = el.getBoundingClientRect();
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return id;
+    }
+    return null;
+  }
+
+  let currentFoldTargetEl = null;
+  function setFoldHighlight(el) {
+    if (currentFoldTargetEl === el) return;
+    if (currentFoldTargetEl) currentFoldTargetEl.classList.remove('is-fold-target');
+    currentFoldTargetEl = el;
+    if (currentFoldTargetEl) currentFoldTargetEl.classList.add('is-fold-target');
+  }
+
+  function elementForId(id) {
+    return panels.get(id)?.el || folderElements.get(id) || null;
+  }
+
+  function promptRenameVenture(id, currentTitle) {
+    const nextName = window.prompt('Rename this venture', currentTitle);
+    if (!nextName || !nextName.trim() || nextName.trim() === currentTitle) return;
+    const trimmed = nextName.trim();
+    const entry = panels.get(id);
+    if (entry) entry.title = trimmed;
+    const titleLabel = entry?.el.querySelector('.nexus-canvas-panel-title');
+    if (titleLabel) titleLabel.textContent = trimmed;
+    fetch('/api/board', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'rename_canvas', canvas_id: id.replace(/^venture-/, ''), name: trimmed }),
+    }).catch(() => {});
+  }
+
+  const folderElements = new Map();
+  let folderOverlay = document.getElementById('nexus-canvas-folder-overlay');
+  if (!folderOverlay) {
+    folderOverlay = document.createElement('div');
+    folderOverlay.id = 'nexus-canvas-folder-overlay';
+    folderOverlay.innerHTML = '<div class="nexus-canvas-folder-sheet"><div class="nexus-canvas-folder-sheet-title"></div><div class="nexus-canvas-folder-grid"></div><button type="button" class="nexus-canvas-folder-close">Close</button></div>';
+    folderOverlay.addEventListener('click', (event) => {
+      if (event.target === folderOverlay) folderOverlay.classList.remove('is-open');
+    });
+    folderOverlay.querySelector('.nexus-canvas-folder-close').addEventListener('click', () => folderOverlay.classList.remove('is-open'));
+    root.appendChild(folderOverlay);
+  }
+
+  function openFolderOverlay(item) {
+    folderOverlay.querySelector('.nexus-canvas-folder-sheet-title').textContent = item.title || 'Folder';
+    const grid = folderOverlay.querySelector('.nexus-canvas-folder-grid');
+    grid.innerHTML = '';
+    for (const childId of item.children) {
+      const entry = panels.get(childId);
+      if (!entry) continue;
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'nexus-canvas-folder-item';
+      const iconEl = document.createElement('span');
+      iconEl.className = 'nexus-canvas-folder-item-icon';
+      iconEl.style.background = `linear-gradient(145deg, hsl(${entry.el.style.getPropertyValue('--nx-app-hue') || 207} 64% 43%), hsl(${entry.el.style.getPropertyValue('--nx-app-hue') || 207} 56% 14%))`;
+      iconEl.textContent = entry.el.querySelector('.nexus-canvas-panel-title')?.dataset.appIcon || 'N';
+      const label = document.createElement('span');
+      label.textContent = entry.title;
+      const removeBtn = document.createElement('span');
+      removeBtn.className = 'nexus-canvas-folder-item-remove';
+      removeBtn.textContent = '\u00d7';
+      removeBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        folders = unfoldTile(folders, childId);
+        saveFolders();
+        openFolderOverlay({ ...item, children: item.children.filter((id) => id !== childId) });
+        refreshPanels();
+      });
+      button.append(iconEl, label, removeBtn);
+      button.addEventListener('click', () => {
+        folderOverlay.classList.remove('is-open');
+        if (entry.href) window.location.href = entry.href;
+        else if (entry.onActivate) entry.onActivate();
+      });
+      grid.appendChild(button);
+    }
+    folderOverlay.classList.add('is-open');
+  }
+
+  function getOrCreateFolderElement(item) {
+    let el = folderElements.get(item.id);
+    if (el) return el;
+    el = document.createElement('div');
+    el.className = 'nexus-canvas-panel is-collapsed';
+    el.dataset.panelId = item.id;
+    let hue = 0;
+    for (const character of String(item.id)) hue = (hue * 31 + character.charCodeAt(0)) % 360;
+    el.style.setProperty('--nx-app-hue', String(hue));
+    el.innerHTML = `
+      <div class="nexus-canvas-panel-header">
+        <div class="nexus-canvas-panel-title-group">
+          <span class="nexus-canvas-panel-title" data-app-icon="\u25a6"></span>
+        </div>
+        <button type="button" class="nexus-canvas-panel-toggle" aria-label="Open folder"><span aria-hidden="true"></span></button>
+      </div>
+    `;
+    const countBadge = document.createElement('span');
+    countBadge.className = 'nexus-canvas-folder-count';
+    el.querySelector('.nexus-canvas-panel-title').appendChild(countBadge);
+    root.appendChild(el);
+
+    let drag = null;
+    let longPressTimer = null;
+    let longPressFired = false;
+    const toggle = el.querySelector('.nexus-canvas-panel-toggle');
+    toggle.addEventListener('pointerdown', (event) => {
+      event.stopPropagation();
+      if (event.button !== 0) return;
+      longPressFired = false;
+      const startRect = el.getBoundingClientRect();
+      longPressTimer = setTimeout(() => {
+        longPressFired = true;
+        setEditMode(true);
+        drag = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, startLeft: startRect.left, startTop: startRect.top };
+        toggle.setPointerCapture(event.pointerId);
+      }, 550);
+    });
+    toggle.addEventListener('pointermove', (event) => {
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      const dx = event.clientX - drag.startX;
+      const dy = event.clientY - drag.startY;
+      el.style.setProperty('--nx-mobile-tile-left', `${drag.startLeft + dx}px`);
+      el.style.setProperty('--nx-mobile-tile-top', `${drag.startTop + dy}px`);
+      setFoldHighlight(elementForId(findFoldTargetUnder(event.clientX, event.clientY, item.id)));
+    });
+    toggle.addEventListener('pointerup', (event) => {
+      clearTimeout(longPressTimer);
+      if (drag && drag.pointerId === event.pointerId) {
+        const targetId = findFoldTargetUnder(event.clientX, event.clientY, item.id);
+        setFoldHighlight(null);
+        drag = null;
+        if (targetId) {
+          folders = foldTiles(folders, item.id, targetId);
+          saveFolders();
+        }
+        refreshPanels();
+      }
+    });
+    toggle.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (longPressFired) { longPressFired = false; return; }
+      if (editMode) return;
+      const current = folderRegistry.get(item.id);
+      if (current) openFolderOverlay(current);
+    });
+
+    folderElements.set(item.id, el);
+    return el;
+  }
+
+  const folderRegistry = new Map();
+
   function addPanel({ id, title, content, x = 80, y = 80, w = 360, h = 280, locked = false, href = null, onActivate = null, progress = null }) {
     const el = document.createElement('div');
     el.className = 'nexus-canvas-panel';
