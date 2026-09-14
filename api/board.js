@@ -60,6 +60,7 @@ import {
   deletePanelLayout,
   createCanvas,
   deleteCanvas,
+  renameCanvas,
   listCanvases,
 } from '../lib/canvasState.js';
 import { maybeCheckSystemStatus } from '../lib/systemMonitor.js';
@@ -126,6 +127,13 @@ async function handleBoard(req, res) {
     if (action === 'delete_canvas_panel_layout') return res.status(200).json({ canvas: await deletePanelLayout(params) });
     if (action === 'create_canvas') return res.status(200).json({ canvas: await createCanvas(params) });
     if (action === 'delete_canvas') return res.status(200).json({ deleted: await deleteCanvas(params) });
+    if (action === 'rename_canvas') {
+      try {
+        return res.status(200).json({ canvas: await renameCanvas(params) });
+      } catch (err) {
+        return res.status(400).json({ error: err.message });
+      }
+    }
     if (action === 'list_canvases') return res.status(200).json({ canvases: await listCanvases() });
 
     return res.status(400).json({ error: `Unknown action: ${action}` });
