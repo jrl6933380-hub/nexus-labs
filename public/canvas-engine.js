@@ -369,6 +369,10 @@ function injectStyles() {
         box-shadow: none;
         backdrop-filter: none;
         overflow: visible;
+        touch-action: none;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-touch-callout: none;
       }
       #nexus-canvas-root .nexus-canvas-panel.is-collapsed .nexus-canvas-panel-header {
         display: grid;
@@ -421,6 +425,10 @@ function injectStyles() {
         border: 0;
         border-radius: 22px;
         opacity: 0;
+        touch-action: none;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-touch-callout: none;
       }
       #nexus-canvas-root .nexus-canvas-panel.is-collapsed:focus-within .nexus-canvas-panel-title::before {
         outline: 2px solid var(--nx-accent);
@@ -575,6 +583,16 @@ function injectStyles() {
       background: none;
       border: 1px solid var(--nx-line-strong);
       color: var(--nx-muted);
+      border-radius: 999px;
+      padding: 8px 22px;
+      font: 600 12px var(--nx-sans);
+    }
+    .nexus-canvas-folder-delete {
+      display: block;
+      margin: 16px auto 0;
+      background: none;
+      border: 1px solid var(--nx-danger);
+      color: var(--nx-danger);
       border-radius: 999px;
       padding: 8px 22px;
       font: 600 12px var(--nx-sans);
@@ -893,15 +911,26 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
   if (!folderOverlay) {
     folderOverlay = document.createElement('div');
     folderOverlay.id = 'nexus-canvas-folder-overlay';
-    folderOverlay.innerHTML = '<div class="nexus-canvas-folder-sheet"><div class="nexus-canvas-folder-sheet-title"></div><div class="nexus-canvas-folder-grid"></div><button type="button" class="nexus-canvas-folder-close">Close</button></div>';
+    folderOverlay.innerHTML = '<div class="nexus-canvas-folder-sheet"><div class="nexus-canvas-folder-sheet-title"></div><div class="nexus-canvas-folder-grid"></div><button type="button" class="nexus-canvas-folder-delete">Delete folder</button><button type="button" class="nexus-canvas-folder-close">Close</button></div>';
     folderOverlay.addEventListener('click', (event) => {
       if (event.target === folderOverlay) folderOverlay.classList.remove('is-open');
     });
     folderOverlay.querySelector('.nexus-canvas-folder-close').addEventListener('click', () => folderOverlay.classList.remove('is-open'));
+    // Deletes the whole folder in one step -- every child becomes a
+    // normal top-level tile again immediately, rather than needing to
+    // be removed one at a time via each item's own X.
+    folderOverlay.querySelector('.nexus-canvas-folder-delete').addEventListener('click', () => {
+      const openId = folderOverlay.dataset.openFolderId;
+      if (openId) delete folders[openId];
+      saveFolders();
+      folderOverlay.classList.remove('is-open');
+      refreshPanels();
+    });
     root.appendChild(folderOverlay);
   }
 
   function openFolderOverlay(item) {
+    folderOverlay.dataset.openFolderId = item.id;
     folderOverlay.querySelector('.nexus-canvas-folder-sheet-title').textContent = item.title || 'Folder';
     const grid = folderOverlay.querySelector('.nexus-canvas-folder-grid');
     grid.innerHTML = '';
@@ -966,6 +995,7 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
     const toggle = el.querySelector('.nexus-canvas-panel-toggle');
     toggle.addEventListener('pointerdown', (event) => {
       event.stopPropagation();
+      event.preventDefault();
       if (event.button !== 0) return;
       longPressFired = false;
       const startRect = el.getBoundingClientRect();
@@ -1130,6 +1160,7 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
       let tileDrag = null;
       toggle.addEventListener('pointerdown', (event) => {
         event.stopPropagation();
+        event.preventDefault();
         if (event.button !== 0) return;
         tileLongPressFired = false;
         const startRect = el.getBoundingClientRect();
