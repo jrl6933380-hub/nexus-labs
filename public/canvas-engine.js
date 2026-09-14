@@ -129,6 +129,14 @@ function injectStyles() {
       min-height: 120px;
       transition: border-color 160ms ease, box-shadow 160ms ease;
     }
+    /* Folded tiles are hidden via the native `hidden` attribute
+       (public/canvas-engine.js sets entry.el.hidden = true), but the
+       class rule above sets display:flex at equal CSS specificity to
+       the UA's own [hidden]{display:none} rule -- being injected later
+       in the cascade, it silently wins and the element stays visible
+       despite hidden being true. Same fix already used elsewhere in
+       this file for .nexus-build-feedback[hidden]. */
+    .nexus-canvas-panel[hidden] { display: none !important; }
     .nexus-canvas-panel.is-workspace-locked {
       inset: 0 !important;
       width: 100% !important;
