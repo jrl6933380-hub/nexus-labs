@@ -1077,7 +1077,7 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
       collapsed = isMobileViewport() && !locked;
     }
     if (locked) collapsed = false;
-    const entry = { el, dragging: false, resizing: false, collapsed, title, remoteRect: { x, y, w, h }, mobileRect };
+    const entry = { el, dragging: false, resizing: false, collapsed, title, remoteRect: { x, y, w, h }, mobileRect, isLinkTile: Boolean(href || onActivate), href, onActivate };
     panels.set(id, entry);
     el.classList.toggle('is-collapsed', collapsed);
 
@@ -1121,24 +1121,77 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
       }
     }
 
-    toggle.addEventListener('pointerdown', (event) => {
-      event.stopPropagation();
-    });
-    toggle.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      if (href) { window.location.href = href; return; }
-      if (onActivate) { onActivate(); return; }
-      if (!entry.collapsed) saveFinishedRect(currentRect());
-      entry.collapsed = !entry.collapsed;
-      el.classList.toggle('is-collapsed', entry.collapsed);
-      updateToggle();
-      try {
-        if (entry.collapsed) localStorage.setItem(`nexus-panel-collapsed:${canvasId}:${id}`, '1');
-        else localStorage.removeItem(`nexus-panel-collapsed:${canvasId}:${id}`);
-      } catch {}
-      applyRect(el, expandedRect());
-    });
+    const isLinkTile = Boolean(href || onActivate);
+    const isVenture = String(id).startsWith('venture-');
+
+    if (isLinkTile) {
+      let tileLongPressTimer = null;
+      let tileLongPressFired = false;
+      let tileDrag = null;
+      toggle.addEventListener('pointerdown', (event) => {
+        event.stopPropagation();
+        if (event.button !== 0) return;
+        tileLongPressFired = false;
+        const startRect = el.getBoundingClientRect();
+        tileLongPressTimer = setTimeout(() => {
+          tileLongPressFired = true;
+          setEditMode(true);
+          tileDrag = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, startLeft: startRect.left, startTop: startRect.top };
+          entry.dragging = true;
+          toggle.setPointerCapture(event.pointerId);
+        }, 550);
+      });
+      toggle.addEventListener('pointermove', (event) => {
+        if (!tileDrag || event.pointerId !== tileDrag.pointerId) return;
+        const dx = event.clientX - tileDrag.startX;
+        const dy = event.clientY - tileDrag.startY;
+        el.style.setProperty('--nx-mobile-tile-left', `${tileDrag.startLeft + dx}px`);
+        el.style.setProperty('--nx-mobile-tile-top', `${tileDrag.startTop + dy}px`);
+        setFoldHighlight(elementForId(findFoldTargetUnder(event.clientX, event.clientY, id)));
+      });
+      toggle.addEventListener('pointerup', (event) => {
+        clearTimeout(tileLongPressTimer);
+        if (tileDrag && tileDrag.pointerId === event.pointerId) {
+          const targetId = findFoldTargetUnder(event.clientX, event.clientY, id);
+          setFoldHighlight(null);
+          tileDrag = null;
+          entry.dragging = false;
+          if (targetId) {
+            folders = foldTiles(folders, id, targetId);
+            saveFolders();
+          }
+          refreshPanels();
+        }
+      });
+      toggle.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (tileLongPressFired) { tileLongPressFired = false; return; }
+        if (editMode) {
+          if (isVenture) promptRenameVenture(id, entry.title);
+          return;
+        }
+        if (href) { window.location.href = href; return; }
+        if (onActivate) { onActivate(); return; }
+      });
+    } else {
+      toggle.addEventListener('pointerdown', (event) => {
+        event.stopPropagation();
+      });
+      toggle.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!entry.collapsed) saveFinishedRect(currentRect());
+        entry.collapsed = !entry.collapsed;
+        el.classList.toggle('is-collapsed', entry.collapsed);
+        updateToggle();
+        try {
+          if (entry.collapsed) localStorage.setItem(`nexus-panel-collapsed:${canvasId}:${id}`, '1');
+          else localStorage.removeItem(`nexus-panel-collapsed:${canvasId}:${id}`);
+        } catch {}
+        applyRect(el, expandedRect());
+      });
+    }
 
     // Drag — same pointer-capture pattern as the existing Nex chat
     // dock (public/nex-chat-bar.js), generalized to persist to the
