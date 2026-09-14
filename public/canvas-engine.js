@@ -587,6 +587,16 @@ function injectStyles() {
       padding: 8px 22px;
       font: 600 12px var(--nx-sans);
     }
+    .nexus-canvas-folder-delete {
+      display: block;
+      margin: 16px auto 0;
+      background: none;
+      border: 1px solid var(--nx-danger);
+      color: var(--nx-danger);
+      border-radius: 999px;
+      padding: 8px 22px;
+      font: 600 12px var(--nx-sans);
+    }
   `;
   document.head.appendChild(style);
 }
