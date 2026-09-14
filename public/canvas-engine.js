@@ -19,7 +19,7 @@
 // setBackdropUrl) layers on top of this same atmosphere rather than
 // replacing it outright.
 
-import { clampPosition, defaultMobileRect, finalizeResize } from './canvas-geometry.js';
+import { clampPosition, defaultMobileRect, finalizeResize, foldTiles, unfoldTile, resolveVisibleItems } from './canvas-geometry.js';
 
 const POLL_INTERVAL_MS = 4000;
 const DEFAULT_CANVAS_ID = 'dashboard';
@@ -457,6 +457,127 @@ function injectStyles() {
     }
     @media (prefers-reduced-motion: reduce) {
       #nexus-canvas-backdrop, .nexus-canvas-panel { transition: none; }
+      .nexus-canvas-panel.is-jiggling { animation: none !important; }
+    }
+
+    /* Long-press-to-rearrange ("jiggle mode"), same idea as the iOS
+       home screen: every foldable tile wiggles so it's clear the
+       screen is in edit mode, and a Done pill appears to exit it. */
+    @keyframes nexus-tile-jiggle {
+      0%, 100% { transform: rotate(-1.5deg); }
+      50% { transform: rotate(1.5deg); }
+    }
+    .nexus-canvas-panel.is-jiggling {
+      animation: nexus-tile-jiggle 0.22s ease-in-out infinite;
+      animation-delay: calc(var(--nx-jiggle-offset, 0) * 1s);
+    }
+    .nexus-canvas-panel.is-fold-target .nexus-canvas-panel-title::before {
+      box-shadow: 0 0 0 3px var(--nx-accent), inset 0 1px rgba(255,255,255,.18), 0 12px 28px rgba(0,0,0,.42) !important;
+    }
+    #nexus-canvas-edit-done {
+      position: fixed;
+      top: max(14px, env(safe-area-inset-top));
+      right: 14px;
+      z-index: 500;
+      background: var(--nx-accent);
+      color: #04121f;
+      border: 0;
+      border-radius: 999px;
+      font: 700 13px var(--nx-sans);
+      padding: 8px 18px;
+      display: none;
+    }
+    #nexus-canvas-root.nexus-canvas-edit-mode #nexus-canvas-edit-done { display: block; }
+    .nexus-canvas-folder-count {
+      position: absolute;
+      top: -2px;
+      right: -2px;
+      min-width: 19px;
+      height: 19px;
+      padding: 0 4px;
+      border-radius: 999px;
+      background: var(--nx-danger);
+      color: #2a060b;
+      font: 700 11px var(--nx-mono);
+      display: grid;
+      place-items: center;
+    }
+    #nexus-canvas-folder-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 600;
+      background: rgba(7, 10, 15, .82);
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+    }
+    #nexus-canvas-folder-overlay.is-open { display: flex; }
+    .nexus-canvas-folder-sheet {
+      width: 100%;
+      max-width: 480px;
+      background: var(--nx-surface-raised);
+      border-top-left-radius: 22px;
+      border-top-right-radius: 22px;
+      border: 1px solid var(--nx-line);
+      padding: 18px 16px max(18px, env(safe-area-inset-bottom));
+      max-height: 72vh;
+      overflow-y: auto;
+    }
+    .nexus-canvas-folder-sheet-title {
+      font: 700 15px var(--nx-sans);
+      color: var(--nx-text);
+      margin-bottom: 14px;
+      text-align: center;
+    }
+    .nexus-canvas-folder-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+    .nexus-canvas-folder-item {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      background: none;
+      border: 0;
+      color: var(--nx-text);
+      font: 600 11px var(--nx-sans);
+      text-align: center;
+    }
+    .nexus-canvas-folder-item-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      font: 700 21px var(--nx-mono);
+      color: #eff9ff;
+    }
+    .nexus-canvas-folder-item-remove {
+      position: absolute;
+      top: -6px;
+      right: 6px;
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      background: var(--nx-danger);
+      color: #2a060b;
+      border: 2px solid var(--nx-surface-raised);
+      font: 700 13px var(--nx-mono);
+      display: grid;
+      place-items: center;
+    }
+    .nexus-canvas-folder-close {
+      display: block;
+      margin: 16px auto 0;
+      background: none;
+      border: 1px solid var(--nx-line-strong);
+      color: var(--nx-muted);
+      border-radius: 999px;
+      padding: 8px 22px;
+      font: 600 12px var(--nx-sans);
     }
   `;
   document.head.appendChild(style);
@@ -618,21 +739,44 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
     const view = interactionViewport();
     const tileWidth = 96;
     const tileGap = Math.max(8, Math.floor((view.width - 24 - tileWidth * 3) / 2));
-    let panelIndex = 0;
-    for (const entry of panels.values()) {
-      if (mobile) {
+
+    if (mobile) {
+      const visible = resolveVisibleItems([...panels.keys()], folders);
+      for (const entry of panels.values()) entry.el.hidden = true;
+      for (const el of folderElements.values()) el.hidden = true;
+      let panelIndex = 0;
+      for (const item of visible) {
         const column = panelIndex % 3;
         const row = Math.floor(panelIndex / 3);
-        entry.el.style.setProperty('--nx-mobile-tile-left', `${12 + column * (tileWidth + tileGap)}px`);
-        entry.el.style.setProperty('--nx-mobile-tile-top', `${Math.max(92, 76 + row * 116)}px`);
-        applyRect(entry.el, entry.mobileRect || entry.remoteRect, panelIndex, !entry.mobileRect);
-      } else {
+        const left = `${12 + column * (tileWidth + tileGap)}px`;
+        const top = `${Math.max(92, 76 + row * 116)}px`;
+        if (item.isFolder) {
+          folderRegistry.set(item.id, item);
+          const el = getOrCreateFolderElement(item);
+          el.style.setProperty('--nx-mobile-tile-left', left);
+          el.style.setProperty('--nx-mobile-tile-top', top);
+          const badge = el.querySelector('.nexus-canvas-folder-count');
+          if (badge) badge.textContent = String(item.children.length);
+          el.hidden = false;
+          el.classList.toggle('is-jiggling', editMode);
+        } else {
+          const entry = panels.get(item.id);
+          if (!entry) continue;
+          entry.el.style.setProperty('--nx-mobile-tile-left', left);
+          entry.el.style.setProperty('--nx-mobile-tile-top', top);
+          applyRect(entry.el, entry.mobileRect || entry.remoteRect, panelIndex, !entry.mobileRect);
+          entry.el.hidden = false;
+        }
+        panelIndex += 1;
+      }
+    } else {
+      for (const entry of panels.values()) {
         entry.el.style.removeProperty('--nx-mobile-tile-left');
         entry.el.style.removeProperty('--nx-mobile-tile-top');
         applyRect(entry.el, entry.remoteRect);
+        entry.el.hidden = false;
       }
-      entry.el.hidden = false;
-      panelIndex += 1;
+      for (const el of folderElements.values()) el.hidden = true;
     }
   }
 
@@ -667,6 +811,206 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
 
   poll();
   const pollTimer = setInterval(poll, POLL_INTERVAL_MS);
+
+  // --- Folders & long-press rearrange mode (mobile home screen) ---
+  // Folders are a personal, per-device grouping (like the localStorage
+  // backdrop above) -- not shared canvas state, since two people
+  // looking at the same dashboard may want to organize it differently.
+  const foldersKey = `nexus-folders:${canvasId}`;
+  let folders = {};
+  try { folders = JSON.parse(localStorage.getItem(foldersKey)) || {}; } catch { folders = {}; }
+  function saveFolders() {
+    try { localStorage.setItem(foldersKey, JSON.stringify(folders)); } catch {}
+  }
+
+  let editMode = false;
+  function setEditMode(next) {
+    editMode = next;
+    root.classList.toggle('nexus-canvas-edit-mode', editMode);
+    for (const entry of panels.values()) {
+      if (entry.isLinkTile) entry.el.classList.toggle('is-jiggling', editMode);
+    }
+    for (const el of folderElements.values()) el.classList.toggle('is-jiggling', editMode);
+  }
+
+  let doneBtn = document.getElementById('nexus-canvas-edit-done');
+  if (!doneBtn) {
+    doneBtn = document.createElement('button');
+    doneBtn.id = 'nexus-canvas-edit-done';
+    doneBtn.type = 'button';
+    doneBtn.textContent = 'Done';
+    doneBtn.addEventListener('click', () => setEditMode(false));
+    root.appendChild(doneBtn);
+  }
+
+  // Finds which OTHER foldable tile (real or folder) the given point is
+  // currently over, for drop-to-fold. Hit tests actual on-screen rects
+  // rather than grid math, so it stays correct regardless of how the
+  // grid is laid out.
+  function findFoldTargetUnder(x, y, excludeId) {
+    for (const [id, entry] of panels) {
+      if (id === excludeId || entry.el.hidden || !entry.isLinkTile) continue;
+      const r = entry.el.getBoundingClientRect();
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return id;
+    }
+    for (const [id, el] of folderElements) {
+      if (id === excludeId || el.hidden) continue;
+      const r = el.getBoundingClientRect();
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return id;
+    }
+    return null;
+  }
+
+  let currentFoldTargetEl = null;
+  function setFoldHighlight(el) {
+    if (currentFoldTargetEl === el) return;
+    if (currentFoldTargetEl) currentFoldTargetEl.classList.remove('is-fold-target');
+    currentFoldTargetEl = el;
+    if (currentFoldTargetEl) currentFoldTargetEl.classList.add('is-fold-target');
+  }
+
+  function elementForId(id) {
+    return panels.get(id)?.el || folderElements.get(id) || null;
+  }
+
+  function promptRenameVenture(id, currentTitle) {
+    const nextName = window.prompt('Rename this venture', currentTitle);
+    if (!nextName || !nextName.trim() || nextName.trim() === currentTitle) return;
+    const trimmed = nextName.trim();
+    const entry = panels.get(id);
+    if (entry) entry.title = trimmed;
+    const titleLabel = entry?.el.querySelector('.nexus-canvas-panel-title');
+    if (titleLabel) titleLabel.textContent = trimmed;
+    fetch('/api/board', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'rename_canvas', canvas_id: id.replace(/^venture-/, ''), name: trimmed }),
+    }).catch(() => {});
+  }
+
+  const folderElements = new Map();
+  let folderOverlay = document.getElementById('nexus-canvas-folder-overlay');
+  if (!folderOverlay) {
+    folderOverlay = document.createElement('div');
+    folderOverlay.id = 'nexus-canvas-folder-overlay';
+    folderOverlay.innerHTML = '<div class="nexus-canvas-folder-sheet"><div class="nexus-canvas-folder-sheet-title"></div><div class="nexus-canvas-folder-grid"></div><button type="button" class="nexus-canvas-folder-close">Close</button></div>';
+    folderOverlay.addEventListener('click', (event) => {
+      if (event.target === folderOverlay) folderOverlay.classList.remove('is-open');
+    });
+    folderOverlay.querySelector('.nexus-canvas-folder-close').addEventListener('click', () => folderOverlay.classList.remove('is-open'));
+    root.appendChild(folderOverlay);
+  }
+
+  function openFolderOverlay(item) {
+    folderOverlay.querySelector('.nexus-canvas-folder-sheet-title').textContent = item.title || 'Folder';
+    const grid = folderOverlay.querySelector('.nexus-canvas-folder-grid');
+    grid.innerHTML = '';
+    for (const childId of item.children) {
+      const entry = panels.get(childId);
+      if (!entry) continue;
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'nexus-canvas-folder-item';
+      const iconEl = document.createElement('span');
+      iconEl.className = 'nexus-canvas-folder-item-icon';
+      iconEl.style.background = `linear-gradient(145deg, hsl(${entry.el.style.getPropertyValue('--nx-app-hue') || 207} 64% 43%), hsl(${entry.el.style.getPropertyValue('--nx-app-hue') || 207} 56% 14%))`;
+      iconEl.textContent = entry.el.querySelector('.nexus-canvas-panel-title')?.dataset.appIcon || 'N';
+      const label = document.createElement('span');
+      label.textContent = entry.title;
+      const removeBtn = document.createElement('span');
+      removeBtn.className = 'nexus-canvas-folder-item-remove';
+      removeBtn.textContent = '\u00d7';
+      removeBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        folders = unfoldTile(folders, childId);
+        saveFolders();
+        openFolderOverlay({ ...item, children: item.children.filter((id) => id !== childId) });
+        refreshPanels();
+      });
+      button.append(iconEl, label, removeBtn);
+      button.addEventListener('click', () => {
+        folderOverlay.classList.remove('is-open');
+        if (entry.href) window.location.href = entry.href;
+        else if (entry.onActivate) entry.onActivate();
+      });
+      grid.appendChild(button);
+    }
+    folderOverlay.classList.add('is-open');
+  }
+
+  function getOrCreateFolderElement(item) {
+    let el = folderElements.get(item.id);
+    if (el) return el;
+    el = document.createElement('div');
+    el.className = 'nexus-canvas-panel is-collapsed';
+    el.dataset.panelId = item.id;
+    let hue = 0;
+    for (const character of String(item.id)) hue = (hue * 31 + character.charCodeAt(0)) % 360;
+    el.style.setProperty('--nx-app-hue', String(hue));
+    el.innerHTML = `
+      <div class="nexus-canvas-panel-header">
+        <div class="nexus-canvas-panel-title-group">
+          <span class="nexus-canvas-panel-title" data-app-icon="\u25a6"></span>
+        </div>
+        <button type="button" class="nexus-canvas-panel-toggle" aria-label="Open folder"><span aria-hidden="true"></span></button>
+      </div>
+    `;
+    const countBadge = document.createElement('span');
+    countBadge.className = 'nexus-canvas-folder-count';
+    el.querySelector('.nexus-canvas-panel-title').appendChild(countBadge);
+    root.appendChild(el);
+
+    let drag = null;
+    let longPressTimer = null;
+    let longPressFired = false;
+    const toggle = el.querySelector('.nexus-canvas-panel-toggle');
+    toggle.addEventListener('pointerdown', (event) => {
+      event.stopPropagation();
+      if (event.button !== 0) return;
+      longPressFired = false;
+      const startRect = el.getBoundingClientRect();
+      longPressTimer = setTimeout(() => {
+        longPressFired = true;
+        setEditMode(true);
+        drag = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, startLeft: startRect.left, startTop: startRect.top };
+        toggle.setPointerCapture(event.pointerId);
+      }, 550);
+    });
+    toggle.addEventListener('pointermove', (event) => {
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      const dx = event.clientX - drag.startX;
+      const dy = event.clientY - drag.startY;
+      el.style.setProperty('--nx-mobile-tile-left', `${drag.startLeft + dx}px`);
+      el.style.setProperty('--nx-mobile-tile-top', `${drag.startTop + dy}px`);
+      setFoldHighlight(elementForId(findFoldTargetUnder(event.clientX, event.clientY, item.id)));
+    });
+    toggle.addEventListener('pointerup', (event) => {
+      clearTimeout(longPressTimer);
+      if (drag && drag.pointerId === event.pointerId) {
+        const targetId = findFoldTargetUnder(event.clientX, event.clientY, item.id);
+        setFoldHighlight(null);
+        drag = null;
+        if (targetId) {
+          folders = foldTiles(folders, item.id, targetId);
+          saveFolders();
+        }
+        refreshPanels();
+      }
+    });
+    toggle.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (longPressFired) { longPressFired = false; return; }
+      if (editMode) return;
+      const current = folderRegistry.get(item.id);
+      if (current) openFolderOverlay(current);
+    });
+
+    folderElements.set(item.id, el);
+    return el;
+  }
+
+  const folderRegistry = new Map();
 
   function addPanel({ id, title, content, x = 80, y = 80, w = 360, h = 280, locked = false, href = null, onActivate = null, progress = null }) {
     const el = document.createElement('div');
@@ -733,7 +1077,7 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
       collapsed = isMobileViewport() && !locked;
     }
     if (locked) collapsed = false;
-    const entry = { el, dragging: false, resizing: false, collapsed, title, remoteRect: { x, y, w, h }, mobileRect };
+    const entry = { el, dragging: false, resizing: false, collapsed, title, remoteRect: { x, y, w, h }, mobileRect, isLinkTile: Boolean(href || onActivate), href, onActivate };
     panels.set(id, entry);
     el.classList.toggle('is-collapsed', collapsed);
 
@@ -777,24 +1121,77 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
       }
     }
 
-    toggle.addEventListener('pointerdown', (event) => {
-      event.stopPropagation();
-    });
-    toggle.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      if (href) { window.location.href = href; return; }
-      if (onActivate) { onActivate(); return; }
-      if (!entry.collapsed) saveFinishedRect(currentRect());
-      entry.collapsed = !entry.collapsed;
-      el.classList.toggle('is-collapsed', entry.collapsed);
-      updateToggle();
-      try {
-        if (entry.collapsed) localStorage.setItem(`nexus-panel-collapsed:${canvasId}:${id}`, '1');
-        else localStorage.removeItem(`nexus-panel-collapsed:${canvasId}:${id}`);
-      } catch {}
-      applyRect(el, expandedRect());
-    });
+    const isLinkTile = Boolean(href || onActivate);
+    const isVenture = String(id).startsWith('venture-');
+
+    if (isLinkTile) {
+      let tileLongPressTimer = null;
+      let tileLongPressFired = false;
+      let tileDrag = null;
+      toggle.addEventListener('pointerdown', (event) => {
+        event.stopPropagation();
+        if (event.button !== 0) return;
+        tileLongPressFired = false;
+        const startRect = el.getBoundingClientRect();
+        tileLongPressTimer = setTimeout(() => {
+          tileLongPressFired = true;
+          setEditMode(true);
+          tileDrag = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, startLeft: startRect.left, startTop: startRect.top };
+          entry.dragging = true;
+          toggle.setPointerCapture(event.pointerId);
+        }, 550);
+      });
+      toggle.addEventListener('pointermove', (event) => {
+        if (!tileDrag || event.pointerId !== tileDrag.pointerId) return;
+        const dx = event.clientX - tileDrag.startX;
+        const dy = event.clientY - tileDrag.startY;
+        el.style.setProperty('--nx-mobile-tile-left', `${tileDrag.startLeft + dx}px`);
+        el.style.setProperty('--nx-mobile-tile-top', `${tileDrag.startTop + dy}px`);
+        setFoldHighlight(elementForId(findFoldTargetUnder(event.clientX, event.clientY, id)));
+      });
+      toggle.addEventListener('pointerup', (event) => {
+        clearTimeout(tileLongPressTimer);
+        if (tileDrag && tileDrag.pointerId === event.pointerId) {
+          const targetId = findFoldTargetUnder(event.clientX, event.clientY, id);
+          setFoldHighlight(null);
+          tileDrag = null;
+          entry.dragging = false;
+          if (targetId) {
+            folders = foldTiles(folders, id, targetId);
+            saveFolders();
+          }
+          refreshPanels();
+        }
+      });
+      toggle.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (tileLongPressFired) { tileLongPressFired = false; return; }
+        if (editMode) {
+          if (isVenture) promptRenameVenture(id, entry.title);
+          return;
+        }
+        if (href) { window.location.href = href; return; }
+        if (onActivate) { onActivate(); return; }
+      });
+    } else {
+      toggle.addEventListener('pointerdown', (event) => {
+        event.stopPropagation();
+      });
+      toggle.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!entry.collapsed) saveFinishedRect(currentRect());
+        entry.collapsed = !entry.collapsed;
+        el.classList.toggle('is-collapsed', entry.collapsed);
+        updateToggle();
+        try {
+          if (entry.collapsed) localStorage.setItem(`nexus-panel-collapsed:${canvasId}:${id}`, '1');
+          else localStorage.removeItem(`nexus-panel-collapsed:${canvasId}:${id}`);
+        } catch {}
+        applyRect(el, expandedRect());
+      });
+    }
 
     // Drag — same pointer-capture pattern as the existing Nex chat
     // dock (public/nex-chat-bar.js), generalized to persist to the
