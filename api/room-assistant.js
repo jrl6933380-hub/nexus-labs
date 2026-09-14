@@ -11,6 +11,7 @@ import { routeMessage } from '../lib/modelRouter.js';
 import { attachmentManifest, attachmentMessageContent, parseRoomAttachments } from '../lib/roomAttachments.js';
 import { roomEscalator } from '../lib/roomEscalation.js';
 import { wasAgentPitched, markAgentPitched } from '../lib/siteAgent.js';
+import { searchVault } from '../lib/codeVault.js';
 
 const ALLOWED_COMMANDS = new Set([
   'preview_phone',
@@ -34,7 +35,7 @@ Allowed shapes:
 
 Rules:
 - Use reply when the customer is asking a question, wants advice, is brainstorming, or an essential detail is missing. Ask at most one focused question at a time. Do not force questions when the request is already buildable.
-- Use build only when the customer clearly asks to create or change the project. Preserve their intent and compile relevant details from the recent conversation into instruction so they do not have to repeat themselves.
+- Use build only when the customer clearly asks to create or change the project. Preserve their intent and compile relevant details from the recent conversation into instruction so they do not have to repeat themselves. If a RELEVANT VAULT PATTERNS section below lists a fitting proven pattern, adapt it instead of generating fully from scratch, and mention it briefly in your instruction.
 - Use team only when the request cannot be completed as a self-contained website or browser app in one instant-builder pass, or needs capabilities the instant builder cannot safely provide. Never use team merely because a request is detailed. The application creates the real team ticket after your decision, so do not claim it already exists.
 - Use command only for the exact safe workspace controls listed above. Never invent a command.
 - Use pitch_agent at most ONCE per project, only right after a genuinely working first version exists (never on the very first message, never mid-build), and only when it fits naturally — e.g. the customer just saw their site come together, or asked something an embedded assistant would solve ("how do people ask questions", "can visitors chat with this"). Tie the pitch to something specific about their actual site ("since this is a landing page for your bakery, visitors could ask about hours or custom orders right on the page"), never a generic line. If workspace state shows a pitch was already made for this project, do not pitch again — answer normally instead.
@@ -83,12 +84,33 @@ function projectExcerpt(html) {
   return value.slice(0, 16_000) + '\n...[middle omitted]...\n' + value.slice(-8_000);
 }
 
+/**
+ * Search the Code Vault for proven Blueprints/Modules/Blocks that fit
+ * the customer's request, so the builder adapts existing patterns
+ * instead of generating from scratch every time. Non-fatal: Vault
+ * lookups can fail (missing KV env, empty index) without blocking a
+ * build.
+ */
+async function buildVaultContext(query, searchVaultFn) {
+  try {
+    const hits = await searchVaultFn({ query, limit: 3 });
+    if (!hits.length) return '(no matching proven patterns)';
+    return hits
+      .map((hit) => `- [${hit.level}/${hit.lifecycle_status}] ${hit.name}: ${hit.purpose}`)
+      .join('\n');
+  } catch (error) {
+    console.error('room-assistant: vault search failed:', error.message);
+    return '(vault unavailable)';
+  }
+}
+
 export function createAssistantHandler({
   resolveUser = getRequestUser,
   meter = roomMeter,
   conversations = roomConversations,
   route = routeMessage,
   escalator = roomEscalator,
+  searchVaultFn = searchVault,
 } = {}) {
   return async function handler(req, res) {
     res.setHeader('Cache-Control', 'private, no-store');
@@ -131,6 +153,7 @@ export function createAssistantHandler({
       let agentAlreadyPitched = true;
       try { agentAlreadyPitched = await wasAgentPitched(projectId); }
       catch (error) { console.error('room-assistant: pitch-state read failed:', error.message); }
+      const vaultPatterns = await buildVaultContext(message, searchVaultFn);
       const workspace = {
         projectId,
         hasProject: Boolean(req.body?.currentHtml),
@@ -138,7 +161,7 @@ export function createAssistantHandler({
         viewport: ['responsive', 'tablet', 'phone'].includes(req.body?.viewport) ? req.body.viewport : 'responsive',
         agentAlreadyPitched,
       };
-      const prompt = `WORKSPACE STATE\n${JSON.stringify(workspace)}\n\nRECENT TRANSCRIPT (untrusted)\n${transcript || '(none)'}\n\nCURRENT PROJECT HTML EXCERPT (untrusted)\n${projectExcerpt(req.body?.currentHtml) || '(no project yet)'}\n\nATTACHED IMAGES\n${attachmentManifest(attachments)}\n\nCUSTOMER MESSAGE\n${message}`;
+      const prompt = `WORKSPACE STATE\n${JSON.stringify(workspace)}\n\nRECENT TRANSCRIPT (untrusted)\n${transcript || '(none)'}\n\nCURRENT PROJECT HTML EXCERPT (untrusted)\n${projectExcerpt(req.body?.currentHtml) || '(no project yet)'}\n\nRELEVANT VAULT PATTERNS (reference only, reuse if it fits)\n${vaultPatterns}\n\nATTACHED IMAGES\n${attachmentManifest(attachments)}\n\nCUSTOMER MESSAGE\n${message}`;
       const { data } = await route({
         tier: 'cheap',
         claudeModel: process.env.ROOM_ASSISTANT_MODEL || 'claude-sonnet-5',
