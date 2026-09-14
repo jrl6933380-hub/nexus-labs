@@ -7,6 +7,7 @@ import {
   TOOLS,
   formatNexExchangeLogSummary,
   inferPreloadedToolCategories,
+  initialToolChoiceForRequest,
   normalizeHybridSystemPrompt,
 } from '../lib/nexBrain.js';
 
@@ -24,8 +25,27 @@ test('room navigation receives room tools on the first model call', () => {
   );
 });
 
+test('explicit room navigation must execute open_room instead of answering from context', () => {
+  assert.deepEqual(initialToolChoiceForRequest('Open the Conference Room'), {
+    type: 'tool',
+    name: 'open_room',
+  });
+});
+
+test('explicit repository listing must execute list_repos', () => {
+  assert.deepEqual(initialToolChoiceForRequest('List every repository under my account'), {
+    type: 'tool',
+    name: 'list_repos',
+  });
+});
+
+test('an explicit but broader action requires some real tool call', () => {
+  assert.deepEqual(initialToolChoiceForRequest('Inspect the code and fix this bug'), { type: 'any' });
+});
+
 test('casual chat does not trigger semantic discovery or preload unrelated tools', () => {
   assert.deepEqual(inferPreloadedToolCategories('yo, how are you doing?'), []);
+  assert.equal(initialToolChoiceForRequest('yo, how are you doing?'), null);
 });
 
 test('rolling-context logging is backend managed, not a core reasoning-loop tool', () => {
