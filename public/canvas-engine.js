@@ -369,6 +369,10 @@ function injectStyles() {
         box-shadow: none;
         backdrop-filter: none;
         overflow: visible;
+        touch-action: none;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-touch-callout: none;
       }
       #nexus-canvas-root .nexus-canvas-panel.is-collapsed .nexus-canvas-panel-header {
         display: grid;
@@ -421,6 +425,10 @@ function injectStyles() {
         border: 0;
         border-radius: 22px;
         opacity: 0;
+        touch-action: none;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-touch-callout: none;
       }
       #nexus-canvas-root .nexus-canvas-panel.is-collapsed:focus-within .nexus-canvas-panel-title::before {
         outline: 2px solid var(--nx-accent);
