@@ -121,6 +121,83 @@
     .board-summary, .agent-list, .room-list { padding: 16px; }
     .room-list a.room-link { min-height: 50px; }
   }
+
+  #nexus-app-drawer {
+    position: fixed;
+    inset: 0;
+    z-index: 9000;
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    background: rgba(5, 7, 12, .84);
+  }
+  #nexus-app-drawer.is-open { display: flex; }
+  .nexus-app-drawer-sheet {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 520px;
+    max-height: 82vh;
+    overflow-y: auto;
+    padding: 20px 16px max(20px, env(safe-area-inset-bottom));
+    border: 1px solid #26334d;
+    border-top-left-radius: 22px;
+    border-top-right-radius: 22px;
+    background: #111827;
+  }
+  .nexus-app-drawer-title {
+    margin-bottom: 6px;
+    color: #e8eefb;
+    font: 700 16px Inter, sans-serif;
+    text-align: center;
+  }
+  .nexus-app-drawer-hint {
+    margin-bottom: 16px;
+    color: #91a0b9;
+    font: 400 12px/1.45 Inter, sans-serif;
+    text-align: center;
+  }
+  .nexus-app-drawer-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 13px;
+    margin-bottom: 8px;
+    border: 1px solid #26334d;
+    border-radius: 11px;
+    background: #ffffff05;
+  }
+  .nexus-app-drawer-row input[type="checkbox"] {
+    flex: 0 0 auto;
+    width: 20px;
+    height: 20px;
+    accent-color: #4b8dff;
+  }
+  .nexus-app-drawer-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #e8eefb;
+    font: 600 14px Inter, sans-serif;
+  }
+  .nexus-app-drawer-open {
+    flex: 0 0 auto;
+    color: #58d7ff;
+    font: 600 12px 'JetBrains Mono', monospace;
+    text-decoration: none;
+  }
+  .nexus-app-drawer-close {
+    display: block;
+    width: 100%;
+    margin-top: 14px;
+    padding: 13px;
+    border: 1px solid #4b8dff77;
+    border-radius: 11px;
+    background: #4b8dff18;
+    color: #58d7ff;
+    font: 700 13px Inter, sans-serif;
+  }
 </style>
 </head>
 <body>
@@ -175,7 +252,7 @@
   // These are pure link/action tiles with nothing meaningful to expand
   // into — always start collapsed (icon-only), on every viewport, not
   // just mobile.
-  for (const id of [...ROOMS.map((r) => r.id), 'new-venture']) {
+  for (const id of [...ROOMS.map((r) => r.id), 'new-venture', 'all-apps']) {
     const key = `nexus-panel-collapsed:dashboard:${id}`;
     try { if (localStorage.getItem(key) === null) localStorage.setItem(key, '1'); } catch {}
   }
