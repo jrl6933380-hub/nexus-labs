@@ -125,6 +125,11 @@
 </head>
 <body>
 <script type="module">
+  // FIRST import on purpose -- this registers the global error and
+  // unhandledrejection handlers before any other module runs, so a
+  // module that throws at import time (the failure mode that blanks
+  // the whole screen) still gets reported to Sentry.
+  import '/browser-error-reporter.js?v=20260913-1';
   import { mountCanvas } from '/canvas-engine.js?v=20260913-2';
   import '/nex-chat-bar.js?v=20260912-2';
 
