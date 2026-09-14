@@ -901,15 +901,26 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
   if (!folderOverlay) {
     folderOverlay = document.createElement('div');
     folderOverlay.id = 'nexus-canvas-folder-overlay';
-    folderOverlay.innerHTML = '<div class="nexus-canvas-folder-sheet"><div class="nexus-canvas-folder-sheet-title"></div><div class="nexus-canvas-folder-grid"></div><button type="button" class="nexus-canvas-folder-close">Close</button></div>';
+    folderOverlay.innerHTML = '<div class="nexus-canvas-folder-sheet"><div class="nexus-canvas-folder-sheet-title"></div><div class="nexus-canvas-folder-grid"></div><button type="button" class="nexus-canvas-folder-delete">Delete folder</button><button type="button" class="nexus-canvas-folder-close">Close</button></div>';
     folderOverlay.addEventListener('click', (event) => {
       if (event.target === folderOverlay) folderOverlay.classList.remove('is-open');
     });
     folderOverlay.querySelector('.nexus-canvas-folder-close').addEventListener('click', () => folderOverlay.classList.remove('is-open'));
+    // Deletes the whole folder in one step -- every child becomes a
+    // normal top-level tile again immediately, rather than needing to
+    // be removed one at a time via each item's own X.
+    folderOverlay.querySelector('.nexus-canvas-folder-delete').addEventListener('click', () => {
+      const openId = folderOverlay.dataset.openFolderId;
+      if (openId) delete folders[openId];
+      saveFolders();
+      folderOverlay.classList.remove('is-open');
+      refreshPanels();
+    });
     root.appendChild(folderOverlay);
   }
 
   function openFolderOverlay(item) {
+    folderOverlay.dataset.openFolderId = item.id;
     folderOverlay.querySelector('.nexus-canvas-folder-sheet-title').textContent = item.title || 'Folder';
     const grid = folderOverlay.querySelector('.nexus-canvas-folder-grid');
     grid.innerHTML = '';
