@@ -61,6 +61,8 @@ import {
   createCanvas,
   deleteCanvas,
   renameCanvas,
+  setCanvasSection,
+  deleteCanvasSection,
   listCanvases,
 } from '../lib/canvasState.js';
 import { maybeCheckSystemStatus } from '../lib/systemMonitor.js';
@@ -130,6 +132,20 @@ async function handleBoard(req, res) {
     if (action === 'rename_canvas') {
       try {
         return res.status(200).json({ canvas: await renameCanvas(params) });
+      } catch (err) {
+        return res.status(400).json({ error: err.message });
+      }
+    }
+    if (action === 'set_canvas_section') {
+      try {
+        return res.status(200).json({ canvas: await setCanvasSection(params) });
+      } catch (err) {
+        return res.status(400).json({ error: err.message });
+      }
+    }
+    if (action === 'delete_canvas_section') {
+      try {
+        return res.status(200).json({ canvas: await deleteCanvasSection(params) });
       } catch (err) {
         return res.status(400).json({ error: err.message });
       }
