@@ -179,10 +179,21 @@ export function createAssistantHandler({
         catch (error) { console.error('room-assistant: pitch-state write failed:', error.message); }
       }
       if (decision.kind === 'team') {
+        // Bug fix: this used to send ONLY decision.instruction (the model's own
+        // paraphrased "team brief") as the escalation request. If that
+        // paraphrase was vague or wrong, the customer's actual typed message
+        // never made it into the Board ticket at all — the Build Team built
+        // whatever the brief said, not what the customer asked for. Always
+        // lead with the real customer message; fold the compiled brief in
+        // alongside it only when it adds distinct detail, never in place of it.
+        const compiledBrief = String(decision.instruction || '').trim();
+        const request = compiledBrief && compiledBrief !== message
+          ? `${message}\n\nBuilder brief: ${compiledBrief}`
+          : message;
         const ticket = await escalator.queue({
           userId: username,
           projectId,
-          request: decision.instruction,
+          request,
           reason: decision.message,
           currentHtml: req.body?.currentHtml,
         });
