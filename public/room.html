@@ -1796,8 +1796,7 @@
       if (!res.ok) {
         const failure = await res.json().catch(() => ({}));
         if (res.status === 429 && failure.code === 'ROOM_CREDITS_EXHAUSTED') {
-          buildingBubble.innerHTML = (failure.error || 'You have used all your build credits for this period.')
-            + ' <a href="/room-login.html" style="color:var(--cyan);text-decoration:underline">Upgrade for more credits →</a>';
+          renderCreditsExhausted(buildingBubble, failure);
         } else {
           buildingBubble.innerText = failure.error || 'The Room could not start that build.';
         }
