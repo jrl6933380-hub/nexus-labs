@@ -733,10 +733,6 @@
 
   canvas.addPanel({ id: 'room-builder', title: 'Room Builder', content: wrap, locked: true });
 
-  // ---- Auth gate: bounce to login if there's no valid session ----
-  // Runs before anything else renders meaningfully. A 401 here means
-  // no session cookie or an expired one — send to the login page
-  // rather than showing a room that will just fail on first message.
   function mountOperatorNexDock() {
     if (document.getElementById('nexChatBar') || document.querySelector('script[data-operator-nex-dock]')) return;
     const script = document.createElement('script');
@@ -746,6 +742,24 @@
     document.body.appendChild(script);
   }
 
+  let isGuestSession = false;
+
+  function showGuestBanner() {
+    if (document.getElementById('guest-banner')) return;
+    try { if (localStorage.getItem('nexus-guest-banner-dismissed-v1') === '1') return; } catch {}
+    const banner = document.createElement('div');
+    banner.id = 'guest-banner';
+    banner.style.cssText = 'position:relative;z-index:20;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 14px;background:#4DD8E814;border-bottom:1px solid #1F2B42;color:#8891A3;font:600 11px "JetBrains Mono",monospace;';
+    banner.innerHTML = 'Building as a guest — free daily credits, no account needed. '
+      + '<a href="/room-login.html?next=' + encodeURIComponent(location.pathname) + '" style="color:#4DD8E8;text-decoration:underline;">Create a free account</a> to save your work across visits.'
+      + '<button type="button" id="guest-banner-dismiss" style="margin-left:auto;background:none;border:none;color:#8891A3;cursor:pointer;font:700 13px monospace;">×</button>';
+    document.body.prepend(banner);
+    document.getElementById('guest-banner-dismiss').addEventListener('click', () => {
+      banner.remove();
+      try { localStorage.setItem('nexus-guest-banner-dismissed-v1', '1'); } catch {}
+    });
+  }
+
   (async function requireSession() {
     try {
       const res = await fetch('/api/room-auth', {
@@ -753,7 +767,14 @@
         cache: 'no-store',
       });
       if (!res.ok) {
-        window.location.href = '/room-login.html';
+        // No account yet — Room Builder works anonymously. room-chat,
+        // room-assistant, and room-usage already fall back to a
+        // cookie-scoped anon id (lib/anonSession.js) with the same
+        // Free-tier daily credits a real account gets, so there is no
+        // reason to force signup before the first build.
+        isGuestSession = true;
+        document.getElementById('whoami').innerText = 'Guest';
+        showGuestBanner();
         return;
       }
       const data = await res.json();
@@ -776,7 +797,12 @@
       // re-checks isOperatorUser on every request regardless.
       if (data.operator === true) document.getElementById('forge-admin-btn').hidden = false;
     } catch (err) {
-      window.location.href = '/room-login.html';
+      // Network/parse hiccup on the "me" check only — still render the
+      // builder as a guest rather than bouncing away; a real request
+      // below will simply pick up a fresh anon cookie.
+      isGuestSession = true;
+      document.getElementById('whoami').innerText = 'Guest';
+      showGuestBanner();
     }
   })();
 
@@ -940,6 +966,80 @@
     button.addEventListener('click', () => setPreviewViewport(button.dataset.viewport));
   });
 
+  // Shared by the low-credit meter nudge and the out-of-credits chat
+  // message — same $6/30-credit pack, same checkout flow, two entry
+  // points. triggerEl is optional (the chat-message link has no
+  // persistent button to show a "Redirecting…" state on).
+  async function startCreditPackCheckout(triggerEl) {
+    const original = triggerEl ? triggerEl.textContent : null;
+    if (triggerEl) { triggerEl.disabled = true; triggerEl.textContent = 'Redirecting…'; }
+    try {
+      const res = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ priceId: 'price_1UEjoFDh5Di7LYi3DGorrLRb' }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        window.location.href = '/room-login.html?next=' + encodeURIComponent(location.pathname);
+        return;
+      }
+      if (!res.ok || !data.url) throw new Error(data.error || 'Checkout failed');
+      window.location.href = data.url;
+    } catch (err) {
+      if (triggerEl) { triggerEl.disabled = false; triggerEl.textContent = original; }
+      alert(err.message || 'Could not start checkout.');
+    }
+  }
+
+  // Turns a friendly countdown to a resetAt timestamp: "6h 24m",
+  // "12m", or null if there's nothing to count down to (e.g. the
+  // global ceiling has no per-user reset time).
+  function formatResetCountdown(resetAtMs) {
+    if (!resetAtMs) return null;
+    const ms = resetAtMs - Date.now();
+    if (ms <= 0) return 'any moment now';
+    const hours = Math.floor(ms / 3600000);
+    const minutes = Math.max(1, Math.round((ms % 3600000) / 60000));
+    return hours >= 1 ? `${hours}h ${minutes}m` : `${minutes}m`;
+  }
+
+  // Reason-aware replacement for the old flat "you're out of credits"
+  // text: names which pool is empty, gives a real reset countdown when
+  // one applies, and upsells the right next step — a credit pack or
+  // upgrade for a signed-in user, a free account for a guest (whose
+  // credits are tied to this browser's cookie, not purchasable yet).
+  function renderCreditsExhausted(bubble, failure) {
+    const usage = failure.usage || {};
+    let text;
+    if (usage.reason === 'daily_budget_exhausted') {
+      const wait = formatResetCountdown(usage.daily?.resetAt);
+      text = `You're out of today's free build credits.${wait ? ` They reset in ${wait}.` : ''} Don't want to wait?`;
+    } else if (usage.reason === 'global_ceiling_exceeded') {
+      text = 'Nexus Forge is at capacity for free builds right now — a lot of people are building today. Try again shortly, or';
+    } else {
+      const wait = formatResetCountdown(usage.resetAt);
+      text = `You've used all your build credits for this billing period.${wait ? ` They reset in ${wait}.` : ''} Don't want to wait?`;
+    }
+    bubble.innerText = '';
+    bubble.appendChild(document.createTextNode(text + ' '));
+    const link = document.createElement('a');
+    link.href = '#';
+    link.style.cssText = 'color:var(--cyan);text-decoration:underline;cursor:pointer;';
+    if (isGuestSession) {
+      link.textContent = 'Create a free account';
+      link.href = '/room-login.html?next=' + encodeURIComponent(location.pathname);
+    } else {
+      link.textContent = 'Grab a credit pack ($6 for 30) or upgrade';
+      link.addEventListener('click', (event) => {
+        event.preventDefault();
+        startCreditPackCheckout(null);
+      });
+    }
+    bubble.appendChild(link);
+  }
+
   async function refreshUsage() {
     try {
       const res = await fetch('/api/room-usage', { headers: { Accept: 'application/json' }, cache: 'no-store' });
@@ -975,30 +1075,7 @@
           creditPackNudge.type = 'button';
           creditPackNudge.style.cssText = 'margin-left:8px;padding:4px 10px;border-radius:6px;border:1px solid #4DD8E877;background:#4DD8E818;color:#4DD8E8;font:700 10px var(--mono,monospace);cursor:pointer;';
           creditPackNudge.textContent = 'Buy 30 credits — $6';
-          creditPackNudge.addEventListener('click', async () => {
-            creditPackNudge.disabled = true;
-            const original = creditPackNudge.textContent;
-            creditPackNudge.textContent = 'Redirecting…';
-            try {
-              const res = await fetch('/api/checkout', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ priceId: 'price_1UEjoFDh5Di7LYi3DGorrLRb' }),
-              });
-              const data = await res.json().catch(() => ({}));
-              if (res.status === 401) {
-                window.location.href = '/room-login.html?next=' + encodeURIComponent(location.pathname);
-                return;
-              }
-              if (!res.ok || !data.url) throw new Error(data.error || 'Checkout failed');
-              window.location.href = data.url;
-            } catch (err) {
-              creditPackNudge.disabled = false;
-              creditPackNudge.textContent = original;
-              alert(err.message || 'Could not start checkout.');
-            }
-          });
+          creditPackNudge.addEventListener('click', () => startCreditPackCheckout(creditPackNudge));
           usagePill.insertAdjacentElement('afterend', creditPackNudge);
         }
       } else if (creditPackNudge) {
@@ -1719,8 +1796,7 @@
       if (!res.ok) {
         const failure = await res.json().catch(() => ({}));
         if (res.status === 429 && failure.code === 'ROOM_CREDITS_EXHAUSTED') {
-          buildingBubble.innerHTML = (failure.error || 'You have used all your build credits for this period.')
-            + ' <a href="/room-login.html" style="color:var(--cyan);text-decoration:underline">Upgrade for more credits →</a>';
+          renderCreditsExhausted(buildingBubble, failure);
         } else {
           buildingBubble.innerText = failure.error || 'The Room could not start that build.';
         }
