@@ -16,10 +16,23 @@ function fakeService(delegate) {
   return { service: createTunneledPipelineService(opts), tasks };
 }
 
-test('fans out layout and design lanes, then locks reviewer until both have evidence', async () => {
+test('defaults to a single build lane, then locks reviewer until it has evidence', async () => {
   const { service, tasks } = fakeService();
   const run = await service.start({ goal: 'Build a room', owner: 'jrl6933380-hub', repo: 'nexus-labs', acceptance_criteria: ['mobile works'] });
   assert.equal(run.status, 'lanes_running');
+  assert.equal(run.split, false);
+  assert.equal(tasks.size, 2, 'parent + build lane only -- no automatic second lane');
+  const ready = await service.submitLaneResult({ pipeline_id: run.id, lane: 'build', summary: 'site complete', evidence: ['screenshot'] });
+  assert.equal(ready.status, 'reviewing');
+  assert.equal(tasks.size, 3);
+  assert.match(tasks.get(ready.review_task_id).description, /site complete/);
+});
+
+test('split:true still fans out real layout and design lanes, then locks reviewer until both have evidence', async () => {
+  const { service, tasks } = fakeService();
+  const run = await service.start({ goal: 'Build a room', owner: 'jrl6933380-hub', repo: 'nexus-labs', split: true, acceptance_criteria: ['mobile works'] });
+  assert.equal(run.status, 'lanes_running');
+  assert.equal(run.split, true);
   assert.equal(tasks.size, 3);
   await service.submitLaneResult({ pipeline_id: run.id, lane: 'layout', summary: 'structure complete', evidence: ['unit test'] });
   assert.equal(tasks.size, 3);
@@ -29,9 +42,21 @@ test('fans out layout and design lanes, then locks reviewer until both have evid
   assert.match(tasks.get(ready.review_task_id).description, /structure complete/);
 });
 
-test('only a passing review creates the final ready-for-Nex handoff', async () => {
+test('only a passing review creates the final ready-for-Nex handoff (single build lane)', async () => {
   const { service, tasks } = fakeService();
   const run = await service.start({ goal: 'Build a room', owner: 'jrl6933380-hub', repo: 'nexus-labs' });
+  await service.submitLaneResult({ pipeline_id: run.id, lane: 'build', summary: 'build' });
+  const blocked = await service.submitReview({ pipeline_id: run.id, decision: 'needs_changes', summary: 'fix contrast', corrections: ['Increase contrast'] });
+  assert.equal(blocked.status, 'lanes_running');
+  assert.equal(blocked.final_handoff, null);
+  assert.equal(blocked.review_task_id, null);
+  assert.equal(tasks.get(blocked.lane_task_ids.build).status, 'building');
+  assert.match(tasks.get(blocked.lane_task_ids.build).last_note, /Increase contrast/);
+});
+
+test('only a passing review creates the final ready-for-Nex handoff (split lanes)', async () => {
+  const { service, tasks } = fakeService();
+  const run = await service.start({ goal: 'Build a room', owner: 'jrl6933380-hub', repo: 'nexus-labs', split: true });
   await service.submitLaneResult({ pipeline_id: run.id, lane: 'layout', summary: 'layout' });
   await service.submitLaneResult({ pipeline_id: run.id, lane: 'design', summary: 'design' });
   const blocked = await service.submitReview({ pipeline_id: run.id, decision: 'needs_changes', summary: 'fix contrast', corrections: ['Increase contrast'] });
@@ -44,7 +69,7 @@ test('only a passing review creates the final ready-for-Nex handoff', async () =
 
 test('passing review returns both lane results and QA evidence to Nex', async () => {
   const { service } = fakeService();
-  const run = await service.start({ goal: 'Build a room', owner: 'jrl6933380-hub', repo: 'nexus-labs' });
+  const run = await service.start({ goal: 'Build a room', owner: 'jrl6933380-hub', repo: 'nexus-labs', split: true });
   await service.submitLaneResult({ pipeline_id: run.id, lane: 'layout', summary: 'layout', evidence: ['test'] });
   await service.submitLaneResult({ pipeline_id: run.id, lane: 'design', summary: 'design', evidence: ['preview'] });
   const final = await service.submitReview({ pipeline_id: run.id, decision: 'pass', summary: 'fits together', evidence: ['QA checklist'] });
