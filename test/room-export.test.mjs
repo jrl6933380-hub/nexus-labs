@@ -23,9 +23,27 @@ const make = (user, resolvePlan = async () => 'unlimited') => createHistoryHandl
 });
 const request = (query = {id:'a1', download:'html'}) => ({method:'GET', query});
 
-test('export requires a session before storage access', async () => {
-  const handler = createHistoryHandler({resolveUser:async()=>null, readBuild:()=>assert.fail('storage called')});
-  const res=response(); await handler(request(),res); assert.equal(res.code,401);
+test('a signed-out guest is scoped to its own anon id and still cannot read another account\'s build', async () => {
+  // Guest access is deliberate: api/room-history.js falls back to
+  // getOrCreateAnonId when there is no session. This test previously
+  // asserted 401 and predated that change. The protection that actually
+  // matters is that readBuild is owner-scoped — a guest resolves to their
+  // own anon id, so a known build id belonging to someone else still misses.
+  let requestedOwner = 'unset';
+  const handler = createHistoryHandler({
+    resolveUser: async () => null,
+    readBuild: async (owner, id) => {
+      requestedOwner = owner;
+      return owner === 'alice' && id === 'a1' ? { html, label: 'x' } : null;
+    },
+    readList: async () => [],
+    resolvePlan: async () => 'unlimited',
+  });
+  const res = response();
+  await handler({ method: 'GET', query: { id: 'a1', download: 'html' }, headers: {}, cookies: {} }, res);
+  assert.notEqual(requestedOwner, 'alice', 'a guest must never be resolved to another account');
+  assert.equal(res.code, 404);
+  assert.equal(res.headers['Content-Disposition'], undefined);
 });
 test('another user cannot download a known build id or spoof owner', async () => {
   const res=response(); await make('bob')(request({id:'a1',download:'html',username:'alice'}),res);
