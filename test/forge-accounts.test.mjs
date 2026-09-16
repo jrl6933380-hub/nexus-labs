@@ -22,11 +22,26 @@ global.fetch = async (_url, options) => {
     for (const [storedKey, storedValue] of users) {
       if (storedKey.startsWith(prefix)) result.push(storedKey.slice(prefix.length), storedValue);
     }
+  } else if (command === 'HDEL') {
+    result = users.delete(`${key}:${field}`) ? 1 : 0;
+  } else if (command === 'SET') {
+    users.set(key, field);
+    result = 'OK';
+  } else if (command === 'GET') {
+    result = users.get(key) ?? null;
+  } else if (command === 'DEL') {
+    result = users.delete(key) ? 1 : 0;
+  } else if (command === 'KEYS') {
+    const pattern = key.replace(/\*$/u, '');
+    result = [...users.keys()].filter((storedKey) => storedKey.startsWith(pattern));
+  } else if (command === 'MGET') {
+    result = JSON.parse(options.body).slice(1).map((mgetKey) => users.get(mgetKey) ?? null);
   } else throw new Error(`Unexpected command ${command}`);
   return { ok: true, json: async () => ({ result }) };
 };
 
-const { provisionForgeAccount, findForgeAccount, listForgeAccounts } = await import('../lib/forgeAccounts.js');
+const { provisionForgeAccount, findForgeAccount, listForgeAccounts, deleteForgeAccount } = await import('../lib/forgeAccounts.js');
+const { createSession, getSessionUser } = await import('../lib/roomAuth.js');
 const { getForgeRole, FORGE_ROLES } = await import('../lib/forgeRoles.js');
 const { verifyUser, getUserPlan, PLANS } = await import('../lib/roomAuth.js');
 
@@ -138,4 +153,71 @@ test('accounts can be listed and filtered by role and plan', async () => {
 
   const all = await listForgeAccounts();
   assert.ok(all.length >= 3, 'an unfiltered list includes free accounts too');
+});
+
+test('deleting an account removes it and revokes every live session', async () => {
+  // The session store is keyed token -> username with no reverse index, so
+  // without an explicit sweep a deleted account would stay signed in on an
+  // existing cookie for up to the 30-day TTL and keep passing getRequestUser.
+  await provisionForgeAccount({ username: 'doomed-account' });
+  const tokenA = await createSession('doomed-account');
+  const tokenB = await createSession('doomed-account');
+  const bystander = await provisionForgeAccount({ username: 'innocent-account' });
+  const bystanderToken = await createSession('innocent-account');
+
+  const result = await deleteForgeAccount({ username: 'doomed-account' });
+  assert.equal(result.deleted, true);
+  assert.equal(result.sessionsRevoked, 2);
+  assert.equal((await findForgeAccount('doomed-account')).exists, false);
+  assert.equal(await getSessionUser(tokenA), null, 'a deleted account must not stay signed in');
+  assert.equal(await getSessionUser(tokenB), null);
+
+  // And it must not touch anyone else.
+  assert.equal(await getSessionUser(bystanderToken), 'innocent-account');
+  assert.equal((await findForgeAccount(bystander.username)).exists, true);
+});
+
+test('deleting a nonexistent account fails instead of silently succeeding', async () => {
+  await assert.rejects(() => deleteForgeAccount({ username: 'never-existed' }), /No such account/);
+  await assert.rejects(() => deleteForgeAccount({}), /username is required/);
+});
+
+test('an account with billing on record is protected unless billing is acknowledged', async () => {
+  // Deleting does not cancel a Stripe subscription, so an unguarded delete
+  // would leave a customer paying for an account they cannot sign into.
+  await provisionForgeAccount({ username: 'paying-customer', plan: PLANS.HOSTED });
+  const raw = users.get('nexus:room:users:paying-customer');
+  users.set('nexus:room:users:paying-customer', JSON.stringify({ ...JSON.parse(raw), stripeCustomerId: 'cus_test123' }));
+
+  await assert.rejects(
+    () => deleteForgeAccount({ username: 'paying-customer' }),
+    /billing on record/,
+  );
+  assert.equal((await findForgeAccount('paying-customer')).exists, true, 'the refusal must not half-delete');
+
+  const forced = await deleteForgeAccount({ username: 'paying-customer', acknowledgeBilling: true });
+  assert.equal(forced.deleted, true);
+  assert.equal(forced.stripeCustomerId, 'cus_test123');
+  // The Stripe reverse index must go too, or a later cancellation webhook
+  // resolves to an account that no longer exists.
+  assert.equal(users.get('nexus:room:stripe-customers:cus_test123'), undefined);
+});
+
+test('an operator account cannot be deleted at all', async () => {
+  // Operator status is environment-derived, so deleting the record would
+  // destroy the login while leaving the privilege dangling — locking the
+  // owner out of their own admin surface. Not overridable by design.
+  process.env.NEXUS_OPERATOR_USERNAMES = 'bossman';
+  await provisionForgeAccount({ username: 'bossman' });
+  await assert.rejects(
+    () => deleteForgeAccount({ username: 'bossman' }),
+    /operator account/,
+  );
+  await assert.rejects(
+    () => deleteForgeAccount({ username: 'bossman', acknowledgeBilling: true }),
+    /operator account/,
+    'acknowledgeBilling must not be a way around the operator refusal',
+  );
+  assert.equal((await findForgeAccount('bossman')).exists, true);
+  delete process.env.NEXUS_OPERATOR_USERNAMES;
 });
