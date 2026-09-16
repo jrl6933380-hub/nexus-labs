@@ -180,11 +180,41 @@ function response() {
 test('usage endpoint reports the signed-in account and stays read-only', async () => {
   const redis = fakeRedis();
   const meter = createRoomMeter({ command: redis.command, now, config: { creditsLimit: 20 } });
-  const handler = createUsageHandler({ resolveUser: async () => 'alice', meter });
+  const handler = createUsageHandler({ resolveUser: async () => 'alice', meter, resolvePlan: async () => 'free' });
   const res = response();
   await handler({ method: 'GET' }, res);
   assert.equal(res.code, 200);
   assert.equal(res.body.usage.limit, 20);
+});
+
+test('canExport tracks the plan, so the UI gate matches the server gate', async () => {
+  // api/room-history.js refuses ?download=html with 402 for free accounts.
+  // The Export button previously had no check at all and built the file
+  // client-side, so a free account could download code the server would
+  // have refused. This flag is what the UI reads to stay consistent.
+  const redis = fakeRedis();
+  const meter = createRoomMeter({ command: redis.command, now, config: { creditsLimit: 20 } });
+  const check = async (plan) => {
+    const res = response();
+    await createUsageHandler({ resolveUser: async () => 'alice', meter, resolvePlan: async () => plan })({ method: 'GET' }, res);
+    return res.body.canExport;
+  };
+  assert.equal(await check('free'), false);
+  assert.equal(await check('hosted'), true);
+  assert.equal(await check('unlimited'), true);
+});
+
+test('a failing plan lookup locks export rather than opening it', async () => {
+  const redis = fakeRedis();
+  const meter = createRoomMeter({ command: redis.command, now, config: { creditsLimit: 20 } });
+  const res = response();
+  await createUsageHandler({
+    resolveUser: async () => 'alice',
+    meter,
+    resolvePlan: async () => { throw new Error('redis down'); },
+  })({ method: 'GET' }, res);
+  assert.equal(res.code, 200, 'the usage bar must still render if the plan lookup fails');
+  assert.equal(res.body.canExport, false, 'fail closed, never open');
 });
 
 test('usage endpoint falls back to an anonymous session for signed-out guests', async () => {
