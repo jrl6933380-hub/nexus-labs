@@ -19,6 +19,8 @@ const make = (user, resolvePlan = async () => 'unlimited') => createHistoryHandl
   resolveUser: async () => user,
   readBuild: async (owner, id) => owner === 'alice' && id === 'a1' ? { html, label: '\r\nInjected: yes' } : null,
   readList: async () => [],
+  readProjects: async () => [],
+  removeProject: async () => ({ removed: 0 }),
   resolvePlan,
 });
 const request = (query = {id:'a1', download:'html'}) => ({method:'GET', query});
@@ -65,7 +67,37 @@ test('invalid export parameters are rejected', async () => {
 });
 test('existing JSON and list responses remain compatible', async () => {
   const res=response(); await make('alice')(request({id:'a1'}),res); assert.equal(res.body.build.html,html);
-  const list=response(); await make('alice')(request({}),list); assert.deepEqual(list.body,{builds:[]});
+  // The list response gained a grouped `projects` view; `builds` stays for
+  // anything still reading the flat version list.
+  const list=response(); await make('alice')(request({}),list); assert.deepEqual(list.body,{builds:[],projects:[]});
+});
+
+test('deleting a project is scoped to the caller and reports what it removed', async () => {
+  let askedFor = null;
+  const handler = createHistoryHandler({
+    resolveUser: async () => 'alice',
+    readBuild: async () => null,
+    readList: async () => [],
+    readProjects: async () => [],
+    removeProject: async (owner, projectId) => {
+      askedFor = { owner, projectId };
+      return { removed: projectId === 'proj-a' ? 2 : 0 };
+    },
+    resolvePlan: async () => 'unlimited',
+  });
+  const ok = response();
+  await handler({ method: 'DELETE', query: { projectId: 'proj-a' } }, ok);
+  assert.equal(ok.code, 200);
+  assert.equal(ok.body.removed, 2);
+  assert.deepEqual(askedFor, { owner: 'alice', projectId: 'proj-a' }, 'delete must be scoped to the caller');
+
+  const missing = response();
+  await handler({ method: 'DELETE', query: { projectId: 'someone-elses' } }, missing);
+  assert.equal(missing.code, 404, 'a project the caller does not own is simply not found');
+
+  const bad = response();
+  await handler({ method: 'DELETE', query: {} }, bad);
+  assert.equal(bad.code, 400);
 });
 test('session storage failure returns a controlled error', async () => {
   const handler=createHistoryHandler({resolveUser:async()=>{throw new Error('storage unavailable');}});
