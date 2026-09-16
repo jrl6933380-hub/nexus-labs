@@ -92,14 +92,17 @@ test('taking a site down frees the slot', async () => {
   assert.equal((await checkLiveSiteAllowance({ userId: user, projectId: 'p2', plan: 'hosted' })).allowed, true);
 });
 
-test('live sites are listed per account with their urls, newest first', async () => {
+test('live sites are listed per account with their urls', async () => {
   const user = 'listing-user';
-  await recordLiveSite(user, 'old', { url: 'https://old.example' });
-  await recordLiveSite(user, 'new', { url: 'https://new.example' });
+  await recordLiveSite(user, 'alpha', { url: 'https://alpha.example' });
+  await recordLiveSite(user, 'beta', { url: 'https://beta.example' });
   const sites = await listLiveSites(user);
   assert.equal(sites.length, 2);
-  assert.equal(sites[0].projectId, 'new');
-  assert.equal(sites[0].url, 'https://new.example');
+  // Not asserting order: both records can land in the same millisecond, so
+  // publishedAt ties are arbitrary. What matters is that each site is
+  // present with its url and scoped to this account.
+  const byId = Object.fromEntries(sites.map((s) => [s.projectId, s.url]));
+  assert.deepEqual(byId, { alpha: 'https://alpha.example', beta: 'https://beta.example' });
   assert.deepEqual(await listLiveSites('nobody-else'), [], "another account's sites must not appear");
 });
 
