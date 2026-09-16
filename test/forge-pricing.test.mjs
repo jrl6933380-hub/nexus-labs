@@ -43,6 +43,14 @@ test('usage API publishes pricing beside the signed-in account balance', async (
 
 test('new-account tier screen explains build costs and usage-pack value', async () => {
   const source = await readFile(new URL('../public/room-login.html', import.meta.url), 'utf8');
+  const pricing = publicForgePricing();
   assert.match(source, /15 credits per new build · 2 per edit/);
-  assert.match(source, /Usage packs add 30 build credits for \$4/);
+  // Derived from the pricing constant rather than hardcoded, so the page copy
+  // and lib/forgePricing.js cannot drift apart again. They had: the page said
+  // $6 (correct, matching the live Stripe price) while the constant said $4,
+  // so the API advertised a cheaper pack than customers were actually charged.
+  assert.match(
+    source,
+    new RegExp(`Usage packs add ${pricing.usagePack.credits} build credits for \\${pricing.usagePack.priceUsd}`),
+  );
 });
