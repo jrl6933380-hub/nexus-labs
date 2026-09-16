@@ -1129,19 +1129,24 @@
     try {
       const res = await fetch('/api/room-history');
       const data = await res.json();
-      const builds = data.builds || [];
+      // One row per PROJECT, not one per save. Every edit writes a new
+      // build, so the old flat list showed a single project the customer
+      // had edited ten times as ten separate entries.
+      const builds = data.projects || [];
       if (builds.length === 0) {
-        historyList.innerText = 'No saved builds yet.';
+        historyList.innerText = 'No saved projects yet.';
         return;
       }
       historyList.className = '';
       historyList.innerHTML = '';
-      builds.forEach((b) => {
+      builds.forEach((p) => {
+        const b = { id: p.latestBuildId, label: p.label, createdAt: p.updatedAt };
         const item = document.createElement('div');
         item.className = 'history-item';
         item.innerHTML = `<div class="label"></div><div class="meta"></div>`;
         item.querySelector('.label').innerText = b.label;
-        item.querySelector('.meta').innerText = formatWhen(b.createdAt);
+        item.querySelector('.meta').innerText = formatWhen(b.createdAt)
+          + (p.versionCount > 1 ? ' \u00b7 ' + p.versionCount + ' versions' : '');
         item.addEventListener('click', () => loadBuild(b.id));
         const hostBtn = document.createElement('button');
         hostBtn.type = 'button';
@@ -1204,8 +1209,33 @@
             alert(err.message || 'Could not download this build.');
           }
         });
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.textContent = 'Delete';
+        removeBtn.style.cssText = 'display:inline-block;padding:12px 14px 12px 0;background:none;border:none;color:var(--text-dim);font-size:11px;cursor:pointer;';
+        removeBtn.title = 'Permanently delete this project and all its versions.';
+        removeBtn.addEventListener('click', async (event) => {
+          event.stopPropagation();
+          const versions = p.versionCount > 1 ? ` and all ${p.versionCount} of its versions` : '';
+          if (!window.confirm(`Delete "${b.label}"${versions}? This cannot be undone.`)) return;
+          removeBtn.disabled = true;
+          removeBtn.textContent = 'Deleting…';
+          try {
+            const res = await fetch('/api/room-history?projectId=' + encodeURIComponent(p.key), { method: 'DELETE' });
+            if (!res.ok) throw new Error('Could not delete this project.');
+            // If the open project was the one deleted, clear the canvas so
+            // the customer isn't editing something that no longer exists.
+            if (p.projectId && p.projectId === currentProjectId) resetProject();
+            loadHistoryList();
+          } catch (err) {
+            removeBtn.disabled = false;
+            removeBtn.textContent = 'Delete';
+            alert(err.message || 'Could not delete this project.');
+          }
+        });
         item.appendChild(hostBtn);
         item.appendChild(download);
+        item.appendChild(removeBtn);
         historyList.appendChild(item);
       });
     } catch (err) {
