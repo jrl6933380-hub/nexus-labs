@@ -15,6 +15,13 @@ global.fetch = async (_url, options) => {
     const storedKey = `${key}:${field}`;
     if (users.has(storedKey)) result = 0;
     else { users.set(storedKey, value); result = 1; }
+  } else if (command === 'HGETALL') {
+    // Redis returns a flat [field, value, field, value, ...] array.
+    const prefix = `${key}:`;
+    result = [];
+    for (const [storedKey, storedValue] of users) {
+      if (storedKey.startsWith(prefix)) result.push(storedKey.slice(prefix.length), storedValue);
+    }
   } else throw new Error(`Unexpected command ${command}`);
   return { ok: true, json: async () => ({ result }) };
 };
