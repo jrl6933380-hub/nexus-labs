@@ -1,3 +1,9 @@
+---
+name: forge-manager
+description: Nex's bounded self-service Forge account (nex-forge-manager, forge_manager role) for direct Forge Ops testing and account/plan administration — what it can do freely versus what still needs Justin, so standing access stays legible instead of quietly widening.
+triggers: forge manager, nex-forge-manager, forge ops, manager account, forge account, forge testing
+---
+
 # Forge Manager — Nex's bounded self-service account
 
 ## What this is
