@@ -74,9 +74,27 @@ If the requested change is too extensive to express as targeted edits (e.g. a fu
 
 // Parses one or more <<<OLD>>>/<<<NEW>>>/<<<END>>> blocks out of a
 // patch-mode response.
-function parsePatchBlocks(text) {
+//
+// The newline after each marker is OPTIONAL on purpose. This regex used to
+// require one (`<<<OLD>>>\r?\n`), and a real customer edit failed because the
+// model emitted the markers inline instead:
+//
+//     <<<OLD>>>  :focus-visible{ ... }</style><<<NEW>>>  :focus-visible{ ...
+//
+// That is a well-formed edit by every meaning that matters, but zero blocks
+// parsed and the whole build was rejected with "could not be applied
+// safely". Models will not reliably put a bare delimiter on its own line, so
+// the parser tolerates it rather than the customer losing the build.
+//
+// Whitespace handling is deliberately narrow: a run of spaces/tabs is only
+// consumed when it is followed by a newline (i.e. trailing whitespace on the
+// marker's own line). Leading indentation that belongs to the content is
+// preserved, because OLD text is matched against the document verbatim and
+// eating two spaces would turn a good edit into a "could not be matched"
+// failure instead.
+export function parsePatchBlocks(text) {
   const blocks = [];
-  const regex = /<<<OLD>>>\r?\n([\s\S]*?)\r?\n<<<NEW>>>\r?\n([\s\S]*?)\r?\n<<<END>>>/g;
+  const regex = /<<<OLD>>>(?:[ \t]*\r?\n)?([\s\S]*?)(?:\r?\n)?<<<NEW>>>(?:[ \t]*\r?\n)?([\s\S]*?)(?:\r?\n)?<<<END>>>/g;
   let match;
   while ((match = regex.exec(text)) !== null) {
     blocks.push({ oldText: match[1], newText: match[2] });
@@ -235,7 +253,15 @@ export default async function handler(req, res) {
     } else if (isEdit && raw.includes('<<<OLD>>>')) {
       const patches = parsePatchBlocks(raw);
       if (patches.length === 0) {
-        console.error('room-chat: patch mode but no parseable OLD/NEW blocks:', raw.slice(0, 200));
+        // Distinguish a cut-off response from a malformed one: they need
+        // different things from the customer, and the old code reported
+        // both as "could not be applied safely", which explains neither.
+        if (stopReason === 'max_tokens' || !raw.includes('<<<END>>>')) {
+          console.error('room-chat: edit response was cut off before a complete block (stop_reason:', stopReason + ')', 'length:', raw.length);
+          sendBuildError('That edit was too large to finish in one pass. Try asking for one change at a time.');
+          return;
+        }
+        console.error('room-chat: patch mode but no parseable OLD/NEW blocks:', raw.slice(0, 400));
         sendBuildError('The builder returned an edit that could not be applied safely.');
         return;
       }
