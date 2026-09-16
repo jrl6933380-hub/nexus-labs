@@ -56,6 +56,49 @@ test('customer streaming fails clearly when the centralized Gateway is unavailab
   );
 });
 
+test('customer streaming retries one transient Gateway failure inside the caller deadline', async () => {
+  const calls = [];
+  const controller = new AbortController();
+  const result = await routeMessageStream({
+    tier: 'heavy',
+    claudeModel: 'claude-direct-unused',
+    body: { messages: [{ role: 'user', content: 'build it' }] },
+    gatewayOnly: true,
+    signal: controller.signal,
+    env: { AI_GATEWAY_API_KEY: 'gateway-key', NEX_PROVIDER_RETRY_DELAY_MS: '0' },
+    fetchFn: async (url) => {
+      calls.push(url);
+      if (calls.length === 1) return response({ ok: false, status: 503, text: 'temporary outage' });
+      return response();
+    },
+  });
+
+  assert.equal(calls.length, 2);
+  assert.equal(result.provider, 'vercel-ai-gateway');
+});
+
+test('customer streaming never retries after its caller-owned signal aborts', async () => {
+  const calls = [];
+  const controller = new AbortController();
+  await assert.rejects(
+    routeMessageStream({
+      body: { messages: [] },
+      gatewayOnly: true,
+      signal: controller.signal,
+      env: { AI_GATEWAY_API_KEY: 'gateway-key', NEX_PROVIDER_RETRY_DELAY_MS: '0' },
+      fetchFn: async (url) => {
+        calls.push(url);
+        controller.abort();
+        const error = new Error('caller deadline reached');
+        error.name = 'AbortError';
+        throw error;
+      },
+    }),
+    AllProvidersUnavailableError
+  );
+  assert.equal(calls.length, 1);
+});
+
 test('uses direct Anthropic first when it is healthy', async () => {
   const calls = [];
   const result = await routeMessage({
@@ -90,7 +133,10 @@ test('falls back to Vercel AI Gateway when Anthropic fails', async () => {
     },
   });
 
+  // Rate limits fail over immediately. Retrying the same provider 600ms
+  // later only delays the customer and ignores the provider's real backoff.
   assert.equal(calls.length, 2);
+  assert.equal(calls[0].url, 'https://api.anthropic.com/v1/messages');
   assert.equal(calls[1].url, 'https://ai-gateway.vercel.sh/v1/messages');
   // Assert against the configured tier rather than a hardcoded name. This
   // previously pinned 'openai/gpt-5.4-nano' — the exact nano-class fallback
@@ -100,6 +146,103 @@ test('falls back to Vercel AI Gateway when Anthropic fails', async () => {
   // gone green again on a regression back to it.
   assert.equal(calls[1].body.model, DEFAULT_GATEWAY_MODELS.standard);
   assert.doesNotMatch(calls[1].body.model, /nano/, 'the standard tier must not fall back to a nano-class model');
+  assert.equal(result.provider, 'vercel-ai-gateway');
+});
+
+test('a single transient Anthropic failure is recovered by the bounce-back retry, with no fallback message shown', async () => {
+  const calls = [];
+  let anthropicAttempt = 0;
+  const result = await routeMessage({
+    tier: 'standard',
+    claudeModel: 'claude-test',
+    body: { messages: [] },
+    env: { ANTHROPIC_API_KEY: 'anthropic-key', AI_GATEWAY_API_KEY: 'gateway-key', NEX_PROVIDER_RETRY_DELAY_MS: '0' },
+    fetchFn: async (url, options) => {
+      calls.push(url);
+      if (url.includes('api.anthropic.com')) {
+        anthropicAttempt += 1;
+        if (anthropicAttempt === 1) {
+          return response({ ok: false, status: 503, text: 'temporary blip' });
+        }
+      }
+      return response({ json: { model: 'claude-test', content: [] } });
+    },
+  });
+
+  assert.equal(calls.length, 2, 'one failed attempt then one successful retry, no fallback needed');
+  assert.equal(result.provider, 'anthropic');
+  assert.equal(result.degraded, false);
+});
+
+test('permanent provider errors fail over without a same-provider retry', async () => {
+  const calls = [];
+  const result = await routeMessage({
+    tier: 'standard',
+    claudeModel: 'claude-test',
+    body: { messages: [] },
+    env: { ANTHROPIC_API_KEY: 'bad-key', AI_GATEWAY_API_KEY: 'gateway-key', NEX_PROVIDER_RETRY_DELAY_MS: '0' },
+    fetchFn: async (url) => {
+      calls.push(url);
+      if (url.includes('api.anthropic.com')) return response({ ok: false, status: 401, text: 'invalid key' });
+      return response({ json: { model: DEFAULT_GATEWAY_MODELS.standard, content: [] } });
+    },
+  });
+
+  assert.deepEqual(calls, [
+    'https://api.anthropic.com/v1/messages',
+    'https://ai-gateway.vercel.sh/v1/messages',
+  ]);
+  assert.equal(result.provider, 'vercel-ai-gateway');
+});
+
+test('an aborted provider request is never restarted', async () => {
+  const calls = [];
+  const result = await routeMessage({
+    tier: 'standard',
+    claudeModel: 'claude-test',
+    body: { messages: [] },
+    env: { ANTHROPIC_API_KEY: 'anthropic-key', AI_GATEWAY_API_KEY: 'gateway-key', NEX_PROVIDER_RETRY_DELAY_MS: '0' },
+    fetchFn: async (url) => {
+      calls.push(url);
+      if (url.includes('api.anthropic.com')) {
+        const error = new Error('request timed out');
+        error.name = 'AbortError';
+        throw error;
+      }
+      return response({ json: { model: DEFAULT_GATEWAY_MODELS.standard, content: [] } });
+    },
+  });
+
+  assert.deepEqual(calls, [
+    'https://api.anthropic.com/v1/messages',
+    'https://ai-gateway.vercel.sh/v1/messages',
+  ]);
+  assert.equal(result.provider, 'vercel-ai-gateway');
+});
+
+test('a retry is skipped when its delay would exceed the original provider timeout budget', async () => {
+  const calls = [];
+  const result = await routeMessage({
+    tier: 'standard',
+    claudeModel: 'claude-test',
+    body: { messages: [] },
+    env: {
+      ANTHROPIC_API_KEY: 'anthropic-key',
+      AI_GATEWAY_API_KEY: 'gateway-key',
+      NEX_PROVIDER_TIMEOUT_MS: '5000',
+      NEX_PROVIDER_RETRY_DELAY_MS: '5000',
+    },
+    fetchFn: async (url) => {
+      calls.push(url);
+      if (url.includes('api.anthropic.com')) return response({ ok: false, status: 503, text: 'temporary outage' });
+      return response({ json: { model: DEFAULT_GATEWAY_MODELS.standard, content: [] } });
+    },
+  });
+
+  assert.deepEqual(calls, [
+    'https://api.anthropic.com/v1/messages',
+    'https://ai-gateway.vercel.sh/v1/messages',
+  ]);
   assert.equal(result.provider, 'vercel-ai-gateway');
 });
 
