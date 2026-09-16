@@ -24,6 +24,7 @@
 // see one chat surface, and exports/previews stay portable.
 
 import { saveBuild } from '../lib/roomHistory.js';
+import { recordProjectSpend } from '../lib/roomProjectLedger.js';
 import { getRequestUser } from '../lib/roomAuth.js';
 import { getOrCreateAnonId } from '../lib/anonSession.js';
 import { roomMeter } from '../lib/roomMetering.js';
@@ -358,12 +359,27 @@ export default async function handler(req, res) {
   } finally {
     try {
       if (reservation) {
-        await roomMeter.settleBuild({
+        const settled = await roomMeter.settleBuild({
           userId: username,
           period: reservation.period,
           reservationId: reservation.reservationId,
           success: buildSucceeded,
         });
+        // Record what was actually charged against this project, so the
+        // work done on it has a real number attached. Uses `charged` and
+        // not the reserved amount on purpose: a failed build releases its
+        // reservation, and the ledger must never show work that didn't
+        // happen. Best-effort — a ledger write must never turn a finished
+        // page into an error, and it is not used to gate anything.
+        try {
+          await recordProjectSpend({
+            userId: username,
+            projectId,
+            credits: settled?.charged,
+          });
+        } catch (ledgerError) {
+          console.error('room-chat: project ledger write failed:', ledgerError.message);
+        }
       }
     } catch (meterError) {
       // A failed settlement must be visible in logs; it must never turn a
