@@ -5,12 +5,14 @@ import { FORGE_CREDIT_PRICING, publicForgePricing } from '../lib/forgePricing.js
 import { createRoomMeter } from '../lib/roomMetering.js';
 import { createUsageHandler } from '../api/room-usage.js';
 
-test('Forge pricing has permanent action costs and a meaningful $4 pack', () => {
+test('Forge pricing has permanent action costs and a meaningful pack', () => {
+  // priceUsd must stay in step with the live Stripe price for
+  // CREDIT_PACK_PRICE_ID (price_1UEjoFDh5Di7LYi3DGorrLRb, unit_amount 600).
   assert.deepEqual(FORGE_CREDIT_PRICING, {
     freshBuild: 15,
     edit: 2,
     assistant: 1,
-    usagePack: { priceUsd: 4, credits: 30 },
+    usagePack: { priceUsd: 6, credits: 30 },
   });
 });
 
@@ -51,6 +53,8 @@ test('new-account tier screen explains build costs and usage-pack value', async 
   // so the API advertised a cheaper pack than customers were actually charged.
   assert.match(
     source,
-    new RegExp(`Usage packs add ${pricing.usagePack.credits} build credits for \\${pricing.usagePack.priceUsd}`),
+    new RegExp('Usage packs add ' + pricing.usagePack.credits + ' build credits for \\
+});
+ + pricing.usagePack.priceUsd),
   );
 });
