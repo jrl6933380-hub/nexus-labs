@@ -919,6 +919,16 @@
     return stripSafetyShim(stripLiveEditWidget(currentHtml));
   }
 
+  // Mirrors the server gate in api/room-history.js. Starts locked so a
+  // failed or slow usage fetch never hands out a free export; the server
+  // endpoint remains authoritative either way.
+  let exportAllowed = false;
+
+  function showExportUpsell() {
+    addBubble('nex', 'Downloading your code is part of a paid plan. Your project stays saved here, and you can keep building and editing it for free — upgrade whenever you want to take the code with you.');
+    setChatOpen(true);
+  }
+
   function projectBlobUrl() {
     return URL.createObjectURL(new Blob([portableHtml()], { type: 'text/html;charset=utf-8' }));
   }
@@ -934,6 +944,12 @@
 
   exportBtn.addEventListener('click', () => {
     if (!currentHtml) return;
+    if (!exportAllowed) {
+      // The server refuses this too (402 EXPORT_REQUIRES_PAID_PLAN); this
+      // just means a free account gets an explanation instead of a file.
+      showExportUpsell();
+      return;
+    }
     const url = projectBlobUrl();
     const download = document.createElement('a');
     download.href = url;
@@ -1044,7 +1060,8 @@
     try {
       const res = await fetch('/api/room-usage', { headers: { Accept: 'application/json' }, cache: 'no-store' });
       if (!res.ok) return;
-      const { usage } = await res.json();
+      const { usage, canExport } = await res.json();
+      exportAllowed = Boolean(canExport);
       buildCreditMeter.classList.remove('is-low', 'is-unlimited');
       if (usage.unlimited) {
         usagePill.innerText = 'Owner · unlimited';
@@ -1159,13 +1176,34 @@
             alert(err.message || 'Could not host this build.');
           }
         });
-        const download = document.createElement('a');
+        const download = document.createElement('button');
+        download.type = 'button';
         download.textContent = 'Download HTML';
-        download.href = '/api/room-history?id=' + encodeURIComponent(b.id) + '&download=html';
-        download.setAttribute('download', 'nexus-build.html');
-        download.style.cssText = 'display:inline-block;padding:12px 0;color:var(--text-dim);font-size:11px;';
+        download.style.cssText = 'display:inline-block;padding:12px 0;background:none;border:none;color:var(--text-dim);font-size:11px;cursor:pointer;';
         download.title = 'Download generated code. Review before opening; external services are not bundled.';
-        download.addEventListener('click', (event) => event.stopPropagation());
+        download.addEventListener('click', async (event) => {
+          event.stopPropagation();
+          // Fetched rather than linked so a 402 becomes an upsell instead of
+          // silently saving the JSON error body to the customer's device as
+          // a file called nexus-build.html.
+          try {
+            const res = await fetch('/api/room-history?id=' + encodeURIComponent(b.id) + '&download=html');
+            if (res.status === 402) {
+              showExportUpsell();
+              return;
+            }
+            if (!res.ok) throw new Error('Could not download this build.');
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'nexus-build.html';
+            link.click();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+          } catch (err) {
+            alert(err.message || 'Could not download this build.');
+          }
+        });
         item.appendChild(hostBtn);
         item.appendChild(download);
         historyList.appendChild(item);
