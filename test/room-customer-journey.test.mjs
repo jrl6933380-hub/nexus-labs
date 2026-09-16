@@ -47,14 +47,15 @@ test('customers can attach and remove compressed images before sending them to N
   assert.match(apiSource, /embedRoomAttachments\(stripLiveEditWidget\(html\), attachments\)/);
 });
 
-test('Nexus Forge explains the product and surfaces the Build Team fallback', async () => {
+test('Nexus Forge keeps customer builds automatic instead of surfacing tickets', async () => {
   const loginSource = await readFile(new URL('../public/room-login.html', import.meta.url), 'utf8');
   assert.match(loginSource, /Nexus Forge/);
   assert.match(loginSource, /AI Website &amp; App Builder/);
   // The "Invite-only early access" line was deliberately removed when guest
   // access and open signup shipped; asserting it here would pin the page to
   // a product state that no longer exists.
-  assert.match(roomSource, /Build Team automatically/);
-  assert.match(roomSource, /event\.action === 'team_escalation'/);
-  assert.match(apiSource, /roomEscalator\.queue/);
+  assert.match(roomSource, /additional AI help behind the scenes/);
+  assert.doesNotMatch(roomSource, /event\.action === 'team_escalation'/);
+  assert.doesNotMatch(apiSource, /roomEscalator\.queue/);
+  assert.match(apiSource, /gatewayOnly: true/);
 });

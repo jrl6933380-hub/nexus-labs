@@ -1,15 +1,12 @@
 // api/room-chat.js
 // Live-canvas room, v3: generates a real, complete, self-contained HTML
-// document per request (inline CSS/JS), streamed token-by-token from
-// the Anthropic API directly rather than via lib/modelRouter.js's
-// blocking routeMessage(). A full page for an ambitious request can
+// document per request (inline CSS/JS), streamed token-by-token through
+// the centrally funded Vercel AI Gateway via modelRouter. A full page for an ambitious request can
 // genuinely take longer to generate than modelRouter's 90s hard
-// timeout ceiling (tuned for normal chat replies, not this) — streaming
-// isn't bound by that same fixed-timeout failure mode. Trade-off: this
-// route loses the Anthropic->AI-Gateway failover routeMessage() gives
-// other callers; acceptable since Gateway currently 403s anyway
-// (customer_verification_required — needs a card on file, a Vercel
-// account/billing matter, not something fixable in code).
+// timeout ceiling (tuned for normal chat replies, not this), so it uses
+// routeMessageStream and owns the longer request deadline itself. This
+// route is deliberately Gateway-only: removing or exhausting a separate
+// direct Anthropic account must never disable customer builds.
 //
 // v4: follow-up edits (currentHtml present) now ask for a small patch
 // instead of a full-document rewrite. Re-sending and re-generating the
@@ -32,9 +29,7 @@ import { getOrCreateAnonId } from '../lib/anonSession.js';
 import { roomMeter } from '../lib/roomMetering.js';
 import { roomConversations } from '../lib/roomConversation.js';
 import { attachmentManifest, attachmentMessageContent, embedRoomAttachments, parseRoomAttachments } from '../lib/roomAttachments.js';
-import { roomEscalator } from '../lib/roomEscalation.js';
-
-const ANTHROPIC_ENDPOINT = 'https://api.anthropic.com/v1/messages';
+import { routeMessageStream } from '../lib/modelRouter.js';
 
 // Comfortably inside Vercel's function ceiling below, so a slow
 // generation gets a clear timeout message instead of the platform
@@ -112,8 +107,8 @@ export default async function handler(req, res) {
   let username = await getRequestUser(req);
   if (!username) username = getOrCreateAnonId(req, res);
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return res.status(500).json({ error: 'ANTHROPIC_API_KEY is not configured for this environment.' });
+  if (!process.env.AI_GATEWAY_API_KEY) {
+    return res.status(500).json({ error: 'The AI Gateway is not configured for this environment.' });
   }
 
   let reservation;
@@ -146,26 +141,12 @@ export default async function handler(req, res) {
   };
 
   const isEdit = Boolean(currentHtml);
-  let escalationSent = false;
-  const escalate = async (reason) => {
-    if (escalationSent) return;
-    escalationSent = true;
-    try {
-      const ticket = await roomEscalator.queue({
-        userId: username,
-        projectId,
-        request: typeof displayMessage === 'string' && displayMessage.trim() ? displayMessage.trim() : message,
-        reason,
-        currentHtml,
-      });
-      send({ action: 'team_escalation', ...ticket });
-    } catch (escalationError) {
-      console.error('room-chat: Build Team escalation failed:', escalationError.message);
-      send({
-        action: 'team_escalation_error',
-        message: 'I could not finish this build or reach the Build Team queue. Your request is still saved in this conversation—please try again shortly.',
-      });
-    }
+  const sendBuildError = (reason) => {
+    console.error('room-chat: automatic build failed:', reason);
+    send({
+      action: 'error',
+      message: 'The automatic builder could not finish this attempt. Your project was not changed—please try again.',
+    });
   };
 
   // Start the downstream SSE response immediately, then keep it active
@@ -187,17 +168,12 @@ export default async function handler(req, res) {
   const timer = setTimeout(() => controller.abort(), STREAM_TIMEOUT_MS);
 
   try {
-    const response = await fetch(ANTHROPIC_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-5',
+    const { response, provider, model } = await routeMessageStream({
+      tier: 'heavy',
+      claudeModel: process.env.ROOM_BUILDER_MODEL || 'claude-sonnet-5',
+      gatewayOnly: true,
+      body: {
         max_tokens: 16000,
-        stream: true,
         system: isEdit ? EDIT_SYSTEM_PROMPT : FRESH_SYSTEM_PROMPT,
         messages: [
           {
@@ -208,16 +184,10 @@ export default async function handler(req, res) {
             attachments),
           },
         ],
-      }),
+      },
       signal: controller.signal,
     });
-
-    if (!response.ok || !response.body) {
-      const bodyText = await response.text().catch(() => '');
-      console.error('room-chat: anthropic streaming request failed', response.status, bodyText.slice(0, 300));
-      await escalate(`The instant builder provider returned HTTP ${response.status}.`);
-      return;
-    }
+    console.log('room-chat: streaming build opened through', provider, model);
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -266,7 +236,7 @@ export default async function handler(req, res) {
       const patches = parsePatchBlocks(raw);
       if (patches.length === 0) {
         console.error('room-chat: patch mode but no parseable OLD/NEW blocks:', raw.slice(0, 200));
-        await escalate('The instant builder returned an edit that could not be applied safely.');
+        sendBuildError('The builder returned an edit that could not be applied safely.');
         return;
       }
       let working = currentHtml;
@@ -280,7 +250,7 @@ export default async function handler(req, res) {
       }
       if (notFound.length > 0) {
         console.error('room-chat: patch text not found in current HTML:', notFound);
-        await escalate('The requested edit could not be matched safely to the current project.');
+        sendBuildError('The requested edit could not be matched safely to the current project.');
         return;
       }
       html = working;
@@ -295,7 +265,7 @@ export default async function handler(req, res) {
 
     if (!html.toLowerCase().startsWith('<!doctype') && !html.toLowerCase().startsWith('<html')) {
       console.error('room-chat: response did not look like a full HTML document:', html.slice(0, 200));
-      await escalate('The instant builder did not return a complete browser page.');
+      sendBuildError('The builder did not return a complete browser page.');
       return;
     }
 
@@ -307,7 +277,7 @@ export default async function handler(req, res) {
       const truncated = stopReason === 'max_tokens' || !/<\/html>\s*$/i.test(html);
       if (truncated) {
         console.error('room-chat: response was truncated (stop_reason:', stopReason + ')', 'length:', html.length);
-        await escalate('The requested build exceeded the instant builder output limit.');
+        sendBuildError('The requested build exceeded the automatic builder output limit.');
         return;
       }
     }
@@ -355,9 +325,9 @@ export default async function handler(req, res) {
     clearTimeout(timer);
     console.error('room-chat handler crashed:', err.message);
     if (err.name === 'AbortError') {
-      await escalate('The requested build exceeded the instant builder time limit.');
+      sendBuildError('The requested build exceeded the automatic builder time limit.');
     } else {
-      await escalate(`The instant builder failed: ${err.message}`);
+      sendBuildError(`The automatic builder failed: ${err.message}`);
     }
   } finally {
     try {

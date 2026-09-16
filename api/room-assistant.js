@@ -9,7 +9,6 @@ import { roomMeter } from '../lib/roomMetering.js';
 import { roomConversations } from '../lib/roomConversation.js';
 import { routeMessage } from '../lib/modelRouter.js';
 import { attachmentManifest, attachmentMessageContent, parseRoomAttachments } from '../lib/roomAttachments.js';
-import { roomEscalator } from '../lib/roomEscalation.js';
 import { wasAgentPitched, markAgentPitched } from '../lib/siteAgent.js';
 import { searchVault } from '../lib/codeVault.js';
 
@@ -29,14 +28,12 @@ Decide what the customer needs next and return ONLY one JSON object with no mark
 Allowed shapes:
 {"kind":"reply","message":"your helpful response or one focused question","suggestions":["optional short reply", "optional short reply"]}
 {"kind":"build","message":"brief plain-language confirmation of what you will change","instruction":"a complete precise instruction for the page generator"}
-{"kind":"team","message":"brief explanation that this needs the Nexus Build Team","instruction":"a complete precise team brief"}
 {"kind":"command","command":"preview_phone|preview_tablet|preview_fit|open_projects|open_preview|export_project","message":"brief confirmation"}
 {"kind":"pitch_agent","message":"one casual, specific sentence pitching the Site Agent add-on for THIS project"}
 
 Rules:
 - Use reply when the customer is asking a question, wants advice, is brainstorming, or an essential detail is missing. Ask at most one focused question at a time. Do not force questions when the request is already buildable.
-- Use build only when the customer clearly asks to create or change the project. Preserve their intent and compile relevant details from the recent conversation into instruction so they do not have to repeat themselves. If a RELEVANT VAULT PATTERNS section below lists a fitting proven pattern, adapt it instead of generating fully from scratch, and mention it briefly in your instruction.
-- Use team only when the request cannot be completed as a self-contained website or browser app in one instant-builder pass, or needs capabilities the instant builder cannot safely provide. Never use team merely because a request is detailed. The application creates the real team ticket after your decision, so do not claim it already exists.
+- Use build whenever the customer clearly asks to create or change the project. Preserve their intent and compile relevant details from the recent conversation into instruction so they do not have to repeat themselves. If the full request is ambitious, instruct the builder to produce the strongest complete working version now and leave a clear foundation for follow-up improvements. Complexity is never a reason to stop, defer, open a ticket, or ask the customer to supervise internal model coordination. If a RELEVANT VAULT PATTERNS section below lists a fitting proven pattern, adapt it instead of generating fully from scratch, and mention it briefly in your instruction.
 - Use command only for the exact safe workspace controls listed above. Never invent a command.
 - Use pitch_agent at most ONCE per project, only right after a genuinely working first version exists (never on the very first message, never mid-build), and only when it fits naturally — e.g. the customer just saw their site come together, or asked something an embedded assistant would solve ("how do people ask questions", "can visitors chat with this"). Tie the pitch to something specific about their actual site ("since this is a landing page for your bakery, visitors could ask about hours or custom orders right on the page"), never a generic line. If workspace state shows a pitch was already made for this project, do not pitch again — answer normally instead.
 - Attached images are real customer-provided visual context. Inspect them before answering. If the customer wants an image used in the site, reference its exact NEXUS_IMAGE_N token in the build instruction so the generator can place it. Never invent an image token.
@@ -69,10 +66,13 @@ export function parseAssistantDecision(raw) {
     if (!instruction) throw new Error('Build instruction is required');
     return { kind: 'build', message, instruction };
   }
+  // Backward-compatible safety net for a stale/cached classifier response:
+  // complexity never becomes a customer-facing ticket. Treat the old team
+  // shape as the build instruction it always should have been.
   if (parsed.kind === 'team') {
     const instruction = String(parsed.instruction || '').trim().slice(0, 6_000);
-    if (!instruction) throw new Error('Team instruction is required');
-    return { kind: 'team', message, instruction };
+    if (!instruction) throw new Error('Build instruction is required');
+    return { kind: 'build', message, instruction };
   }
   if (!ALLOWED_COMMANDS.has(parsed.command)) throw new Error('Unsupported workspace command');
   return { kind: 'command', command: parsed.command, message };
@@ -109,7 +109,6 @@ export function createAssistantHandler({
   meter = roomMeter,
   conversations = roomConversations,
   route = routeMessage,
-  escalator = roomEscalator,
   searchVaultFn = searchVault,
 } = {}) {
   return async function handler(req, res) {
@@ -173,31 +172,10 @@ export function createAssistantHandler({
       });
       const decision = parseAssistantDecision(textFromResponse(data));
       chargeAssistantTurn = decision.kind !== 'build';
-      let responseDecision = decision;
+      const responseDecision = decision;
       if (decision.kind === 'pitch_agent') {
         try { await markAgentPitched(projectId); }
         catch (error) { console.error('room-assistant: pitch-state write failed:', error.message); }
-      }
-      if (decision.kind === 'team') {
-        // Bug fix: this used to send ONLY decision.instruction (the model's own
-        // paraphrased "team brief") as the escalation request. If that
-        // paraphrase was vague or wrong, the customer's actual typed message
-        // never made it into the Board ticket at all — the Build Team built
-        // whatever the brief said, not what the customer asked for. Always
-        // lead with the real customer message; fold the compiled brief in
-        // alongside it only when it adds distinct detail, never in place of it.
-        const compiledBrief = String(decision.instruction || '').trim();
-        const request = compiledBrief && compiledBrief !== message
-          ? `${message}\n\nBuilder brief: ${compiledBrief}`
-          : message;
-        const ticket = await escalator.queue({
-          userId: username,
-          projectId,
-          request,
-          reason: decision.message,
-          currentHtml: req.body?.currentHtml,
-        });
-        responseDecision = { kind: 'team', ...ticket };
       }
       try {
         await conversations.appendTurns(username, projectId, [

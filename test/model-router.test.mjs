@@ -4,6 +4,7 @@ import {
   AllProvidersUnavailableError,
   DEFAULT_GATEWAY_MODELS,
   routeMessage,
+  routeMessageStream,
   routeToModel,
 } from '../lib/modelRouter.js';
 
@@ -11,11 +12,49 @@ function response({ ok = true, status = 200, json = {}, text = '' } = {}) {
   return {
     ok,
     status,
+    body: {},
     headers: { get: () => 'application/json' },
     json: async () => json,
     text: async () => text,
   };
 }
+
+test('customer streaming can use AI Gateway as the primary with no Anthropic key', async () => {
+  const calls = [];
+  const result = await routeMessageStream({
+    tier: 'heavy',
+    claudeModel: 'claude-direct-unused',
+    body: { messages: [{ role: 'user', content: 'build it' }], max_tokens: 16000 },
+    gatewayOnly: true,
+    env: {
+      AI_GATEWAY_API_KEY: 'gateway-key',
+      NEX_GATEWAY_HEAVY_MODEL: 'anthropic/claude-sonnet-5',
+    },
+    fetchFn: async (url, options) => {
+      calls.push({ url, body: JSON.parse(options.body) });
+      return response();
+    },
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, 'https://ai-gateway.vercel.sh/v1/messages');
+  assert.equal(calls[0].body.model, 'anthropic/claude-sonnet-5');
+  assert.equal(calls[0].body.stream, true);
+  assert.equal(result.provider, 'vercel-ai-gateway');
+});
+
+test('customer streaming fails clearly when the centralized Gateway is unavailable', async () => {
+  await assert.rejects(
+    routeMessageStream({
+      body: { messages: [] },
+      gatewayOnly: true,
+      env: {},
+      fetchFn: async () => { throw new Error('should not be called'); },
+    }),
+    (error) => error instanceof AllProvidersUnavailableError
+      && error.attempts.some((attempt) => attempt.provider === 'vercel-ai-gateway' && attempt.error === 'not configured')
+  );
+});
 
 test('uses direct Anthropic first when it is healthy', async () => {
   const calls = [];
