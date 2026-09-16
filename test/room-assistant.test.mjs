@@ -99,7 +99,7 @@ test('attached images reach Nex as vision input with a stable build token', asyn
   assert.equal(content[1].source.data, png);
 });
 
-test('a capability wall opens a real Build Team ticket and returns the verified message', async () => {
+test('an old team-shaped decision is normalized into an automatic build', async () => {
   const { handler, calls } = harness({
     kind: 'team',
     message: 'This needs the Build Team.',
@@ -111,11 +111,10 @@ test('a capability wall opens a real Build Team ticket and returns the verified 
     body: { message: 'Build my booking platform', projectId: 'p1', currentHtml: '<!doctype html><html></html>' },
   }, res);
   assert.equal(res.code, 200);
-  assert.equal(res.body.kind, 'team');
-  assert.equal(res.body.id, 'forge-1-ticket');
-  assert.equal(calls.escalate.length, 1);
-  assert.match(calls.escalate[0].request, /booking app/);
-  assert.match(calls.append[0][2][1].text, /Build Team ticket/);
+  assert.equal(res.body.kind, 'build');
+  assert.match(res.body.instruction, /booking app/);
+  assert.equal(calls.escalate.length, 0);
+  assert.equal(calls.settle[0].success, false, 'automatic build owns the build credit');
 });
 
 test('only allowlisted workspace commands can cross the assistant boundary', () => {
@@ -125,7 +124,7 @@ test('only allowlisted workspace commands can cross the assistant boundary', () 
   );
   assert.deepEqual(
     parseAssistantDecision('{"kind":"team","message":"This needs the team.","instruction":"Build the complete multi-route app."}'),
-    { kind: 'team', message: 'This needs the team.', instruction: 'Build the complete multi-route app.' },
+    { kind: 'build', message: 'This needs the team.', instruction: 'Build the complete multi-route app.' },
   );
   assert.throws(
     () => parseAssistantDecision('{"kind":"command","command":"merge_pr","message":"Doing it."}'),

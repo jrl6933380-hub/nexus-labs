@@ -1,18 +1,19 @@
 # nexus-labs
 
-## Nex reasoning-provider failover
+## Nex reasoning providers
 
-Nex keeps Anthropic as his primary reasoning provider and can fail over to
-Vercel AI Gateway without changing his identity, memory, tools, Board, or
+Nex and customer-facing generation use Vercel AI Gateway as the centralized
+funded provider route without changing identity, memory, tools, Board, or
 approval rules.
 
-Required for the existing primary route:
-
-- `ANTHROPIC_API_KEY`
-
-Required to enable the independent backup route:
+Required:
 
 - `AI_GATEWAY_API_KEY`
+
+Optional legacy direct-provider route:
+
+- `ANTHROPIC_API_KEY` (not required by Forge Builder, Site Agent, lead previews,
+  or memory compression)
 
 Optional controls:
 

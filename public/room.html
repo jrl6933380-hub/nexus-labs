@@ -715,7 +715,7 @@
           <div class="canvas-empty" id="canvas-empty">
             <div class="canvas-empty-inner">
               <strong>Turn your idea into a working site or app.</strong>
-              <span>Describe it to Nex. He’ll build the first version, save every update, and bring in the Nexus Build Team automatically when the job needs more hands.</span>
+              <span>Describe it to Nex. He’ll build the first version, save every update, and bring in additional AI models behind the scenes when the job needs more thinking.</span>
               <div class="starter-grid" aria-label="Project starting points">
                 <button class="starter-card" type="button" data-starter="business">Business website</button>
                 <button class="starter-card" type="button" data-starter="landing">Landing page</button>
@@ -1547,8 +1547,8 @@
     addBubble(
       'nex',
       returning
-        ? 'New project ready. Describe the whole idea or choose a starting point. If the instant builder reaches its limit, I’ll bring in the Nexus Build Team automatically.'
-        : 'Welcome to Nexus Forge. I’m Nex—describe the site, app, or AI agent you want, and I’ll build it (agents get a guided, step-by-step walkthrough). If it needs more than one pass, I’ll bring in the Nexus Build Team automatically.',
+        ? 'New project ready. Describe the whole idea or choose a starting point. I’ll handle the build and pull in additional AI help behind the scenes when needed.'
+        : 'Welcome to Nexus Forge. I’m Nex—describe the site, app, or AI agent you want, and I’ll build it. Complex work stays automatic; I can bring in additional AI help without turning your request into a ticket.',
     );
     addQuickActions(Object.entries(starterGuides).map(([key, guide]) => ({
       label: guide.label,
@@ -1846,14 +1846,6 @@
           } else if (event.action === 'error') {
             clearTimeout(slowNotice);
             buildingBubble.innerText = 'Ran into an issue: ' + event.message;
-          } else if (event.action === 'team_escalation') {
-            clearTimeout(slowNotice);
-            buildingBubble.classList.add('team');
-            buildingBubble.innerText = event.message;
-            speakUpdate('I sent this build to the Nexus Build Team.');
-          } else if (event.action === 'team_escalation_error') {
-            clearTimeout(slowNotice);
-            buildingBubble.innerText = event.message;
           }
         }
       }
@@ -1918,11 +1910,6 @@
       if (decision.kind === 'reply') {
         addAssistantSuggestions(decision.suggestions);
         speakUpdate(decision.message);
-        return;
-      }
-      if (decision.kind === 'team') {
-        nexBubble.classList.add('team');
-        speakUpdate('I sent this build to the Nexus Build Team.');
         return;
       }
       if (decision.kind === 'pitch_agent') {
