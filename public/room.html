@@ -1146,14 +1146,38 @@
         item.innerHTML = `<div class="label"></div><div class="meta"></div>`;
         item.querySelector('.label').innerText = b.label;
         item.querySelector('.meta').innerText = formatWhen(b.createdAt)
-          + (p.versionCount > 1 ? ' \u00b7 ' + p.versionCount + ' versions' : '');
+          + (p.versionCount > 1 ? ' \u00b7 ' + p.versionCount + ' versions' : '')
+          + (p.liveUrl ? ' \u00b7 live' : '');
         item.addEventListener('click', () => loadBuild(b.id));
         const hostBtn = document.createElement('button');
         hostBtn.type = 'button';
-        hostBtn.textContent = 'Host live';
+        // A project that is already live gets a way OFF, not another way on.
+        // Without this a customer on a one-site plan has no way to swap which
+        // of their projects is the live one.
+        hostBtn.textContent = p.liveUrl ? 'Take offline' : 'Host live';
         hostBtn.style.cssText = 'display:inline-block;padding:12px 14px 12px 0;background:none;border:none;color:var(--ember);font:700 12px var(--mono,monospace);cursor:pointer;';
-        hostBtn.title = 'Deploy this build to a real, live URL.';
-        hostBtn.addEventListener('click', async (event) => {
+        hostBtn.title = p.liveUrl
+          ? 'Delete this live site and free the slot on your plan.'
+          : 'Deploy this build to a real, live URL.';
+        if (p.liveUrl) {
+          hostBtn.addEventListener('click', async (event) => {
+            event.stopPropagation();
+            if (!window.confirm(`Take "${b.label}" offline? ${p.liveUrl} will stop working.`)) return;
+            hostBtn.disabled = true;
+            hostBtn.textContent = 'Taking down\u2026';
+            try {
+              const res = await fetch('/api/room-publish?projectId=' + encodeURIComponent(p.projectId), { method: 'DELETE' });
+              const data = await res.json().catch(() => ({}));
+              if (!res.ok) throw new Error(data.error || 'Could not take this site offline.');
+              loadHistoryList();
+            } catch (err) {
+              hostBtn.disabled = false;
+              hostBtn.textContent = 'Take offline';
+              alert(err.message || 'Could not take this site offline.');
+            }
+          });
+        } else {
+          hostBtn.addEventListener('click', async (event) => {
           event.stopPropagation();
           const original = hostBtn.textContent;
           hostBtn.disabled = true;
@@ -1171,6 +1195,14 @@
               window.location.href = '/room-login.html?next=' + encodeURIComponent(location.pathname);
               return;
             }
+            // Plan's live-site allowance is already used up. Say which
+            // project has to come down rather than just failing.
+            if (res.status === 409) {
+              hostBtn.disabled = false;
+              hostBtn.textContent = original;
+              alert(data.error || 'Your plan has no free live-site slots. Take one offline first.');
+              return;
+            }
             if (!res.ok || !data.url) throw new Error(data.error || 'Could not host this build.');
             hostBtn.textContent = 'Live →';
             hostBtn.onclick = (e2) => { e2.stopPropagation(); window.open(data.url, '_blank', 'noopener'); };
@@ -1180,7 +1212,20 @@
             hostBtn.textContent = original;
             alert(err.message || 'Could not host this build.');
           }
-        });
+          });
+        }
+
+        // A live project also gets a plain link to visit it.
+        if (p.liveUrl) {
+          const visit = document.createElement('a');
+          visit.textContent = 'Visit →';
+          visit.href = p.liveUrl;
+          visit.target = '_blank';
+          visit.rel = 'noopener';
+          visit.style.cssText = 'display:inline-block;padding:12px 14px 12px 0;color:var(--ember);font-size:11px;';
+          visit.addEventListener('click', (event) => event.stopPropagation());
+          item.appendChild(visit);
+        }
         const download = document.createElement('button');
         download.type = 'button';
         download.textContent = 'Download HTML';
