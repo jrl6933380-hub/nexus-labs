@@ -15,6 +15,7 @@ const make = (overrides = {}) => createPublishHandler({
   readBuild: async (owner, id) => (owner === 'alice' && id === 'a1' ? { html: '<h1>hi</h1>', projectId: 'p1' } : null),
   resolvePlan: async () => 'hosted',
   publish: async () => ({ deployed: true, url: 'https://room-alice-p1.vercel.app', deployment_id: 'dpl_1' }),
+  readAgentConfig: async () => null,
   ...overrides,
 });
 
@@ -64,6 +65,23 @@ test('a failed publish returns 502 with the reason', async () => {
   await make({ publish: async () => ({ deployed: false, reason: 'No Vercel token configured' }) })(request(), res);
   assert.equal(res.code, 502);
   assert.equal(res.body.reason, 'No Vercel token configured');
+});
+
+test('an enabled site agent injects its widget before the closing body tag', async () => {
+  let publishedHtml = null;
+  const res = response();
+  await make({
+    readBuild: async () => ({ html: '<body><h1>hi</h1></body>', projectId: 'p1' }),
+    readAgentConfig: async () => ({ enabled: true }),
+    publish: async ({ html }) => {
+      publishedHtml = html;
+      return { deployed: true, url: 'https://room-alice-p1.vercel.app', deployment_id: 'dpl_1' };
+    },
+  })(request(), res);
+  assert.equal(res.code, 200);
+  assert.match(publishedHtml, /site-agent-widget\.js/);
+  assert.match(publishedHtml, /data-project="p1"/);
+  assert.ok(publishedHtml.indexOf('site-agent-widget.js') < publishedHtml.indexOf('</body>'));
 });
 
 test('non-POST requests are rejected', async () => {
