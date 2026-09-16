@@ -35,11 +35,11 @@
   </div>
 
   <div class="card" id="card-create">
-    <label>Username</label>
+    <label for="c-username">Username</label>
     <input id="c-username" placeholder="e.g. jsmith" />
-    <label>Password (you set this — send it to them yourself)</label>
+    <label for="c-password">Password (you set this — send it to them yourself)</label>
     <input id="c-password" type="text" placeholder="at least 8 characters" />
-    <label>Role</label>
+    <label for="c-role">Role</label>
     <select id="c-role">
       <option value="forge_worker">Worker — can call assigned leads</option>
       <option value="forge_manager">Manager — can also create/assign leads</option>
@@ -51,9 +51,9 @@
   </div>
 
   <div class="card" id="card-grant" hidden>
-    <label>Room username (they already have an account)</label>
+    <label for="g-username">Room username (they already have an account)</label>
     <input id="g-username" placeholder="e.g. jsmith" />
-    <label>Role</label>
+    <label for="g-role">Role</label>
     <select id="g-role">
       <option value="forge_worker">Worker — can call assigned leads</option>
       <option value="forge_manager">Manager — can also create/assign leads</option>
