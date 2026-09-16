@@ -90,17 +90,49 @@ test('falls back to Vercel AI Gateway when Anthropic fails', async () => {
     },
   });
 
-  assert.equal(calls.length, 2);
-  assert.equal(calls[1].url, 'https://ai-gateway.vercel.sh/v1/messages');
+  // Anthropic now gets one same-provider bounce-back retry before Nex
+  // counts it as failed and moves on -- so a persistent Anthropic failure
+  // is 2 Anthropic calls, then 1 Gateway call, not 1-then-1. This is the
+  // exact behavior the retry was added for: a transient blip gets a
+  // second chance before the human ever sees a fallback message.
+  assert.equal(calls.length, 3);
+  assert.equal(calls[0].url, 'https://api.anthropic.com/v1/messages');
+  assert.equal(calls[1].url, 'https://api.anthropic.com/v1/messages');
+  assert.equal(calls[2].url, 'https://ai-gateway.vercel.sh/v1/messages');
   // Assert against the configured tier rather than a hardcoded name. This
   // previously pinned 'openai/gpt-5.4-nano' — the exact nano-class fallback
   // that caused the real incident described in lib/modelRouter.js (any
   // Anthropic hiccup silently dropped every request onto a weak model and
   // Nex went vague mid-session). Hardcoding it meant the test would have
   // gone green again on a regression back to it.
-  assert.equal(calls[1].body.model, DEFAULT_GATEWAY_MODELS.standard);
-  assert.doesNotMatch(calls[1].body.model, /nano/, 'the standard tier must not fall back to a nano-class model');
+  assert.equal(calls[2].body.model, DEFAULT_GATEWAY_MODELS.standard);
+  assert.doesNotMatch(calls[2].body.model, /nano/, 'the standard tier must not fall back to a nano-class model');
   assert.equal(result.provider, 'vercel-ai-gateway');
+});
+
+test('a single transient Anthropic failure is recovered by the bounce-back retry, with no fallback message shown', async () => {
+  const calls = [];
+  let anthropicAttempt = 0;
+  const result = await routeMessage({
+    tier: 'standard',
+    claudeModel: 'claude-test',
+    body: { messages: [] },
+    env: { ANTHROPIC_API_KEY: 'anthropic-key', AI_GATEWAY_API_KEY: 'gateway-key' },
+    fetchFn: async (url, options) => {
+      calls.push(url);
+      if (url.includes('api.anthropic.com')) {
+        anthropicAttempt += 1;
+        if (anthropicAttempt === 1) {
+          return response({ ok: false, status: 503, text: 'temporary blip' });
+        }
+      }
+      return response({ json: { model: 'claude-test', content: [] } });
+    },
+  });
+
+  assert.equal(calls.length, 2, 'one failed attempt then one successful retry, no fallback needed');
+  assert.equal(result.provider, 'anthropic');
+  assert.equal(result.degraded, false);
 });
 
 test('force-gateway switch bypasses Anthropic without removing its key', async () => {
