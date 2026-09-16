@@ -47,15 +47,24 @@ test('new-account tier screen explains build costs and usage-pack value', async 
   const source = await readFile(new URL('../public/room-login.html', import.meta.url), 'utf8');
   const pricing = publicForgePricing();
   assert.match(source, /15 credits per new build · 2 per edit/);
-  // Built from the pricing constant rather than hardcoded, so the page copy
-  // and lib/forgePricing.js cannot drift apart again. They had drifted: the
-  // page said $6 (correct — it matches the live Stripe price) while the
-  // constant said $4, so the usage API advertised a cheaper pack than
-  // customers were actually charged at checkout.
-  const expected = 'Usage packs add ' + pricing.usagePack.credits
-    + ' build credits for $' + pricing.usagePack.priceUsd;
-  assert.ok(
-    source.includes(expected),
-    'room-login.html copy must match canonical Forge pricing, got no match for: ' + expected,
-  );
+
+  // The page renders these from /api/room-usage at load, but the figures in
+  // the markup are the offline fallback — so they still have to be right.
+  // Checked against the canonical constant rather than restated here, since
+  // the two previously drifted ($6 on the page vs $4 in the constant) and the
+  // builder UI advertised a cheaper pack than checkout actually charged.
+  const packCredits = [...source.matchAll(/data-pricing="packCredits"[^>]*>([^<]*)</gu)].map((m) => m[1]);
+  const packPrices = [...source.matchAll(/data-pricing="packPrice"[^>]*>([^<]*)</gu)].map((m) => m[1]);
+  assert.ok(packCredits.length > 0, 'expected usage-pack credit figures to be marked with data-pricing');
+  assert.ok(packPrices.length > 0, 'expected usage-pack price figures to be marked with data-pricing');
+  for (const value of packCredits) {
+    assert.equal(value, String(pricing.usagePack.credits), 'fallback credit figure must match canonical pricing');
+  }
+  for (const value of packPrices) {
+    assert.equal(value, String(pricing.usagePack.priceUsd), 'fallback price figure must match canonical pricing');
+  }
+
+  // And the buy button must point at the credit-pack price, so the copy and
+  // the thing it charges cannot describe different products.
+  assert.match(source, /data-checkout="price_1UEjoFDh5Di7LYi3DGorrLRb"/);
 });

@@ -281,8 +281,8 @@
         <button class="tier-action-annual" type="button" data-checkout="price_1UEjoBDh5Di7LYi3O69yUjQS">or $590/yr — 2 months free</button>
       </article>
     </div>
-    <p class="tier-note">Need more later? Usage packs add 30 build credits for $6, available anytime inside the builder.</p>
-    <p class="tier-note"><button class="tier-action-annual" type="button" data-checkout="price_1UEjoFDh5Di7LYi3DGorrLRb" style="display:inline;width:auto;">Buy 30 credits now — $6</button></p>
+    <p class="tier-note">Need more later? Usage packs add <span data-pricing="packCredits">30</span> build credits for $<span data-pricing="packPrice">6</span>, available anytime inside the builder.</p>
+    <p class="tier-note"><button class="tier-action-annual" type="button" data-checkout="price_1UEjoFDh5Di7LYi3DGorrLRb" style="display:inline;width:auto;">Buy <span data-pricing="packCredits">30</span> credits now — $<span data-pricing="packPrice">6</span></button></p>
   </div>
 </section>
 
@@ -311,6 +311,31 @@
 </section>
 
 <script>
+  // Usage-pack figures are rendered from the canonical pricing policy
+  // (lib/forgePricing.js, served by /api/room-usage) rather than trusted
+  // from the markup. The numbers in the HTML are the correct ones and are
+  // enforced by test/forge-pricing.test.mjs, but they are a fallback: if
+  // the policy ever changes, this page follows it without an edit. This
+  // mattered — the page and the constant previously disagreed ($6 vs $4)
+  // and the builder UI advertised a cheaper pack than checkout charged.
+  (async () => {
+    const targets = document.querySelectorAll('[data-pricing]');
+    if (!targets.length) return;
+    try {
+      const res = await fetch('/api/room-usage', { credentials: 'same-origin' });
+      if (!res.ok) return;
+      const pack = (await res.json())?.pricing?.usagePack;
+      if (!pack) return;
+      const values = { packCredits: pack.credits, packPrice: pack.priceUsd };
+      for (const node of targets) {
+        const value = values[node.dataset.pricing];
+        if (value !== undefined && value !== null) node.textContent = String(value);
+      }
+    } catch {
+      // Offline or the endpoint is down: leave the markup figures in place.
+    }
+  })();
+
   const tabLogin = document.getElementById('tab-login');
   const tabSignup = document.getElementById('tab-signup');
   const loginForm = document.getElementById('login-form');
