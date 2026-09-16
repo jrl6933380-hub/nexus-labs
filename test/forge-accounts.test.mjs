@@ -15,11 +15,18 @@ global.fetch = async (_url, options) => {
     const storedKey = `${key}:${field}`;
     if (users.has(storedKey)) result = 0;
     else { users.set(storedKey, value); result = 1; }
+  } else if (command === 'HGETALL') {
+    // Redis returns a flat [field, value, field, value, ...] array.
+    const prefix = `${key}:`;
+    result = [];
+    for (const [storedKey, storedValue] of users) {
+      if (storedKey.startsWith(prefix)) result.push(storedKey.slice(prefix.length), storedValue);
+    }
   } else throw new Error(`Unexpected command ${command}`);
   return { ok: true, json: async () => ({ result }) };
 };
 
-const { provisionForgeAccount } = await import('../lib/forgeAccounts.js');
+const { provisionForgeAccount, findForgeAccount, listForgeAccounts } = await import('../lib/forgeAccounts.js');
 const { getForgeRole, FORGE_ROLES } = await import('../lib/forgeRoles.js');
 const { verifyUser, getUserPlan, PLANS } = await import('../lib/roomAuth.js');
 
@@ -84,4 +91,51 @@ test('there is no way to provision an operator account', async () => {
   await assert.rejects(() => provisionForgeAccount({ username: 'wannabe', kind: 'operator' }), /kind must be one of/);
   const account = await provisionForgeAccount({ username: 'ordinary-user', kind: 'manager' });
   assert.notEqual(account.role, 'operator');
+});
+
+test('a free account is findable even though it is not a billing customer', async () => {
+  // The bug this prevents: list_forge_customers covers only paid/Stripe
+  // accounts, so a free test account is invisible there. An empty customer
+  // list was once read as "the account does not exist" when it existed fine.
+  const created = await provisionForgeAccount({ username: 'free-tester' });
+  const found = await findForgeAccount('free-tester');
+  assert.equal(found.exists, true);
+  assert.equal(found.account.plan, PLANS.FREE);
+  assert.equal(found.account.forgeRole, null);
+  assert.equal(found.account.hasBillingOnRecord, false, 'a free account has no billing, and must still be findable');
+  assert.equal(created.username, found.account.username);
+});
+
+test('lookup is case-insensitive and reports a genuine miss as not found', async () => {
+  await provisionForgeAccount({ username: 'CaseTest' });
+  assert.equal((await findForgeAccount('casetest')).exists, true);
+  assert.equal((await findForgeAccount('nobody-here')).exists, false);
+  assert.equal((await findForgeAccount('nobody-here')).account, null);
+});
+
+test('account lookups never return credentials', async () => {
+  await provisionForgeAccount({ username: 'secret-holder', password: 'supersecret123' });
+  const found = await findForgeAccount('secret-holder');
+  const serialized = JSON.stringify(found);
+  assert.doesNotMatch(serialized, /supersecret123/);
+  for (const field of ['password', 'passwordHash', 'salt', 'securityAnswerHash', 'answerSalt']) {
+    assert.equal(found.account[field], undefined, `${field} must never be exposed`);
+  }
+});
+
+test('accounts can be listed and filtered by role and plan', async () => {
+  await provisionForgeAccount({ username: 'filter-worker', kind: 'worker' });
+  await provisionForgeAccount({ username: 'filter-manager', kind: 'manager' });
+  await provisionForgeAccount({ username: 'filter-paid', plan: PLANS.HOSTED });
+
+  const workers = await listForgeAccounts({ role: FORGE_ROLES.WORKER });
+  assert.ok(workers.some((a) => a.username === 'filter-worker'));
+  assert.ok(!workers.some((a) => a.username === 'filter-manager'), 'role filter must exclude other roles');
+
+  const hosted = await listForgeAccounts({ plan: PLANS.HOSTED });
+  assert.ok(hosted.some((a) => a.username === 'filter-paid'));
+  assert.ok(hosted.every((a) => a.plan === PLANS.HOSTED));
+
+  const all = await listForgeAccounts();
+  assert.ok(all.length >= 3, 'an unfiltered list includes free accounts too');
 });
