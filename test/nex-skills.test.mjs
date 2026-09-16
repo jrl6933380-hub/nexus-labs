@@ -52,9 +52,24 @@ test('genuine system-change questions still correctly trigger the new skill', as
 });
 
 test('unrelated everyday questions do not falsely trigger any skill', async () => {
-  const cases = ["What's the weather like today", 'Did the deploy finish yet'];
+  // 'Did the deploy finish yet' used to live here, but it is not an
+  // unrelated question: verification-habits deliberately lists 'deploy' as a
+  // trigger, and a "is it done yet" question is exactly when that skill
+  // should load. It is asserted positively in the next test instead.
+  const cases = ["What's the weather like today", 'Can you order me a pizza', 'What time is sunset'];
   for (const message of cases) {
     const skills = await loadRelevantNexSkills(message);
     assert.equal(skills.length, 0, `expected no match for: ${message}, got ${JSON.stringify(skills.map(s=>s.name))}`);
   }
+});
+
+test('a "is it done yet" question loads verification-habits and nothing unrelated', async () => {
+  const skills = await loadRelevantNexSkills('Did the deploy finish yet');
+  const names = skills.map((s) => s.name);
+  assert.ok(names.includes('verification-habits'), `expected verification-habits, got ${JSON.stringify(names)}`);
+  // forge-domain previously matched here too, purely because its description
+  // contained the generic words 'code/deploy' — the near-universal-match
+  // footgun documented in lib/nexSkills.js. Its description is now scoped to
+  // Forge, so an unrelated deploy question no longer drags it in.
+  assert.ok(!names.includes('forge-domain'), 'a generic deploy question must not load Forge domain knowledge');
 });
