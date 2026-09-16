@@ -8,22 +8,19 @@
 // the signed-in user is an operator (roomAuth.isOperatorUser — the
 // same allowlist that gates the Nex dock). Anyone else gets a 403.
 
-import crypto from 'crypto';
-import { getRequestUser, isOperatorUser, createUser, SECURITY_QUESTIONS } from '../lib/roomAuth.js';
+import { getRequestUser, isOperatorUser } from '../lib/roomAuth.js';
 import { setForgeRole, FORGE_ROLES } from '../lib/forgeRoles.js';
+import { provisionForgeAccount } from '../lib/forgeAccounts.js';
 
-// Operator-set accounts don't get a self-service password reset flow
-// (the operator hands out credentials over Discord instead), so the
-// security question/answer just needs to exist to satisfy createUser's
-// validation — it's not meant to be used. Generated per account so
-// nobody accidentally shares one guessable answer across every worker.
-function placeholderRecovery() {
-  return {
-    email: `forge-${crypto.randomBytes(4).toString('hex')}@nexus-forge.internal`,
-    securityQuestion: SECURITY_QUESTIONS[0],
-    securityAnswer: crypto.randomBytes(12).toString('hex'),
-  };
-}
+// Account creation itself lives in lib/forgeAccounts.js so this endpoint
+// and Nex's create_forge_account tool provision accounts identically
+// (same recovery-field handling, same atomic create, same operator
+// ceiling) instead of drifting apart.
+
+const ROLE_TO_KIND = {
+  [FORGE_ROLES.WORKER]: 'worker',
+  [FORGE_ROLES.MANAGER]: 'manager',
+};
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'private, no-store');
@@ -50,8 +47,12 @@ export default async function handler(req, res) {
       if (typeof password !== 'string' || password.length < 8) {
         return res.status(400).json({ error: 'Password must be at least 8 characters — you set this, so pick something you can send them.' });
       }
-      const { email, securityQuestion, securityAnswer } = placeholderRecovery();
-      await createUser(targetUsername, password, email, securityQuestion, securityAnswer);
+      const account = await provisionForgeAccount({
+        username: targetUsername,
+        kind: ROLE_TO_KIND[role] || 'customer',
+        password,
+      });
+      return res.status(200).json({ username: account.username, role: account.role });
     }
     const result = await setForgeRole(targetUsername, role);
     return res.status(200).json(result);
