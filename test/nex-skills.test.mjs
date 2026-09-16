@@ -73,3 +73,9 @@ test('a "is it done yet" question loads verification-habits and nothing unrelate
   // Forge, so an unrelated deploy question no longer drags it in.
   assert.ok(!names.includes('forge-domain'), 'a generic deploy question must not load Forge domain knowledge');
 });
+
+test('memory manager skill is available for explicit memory work', async () => {
+  const skills = await loadRelevantNexSkills('Review and curate my memory candidates');
+  assert.ok(skills.some((skill) => skill.name === 'memory-manager'));
+  assert.match(formatNexSkills(skills), /Never promote Nex's suggestions/);
+});

@@ -93,6 +93,12 @@
         <option value="fact">Fact</option>
         <option value="project">Project</option>
       </select>
+      <select id="new-scope" aria-label="Memory scope">
+        <option value="profile">Profile</option>
+        <option value="preference">Preference</option>
+        <option value="project">Project</option>
+        <option value="topic">Topic</option>
+      </select>
       <button id="add-btn">Save memory</button>
     </div>
   `;
@@ -110,15 +116,39 @@
   projectsBody.innerHTML = '<h4>Projects</h4><div class="empty-hint">Loading…</div>';
   canvas.addPanel({ id: 'projects', title: 'Projects', content: projectsBody, x: 840, y: 80, w: 340, h: 400 });
 
+  // Candidate review panel. Completed conversations land here before the
+  // conservative curator decides whether they contain a durable user-stated fact.
+  const candidatesBody = document.createElement('div');
+  candidatesBody.className = 'memory-list-panel';
+  candidatesBody.innerHTML = '<h4>Candidates</h4><div class="empty-hint">Loading…</div>';
+  canvas.addPanel({ id: 'memory-candidates', title: 'Memory Manager', content: candidatesBody, x: 80, y: 320, w: 380, h: 430 });
+
   function renderCard(memory) {
     const date = new Date(memory.created_at || Date.now()).toLocaleDateString();
+    const metadata = [memory.scope, memory.provenance, memory.status && memory.status !== 'active' ? memory.status : null].filter(Boolean).join(' · ');
     return `
       <div class="memory-card">
         <div>
           <div class="memory-content">${escapeHtml(memory.content)}</div>
-          <div class="memory-meta">${escapeHtml(date)}</div>
+          <div class="memory-meta">${escapeHtml([date, metadata].filter(Boolean).join(' · '))}</div>
         </div>
         <button class="delete-btn" data-id="${escapeHtml(memory.id)}">Delete</button>
+      </div>
+    `;
+  }
+
+  function renderCandidate(candidate) {
+    const date = new Date(candidate.created_at || Date.now()).toLocaleString();
+    return `
+      <div class="memory-card">
+        <div>
+          <div class="memory-content">${escapeHtml(candidate.user_message || '')}</div>
+          <div class="memory-meta">${escapeHtml(date)} · ${escapeHtml(candidate.status === 'failed' ? 'review failed — manual action available' : 'pending review')}</div>
+          <div class="add-row">
+            <button class="promote-btn" data-id="${escapeHtml(candidate.id)}">Keep</button>
+            <button class="reject-btn" data-id="${escapeHtml(candidate.id)}">Discard</button>
+          </div>
+        </div>
       </div>
     `;
   }
@@ -128,20 +158,43 @@
       const res = await fetch('/api/memory');
       const data = await res.json();
       const memories = data.memories || [];
-      const facts = memories.filter((m) => m.category !== 'project');
-      const projects = memories.filter((m) => m.category === 'project');
+      const active = memories.filter((m) => !m.status || m.status === 'active');
+      const facts = active.filter((m) => m.category !== 'project');
+      const projects = active.filter((m) => m.category === 'project');
+      const candidates = data.candidates || [];
 
       factsBody.innerHTML = '<h4>Facts</h4>' + (facts.length ? facts.map(renderCard).join('') : '<div class="empty-hint">Nothing saved yet.</div>');
       projectsBody.innerHTML = '<h4>Projects</h4>' + (projects.length ? projects.map(renderCard).join('') : '<div class="empty-hint">Nothing saved yet.</div>');
+      candidatesBody.innerHTML = '<h4>Pending candidates</h4>'
+        + '<button id="curate-btn">Review candidates now</button>'
+        + (candidates.length ? candidates.map(renderCandidate).join('') : '<div class="empty-hint">No conversations waiting for review.</div>');
 
       [factsBody, projectsBody].forEach((panel) => {
         panel.querySelectorAll('.delete-btn').forEach((btn) => {
           btn.addEventListener('click', () => deleteMemory(btn.dataset.id));
         });
       });
+      candidatesBody.querySelector('#curate-btn')?.addEventListener('click', () => candidateAction('curate'));
+      candidatesBody.querySelectorAll('.promote-btn').forEach((btn) => btn.addEventListener('click', () => candidateAction('promote', btn.dataset.id)));
+      candidatesBody.querySelectorAll('.reject-btn').forEach((btn) => btn.addEventListener('click', () => candidateAction('reject', btn.dataset.id)));
     } catch (err) {
       factsBody.innerHTML = '<h4>Facts</h4><div class="empty-hint">Couldn\'t load memories.</div>';
       projectsBody.innerHTML = '<h4>Projects</h4><div class="empty-hint">Couldn\'t load memories.</div>';
+      candidatesBody.innerHTML = '<h4>Candidates</h4><div class="empty-hint">Couldn\'t load candidates.</div>';
+    }
+  }
+
+  async function candidateAction(action, id) {
+    try {
+      const res = await fetch('/api/memory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, id }),
+      });
+      if (!res.ok) throw new Error('Request failed');
+      loadMemories();
+    } catch (err) {
+      alert('Memory candidate action failed.');
     }
   }
 
@@ -157,6 +210,7 @@
   document.getElementById('add-btn').addEventListener('click', async () => {
     const contentField = document.getElementById('new-content');
     const categoryField = document.getElementById('new-category');
+    const scopeField = document.getElementById('new-scope');
     const content = contentField.value.trim();
     if (!content) return;
     const btn = document.getElementById('add-btn');
@@ -165,7 +219,7 @@
       await fetch('/api/memory', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, category: categoryField.value }),
+        body: JSON.stringify({ content, category: categoryField.value, scope: scopeField.value }),
       });
       contentField.value = '';
       loadMemories();
