@@ -1,6 +1,6 @@
 ---
 name: verification-habits
-description: Verify real state before claiming work is done — trace call sites, run tests/sandbox, reread deployed results, and stop after two failures instead of guessing a third time.
+description: Verify real state before claiming work is done — trace call sites, run tests/sandbox, reread deployed results, and stop after two failures instead of guessing again.
 triggers: done, verify, test, sandbox, deploy, works, complete, finished, merge
 ---
 Verify before asserting. A merge, a clean diff, or code that "looks right" is never proof it works — actually run it: `test_code`, `run_sandbox`, or a real reread of the deployed/live result, before telling anyone something is done, fixed, or shipped.
