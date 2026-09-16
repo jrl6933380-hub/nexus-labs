@@ -11,6 +11,7 @@ import { getBuild } from '../lib/roomHistory.js';
 import { getRequestUser, getUserPlan, isPaidPlan } from '../lib/roomAuth.js';
 import { deployStaticSite } from '../lib/vercel.js';
 import { getAgentConfig } from '../lib/siteAgent.js';
+import { checkLiveSiteAllowance, recordLiveSite } from '../lib/roomLiveSites.js';
 
 const SITE_URL = process.env.SITE_URL || 'https://nexus-labs-sigma.vercel.app';
 
@@ -30,6 +31,8 @@ export function createPublishHandler({
   // meant any caller without live Redis (tests included) crashed here and
   // fell into the generic 500 below, masking the real publish path.
   readAgentConfig = getAgentConfig,
+  checkAllowance = checkLiveSiteAllowance,
+  recordSite = recordLiveSite,
 } = {}) {
   return async function handler(req, res) {
     res.setHeader('Cache-Control', 'private, no-store');
@@ -59,6 +62,19 @@ export function createPublishHandler({
       }
       let html = build.html;
       const projectId = build.projectId || id;
+
+      // Per-plan live-site cap. Republishing an already-live project is an
+      // update to that same site and never consumes another slot, so this
+      // only ever stops taking a NEW project live.
+      const allowance = await checkAllowance({ userId: username, projectId, plan });
+      if (!allowance.allowed) {
+        return res.status(409).json({
+          error: `Your plan includes ${allowance.limit} live ${allowance.limit === 1 ? 'site' : 'sites'}, and ${allowance.used} ${allowance.used === 1 ? 'is' : 'are'} already live. Take one down or upgrade to add another.`,
+          code: 'LIVE_SITE_LIMIT_REACHED',
+          limit: allowance.limit,
+          used: allowance.used,
+        });
+      }
       const agentConfig = await readAgentConfig(projectId);
       if (agentConfig?.enabled && html.includes('</body>')) {
         const widgetTag = `<script src="${SITE_URL}/site-agent-widget.js" data-project="${projectId}"></script>`;
@@ -68,6 +84,13 @@ export function createPublishHandler({
       const result = await publish({ projectName, html });
       if (!result.deployed) {
         return res.status(502).json({ error: 'Publish failed.', reason: result.reason || null });
+      }
+      // Only record after a confirmed deploy, so a failed publish never
+      // burns one of the customer's live-site slots.
+      try {
+        await recordSite(username, projectId, { url: result.url, deploymentId: result.deployment_id });
+      } catch (registryError) {
+        console.error('room-publish: live-site registry write failed:', registryError.message);
       }
       return res.status(200).json({ url: result.url, deployment_id: result.deployment_id });
     } catch (err) {
