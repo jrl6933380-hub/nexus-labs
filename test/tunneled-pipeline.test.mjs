@@ -97,12 +97,14 @@ test('ask_helper_model routes to a different model and feeds the answer back to 
   const seen = [];
   const delegate = async ({ model, body }) => {
     seen.push(model);
+    // Check the model FIRST: the helper call is a fresh conversation whose
+    // message count collides with the builder's first turn.
+    if (model === 'openai/gpt-5') {
+      return { data: { content: [{ type: 'text', text: 'Use one column on mobile.' }] } };
+    }
     const turn = body.messages.length;
     if (turn === 1) {
       return { data: { content: [{ type: 'tool_use', id: 'h1', name: 'ask_helper_model', input: { question: 'Two columns or one?' } }] } };
-    }
-    if (model === 'openai/gpt-5') {
-      return { data: { content: [{ type: 'text', text: 'Use one column on mobile.' }] } };
     }
     if (turn === 3) {
       return { data: { content: [{ type: 'tool_use', id: 'h2', name: 'create_repo_file', input: { path: 'public/site.html', content: '<h1>one column</h1>' } }] } };
