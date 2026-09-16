@@ -42,9 +42,14 @@ test('exempt accounts report an unlimited daily bar at 100 percent', async () =>
   assert.equal(res.body.daily.percentRemaining, 100);
 });
 
-test('signed-out requests are still rejected before touching the meter', async () => {
+test('signed-out guests get an anon-scoped daily bar rather than a rejection', async () => {
+  // Guest access is deliberate: api/room-usage.js falls back to
+  // getOrCreateAnonId. This endpoint is read-only and returns no
+  // account-identifying data, so a guest sees their own depleting bar.
+  // This test previously asserted 401 and predated guest access.
   const handler = createUsageHandler({ resolveUser: async () => null, meter: fakeMeter() });
   const res = response();
-  await handler({ method: 'GET' }, res);
-  assert.equal(res.code, 401);
+  await handler({ method: 'GET', headers: {}, cookies: {} }, res);
+  assert.equal(res.code, 200);
+  assert.equal(typeof res.body.daily.percentRemaining, 'number');
 });

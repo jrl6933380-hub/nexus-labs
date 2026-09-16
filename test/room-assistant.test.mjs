@@ -13,14 +13,14 @@ function response() {
   };
 }
 
-function harness(decision, { user = 'alice' } = {}) {
+function harness(decision, { user = 'alice', reserveResult = { ok: true, period: 1, reservationId: 'r1' } } = {}) {
   const calls = { reserve: [], settle: [], append: [], escalate: [], route: 0, routeInput: null };
   const handler = createAssistantHandler({
     resolveUser: async () => user,
     meter: {
       async reserveBuild(input) {
         calls.reserve.push(input);
-        return { ok: true, period: 1, reservationId: 'r1' };
+        return reserveResult;
       },
       async settleBuild(input) { calls.settle.push(input); },
     },
@@ -133,10 +133,27 @@ test('only allowlisted workspace commands can cross the assistant boundary', () 
   );
 });
 
-test('unauthenticated customers cannot invoke the professional builder', async () => {
+test('a signed-out guest can use the builder but is still metered, not waved through', async () => {
+  // Guest access is deliberate: api/room-assistant.js falls back to
+  // getOrCreateAnonId. This test previously asserted 401 and predated that.
+  // What protects cost here is not a session wall but the meter — a guest
+  // reserves credits like anyone else, and is refused when exhausted (see
+  // the next test), so "no session" does not mean "free unlimited model".
   const { handler, calls } = harness({ kind: 'reply', message: 'Hi' }, { user: null });
   const res = response();
-  await handler({ method: 'POST', body: { message: 'hello', projectId: 'p1' } }, res);
-  assert.equal(res.code, 401);
-  assert.equal(calls.route, 0);
+  await handler({ method: 'POST', body: { message: 'hello', projectId: 'p1' }, headers: {}, cookies: {} }, res);
+  assert.equal(res.code, 200);
+  assert.equal(calls.reserve.length, 1, 'a guest turn still goes through the meter');
+});
+
+test('an exhausted account is refused before the model is ever called', async () => {
+  const { handler, calls } = harness(
+    { kind: 'reply', message: 'Hi' },
+    { reserveResult: { ok: false, remaining: 0 } },
+  );
+  const res = response();
+  await handler({ method: 'POST', body: { message: 'hello', projectId: 'p1' }, headers: {}, cookies: {} }, res);
+  assert.equal(res.code, 429);
+  assert.equal(res.body.code, 'ROOM_CREDITS_EXHAUSTED');
+  assert.equal(calls.route, 0, 'no model spend on an exhausted account');
 });
