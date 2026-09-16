@@ -9,22 +9,35 @@
 // plan — Free tier can preview and iterate, but exporting code is one
 // of the things that unlocks with the Hosted tier and above.
 
-import { listBuilds, getBuild } from '../lib/roomHistory.js';
+import { listBuilds, getBuild, listProjects, deleteProject } from '../lib/roomHistory.js';
 import { getRequestUser, getUserPlan, isPaidPlan } from '../lib/roomAuth.js';
 import { getOrCreateAnonId } from '../lib/anonSession.js';
 
 // Dependencies are injectable so ownership is exercised through the real handler.
-export function createHistoryHandler({ resolveUser = getRequestUser, readBuild = getBuild, readList = listBuilds, resolvePlan = getUserPlan } = {}) {
+export function createHistoryHandler({ resolveUser = getRequestUser, readBuild = getBuild, readList = listBuilds, readProjects = listProjects, removeProject = deleteProject, resolvePlan = getUserPlan } = {}) {
 return async function handler(req, res) {
   res.setHeader('Cache-Control', 'private, no-store');
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  if (req.method !== 'GET') {
+  if (req.method !== 'GET' && req.method !== 'DELETE') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
   try {
   let username = await resolveUser(req);
   if (!username) username = getOrCreateAnonId(req, res);
+
+    // DELETE ?projectId=<key> removes every saved version of one project.
+    // Scoped to the caller's own history like every other path here, so a
+    // guessed id can only ever delete something the caller already owns.
+    if (req.method === 'DELETE') {
+      const projectId = (req.query || {}).projectId;
+      if (typeof projectId !== 'string' || !projectId || projectId.length > 200) {
+        return res.status(400).json({ error: 'A projectId is required' });
+      }
+      const result = await removeProject(username, projectId);
+      if (!result.removed) return res.status(404).json({ error: 'Project not found' });
+      return res.status(200).json(result);
+    }
 
     const { id, download } = req.query || {};
     if ((id !== undefined && (typeof id !== 'string' || !id || id.length > 200)) ||
@@ -53,7 +66,10 @@ return async function handler(req, res) {
       return res.status(200).json({ build });
     }
     const builds = await readList(username);
-    return res.status(200).json({ builds });
+    const projects = await readProjects(username);
+    // `builds` stays for anything still reading the flat version list;
+    // `projects` is the one-row-per-project view the panel now renders.
+    return res.status(200).json({ builds, projects });
   } catch (err) {
     console.error('room-history handler crashed:', err.message);
     return res.status(500).json({ error: 'Failed to load room history' });
