@@ -20,7 +20,7 @@ global.fetch = async (_url, options) => {
 
 const {
   liveSiteLimit, listLiveSites, recordLiveSite, removeLiveSite,
-  checkLiveSiteAllowance, LIVE_SITE_LIMITS,
+  checkLiveSiteAllowance, takeSiteOffline, getLiveSite, LIVE_SITE_LIMITS,
 } = await import('../lib/roomLiveSites.js');
 
 test('each plan gets its configured number of live sites', () => {
@@ -117,4 +117,52 @@ test('the limits table covers every known plan', () => {
   for (const plan of ['free', 'hosted', 'growth', 'unlimited']) {
     assert.ok(plan in LIVE_SITE_LIMITS, `${plan} needs a live-site limit`);
   }
+});
+
+test('taking a site offline tears down the deployment and then frees the slot', async () => {
+  const user = 'teardown-user';
+  await recordLiveSite(user, 'p1', { url: 'https://p1.example', projectName: 'room-teardown-user-p1' });
+  const asked = [];
+  const deleteSite = async ({ projectName }) => { asked.push(projectName); return { deleted: true }; };
+
+  const result = await takeSiteOffline({ userId: user, projectId: 'p1', deleteSite });
+  assert.equal(result.tornDown, true);
+  assert.equal(result.removed, 1);
+  assert.deepEqual(asked, ['room-teardown-user-p1'], 'the stored slug is used, not a re-derived one');
+  assert.equal(await getLiveSite(user, 'p1'), null);
+  assert.equal((await checkLiveSiteAllowance({ userId: user, projectId: 'p2', plan: 'hosted' })).allowed, true);
+});
+
+test('a failed teardown leaves the site both live and counted', async () => {
+  // The dangerous ordering would be to free the slot first: the customer
+  // could then publish again while the old site stayed up, accumulating
+  // live URLs they are not paying for.
+  const user = 'failed-teardown-user';
+  await recordLiveSite(user, 'p1', { url: 'https://p1.example', projectName: 'room-failed-teardown-user-p1' });
+  const deleteSite = async () => ({ deleted: false, reason: 'vercel is down' });
+
+  const result = await takeSiteOffline({ userId: user, projectId: 'p1', deleteSite });
+  assert.equal(result.tornDown, false);
+  assert.equal(result.removed, 0);
+  assert.match(result.reason, /vercel is down/);
+  assert.ok(await getLiveSite(user, 'p1'), 'the record must survive a failed teardown');
+  assert.equal((await checkLiveSiteAllowance({ userId: user, projectId: 'p2', plan: 'hosted' })).allowed, false);
+});
+
+test('a legacy record with no stored slug frees the slot but says the site may still be live', async () => {
+  const user = 'legacy-user';
+  await recordLiveSite(user, 'p1', { url: 'https://p1.example' }); // no projectName
+  const deleteSite = async () => { throw new Error('must not be called without a slug'); };
+  const result = await takeSiteOffline({ userId: user, projectId: 'p1', deleteSite });
+  assert.equal(result.tornDown, false);
+  assert.equal(result.removed, 1, 'the customer is not trapped');
+  assert.match(result.reason, /may still be live/);
+});
+
+test('taking down a project that is not live reports it plainly', async () => {
+  const deleteSite = async () => { throw new Error('must not be called'); };
+  const result = await takeSiteOffline({ userId: 'nobody', projectId: 'p1', deleteSite });
+  assert.equal(result.tornDown, false);
+  assert.equal(result.removed, 0);
+  assert.match(result.reason, /not live/);
 });
