@@ -1,6 +1,6 @@
 ---
 name: forge-domain
-description: What Nexus Forge actually is and how its three surfaces (Builder, Field, Ops) and live billing fit together — so "is Forge ready?" gets answered specifically and from current code/deploy state, not from one stale Board task.
+description: What Nexus Forge actually is and how its three surfaces (Builder, Field, Ops) and live billing fit together — so "is Forge ready?" gets answered specifically from current Forge state rather than one stale Board task.
 triggers: forge, forge builder, forge field, forge ops, room builder, billing, stripe, checkout, is forge ready
 ---
 Nexus Forge is a business, not a page. It's the caller-led website sales operation: workers get qualified local-business leads, review the business, open a pre-generated replacement site, use a tailored pitch, call the prospect, and log the outcome. It spans three distinct surfaces — never answer "is Forge ready?" without saying which one is meant:
