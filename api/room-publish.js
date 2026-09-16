@@ -26,6 +26,10 @@ export function createPublishHandler({
   readBuild = getBuild,
   resolvePlan = getUserPlan,
   publish = deployStaticSite,
+  // Injectable like the rest: this was added later as a direct import, which
+  // meant any caller without live Redis (tests included) crashed here and
+  // fell into the generic 500 below, masking the real publish path.
+  readAgentConfig = getAgentConfig,
 } = {}) {
   return async function handler(req, res) {
     res.setHeader('Cache-Control', 'private, no-store');
@@ -55,7 +59,7 @@ export function createPublishHandler({
       }
       let html = build.html;
       const projectId = build.projectId || id;
-      const agentConfig = await getAgentConfig(projectId);
+      const agentConfig = await readAgentConfig(projectId);
       if (agentConfig?.enabled && html.includes('</body>')) {
         const widgetTag = `<script src="${SITE_URL}/site-agent-widget.js" data-project="${projectId}"></script>`;
         html = html.replace('</body>', `${widgetTag}\n</body>`);
