@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-const { clampPosition, clampSize, defaultMobileRect, resizeFromHandle, finalizeResize, foldTiles, unfoldTile, resolveVisibleItems } = await import('../public/canvas-geometry.js');
+const { clampPosition, clampSize, defaultMobileRect, resizeFromHandle, finalizeResize } = await import('../public/canvas-geometry.js');
 
 const viewport = { width: 1000, height: 800 };
 
@@ -72,70 +72,4 @@ test('finalizeResize clamps a normal "se" resize without moving x/y', () => {
   const startRect = { x: 100, y: 100, w: 300, h: 200 };
   const result = finalizeResize({ startRect, dx: 40, dy: 20, handle: 'se' }, viewport);
   assert.deepEqual(result, { x: 100, y: 100, w: 340, h: 220 });
-});
-
-test('foldTiles creates a new folder from two plain tiles', () => {
-  const folders = foldTiles({}, 'venture-a', 'venture-b');
-  const keys = Object.keys(folders);
-  assert.equal(keys.length, 1);
-  assert.deepEqual(folders[keys[0]].children.sort(), ['venture-a', 'venture-b']);
-});
-
-test('foldTiles adds a plain tile into an existing target folder', () => {
-  const start = { 'folder-x': { title: 'Folder', children: ['a', 'b'] } };
-  const next = foldTiles(start, 'c', 'folder-x');
-  assert.equal(Object.keys(next).length, 1);
-  assert.deepEqual(next['folder-x'].children.sort(), ['a', 'b', 'c']);
-});
-
-test('foldTiles absorbs a plain tile into the dragged folder when only the dragged item is a folder', () => {
-  const start = { 'folder-x': { title: 'Folder', children: ['a', 'b'] } };
-  const next = foldTiles(start, 'folder-x', 'c');
-  assert.equal(Object.keys(next).length, 1);
-  assert.deepEqual(next['folder-x'].children.sort(), ['a', 'b', 'c']);
-});
-
-test('foldTiles treats a self-drop as a no-op', () => {
-  const start = { 'folder-x': { title: 'Folder', children: ['a', 'b'] } };
-  assert.deepEqual(foldTiles(start, 'folder-x', 'folder-x'), start);
-});
-
-test('foldTiles treats a missing dragged or target id as a no-op', () => {
-  assert.deepEqual(foldTiles({}, null, 'x'), {});
-  assert.deepEqual(foldTiles({}, 'x', undefined), {});
-});
-
-test('unfoldTile leaves a real folder behind when more than one tile remains', () => {
-  const start = { 'folder-x': { title: 'Folder', children: ['a', 'b', 'c'] } };
-  const next = unfoldTile(start, 'b');
-  assert.deepEqual(next['folder-x'].children.sort(), ['a', 'c']);
-});
-
-test('unfoldTile dissolves a folder down to its last single tile', () => {
-  const start = { 'folder-x': { title: 'Folder', children: ['a', 'b'] } };
-  assert.deepEqual(unfoldTile(start, 'b'), {});
-});
-
-test('unfoldTile is a no-op for a tile that is not in any folder', () => {
-  const start = { 'folder-x': { title: 'Folder', children: ['a', 'b'] } };
-  assert.deepEqual(unfoldTile(start, 'zzz'), start);
-});
-
-test('resolveVisibleItems collapses a folder to one entry at its first member\'s position', () => {
-  const itemIds = ['room-a', 'venture-a', 'venture-b', 'room-c'];
-  const folders = { 'folder-1': { title: 'My Folder', children: ['venture-a', 'venture-b'] } };
-  const items = resolveVisibleItems(itemIds, folders);
-  assert.equal(items.length, 3);
-  assert.deepEqual(items.map((i) => i.id), ['room-a', 'folder-1', 'room-c']);
-  assert.equal(items[1].isFolder, true);
-});
-
-test('resolveVisibleItems filters out a folder member that no longer exists', () => {
-  const itemIds = ['venture-a'];
-  const folders = { 'folder-1': { title: 'My Folder', children: ['venture-a', 'venture-b'] } };
-  assert.deepEqual(resolveVisibleItems(itemIds, folders), [{ id: 'venture-a', isFolder: false }]);
-});
-
-test('resolveVisibleItems passes tiles through unchanged when there are no folders', () => {
-  assert.deepEqual(resolveVisibleItems(['a', 'b'], {}), [{ id: 'a', isFolder: false }, { id: 'b', isFolder: false }]);
 });

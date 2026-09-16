@@ -1,86 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createRoomMeter, CLEANUP_SCRIPT, RESERVE_SCRIPT, SETTLE_SCRIPT } from '../lib/roomMetering.js';
+import { createRoomMeter } from '../lib/roomMetering.js';
+import { fakeRedis } from './helpers/fake-redis.mjs';
 import { createUsageHandler } from '../api/room-usage.js';
-
-function fakeRedis() {
-  const hashes = new Map();
-  const reservations = new Map();
-  const expiry = new Map();
-
-  function hashFor(key) {
-    if (!hashes.has(key)) hashes.set(key, new Map());
-    return hashes.get(key);
-  }
-
-  function cleanup(usageKey, indexKey, timestamp) {
-    const entries = expiry.get(indexKey) || new Map();
-    for (const [reservationKey, expiresAt] of [...entries]) {
-      if (expiresAt > timestamp) continue;
-      const amount = Number(reservations.get(reservationKey) || 0);
-      if (amount) {
-        const hash = hashFor(usageKey);
-        hash.set('reserved', Number(hash.get('reserved') || 0) - amount);
-      }
-      reservations.delete(reservationKey);
-      entries.delete(reservationKey);
-    }
-    expiry.set(indexKey, entries);
-  }
-
-  return {
-    async command(command) {
-      if (command[0] === 'EVAL' && command[1] === CLEANUP_SCRIPT) {
-        cleanup(command[3], command[4], Number(command[5]));
-        return 0;
-      }
-      if (command[0] === 'EVAL' && command[1] === RESERVE_SCRIPT) {
-        const usageKey = command[3];
-        const reservationKey = command[4];
-        const indexKey = command[5];
-        const requested = Number(command[6]);
-        const limit = Number(command[7]);
-        const timestamp = Number(command[9]);
-        cleanup(usageKey, indexKey, timestamp);
-        if (reservations.has(reservationKey)) return reservations.get(reservationKey);
-        const hash = hashFor(usageKey);
-        const consumed = Number(hash.get('consumed') || 0);
-        const reserved = Number(hash.get('reserved') || 0);
-        if (consumed + reserved + requested > limit) return 0;
-        hash.set('limit', limit);
-        hash.set('updatedAt', timestamp);
-        hash.set('reserved', reserved + requested);
-        reservations.set(reservationKey, requested);
-        const entries = expiry.get(indexKey) || new Map();
-        entries.set(reservationKey, Number(command[10]));
-        expiry.set(indexKey, entries);
-        return requested;
-      }
-      if (command[0] === 'EVAL' && command[1] === SETTLE_SCRIPT) {
-        const usageKey = command[3];
-        const reservationKey = command[4];
-        const indexKey = command[5];
-        const reserved = Number(reservations.get(reservationKey) || 0);
-        if (!reserved) return 0;
-        const hash = hashFor(usageKey);
-        const charge = Math.min(reserved, Math.max(0, Number(command[6])));
-        hash.set('reserved', Number(hash.get('reserved') || 0) - reserved);
-        hash.set('consumed', Number(hash.get('consumed') || 0) + charge);
-        hash.set('updatedAt', Number(command[7]));
-        reservations.delete(reservationKey);
-        (expiry.get(indexKey) || new Map()).delete(reservationKey);
-        return charge;
-      }
-      if (command[0] === 'HMGET') {
-        const hash = hashes.get(command[1]);
-        return ['limit', 'consumed', 'reserved', 'updatedAt'].map((field) => hash?.get(field) ?? null);
-      }
-      throw new Error('Unexpected fake Redis command: ' + command[0]);
-    },
-    hashes,
-    reservations,
-  };
-}
 
 let clock = 1_700_000_000_000;
 const now = () => clock;
@@ -255,7 +177,7 @@ function response() {
   };
 }
 
-test('usage endpoint is session-scoped and read-only', async () => {
+test('usage endpoint reports the signed-in account and stays read-only', async () => {
   const redis = fakeRedis();
   const meter = createRoomMeter({ command: redis.command, now, config: { creditsLimit: 20 } });
   const handler = createUsageHandler({ resolveUser: async () => 'alice', meter });
@@ -263,8 +185,27 @@ test('usage endpoint is session-scoped and read-only', async () => {
   await handler({ method: 'GET' }, res);
   assert.equal(res.code, 200);
   assert.equal(res.body.usage.limit, 20);
+});
 
-  const denied = response();
-  await createUsageHandler({ resolveUser: async () => null, meter })({ method: 'GET' }, denied);
-  assert.equal(denied.code, 401);
+test('usage endpoint falls back to an anonymous session for signed-out guests', async () => {
+  // Guest access to the Room Builder is deliberate (see the guest-access
+  // work in api/room-usage.js: no session falls back to getOrCreateAnonId).
+  // This endpoint is read-only and returns no account-identifying data, so a
+  // guest gets their own anon-scoped meter rather than a 401. An earlier
+  // version of this test asserted 401 here; it predated guest access.
+  const redis = fakeRedis();
+  const meter = createRoomMeter({ command: redis.command, now, config: { creditsLimit: 20 } });
+  const guest = response();
+  const req = { method: 'GET', headers: {} };
+  await createUsageHandler({ resolveUser: async () => null, meter })(req, guest);
+  assert.equal(guest.code, 200);
+  assert.equal(guest.body.usage.limit, 20);
+});
+
+test('usage endpoint rejects any method other than GET', async () => {
+  const redis = fakeRedis();
+  const meter = createRoomMeter({ command: redis.command, now, config: { creditsLimit: 20 } });
+  const res = response();
+  await createUsageHandler({ resolveUser: async () => 'alice', meter })({ method: 'POST' }, res);
+  assert.equal(res.code, 405);
 });
