@@ -5,12 +5,14 @@ import { FORGE_CREDIT_PRICING, publicForgePricing } from '../lib/forgePricing.js
 import { createRoomMeter } from '../lib/roomMetering.js';
 import { createUsageHandler } from '../api/room-usage.js';
 
-test('Forge pricing has permanent action costs and a meaningful $4 pack', () => {
+test('Forge pricing has permanent action costs and a meaningful pack', () => {
+  // priceUsd must stay in step with the live Stripe price for
+  // CREDIT_PACK_PRICE_ID (price_1UEjoFDh5Di7LYi3DGorrLRb, unit_amount 600).
   assert.deepEqual(FORGE_CREDIT_PRICING, {
     freshBuild: 15,
     edit: 2,
     assistant: 1,
-    usagePack: { priceUsd: 4, credits: 30 },
+    usagePack: { priceUsd: 6, credits: 30 },
   });
 });
 
@@ -30,19 +32,30 @@ test('usage API publishes pricing beside the signed-in account balance', async (
     },
   });
   let statusCode = 0;
-  let body;
+  let body = null;
   const res = {
     setHeader() {},
     status(code) { statusCode = code; return this; },
-    json(value) { body = value; return value; },
+    json(payload) { body = payload; return this; },
   };
-  await handler({ method: 'GET' }, res);
+  await handler({ method: 'GET', headers: {}, cookies: {} }, res);
   assert.equal(statusCode, 200);
   assert.deepEqual(body.pricing, publicForgePricing());
 });
 
 test('new-account tier screen explains build costs and usage-pack value', async () => {
   const source = await readFile(new URL('../public/room-login.html', import.meta.url), 'utf8');
+  const pricing = publicForgePricing();
   assert.match(source, /15 credits per new build · 2 per edit/);
-  assert.match(source, /Usage packs add 30 build credits for \$4/);
+  // Built from the pricing constant rather than hardcoded, so the page copy
+  // and lib/forgePricing.js cannot drift apart again. They had drifted: the
+  // page said $6 (correct — it matches the live Stripe price) while the
+  // constant said $4, so the usage API advertised a cheaper pack than
+  // customers were actually charged at checkout.
+  const expected = 'Usage packs add ' + pricing.usagePack.credits
+    + ' build credits for $' + pricing.usagePack.priceUsd;
+  assert.ok(
+    source.includes(expected),
+    'room-login.html copy must match canonical Forge pricing, got no match for: ' + expected,
+  );
 });
