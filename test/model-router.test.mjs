@@ -47,13 +47,20 @@ test('falls back to Vercel AI Gateway when Anthropic fails', async () => {
       if (url.includes('api.anthropic.com')) {
         return response({ ok: false, status: 429, text: 'rate limited' });
       }
-      return response({ json: { model: 'openai/gpt-5.4-nano', content: [] } });
+      return response({ json: { model: DEFAULT_GATEWAY_MODELS.standard, content: [] } });
     },
   });
 
   assert.equal(calls.length, 2);
   assert.equal(calls[1].url, 'https://ai-gateway.vercel.sh/v1/messages');
-  assert.equal(calls[1].body.model, 'openai/gpt-5.4-nano');
+  // Assert against the configured tier rather than a hardcoded name. This
+  // previously pinned 'openai/gpt-5.4-nano' — the exact nano-class fallback
+  // that caused the real incident described in lib/modelRouter.js (any
+  // Anthropic hiccup silently dropped every request onto a weak model and
+  // Nex went vague mid-session). Hardcoding it meant the test would have
+  // gone green again on a regression back to it.
+  assert.equal(calls[1].body.model, DEFAULT_GATEWAY_MODELS.standard);
+  assert.doesNotMatch(calls[1].body.model, /nano/, 'the standard tier must not fall back to a nano-class model');
   assert.equal(result.provider, 'vercel-ai-gateway');
 });
 

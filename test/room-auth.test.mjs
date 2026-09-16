@@ -23,12 +23,25 @@ global.fetch = async (_url, options) => {
   return { ok: true, json: async () => ({ result }) };
 };
 
-const { createUser, verifyUser } = await import('../lib/roomAuth.js?test=atomic-signup');
+const { createUser, verifyUser, SECURITY_QUESTIONS } = await import('../lib/roomAuth.js?test=atomic-signup');
+
+// createUser's signature is (username, password, email, securityQuestion,
+// securityAnswer). This test used to pass an invite code as the third
+// argument, which made BOTH concurrent attempts fail validation before they
+// ever reached the HSETNX race it is meant to exercise — so it was not
+// actually testing the atomic guard at all.
+const signup = (username, password) => createUser(
+  username,
+  password,
+  `${username}@example.test`,
+  SECURITY_QUESTIONS[0],
+  'a security answer',
+);
 
 test('concurrent signups cannot replace the same Room account', async () => {
   const attempts = await Promise.allSettled([
-    createUser('same-account', 'first-password', 'invite-only'),
-    createUser('same-account', 'second-password', 'invite-only'),
+    signup('same-account', 'first-password'),
+    signup('same-account', 'second-password'),
   ]);
 
   assert.equal(attempts.filter((attempt) => attempt.status === 'fulfilled').length, 1);
