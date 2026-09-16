@@ -11,7 +11,8 @@ import { getBuild } from '../lib/roomHistory.js';
 import { getRequestUser, getUserPlan, isPaidPlan } from '../lib/roomAuth.js';
 import { deployStaticSite } from '../lib/vercel.js';
 import { getAgentConfig } from '../lib/siteAgent.js';
-import { checkLiveSiteAllowance, recordLiveSite } from '../lib/roomLiveSites.js';
+import { checkLiveSiteAllowance, recordLiveSite, takeSiteOffline } from '../lib/roomLiveSites.js';
+import { deleteStaticSite } from '../lib/vercel.js';
 
 const SITE_URL = process.env.SITE_URL || 'https://nexus-labs-sigma.vercel.app';
 
@@ -33,16 +34,33 @@ export function createPublishHandler({
   readAgentConfig = getAgentConfig,
   checkAllowance = checkLiveSiteAllowance,
   recordSite = recordLiveSite,
+  takeOffline = takeSiteOffline,
+  deleteSite = deleteStaticSite,
 } = {}) {
   return async function handler(req, res) {
     res.setHeader('Cache-Control', 'private, no-store');
-    if (req.method !== 'POST') {
+    if (req.method !== 'POST' && req.method !== 'DELETE') {
       return res.status(405).json({ error: 'Method Not Allowed' });
     }
     try {
       const username = await resolveUser(req);
       if (!username) {
         return res.status(401).json({ error: 'Sign in required' });
+      }
+
+      // DELETE ?projectId= takes a live site down for real and frees the
+      // plan slot. Scoped to the caller's own live sites, so a guessed id
+      // can only ever take down something they already own.
+      if (req.method === 'DELETE') {
+        const projectId = (req.query || {}).projectId;
+        if (typeof projectId !== 'string' || !projectId || projectId.length > 200) {
+          return res.status(400).json({ error: 'A projectId is required' });
+        }
+        const result = await takeOffline({ userId: username, projectId, deleteSite });
+        if (!result.tornDown && !result.removed) {
+          return res.status(409).json({ error: result.reason || 'Could not take that site offline.' });
+        }
+        return res.status(200).json(result);
       }
       const { id } = req.body || {};
       if (typeof id !== 'string' || !id || id.length > 200) {
@@ -88,7 +106,11 @@ export function createPublishHandler({
       // Only record after a confirmed deploy, so a failed publish never
       // burns one of the customer's live-site slots.
       try {
-        await recordSite(username, projectId, { url: result.url, deploymentId: result.deployment_id });
+        await recordSite(username, projectId, {
+          url: result.url,
+          deploymentId: result.deployment_id,
+          projectName,
+        });
       } catch (registryError) {
         console.error('room-publish: live-site registry write failed:', registryError.message);
       }

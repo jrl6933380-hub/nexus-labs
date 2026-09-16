@@ -11,11 +11,12 @@
 
 import { listBuilds, getBuild, listProjects, deleteProject } from '../lib/roomHistory.js';
 import { getRequestUser, getUserPlan, isPaidPlan } from '../lib/roomAuth.js';
-import { removeLiveSite } from '../lib/roomLiveSites.js';
+import { removeLiveSite, takeSiteOffline } from '../lib/roomLiveSites.js';
+import { deleteStaticSite } from '../lib/vercel.js';
 import { getOrCreateAnonId } from '../lib/anonSession.js';
 
 // Dependencies are injectable so ownership is exercised through the real handler.
-export function createHistoryHandler({ resolveUser = getRequestUser, readBuild = getBuild, readList = listBuilds, readProjects = listProjects, removeProject = deleteProject, freeLiveSite = removeLiveSite, resolvePlan = getUserPlan } = {}) {
+export function createHistoryHandler({ resolveUser = getRequestUser, readBuild = getBuild, readList = listBuilds, readProjects = listProjects, removeProject = deleteProject, freeLiveSite = takeSiteOffline, deleteSite = deleteStaticSite, resolvePlan = getUserPlan } = {}) {
 return async function handler(req, res) {
   res.setHeader('Cache-Control', 'private, no-store');
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -37,14 +38,15 @@ return async function handler(req, res) {
       }
       const result = await removeProject(username, projectId);
       if (!result.removed) return res.status(404).json({ error: 'Project not found' });
-      // Deleting the project frees its live-site slot too, otherwise a
-      // customer on a 1-site plan could delete their project and still be
-      // unable to publish anything ever again. Best-effort: failing to
-      // free the slot must not fail the delete the customer asked for.
+      // Deleting the project takes its live site down too — leaving a URL
+      // serving a project the customer just deleted would be worse than
+      // leaving the slot used. Best-effort: failing to tear down must not
+      // fail the delete the customer asked for, and the log is how an
+      // orphaned deployment gets noticed.
       try {
-        await freeLiveSite(username, projectId);
+        await freeLiveSite({ userId: username, projectId, deleteSite });
       } catch (slotError) {
-        console.error('room-history: freeing live-site slot failed:', slotError.message);
+        console.error('room-history: taking the live site down failed:', slotError.message);
       }
       return res.status(200).json(result);
     }
