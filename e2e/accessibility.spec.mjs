@@ -56,7 +56,7 @@ async function stubBoardCreate(page, canvasId = 'a11y-test') {
 
 async function stubBoardOffline(page) {
   await page.route(/\/api\/board(?:\?.*)?$/, (route) => {
-    if (route.request().method() === 'GET') return route.fulfill({ status: 503, json: { error: 'test offline' } });
+    if (route.request().method() !== 'POST') return route.fulfill({ status: 503, json: { error: 'test offline' } });
     return route.fallback();
   });
 }
