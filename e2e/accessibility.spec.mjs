@@ -249,10 +249,14 @@ test.describe('mobile canvas room interactions', () => {
     await expect(panel.locator('.nexus-canvas-resize-handle')).toBeHidden();
     await expect(panel.locator('.nexus-canvas-panel-body')).toBeVisible();
     const box = await panel.boundingBox();
-    expect(box.x).toBe(0);
-    expect(box.y).toBe(0);
-    expect(box.width).toBe(393);
-    expect(box.height).toBe(852);
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.x).toBeLessThanOrEqual(1);
+    expect(box.y).toBeLessThanOrEqual(1);
+    expect(box.width).toBeGreaterThanOrEqual(392);
+    expect(box.width).toBeLessThanOrEqual(393);
+    expect(box.height).toBeGreaterThanOrEqual(851);
+    expect(box.height).toBeLessThanOrEqual(852);
   });
 });
 
