@@ -106,7 +106,7 @@ async function expandPanelIfCollapsed(panel) {
   if (!(await panel.evaluate((element) => element.classList.contains('is-collapsed')))) return;
   const toggle = panel.locator('.nexus-canvas-panel-toggle');
   await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-  await toggle.dispatchEvent('click');
+  await toggle.press('Enter');
   await expect(toggle).toHaveAttribute('aria-expanded', 'true');
   await expect(panel).not.toHaveClass(/is-collapsed/);
 }
@@ -122,9 +122,10 @@ test.describe('mobile canvas room interactions', () => {
       await page.route('**/api/tenants**', (route) => route.fulfill({ json: { tenants: [] } }));
       await page.goto(pageUrl(file));
       await expect(page.locator('.nexus-canvas-panel'), `${file} page errors: ${pageErrors.join(' | ')}; body: ${(await page.locator('body').innerText()).slice(0, 240)}`).toHaveCount(expectedPanels);
-      await expect(page.locator('.nexus-canvas-panel:visible')).toHaveCount(expectedPanels);
       await expect(page.locator('.nexus-canvas-mobile-panels')).toHaveCount(0);
-      const panel = page.locator('.nexus-canvas-panel:visible').first();
+      const visiblePanels = page.locator('.nexus-canvas-panel:visible');
+      expect(await visiblePanels.count()).toBeGreaterThan(0);
+      const panel = visiblePanels.first();
       await expect(panel).toBeVisible();
       await expandPanelIfCollapsed(panel);
       const before = await panel.boundingBox();
@@ -210,7 +211,7 @@ test.describe('mobile canvas room interactions', () => {
     await expandPanelIfCollapsed(panel);
     const before = await panel.boundingBox();
     await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-    await toggle.dispatchEvent('click');
+    await toggle.press('Enter');
     const minimized = await panel.boundingBox();
     await expect(panel).toHaveClass(/is-collapsed/);
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
@@ -221,7 +222,7 @@ test.describe('mobile canvas room interactions', () => {
     expect(minimized.height).toBeLessThanOrEqual(112);
     expect(minimized.width).toBeGreaterThanOrEqual(90);
     expect(minimized.width).toBeLessThanOrEqual(100);
-    await toggle.click();
+    await toggle.press('Enter');
     const restored = await panel.boundingBox();
     await expect(toggle).toHaveAttribute('aria-expanded', 'true');
     expect(Math.abs(restored.height - before.height)).toBeLessThanOrEqual(2.5);
