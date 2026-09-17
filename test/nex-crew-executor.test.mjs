@@ -30,3 +30,16 @@ test('independent crew review fails closed on an unclear verdict', async () => {
   assert.equal(result.blocking, true);
   assert.equal(result.verdict, 'unclear');
 });
+
+test('crew preflight fails closed when a specialist returns no usable text', async () => {
+  await assert.rejects(
+    runCrewPreflight({
+      message: 'Refactor auth.',
+      context: 'api/auth.js exists',
+      runRoleFn: async (input) => input.role === 'scout'
+        ? { role: 'scout', model: 'model/scout', data: { content: [] } }
+        : roleResult('architect', 'Patch and test.'),
+    }),
+    /scout returned no usable report/,
+  );
+});

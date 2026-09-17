@@ -38,6 +38,20 @@ test('redacts secrets from stored event data', async () => {
   assert.equal(calls.events[0].includes('ghp_NOT_REAL'), false);
 });
 
+test('pointer-only checkpoints do not evict real lifecycle events', async () => {
+  const before = calls.events.length;
+  const pointer = await checkpointExecution({
+    run_id: 'run-chat-only',
+    agent: 'nex',
+    state: 'completed',
+    next_safe_action: 'wait for the next user request',
+    record_event: false,
+  });
+  assert.equal(pointer.state, 'completed');
+  assert.equal(calls.events.length, before);
+  assert.equal((await getExecutionResume('run-chat-only')).state, 'completed');
+});
+
 test('a failed write that may have landed forces re-read before retry', async () => {
   const event = await finishExecution({
     run_id: 'run-timeout',

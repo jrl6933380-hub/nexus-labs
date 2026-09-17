@@ -1239,7 +1239,7 @@ export function createNexChatBar() {
         }
       }
       if (!data) throw new Error('Nex did not return a response.');
-      const terminalRun = ['completed', 'cancelled', 'failed'].includes(data.runState?.state);
+      const terminalRun = ['completed', 'blocked', 'cancelled', 'failed'].includes(data.runState?.state);
       if (data.runState?.runId && !terminalRun) {
         localStorage.setItem('nex-active-run-id', data.runState.runId);
       } else {

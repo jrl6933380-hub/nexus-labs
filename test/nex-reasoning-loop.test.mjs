@@ -8,6 +8,8 @@ import {
   registerModelStep,
   registerReasoningToolCall,
   registerToolSearch,
+  nativeServerToolLimits,
+  registerNativeServerToolCalls,
   finalizeReasoningState,
 } from '../lib/nexReasoningLoop.js';
 
@@ -37,6 +39,14 @@ test('tool search is bounded and duplicate searches are rejected', () => {
   assert.equal(registerToolSearch(state, 'coding').allowed, false);
   assert.equal(registerToolSearch(state, 'deploy').allowed, true);
   assert.equal(registerToolSearch(state, 'billing').allowed, false);
+});
+
+test('tool search rejects a category that is already loaded', () => {
+  const state = createReasoningState({ message: 'Build it.', runState: { loadedCapabilities: ['coding'] } });
+  const result = registerToolSearch(state, 'coding', ['coding']);
+  assert.equal(result.allowed, false);
+  assert.equal(result.reason, 'capability_already_loaded');
+  assert.equal(state.searchedCapabilities.size, 0);
 });
 
 test('the second identical tool failure blocks blind retries', () => {
@@ -81,6 +91,53 @@ test('a controller block cannot be overwritten by an empty completion receipt', 
 
   assert.equal(state.status, 'blocked');
   assert.equal(state.blocker, 'repeated_failure:run_sandbox');
+});
+
+test('a latest failed action cannot be overwritten by earlier verified evidence', () => {
+  const state = createReasoningState({ message: 'Fix it.' });
+  const call = { name: 'run_sandbox', input: { command: 'npm test' } };
+  recordReasoningToolResult(state, call, { is_error: true, content: 'tests failed' });
+  finalizeReasoningState(state, { status: 'verified', missing: [] });
+  assert.equal(state.status, 'waiting');
+  assert.equal(state.blocker, 'latest_tool_failed');
+});
+
+test('resumed runs keep counters, elapsed time, and blocked fingerprints', () => {
+  const state = createReasoningState({
+    message: 'Resume it.',
+    now: 50_000,
+    runState: {
+      resumed: true,
+      state: 'blocked',
+      blocker: 'repeated_failure:run_sandbox',
+      toolCalls: 7,
+      modelSteps: 3,
+      completionReplans: 1,
+      failureCounts: [['failure-key', 2]],
+      blockedToolCalls: ['blocked-key'],
+      startedAt: 10_000,
+    },
+  });
+  assert.equal(state.status, 'blocked');
+  assert.equal(state.toolCalls, 7);
+  assert.equal(state.modelSteps, 3);
+  assert.equal(state.completionReplans, 1);
+  assert.equal(state.failureCounts.get('failure-key'), 2);
+  assert.equal(state.blockedToolCalls.has('blocked-key'), true);
+  assert.equal(state.startedAt, 10_000);
+});
+
+test('native provider web tools are capped by and counted against the tool budget', () => {
+  const state = createReasoningState({ message: 'Research it.', budgets: { maxToolCalls: 3 } });
+  assert.deepEqual(nativeServerToolLimits(state), { webSearch: 2, webFetch: 1 });
+  const result = registerNativeServerToolCalls(state, [
+    { type: 'server_tool_use', name: 'web_search', input: { query: 'one' } },
+    { type: 'text', text: 'ignored' },
+    { type: 'server_tool_use', name: 'web_fetch', input: { url: 'https://example.com' } },
+  ]);
+  assert.deepEqual(result, { allowed: true, counted: 2 });
+  assert.equal(state.toolCalls, 2);
+  assert.deepEqual(nativeServerToolLimits(state), { webSearch: 1, webFetch: 0 });
 });
 
 test('budget exhaustion pauses both model and tool execution until resume', () => {
