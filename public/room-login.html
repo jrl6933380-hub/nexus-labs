@@ -360,8 +360,11 @@
 
   const nextPath = (() => {
     const requested = new URLSearchParams(window.location.search).get('next');
-    const customerWorkspaces = new Set(['/room.html', '/story-studio.html']);
-    return customerWorkspaces.has(requested) ? requested : '/room.html';
+    const safeSameOriginPath = typeof requested === 'string'
+      && requested.startsWith('/')
+      && !requested.startsWith('//')
+      && !requested.startsWith('/room-login.html');
+    return safeSameOriginPath ? requested : '/room.html';
   })();
 
   async function submitAuth(action, body, errorEl, submitBtn) {

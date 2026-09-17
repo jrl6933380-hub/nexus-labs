@@ -26,6 +26,22 @@ export function getBoundedImageScale(width, height, maxDimension = 1280) {
   return Math.min(1, maxDimension / Math.max(width || 1, height || 1));
 }
 
+export function operatorLoginUrl(locationLike = {}) {
+  const pathname = typeof locationLike.pathname === 'string' ? locationLike.pathname : '/';
+  const search = typeof locationLike.search === 'string' ? locationLike.search : '';
+  const hash = typeof locationLike.hash === 'string' ? locationLike.hash : '';
+  const safePath = pathname.startsWith('/') && !pathname.startsWith('//')
+    ? `${pathname}${search}${hash}`
+    : '/';
+  return `/room-login.html?next=${encodeURIComponent(safePath)}`;
+}
+
+export function redirectToOperatorLogin(response, locationLike) {
+  if (response?.status !== 401 || typeof locationLike?.assign !== 'function') return false;
+  locationLike.assign(operatorLoginUrl(locationLike));
+  return true;
+}
+
 // Inline, in-chat version of "what Nex is doing right now" — replaces
 // the old separate floating HUD entirely. Each stage event becomes its
 // own short log line right in the conversation, the same way a tool
@@ -1085,6 +1101,7 @@ export function createNexChatBar() {
   async function loadHistory() {
     try {
       const response = await fetch('/api/chat');
+      if (redirectToOperatorLogin(response, window.location)) return;
       if (!response.ok) return;
       const data = await response.json();
       const messages = Array.isArray(data.messages) ? data.messages : [];
@@ -1213,6 +1230,7 @@ export function createNexChatBar() {
           },
         }),
       });
+      if (redirectToOperatorLogin(response, window.location)) return;
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
         throw new Error(data.error || 'Nex could not process that message.');
