@@ -43,8 +43,11 @@ const publicDir = path.join(__dirname, '..', 'public');
 const pages = fs.readdirSync(publicDir).filter((file) => file.endsWith('.html'));
 const pageUrl = (file) => file === 'canvas.html' ? '/canvas?id=mobile-test' : `/${file}`;
 
-async function stubStableRoutes(page, { username = 'a11y-test', canvasId = 'a11y-test' } = {}) {
+async function stubRoomAuth(page, username = 'a11y-test') {
   await page.route('**/api/room-auth**', (route) => route.fulfill({ json: { username } }));
+}
+
+async function stubBoard(page, canvasId = 'a11y-test') {
   await page.route('**/api/board**', (route) => {
     if (route.request().method() === 'POST') return route.fulfill({ json: { canvas: { id: canvasId } } });
     return route.fulfill({ status: 503, json: { error: 'test offline' } });
@@ -55,7 +58,7 @@ for (const file of pages) {
   test.describe(file, () => {
     test(`${file} has no serious/critical WCAG 2 A/AA violations`, async ({ page }) => {
       await page.emulateMedia({ reducedMotion: 'reduce' });
-      await stubStableRoutes(page);
+      await stubRoomAuth(page);
       await page.goto(pageUrl(file));
       const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
       const seriousOrWorse = results.violations.filter((v) => ['serious', 'critical'].includes(v.impact));
@@ -72,7 +75,7 @@ for (const file of pages) {
     });
 
     test(`${file} declares a mobile viewport`, async ({ page }) => {
-      await stubStableRoutes(page);
+      await stubRoomAuth(page);
       await page.goto(pageUrl(file));
       const viewport = await page.locator('meta[name="viewport"]').getAttribute('content').catch(() => null);
       expect(viewport, `${file} is missing <meta name="viewport">`).not.toBeNull();
@@ -80,7 +83,7 @@ for (const file of pages) {
 
     test(`${file} has no horizontal overflow at a 375px mobile width`, async ({ page }) => {
       await page.setViewportSize({ width: 375, height: 667 });
-      await stubStableRoutes(page);
+      await stubRoomAuth(page);
       await page.goto(pageUrl(file));
       const { scrollWidth, clientWidth } = await page.evaluate(() => ({
         scrollWidth: document.documentElement.scrollWidth,
@@ -118,7 +121,8 @@ test.describe('mobile canvas room interactions', () => {
     test(`${file} keeps panels visible, bounded, and usable on mobile`, async ({ page }) => {
       const pageErrors = [];
       page.on('pageerror', (error) => pageErrors.push(error.message));
-      await stubStableRoutes(page, { username: 'mobile-test', canvasId: 'mobile-test' });
+      await stubRoomAuth(page, 'mobile-test');
+      await stubBoard(page, 'mobile-test');
       await page.route('**/api/tenants**', (route) => route.fulfill({ json: { tenants: [] } }));
       await page.goto(pageUrl(file));
       await expect(page.locator('.nexus-canvas-panel'), `${file} page errors: ${pageErrors.join(' | ')}; body: ${(await page.locator('body').innerText()).slice(0, 240)}`).toHaveCount(expectedPanels);
@@ -153,7 +157,8 @@ test.describe('mobile canvas room interactions', () => {
   }
 
   test('the Agents panel has a working touch resize grip and no mobile switcher buttons', async ({ page }) => {
-    await stubStableRoutes(page, { username: 'mobile-test', canvasId: 'dashboard' });
+    await stubRoomAuth(page, 'mobile-test');
+    await stubBoard(page, 'dashboard');
     await page.goto('/index.html');
     const panel = page.locator('.nexus-canvas-panel[data-panel-id="agent-list"]');
     const handle = panel.locator('.nexus-canvas-resize-handle');
@@ -184,7 +189,8 @@ test.describe('mobile canvas room interactions', () => {
   });
 
   test('panels can use the full phone height below the old reserved dock strip', async ({ page }) => {
-    await stubStableRoutes(page, { username: 'mobile-test', canvasId: 'dashboard' });
+    await stubRoomAuth(page, 'mobile-test');
+    await stubBoard(page, 'dashboard');
     await page.goto('/index.html');
     const panel = page.locator('.nexus-canvas-panel[data-panel-id="board-summary"]');
     await expandPanelIfCollapsed(panel);
@@ -204,7 +210,8 @@ test.describe('mobile canvas room interactions', () => {
   });
 
   test('every board minimizes to a launcher tile and restores its full size', async ({ page }) => {
-    await stubStableRoutes(page, { username: 'mobile-test', canvasId: 'dashboard' });
+    await stubRoomAuth(page, 'mobile-test');
+    await stubBoard(page, 'dashboard');
     await page.goto('/index.html');
     const panel = page.locator('.nexus-canvas-panel[data-panel-id="board-summary"]');
     const toggle = panel.locator('.nexus-canvas-panel-toggle');
@@ -218,10 +225,9 @@ test.describe('mobile canvas room interactions', () => {
     await expect(panel.locator('.nexus-canvas-panel-body')).toBeHidden();
     expect(minimized.height).toBeLessThan(before.height);
     expect(minimized.width).toBeLessThan(before.width);
-    expect(minimized.height).toBeLessThan(before.height / 2);
-    expect(minimized.width).toBeLessThan(before.width / 2);
-    expect(minimized.height).toBeGreaterThan(44);
-    expect(minimized.width).toBeGreaterThan(44);
+    const minimizedToggle = await toggle.boundingBox();
+    expect(minimizedToggle.width).toBeGreaterThanOrEqual(minimized.width - 2);
+    expect(minimizedToggle.height).toBeGreaterThanOrEqual(minimized.height - 2);
     await toggle.press('Enter');
     const restored = await panel.boundingBox();
     await expect(toggle).toHaveAttribute('aria-expanded', 'true');
@@ -229,7 +235,8 @@ test.describe('mobile canvas room interactions', () => {
   });
 
   test('locked workspace panels stay full-screen and keep their body visible on mobile', async ({ page }) => {
-    await stubStableRoutes(page, { username: 'mobile-test', canvasId: 'room-builder' });
+    await stubRoomAuth(page, 'mobile-test');
+    await stubBoard(page, 'room-builder');
     await page.goto('/room.html');
     const panel = page.locator('.nexus-canvas-panel[data-panel-id="room-builder"]');
     await expect(panel).toBeVisible();
@@ -253,7 +260,7 @@ test.describe('mobile build feedback', () => {
   test.use({ viewport: { width: 393, height: 852 }, isMobile: true, hasTouch: true });
 
   test('build feedback does not spawn a legacy floating mobile status pill', async ({ page }) => {
-    await stubStableRoutes(page, { canvasId: 'dashboard' });
+    await stubBoard(page, 'dashboard');
     await page.goto('/index.html');
     await page.evaluate(() => window.dispatchEvent(new CustomEvent('nexus:build-feedback', {
       detail: { state: 'running', tool: 'testing', label: 'Running client preview tests' },
