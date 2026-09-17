@@ -44,7 +44,7 @@ const pages = fs.readdirSync(publicDir).filter((file) => file.endsWith('.html'))
 const pageUrl = (file) => file === 'canvas.html' ? '/canvas?id=mobile-test' : `/${file}`;
 
 async function stubRoomAuth(page, username = 'a11y-test') {
-  await page.route('**/api/room-auth**', (route) => route.fulfill({ json: { username } }));
+  await page.route('**/api/room-auth', (route) => route.fulfill({ json: { username } }));
 }
 
 async function stubBoard(page, canvasId = 'a11y-test') {
