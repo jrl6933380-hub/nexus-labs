@@ -117,6 +117,29 @@ test('uses direct Anthropic first when it is healthy', async () => {
   assert.equal(result.provider, 'anthropic');
 });
 
+test('direct Anthropic prefers native server tools without duplicate names', async () => {
+  const calls = [];
+  await routeMessage({
+    claudeModel: 'claude-test',
+    body: {
+      messages: [],
+      tools: [
+        { name: 'web_search', description: 'Gateway-compatible search', input_schema: { type: 'object' } },
+        { name: 'read_board', description: 'Read the board', input_schema: { type: 'object' } },
+      ],
+    },
+    anthropicServerTools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }],
+    env: { ANTHROPIC_API_KEY: 'anthropic-key' },
+    fetchFn: async (_url, options) => {
+      calls.push(JSON.parse(options.body));
+      return response({ json: { model: 'claude-test', content: [] } });
+    },
+  });
+
+  assert.deepEqual(calls[0].tools.map((tool) => tool.name), ['read_board', 'web_search']);
+  assert.equal(calls[0].tools.at(-1).type, 'web_search_20250305');
+});
+
 test('falls back to Vercel AI Gateway when Anthropic fails', async () => {
   const calls = [];
   const result = await routeMessage({

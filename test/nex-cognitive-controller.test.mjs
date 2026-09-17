@@ -43,13 +43,13 @@ test('an explicit council request activates crew mode', () => {
   assert.ok(plan.reasons.includes('explicit_council'));
 });
 
-test('automatic routing respects the plan floor while explicit model choice wins', () => {
+test('routing respects the safety floor even when a cheaper model is manually preferred', () => {
   const codePlan = planCognitiveRun({ message: 'Build a new API endpoint.' });
   assert.equal(resolveCognitiveTier('cheap', null, codePlan), 'standard');
 
   const crewPlan = planCognitiveRun({ message: 'Use multiple models to migrate production auth.' });
   assert.equal(resolveCognitiveTier('standard', null, crewPlan), 'heavy');
-  assert.equal(resolveCognitiveTier('cheap', 'cheap', crewPlan), 'cheap');
+  assert.equal(resolveCognitiveTier('cheap', 'cheap', crewPlan), 'heavy');
 });
 
 test('the backend directive carries the selected lane contract and evidence gate', () => {

@@ -6,31 +6,21 @@
 // in nex:recent-conversation without waiting for Justin to send a new
 // message.
 
-const KV_URL = process.env.KV_REST_API_URL;
-const KV_TOKEN = process.env.KV_REST_API_TOKEN;
-const RECENT_KEY = 'nex:recent-conversation';
+import { loadRecentConversation } from '../lib/nexConversationStore.js';
+import { getRequestUser, isOperatorUser } from '../lib/roomAuth.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
     return res.status(405).json({ error: 'GET only' });
   }
-  if (!KV_URL || !KV_TOKEN) return res.status(200).json({ messages: [] });
+  const operatorUser = await getRequestUser(req).catch(() => null);
+  if (!operatorUser || !isOperatorUser(operatorUser)) {
+    return res.status(401).json({ error: 'Operator authentication required.' });
+  }
 
   try {
-    const kvRes = await fetch(`${KV_URL}/get/${RECENT_KEY}`, {
-      headers: { Authorization: `Bearer ${KV_TOKEN}` },
-    });
-    const data = await kvRes.json();
-    let messages = [];
-    if (data?.result) {
-      try {
-        const parsed = JSON.parse(data.result);
-        if (Array.isArray(parsed)) messages = parsed;
-      } catch {
-        messages = [];
-      }
-    }
+    const messages = await loadRecentConversation(operatorUser);
     // No-cache: the whole point is freshness on a cheap poll.
     res.setHeader('Cache-Control', 'no-store');
     return res.status(200).json({ messages });
