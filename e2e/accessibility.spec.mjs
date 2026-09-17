@@ -241,6 +241,10 @@ test.describe('mobile canvas room interactions', () => {
 
   test('locked workspace panels stay full-screen and keep their body visible on mobile', async ({ page }) => {
     await stubStableRoutes(page, 'mobile-test');
+    await page.route('**/api/board**', (route) => {
+      if (route.request().method() === 'POST') return route.fulfill({ json: { canvas: { id: 'room-builder' } } });
+      return route.fulfill({ status: 503, json: { error: 'test offline' } });
+    });
     await page.goto('/room.html');
     const panel = page.locator('.nexus-canvas-panel[data-panel-id="room-builder"]');
     await expect(panel).toBeVisible();
