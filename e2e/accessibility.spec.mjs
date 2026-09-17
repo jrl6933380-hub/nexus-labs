@@ -42,16 +42,31 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, '..', 'public');
 const pages = fs.readdirSync(publicDir).filter((file) => file.endsWith('.html'));
 const pageUrl = (file) => file === 'canvas.html' ? '/canvas?id=mobile-test' : `/${file}`;
-const openPage = async (page, file) => {
-  await page.goto(pageUrl(file), { waitUntil: 'domcontentloaded' });
-  await page.waitForLoadState('networkidle').catch(() => {});
-};
+
+async function stubRoomAuth(page, username = 'a11y-test') {
+  await page.route(/\/api\/room-auth(?:\?.*)?$/, (route) => route.fulfill({ json: { username } }));
+}
+
+async function stubBoardCreate(page, canvasId = 'a11y-test') {
+  await page.route(/\/api\/board(?:\?.*)?$/, (route) => {
+    if (route.request().method() === 'POST') return route.fulfill({ json: { canvas: { id: canvasId } } });
+    return route.fallback();
+  });
+}
+
+async function stubBoardOffline(page) {
+  await page.route(/\/api\/board(?:\?.*)?$/, (route) => {
+    if (route.request().method() !== 'POST') return route.fulfill({ status: 503, json: { error: 'test offline' } });
+    return route.fallback();
+  });
+}
 
 for (const file of pages) {
   test.describe(file, () => {
     test(`${file} has no serious/critical WCAG 2 A/AA violations`, async ({ page }) => {
       await page.emulateMedia({ reducedMotion: 'reduce' });
-      await openPage(page, file);
+      await stubRoomAuth(page);
+      await page.goto(pageUrl(file));
       const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
       const seriousOrWorse = results.violations.filter((v) => ['serious', 'critical'].includes(v.impact));
       if (seriousOrWorse.length > 0) {
@@ -67,14 +82,16 @@ for (const file of pages) {
     });
 
     test(`${file} declares a mobile viewport`, async ({ page }) => {
-      await openPage(page, file);
+      await stubRoomAuth(page);
+      await page.goto(pageUrl(file));
       const viewport = await page.locator('meta[name="viewport"]').getAttribute('content').catch(() => null);
       expect(viewport, `${file} is missing <meta name="viewport">`).not.toBeNull();
     });
 
     test(`${file} has no horizontal overflow at a 375px mobile width`, async ({ page }) => {
       await page.setViewportSize({ width: 375, height: 667 });
-      await openPage(page, file);
+      await stubRoomAuth(page);
+      await page.goto(pageUrl(file));
       const { scrollWidth, clientWidth } = await page.evaluate(() => ({
         scrollWidth: document.documentElement.scrollWidth,
         clientWidth: document.documentElement.clientWidth,
@@ -90,169 +107,182 @@ for (const file of pages) {
 
 
 const canvasRooms = [
-  'index.html', 'canvas.html', 'connectors.html',
-  'memory.html', 'mission-control.html', 'nexus-canvas.html',
-  'queue.html', 'room.html', 'story-studio.html', 'tenants.html',
+  ['index.html', 12], ['canvas.html', 4], ['connectors.html', 1],
+  ['memory.html', 4], ['mission-control.html', 4], ['nexus-canvas.html', 12],
+  ['queue.html', 1], ['room.html', 1], ['story-studio.html', 1], ['tenants.html', 2],
 ];
+
+async function expandPanelIfCollapsed(panel) {
+  if (!(await panel.evaluate((element) => element.classList.contains('is-collapsed')))) return;
+  const toggle = panel.locator('.nexus-canvas-panel-toggle');
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(panel).not.toHaveClass(/is-collapsed/);
+}
+
+async function dragLocator(page, locator, { dx = 0, dy = 0, offsetX = 20, offsetY = 20 } = {}) {
+  const box = await locator.boundingBox();
+  expect(box).not.toBeNull();
+  const startX = box.x + Math.min(offsetX, Math.max(8, box.width / 2));
+  const startY = box.y + Math.min(offsetY, Math.max(8, box.height / 2));
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(startX + dx, startY + dy, { steps: 8 });
+  await page.mouse.up();
+}
 
 test.describe('mobile canvas room interactions', () => {
   test.use({ viewport: { width: 393, height: 852 }, isMobile: true, hasTouch: true });
 
-  for (const file of canvasRooms) {
-    test(`${file} keeps panels visible, bounded, and touch-draggable`, async ({ page }) => {
+  for (const [file, expectedPanels] of canvasRooms) {
+    test(`${file} keeps panels visible, bounded, and usable on mobile`, async ({ page }) => {
       const pageErrors = [];
       page.on('pageerror', (error) => pageErrors.push(error.message));
-      await page.route('**/api/room-auth', (route) => route.fulfill({ json: { username: 'mobile-test' } }));
+      await stubRoomAuth(page, 'mobile-test');
+      await stubBoardOffline(page);
+      await stubBoardCreate(page, 'mobile-test');
       await page.route('**/api/tenants**', (route) => route.fulfill({ json: { tenants: [] } }));
-      await page.route('**/api/board**', (route) => {
-        if (route.request().method() === 'POST') return route.fulfill({ json: { canvas: { id: 'mobile-test' } } });
-        return route.fulfill({ status: 503, json: { error: 'test offline' } });
-      });
-      await openPage(page, file);
-      const allPanels = page.locator('.nexus-canvas-panel');
-      const visiblePanels = page.locator('.nexus-canvas-panel:visible');
-      const panelCount = await allPanels.count();
-      const visibleCount = await visiblePanels.count();
-      expect(panelCount, `${file} page errors: ${pageErrors.join(' | ')}; body: ${(await page.locator('body').innerText()).slice(0, 240)}`).toBeGreaterThan(0);
-      expect(visibleCount, `${file} has no visible canvas panels`).toBeGreaterThan(0);
+      await page.goto(pageUrl(file));
+      const panels = page.locator('.nexus-canvas-panel');
+      await expect(panels, `${file} page errors: ${pageErrors.join(' | ')}; body: ${(await page.locator('body').innerText()).slice(0, 240)}`).toHaveCount(expectedPanels);
       await expect(page.locator('.nexus-canvas-mobile-panels')).toHaveCount(0);
-      const unlocked = page.locator('.nexus-canvas-panel:not(.is-workspace-locked):visible');
-      const panel = (await unlocked.count()) > 0 ? unlocked.first() : visiblePanels.first();
+      const usablePanels = await panels.evaluateAll((elements) => elements.filter((element) => {
+        const style = window.getComputedStyle(element);
+        const rect = element.getBoundingClientRect();
+        return !element.hidden
+          && style.display !== 'none'
+          && style.visibility !== 'hidden'
+          && rect.width > 0
+          && rect.height > 0;
+      }).length);
+      expect(usablePanels).toBe(expectedPanels);
+      const visiblePanels = page.locator('.nexus-canvas-panel:visible');
+      const panel = visiblePanels.first();
       await expect(panel).toBeVisible();
-      const toggle = panel.locator('.nexus-canvas-panel-toggle');
-      if (await toggle.count()) {
-        const expanded = await toggle.getAttribute('aria-expanded');
-        if (expanded === 'false') await toggle.click();
-      }
+      await expandPanelIfCollapsed(panel);
       const before = await panel.boundingBox();
       expect(before).not.toBeNull();
       expect(before.x).toBeGreaterThanOrEqual(0);
       expect(before.y).toBeGreaterThanOrEqual(0);
       expect(before.x + before.width).toBeLessThanOrEqual(393);
       expect(before.y + before.height).toBeLessThanOrEqual(852);
-      await panel.locator('.nexus-canvas-panel-header').evaluate((element) => {
-        element.setPointerCapture = () => {};
-        element.hasPointerCapture = () => false;
-        element.releasePointerCapture = () => {};
-        const box = element.getBoundingClientRect();
-        const startY = box.top + 20;
-        const deltaY = box.top > 30 ? -30 : 30;
-        const init = { pointerId: 7, pointerType: 'touch', isPrimary: true, button: 0, buttons: 1, clientX: box.left + 20 };
-        element.dispatchEvent(new PointerEvent('pointerdown', { ...init, clientY: startY, bubbles: true }));
-        element.dispatchEvent(new PointerEvent('pointermove', { ...init, clientY: startY + deltaY, bubbles: true }));
-        element.dispatchEvent(new PointerEvent('pointerup', { ...init, buttons: 0, clientY: startY + deltaY, bubbles: true }));
-      });
-      const after = await panel.boundingBox();
-      expect(after.x).toBeGreaterThanOrEqual(0);
-      expect(after.y).toBeGreaterThanOrEqual(0);
-      expect(after.x + after.width).toBeLessThanOrEqual(393);
-      expect(after.y + after.height).toBeLessThanOrEqual(852);
+      if (!(await panel.evaluate((element) => element.classList.contains('is-workspace-locked')))) {
+        const header = panel.locator('.nexus-canvas-panel-header');
+        const headerBox = await header.boundingBox();
+        expect(headerBox).not.toBeNull();
+        const deltaY = headerBox.top > 30 ? -30 : 30;
+        await dragLocator(page, header, { dy: deltaY });
+        const after = await panel.boundingBox();
+        expect(Math.abs(after.y - before.y)).toBeGreaterThan(5);
+      }
     });
   }
 
   test('the Agents panel has a working touch resize grip and no mobile switcher buttons', async ({ page }) => {
-    await page.route('**/api/board**', (route) => {
-      if (route.request().method() === 'POST') return route.fulfill({ json: { canvas: { id: 'dashboard' } } });
-      return route.fulfill({ status: 503, json: { error: 'test offline' } });
-    });
-    await openPage(page, 'index.html');
+    await stubRoomAuth(page, 'mobile-test');
+    await stubBoardOffline(page);
+    await stubBoardCreate(page, 'dashboard');
+    await page.goto('/index.html');
     const panel = page.locator('.nexus-canvas-panel[data-panel-id="agent-list"]');
-    const toggle = panel.locator('.nexus-canvas-panel-toggle');
     const handle = panel.locator('.nexus-canvas-resize-handle');
     await expect(panel).toBeVisible();
-    if ((await toggle.getAttribute('aria-expanded')) === 'false') await toggle.click();
+    await expandPanelIfCollapsed(panel);
     await expect(handle).toBeVisible();
     const handleBox = await handle.boundingBox();
     expect(handleBox.width).toBeGreaterThanOrEqual(44);
     expect(handleBox.height).toBeGreaterThanOrEqual(44);
     await expect(page.locator('.nexus-canvas-mobile-panel-button')).toHaveCount(0);
     const before = await panel.boundingBox();
-    await handle.evaluate((element) => {
-      element.setPointerCapture = () => {};
-      element.hasPointerCapture = () => false;
-      element.releasePointerCapture = () => {};
-      const box = element.getBoundingClientRect();
-      const init = {
-        pointerId: 11, pointerType: 'touch', isPrimary: true,
-        button: 0, buttons: 1, clientX: box.left + 8, clientY: box.top + 8,
-      };
-      element.dispatchEvent(new PointerEvent('pointerdown', { ...init, bubbles: true }));
-      element.dispatchEvent(new PointerEvent('pointermove', { ...init, clientX: init.clientX - 40, clientY: init.clientY - 30, bubbles: true }));
-      element.dispatchEvent(new PointerEvent('pointerup', { ...init, buttons: 0, clientX: init.clientX - 40, clientY: init.clientY - 30, bubbles: true }));
-    });
+    await panel.locator('.nexus-canvas-panel-header').click({ position: { x: 24, y: 24 } });
+    await page.mouse.move(handleBox.x + handleBox.width - 4, handleBox.y + handleBox.height - 4);
+    await page.mouse.down();
+    await page.mouse.move(handleBox.x + handleBox.width - 44, handleBox.y + handleBox.height - 34, { steps: 8 });
+    await page.mouse.up();
     const after = await panel.boundingBox();
     expect(Math.abs(after.width - before.width)).toBeGreaterThan(5);
     expect(Math.abs(after.height - before.height)).toBeGreaterThan(5);
   });
 
   test('panels can use the full phone height below the old reserved dock strip', async ({ page }) => {
-    await page.route('**/api/board**', (route) => {
-      if (route.request().method() === 'POST') return route.fulfill({ json: { canvas: { id: 'dashboard' } } });
-      return route.fulfill({ status: 503, json: { error: 'test offline' } });
-    });
-    await openPage(page, 'index.html');
-    const panel = page.locator('.nexus-canvas-panel:not(.is-workspace-locked)').first();
-    const toggle = panel.locator('.nexus-canvas-panel-toggle');
-    if ((await toggle.getAttribute('aria-expanded')) === 'false') await toggle.click();
-    const before = await panel.boundingBox();
-    await panel.locator('.nexus-canvas-panel-header').evaluate((element) => {
-      element.setPointerCapture = () => {};
-      element.hasPointerCapture = () => false;
-      element.releasePointerCapture = () => {};
-      const box = element.getBoundingClientRect();
-      const init = { pointerId: 21, pointerType: 'touch', isPrimary: true, button: 0, buttons: 1, clientX: box.left + 20, clientY: box.top + 20 };
-      element.dispatchEvent(new PointerEvent('pointerdown', { ...init, bubbles: true }));
-      element.dispatchEvent(new PointerEvent('pointermove', { ...init, clientY: init.clientY + 2000, bubbles: true }));
-      element.dispatchEvent(new PointerEvent('pointerup', { ...init, buttons: 0, clientY: init.clientY + 2000, bubbles: true }));
-    });
+    await stubRoomAuth(page, 'mobile-test');
+    await stubBoardOffline(page);
+    await stubBoardCreate(page, 'dashboard');
+    await page.goto('/index.html');
+    const panel = page.locator('.nexus-canvas-panel[data-panel-id="board-summary"]');
+    await expandPanelIfCollapsed(panel);
+    await dragLocator(page, panel.locator('.nexus-canvas-panel-header'), { dy: 2000 });
     const box = await panel.boundingBox();
-    expect(box.y + box.height).toBeGreaterThanOrEqual(before.y + before.height - 2);
+    expect(box.y + box.height).toBeGreaterThan(820);
     expect(box.y + box.height).toBeLessThanOrEqual(844.5);
   });
 
-  test('every board minimizes to its name bar and restores its full size', async ({ page }) => {
-    await page.route('**/api/board**', (route) => {
-      if (route.request().method() === 'POST') return route.fulfill({ json: { canvas: { id: 'dashboard' } } });
-      return route.fulfill({ status: 503, json: { error: 'test offline' } });
-    });
-    await openPage(page, 'index.html');
-    const panel = page.locator('.nexus-canvas-panel:not(.is-workspace-locked)').first();
+  test('every board minimizes to a launcher tile and restores its full size', async ({ page }) => {
+    await stubRoomAuth(page, 'mobile-test');
+    await stubBoardOffline(page);
+    await stubBoardCreate(page, 'dashboard');
+    await page.goto('/index.html');
+    const panel = page.locator('.nexus-canvas-panel[data-panel-id="board-summary"]');
     const toggle = panel.locator('.nexus-canvas-panel-toggle');
-    if ((await toggle.getAttribute('aria-expanded')) === 'false') await toggle.click();
-    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await expandPanelIfCollapsed(panel);
     const before = await panel.boundingBox();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await panel.locator('.nexus-canvas-panel-header').click({ position: { x: 24, y: 24 } });
     await toggle.click();
     const minimized = await panel.boundingBox();
     await expect(panel).toHaveClass(/is-collapsed/);
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
     await expect(panel.locator('.nexus-canvas-panel-body')).toBeHidden();
-    expect(minimized.height).toBeLessThan(70);
-    // Chromium can report the panel's border-box two physical pixels wider
-    // after the first style/layout flush; the content width must stay stable.
-    expect(Math.abs(minimized.width - before.width)).toBeLessThanOrEqual(2.5);
+    expect(minimized.height).toBeLessThan(before.height);
+    expect(minimized.width).toBeLessThan(before.width);
+    const minimizedToggle = await toggle.boundingBox();
+    expect(minimizedToggle).not.toBeNull();
+    expect(minimizedToggle.width).toBeGreaterThanOrEqual(minimized.width - 2);
+    expect(minimizedToggle.height).toBeGreaterThanOrEqual(minimized.height - 2);
     await toggle.click();
     const restored = await panel.boundingBox();
     await expect(toggle).toHaveAttribute('aria-expanded', 'true');
     expect(Math.abs(restored.height - before.height)).toBeLessThanOrEqual(2.5);
+    expect(Math.abs(restored.width - before.width)).toBeLessThanOrEqual(2.5);
+  });
+
+  test('locked workspace panels stay full-screen and keep their body visible on mobile', async ({ page }) => {
+    await stubRoomAuth(page, 'mobile-test');
+    await stubBoardOffline(page);
+    await stubBoardCreate(page, 'room-builder');
+    await page.goto('/room.html');
+    const panel = page.locator('.nexus-canvas-panel[data-panel-id="room-builder"]');
+    await expect(panel).toBeVisible();
+    await expect(panel).toHaveClass(/is-workspace-locked/);
+    await expect(panel.locator('.nexus-canvas-panel-header')).toBeHidden();
+    await expect(panel.locator('.nexus-canvas-resize-handle')).toBeHidden();
+    await expect(panel.locator('.nexus-canvas-panel-body')).toBeVisible();
+    const box = await panel.boundingBox();
+    const viewport = page.viewportSize();
+    expect(box).not.toBeNull();
+    expect(viewport).not.toBeNull();
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.x).toBeLessThanOrEqual(1);
+    expect(box.y).toBeLessThanOrEqual(1);
+    expect(box.width).toBeGreaterThanOrEqual(viewport.width - 1);
+    expect(box.width).toBeLessThanOrEqual(viewport.width);
+    expect(box.height).toBeGreaterThanOrEqual(viewport.height - 1);
+    expect(box.height).toBeLessThanOrEqual(viewport.height);
   });
 });
 
-test('live build feedback stays a one-line mobile status pill', async ({ page }) => {
-  await page.setViewportSize({ width: 393, height: 852 });
-  await page.route('**/api/board**', (route) => route.fulfill({ status: 503, json: { error: 'test offline' } }));
-  await openPage(page, 'index.html');
-  await page.evaluate(() => window.dispatchEvent(new CustomEvent('nexus:build-feedback', {
-    detail: { state: 'running', tool: 'testing', label: 'Running client preview tests' },
-  })));
-  const pill = page.locator('.nexus-build-feedback');
-  if (await pill.count() === 0) {
-    expect(await pill.count()).toBe(0);
-    return;
-  }
-  await expect(pill).toBeVisible();
-  await expect(pill).toContainText('NEX · Running client preview tests');
-  const box = await pill.boundingBox();
-  expect(box.width).toBeLessThanOrEqual(200);
-  expect(box.height).toBeLessThanOrEqual(44);
-  await expect(pill.locator('.nexus-build-feedback-label')).toHaveCount(1);
+test.describe('mobile build feedback', () => {
+  test.use({ viewport: { width: 393, height: 852 }, isMobile: true, hasTouch: true });
+
+  test('build feedback does not spawn a legacy floating mobile status pill', async ({ page }) => {
+    await stubRoomAuth(page, 'mobile-test');
+    await stubBoardOffline(page);
+    await stubBoardCreate(page, 'dashboard');
+    await page.goto('/index.html');
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent('nexus:build-feedback', {
+      detail: { state: 'running', tool: 'testing', label: 'Running client preview tests' },
+    })));
+    await expect(page.locator('.nexus-build-feedback')).toHaveCount(0);
+  });
 });

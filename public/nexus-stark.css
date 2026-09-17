@@ -69,7 +69,7 @@ body::after {
   box-shadow:inset 0 1px 0 #ffffff08,var(--hud-glow);
 }
 .panel-header,.chat-header,.header { background:linear-gradient(90deg,#121d2c,#0c131e)!important; }
-.panel-title,.section-label,.eyebrow { color:#71819a!important; letter-spacing:.14em!important; }
+.panel-title,.section-label,.eyebrow { color:#91a3bd!important; letter-spacing:.14em!important; }
 .panel-title::before,.section-label::before { content:"// "; color:var(--stark-red); }
 button,.send-btn,.add-btn,.copy-btn,.btn-run {
   border:1px solid #5de7ff55!important;
