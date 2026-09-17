@@ -27,14 +27,12 @@ test('Nex work-mode policy preserves approval and recovery boundaries', () => {
 });
 
 test('ordinary owner build requests are not forced through a handoff gate', async () => {
-  const [chatSource, brainSource] = await Promise.all([
-    readFile(new URL('../api/chat.js', import.meta.url), 'utf8'),
-    readFile(new URL('../lib/nexBrain.js', import.meta.url), 'utf8'),
-  ]);
+  const chatSource = await readFile(new URL('../api/chat.js', import.meta.url), 'utf8');
 
   assert.doesNotMatch(chatSource, /buildHandoffDirective|## Handoff Gate/);
-  assert.match(brainSource, /only when Justin explicitly asks Nex to hand work/i);
-  assert.match(brainSource, /perform ordinary work directly/i);
+  const policy = getNexRuntimePolicy();
+  assert.match(policy, /unless Justin explicitly asks for another agent or a team/i);
+  assert.match(policy, /Direct execution is the default/i);
 });
 
 test('SSE starts only after disengaged-mode JSON responses have returned', async () => {

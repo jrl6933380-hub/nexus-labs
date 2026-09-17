@@ -4,9 +4,15 @@
 
 import { listMemories, addMemory, updateMemory, deleteMemory, listMemoryCandidates, curatePendingMemories, promoteMemoryCandidate, rejectMemoryCandidate } from '../lib/memory.js';
 import { initSentry, Sentry } from '../lib/sentry.js';
+import { getRequestUser, isOperatorUser } from '../lib/roomAuth.js';
 
 export default async function handler(req, res) {
   initSentry();
+
+  const username = await getRequestUser(req).catch(() => null);
+  if (!username || !isOperatorUser(username)) {
+    return res.status(401).json({ error: 'Operator authentication required.' });
+  }
 
   try {
     if (req.method === 'GET') {

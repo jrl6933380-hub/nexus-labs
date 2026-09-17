@@ -25,8 +25,10 @@ test('records a safe lifecycle and resume pointer', async () => {
   const started = await startExecution({ agent: 'chatgpt', tool: 'create_file', purpose: 'write test artifact', target: 'repo:file', run_id: 'run-test' });
   assert.equal(started.run_id, 'run-test');
   await finishExecution({ run_id: 'run-test', agent: 'chatgpt', tool: 'create_file', result_summary: 'commit complete', artifact_refs: ['commit:abc'], next_action: 'run tests' });
-  const pointer = await checkpointExecution({ run_id: 'run-test', agent: 'chatgpt', state: 'paused', last_completed_tool: 'create_file', last_result: 'commit complete', next_safe_action: 'run tests', working_branch: 'test/execution-ledger', files_touched: ['EXECUTION_LEDGER.md'] });
+  const pointer = await checkpointExecution({ run_id: 'run-test', agent: 'chatgpt', state: 'paused', last_completed_tool: 'create_file', last_result: 'commit complete', next_safe_action: 'run tests', working_branch: 'test/execution-ledger', files_touched: ['EXECUTION_LEDGER.md'], goal: 'Prove resumable reasoning.', current_step: 'run tests', acceptance_conditions: ['relevant_tests'], loaded_capabilities: ['coding'] });
   assert.equal(pointer.next_safe_action, 'run tests');
+  assert.equal(pointer.goal, 'Prove resumable reasoning.');
+  assert.deepEqual(pointer.loaded_capabilities, ['coding']);
   assert.equal((await getExecutionResume('run-test')).working_branch, 'test/execution-ledger');
   assert.equal((await listExecutionEvents('run-test')).length, 3);
 });

@@ -13,7 +13,8 @@ import {
 } from '../lib/claudeHandoff.js';
 import { getNexChatMode, disengageNex, engageNex } from '../lib/nexMode.js';
 import { detectHyperfocusTrigger, buildHyperfocusDirective } from '../lib/hyperfocusTriggers.js';
-import { getRequestUser } from '../lib/roomAuth.js';
+import { getRequestUser, isOperatorUser } from '../lib/roomAuth.js';
+import { loadRecentConversation, recentKeyFor, saveRecentConversation } from '../lib/nexConversationStore.js';
 
 // ============================================================
 // SHORT-TERM ROLLING BUFFER — just enough for mid-conversation
@@ -24,9 +25,6 @@ import { getRequestUser } from '../lib/roomAuth.js';
 // (6 to 12 exchanges) since Nex sessions run long when actually
 // building something. Tune further either direction if it feels off.
 // ============================================================
-const KV_URL = process.env.KV_REST_API_URL;
-const KV_TOKEN = process.env.KV_REST_API_TOKEN;
-const RECENT_KEY = 'nex:recent-conversation';
 const RECENT_LIMIT = 24; // ~12 exchanges
 
 function normalizeScreenSnapshot(input) {
@@ -78,57 +76,13 @@ function normalizeClientContext(input) {
 }
 
 
-async function loadRecent() {
-  if (!KV_URL || !KV_TOKEN) {
-    console.error('loadRecent: missing KV_URL or KV_TOKEN env vars');
-    return [];
-  }
-  try {
-    const res = await fetch(`${KV_URL}/get/${RECENT_KEY}`, {
-      headers: { Authorization: `Bearer ${KV_TOKEN}` },
-    });
-    const contentType = res.headers.get('content-type') || '';
-    if (!res.ok || contentType.includes('text/html')) return [];
-    const data = await res.json();
-    if (!data.result) return [];
-    try {
-      const parsed = JSON.parse(data.result);
-      if (!Array.isArray(parsed)) return [];
-      // Defensive: drop any entry with empty/missing content. A single
-      // poisoned entry here would otherwise get resent to Claude on
-      // every future request and crash every one of them — Claude's
-      // API rejects empty message content, so no request could ever
-      // succeed until the bad entry aged out or was purged. Filtering
-      // on load means a bad entry can never get "stuck".
-      return parsed.filter(
-        (msg) => msg && typeof msg.content === 'string' && msg.content.trim().length > 0
-      );
-    } catch {
-      return [];
-    }
-  } catch (err) {
-    console.error('loadRecent: fetch threw', err.message);
-    return [];
-  }
+async function loadRecent(operatorUser) {
+  recentKeyFor(operatorUser); // fail closed before touching storage
+  return loadRecentConversation(operatorUser);
 }
 
-async function saveRecent(fullHistory) {
-  if (!KV_URL || !KV_TOKEN) return;
-  try {
-    const cleanHistory = fullHistory.filter((msg) => msg.role !== 'system' && msg.content);
-    const trimmed = cleanHistory.slice(-RECENT_LIMIT);
-    const res = await fetch(`${KV_URL}/set/${RECENT_KEY}`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${KV_TOKEN}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(trimmed),
-    });
-    if (!res.ok) {
-      const bodyText = await res.text();
-      console.error('saveRecent: bad response', res.status, bodyText.slice(0, 300));
-    }
-  } catch (err) {
-    console.error('saveRecent: fetch threw', err.message);
-  }
+async function saveRecent(operatorUser, fullHistory) {
+  return saveRecentConversation(operatorUser, fullHistory.slice(-RECENT_LIMIT));
 }
 
 // ============================================================
@@ -136,13 +90,17 @@ async function saveRecent(fullHistory) {
 // ============================================================
 export default async function handler(req, res) {
   initSentry();
+  const operatorUser = await getRequestUser(req).catch(() => null);
+  if (!operatorUser || !isOperatorUser(operatorUser)) {
+    return res.status(401).json({ error: 'Operator authentication required.' });
+  }
 
   // GET — used by the frontend on page load to re-render whatever
   // conversation is already saved, instead of always showing the
   // same hardcoded starter message.
   if (req.method === 'GET') {
     try {
-      const recent = await loadRecent();
+      const recent = await loadRecent(operatorUser);
       return res.status(200).json({ messages: recent });
     } catch (err) {
       console.error('GET /api/chat failed to load history:', err.message);
@@ -196,7 +154,7 @@ export default async function handler(req, res) {
       throw new Error('This is a deliberate test error, triggered on purpose to confirm Sentry is catching things.');
     }
 
-    const recent = await loadRecent();
+    const recent = await loadRecent(operatorUser);
     const runningHistory = recent.filter((msg) => msg.role !== 'system');
 
     // Exact command-level handoff: Nex does not imitate Claude. He creates
@@ -209,7 +167,7 @@ export default async function handler(req, res) {
         `Nex disengaged. I’m paused while you work directly with Claude. ` +
         `Open the direct Claude session: ${wake.session_url}`;
       const usage = { input_tokens: 0, output_tokens: 0 };
-      await saveRecent([
+      await saveRecent(operatorUser, [
         ...runningHistory,
         { role: 'user', content: message },
         { role: 'assistant', content: reply, model: 'claude-routine', usage },
@@ -233,7 +191,7 @@ export default async function handler(req, res) {
       await engageNex();
       const reply = 'Nex engaged. I’m back in the lead.';
       const usage = { input_tokens: 0, output_tokens: 0 };
-      await saveRecent([
+      await saveRecent(operatorUser, [
         ...runningHistory,
         { role: 'user', content: message },
         { role: 'assistant', content: reply, model: 'nex', usage },
@@ -285,7 +243,6 @@ export default async function handler(req, res) {
       ? `${message}\n\n${buildHyperfocusDirective(hyperfocusTrigger)}`
       : message;
 
-    const operatorUser = await getRequestUser(req).catch(() => null);
     const clientContext = normalizeClientContext(workspace);
     const {
       reply,
@@ -301,6 +258,7 @@ export default async function handler(req, res) {
       contextManifest,
       completionReceipt,
       skills,
+      crew,
       runState,
       securityReceipt,
       degraded,
@@ -323,7 +281,7 @@ export default async function handler(req, res) {
       ...historyForStorage,
       { role: 'assistant', content: reply, model: answeredModel, usage },
     ];
-    await saveRecent(finalHistory);
+    await saveRecent(operatorUser, finalHistory);
 
     const response = {
       reply,
@@ -338,6 +296,7 @@ export default async function handler(req, res) {
       contextManifest,
       completionReceipt,
       skills,
+      crew,
       runState,
       securityReceipt,
       degraded,

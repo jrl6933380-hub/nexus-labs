@@ -13,10 +13,23 @@ test('creates a scoped run with a secret-safe perception fingerprint', () => {
 test('resumes only a real stored Nex turn id in the same operator scope', async () => {
   const runId = 'nex-turn-12345678';
   const seeded = createNexRunState({ scopeId: 'mrlopez' });
-  const state = await loadNexRunState({ resumeRunId: runId, scopeId: 'mrlopez' }, { getExecutionResume: async () => ({ run_id: runId, scope_hash: seeded.scopeHash, state: 'paused', next_safe_action: 'Run tests.' }) });
+  const state = await loadNexRunState({ resumeRunId: runId, scopeId: 'mrlopez' }, { getExecutionResume: async () => ({
+    run_id: runId,
+    scope_hash: seeded.scopeHash,
+    state: 'paused',
+    goal: 'Repair the login route.',
+    current_step: 'Run tests.',
+    next_safe_action: 'Run tests.',
+    acceptance_conditions: ['source_read', 'relevant_tests'],
+    loaded_capabilities: ['github'],
+    searched_capabilities: ['coding'],
+  }) });
   assert.equal(state.runId, runId);
   assert.equal(state.resumed, true);
   assert.equal(state.nextSafeAction, 'Run tests.');
+  assert.equal(state.goal, 'Repair the login route.');
+  assert.deepEqual(state.acceptanceConditions, ['source_read', 'relevant_tests']);
+  assert.deepEqual(state.loadedCapabilities, ['github']);
 });
 
 test('rejects a resume pointer from another operator scope', async () => {

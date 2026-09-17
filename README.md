@@ -24,6 +24,8 @@ Optional controls:
 - `NEX_PROVIDER_TIMEOUT_MS` (5,000–90,000; default: 45,000)
 - `NEX_FORCE_GATEWAY=true` (controlled failover test; bypasses Anthropic
   without removing its key)
+- `NEXUS_AGENT_API_TOKEN` (strong random bearer token for the private
+  agent-to-Nex endpoint; browser sessions still require the configured operator)
 
 If neither provider can answer, Nex returns a successful safe-mode response
 instead of disappearing behind a generic server error. Safe mode never runs
