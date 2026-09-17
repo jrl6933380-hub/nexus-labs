@@ -36,8 +36,12 @@ export function operatorLoginUrl(locationLike = {}) {
   return `/room-login.html?next=${encodeURIComponent(safePath)}`;
 }
 
-export function redirectToOperatorLogin(response, locationLike) {
-  if (response?.status !== 401 || typeof locationLike?.assign !== 'function') return false;
+export function shouldRedirectToOperatorLogin(response, requestIntent = 'message') {
+  return response?.status === 401 && requestIntent === 'message';
+}
+
+export function redirectToOperatorLogin(response, locationLike, { requestIntent = 'message' } = {}) {
+  if (!shouldRedirectToOperatorLogin(response, requestIntent) || typeof locationLike?.assign !== 'function') return false;
   locationLike.assign(operatorLoginUrl(locationLike));
   return true;
 }
@@ -1101,7 +1105,10 @@ export function createNexChatBar() {
   async function loadHistory() {
     try {
       const response = await fetch('/api/chat');
-      if (redirectToOperatorLogin(response, window.location)) return;
+      // History loads in the background on every page that embeds the dock.
+      // A missing operator session must not hijack dashboard navigation; only
+      // a user-initiated message should send the browser to sign-in.
+      if (redirectToOperatorLogin(response, window.location, { requestIntent: 'history' })) return;
       if (!response.ok) return;
       const data = await response.json();
       const messages = Array.isArray(data.messages) ? data.messages : [];
