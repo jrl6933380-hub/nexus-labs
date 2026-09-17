@@ -138,21 +138,22 @@ test.describe('mobile canvas room interactions', () => {
       expect(before.y).toBeGreaterThanOrEqual(0);
       expect(before.x + before.width).toBeLessThanOrEqual(393);
       expect(before.y + before.height).toBeLessThanOrEqual(852);
-      if (await panel.evaluate((element) => element.classList.contains('is-workspace-locked'))) return;
-      await panel.locator('.nexus-canvas-panel-header').evaluate((element) => {
-        element.setPointerCapture = () => {};
-        element.hasPointerCapture = () => false;
-        element.releasePointerCapture = () => {};
-        const box = element.getBoundingClientRect();
-        const startY = box.top + 20;
-        const deltaY = box.top > 30 ? -30 : 30;
-        const init = { pointerId: 7, pointerType: 'touch', isPrimary: true, button: 0, buttons: 1, clientX: box.left + 20 };
-        element.dispatchEvent(new PointerEvent('pointerdown', { ...init, clientY: startY, bubbles: true }));
-        element.dispatchEvent(new PointerEvent('pointermove', { ...init, clientY: startY + deltaY, bubbles: true }));
-        element.dispatchEvent(new PointerEvent('pointerup', { ...init, buttons: 0, clientY: startY + deltaY, bubbles: true }));
-      });
-      const after = await panel.boundingBox();
-      expect(Math.abs(after.y - before.y)).toBeGreaterThan(5);
+      if (!(await panel.evaluate((element) => element.classList.contains('is-workspace-locked')))) {
+        await panel.locator('.nexus-canvas-panel-header').evaluate((element) => {
+          element.setPointerCapture = () => {};
+          element.hasPointerCapture = () => false;
+          element.releasePointerCapture = () => {};
+          const box = element.getBoundingClientRect();
+          const startY = box.top + 20;
+          const deltaY = box.top > 30 ? -30 : 30;
+          const init = { pointerId: 7, pointerType: 'touch', isPrimary: true, button: 0, buttons: 1, clientX: box.left + 20 };
+          element.dispatchEvent(new PointerEvent('pointerdown', { ...init, clientY: startY, bubbles: true }));
+          element.dispatchEvent(new PointerEvent('pointermove', { ...init, clientY: startY + deltaY, bubbles: true }));
+          element.dispatchEvent(new PointerEvent('pointerup', { ...init, buttons: 0, clientY: startY + deltaY, bubbles: true }));
+        });
+        const after = await panel.boundingBox();
+        expect(Math.abs(after.y - before.y)).toBeGreaterThan(5);
+      }
     });
   }
 
@@ -245,14 +246,15 @@ test.describe('mobile canvas room interactions', () => {
     await expect(panel.locator('.nexus-canvas-resize-handle')).toBeHidden();
     await expect(panel.locator('.nexus-canvas-panel-body')).toBeVisible();
     const box = await panel.boundingBox();
+    const viewport = page.viewportSize();
     expect(box.x).toBeGreaterThanOrEqual(0);
     expect(box.y).toBeGreaterThanOrEqual(0);
     expect(box.x).toBeLessThanOrEqual(1);
     expect(box.y).toBeLessThanOrEqual(1);
-    expect(box.width).toBeGreaterThanOrEqual(392);
-    expect(box.width).toBeLessThanOrEqual(393);
-    expect(box.height).toBeGreaterThanOrEqual(851);
-    expect(box.height).toBeLessThanOrEqual(852);
+    expect(box.width).toBeGreaterThanOrEqual(viewport.width - 1);
+    expect(box.width).toBeLessThanOrEqual(viewport.width);
+    expect(box.height).toBeGreaterThanOrEqual(viewport.height - 1);
+    expect(box.height).toBeLessThanOrEqual(viewport.height);
   });
 });
 
