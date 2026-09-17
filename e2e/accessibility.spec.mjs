@@ -43,8 +43,8 @@ const publicDir = path.join(__dirname, '..', 'public');
 const pages = fs.readdirSync(publicDir).filter((file) => file.endsWith('.html'));
 const pageUrl = (file) => file === 'canvas.html' ? '/canvas?id=mobile-test' : `/${file}`;
 
-async function stubStableRoutes(page) {
-  await page.route('**/api/room-auth**', (route) => route.fulfill({ json: { username: 'a11y-test' } }));
+async function stubStableRoutes(page, username = 'a11y-test') {
+  await page.route('**/api/room-auth**', (route) => route.fulfill({ json: { username } }));
 }
 
 for (const file of pages) {
@@ -114,8 +114,7 @@ test.describe('mobile canvas room interactions', () => {
     test(`${file} keeps panels visible, bounded, and usable on mobile`, async ({ page }) => {
       const pageErrors = [];
       page.on('pageerror', (error) => pageErrors.push(error.message));
-      await stubStableRoutes(page);
-      await page.route('**/api/room-auth', (route) => route.fulfill({ json: { username: 'mobile-test' } }));
+      await stubStableRoutes(page, 'mobile-test');
       await page.route('**/api/tenants**', (route) => route.fulfill({ json: { tenants: [] } }));
       await page.route('**/api/board**', (route) => {
         if (route.request().method() === 'POST') return route.fulfill({ json: { canvas: { id: 'mobile-test' } } });
@@ -153,6 +152,7 @@ test.describe('mobile canvas room interactions', () => {
   }
 
   test('the Agents panel has a working touch resize grip and no mobile switcher buttons', async ({ page }) => {
+    await stubStableRoutes(page, 'mobile-test');
     await page.route('**/api/board**', (route) => {
       if (route.request().method() === 'POST') return route.fulfill({ json: { canvas: { id: 'dashboard' } } });
       return route.fulfill({ status: 503, json: { error: 'test offline' } });
@@ -187,6 +187,7 @@ test.describe('mobile canvas room interactions', () => {
   });
 
   test('panels can use the full phone height below the old reserved dock strip', async ({ page }) => {
+    await stubStableRoutes(page, 'mobile-test');
     await page.route('**/api/board**', (route) => {
       if (route.request().method() === 'POST') return route.fulfill({ json: { canvas: { id: 'dashboard' } } });
       return route.fulfill({ status: 503, json: { error: 'test offline' } });
@@ -210,6 +211,7 @@ test.describe('mobile canvas room interactions', () => {
   });
 
   test('every board minimizes to a launcher tile and restores its full size', async ({ page }) => {
+    await stubStableRoutes(page, 'mobile-test');
     await page.route('**/api/board**', (route) => {
       if (route.request().method() === 'POST') return route.fulfill({ json: { canvas: { id: 'dashboard' } } });
       return route.fulfill({ status: 503, json: { error: 'test offline' } });
@@ -235,6 +237,22 @@ test.describe('mobile canvas room interactions', () => {
     const restored = await panel.boundingBox();
     await expect(toggle).toHaveAttribute('aria-expanded', 'true');
     expect(Math.abs(restored.height - before.height)).toBeLessThanOrEqual(2.5);
+  });
+
+  test('locked workspace panels stay full-screen and keep their body visible on mobile', async ({ page }) => {
+    await stubStableRoutes(page, 'mobile-test');
+    await page.goto('/room.html');
+    const panel = page.locator('.nexus-canvas-panel[data-panel-id="room-builder"]');
+    await expect(panel).toBeVisible();
+    await expect(panel).toHaveClass(/is-workspace-locked/);
+    await expect(panel.locator('.nexus-canvas-panel-header')).toBeHidden();
+    await expect(panel.locator('.nexus-canvas-resize-handle')).toBeHidden();
+    await expect(panel.locator('.nexus-canvas-panel-body')).toBeVisible();
+    const box = await panel.boundingBox();
+    expect(box.x).toBe(0);
+    expect(box.y).toBe(0);
+    expect(box.width).toBe(393);
+    expect(box.height).toBe(852);
   });
 });
 
