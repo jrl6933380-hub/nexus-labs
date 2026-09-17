@@ -121,6 +121,17 @@ async function expandPanelIfCollapsed(panel) {
   await expect(panel).not.toHaveClass(/is-collapsed/);
 }
 
+async function dragLocator(page, locator, { dx = 0, dy = 0, offsetX = 20, offsetY = 20 } = {}) {
+  const box = await locator.boundingBox();
+  expect(box).not.toBeNull();
+  const startX = box.x + Math.min(offsetX, Math.max(8, box.width / 2));
+  const startY = box.y + Math.min(offsetY, Math.max(8, box.height / 2));
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(startX + dx, startY + dy, { steps: 8 });
+  await page.mouse.up();
+}
+
 test.describe('mobile canvas room interactions', () => {
   test.use({ viewport: { width: 393, height: 852 }, isMobile: true, hasTouch: true });
 
@@ -157,18 +168,11 @@ test.describe('mobile canvas room interactions', () => {
       expect(before.x + before.width).toBeLessThanOrEqual(393);
       expect(before.y + before.height).toBeLessThanOrEqual(852);
       if (!(await panel.evaluate((element) => element.classList.contains('is-workspace-locked')))) {
-        await panel.locator('.nexus-canvas-panel-header').evaluate((element) => {
-          element.setPointerCapture = () => {};
-          element.hasPointerCapture = () => false;
-          element.releasePointerCapture = () => {};
-          const box = element.getBoundingClientRect();
-          const startY = box.top + 20;
-          const deltaY = box.top > 30 ? -30 : 30;
-          const init = { pointerId: 7, pointerType: 'touch', isPrimary: true, button: 0, buttons: 1, clientX: box.left + 20 };
-          element.dispatchEvent(new PointerEvent('pointerdown', { ...init, clientY: startY, bubbles: true }));
-          element.dispatchEvent(new PointerEvent('pointermove', { ...init, clientY: startY + deltaY, bubbles: true }));
-          element.dispatchEvent(new PointerEvent('pointerup', { ...init, buttons: 0, clientY: startY + deltaY, bubbles: true }));
-        });
+        const header = panel.locator('.nexus-canvas-panel-header');
+        const headerBox = await header.boundingBox();
+        expect(headerBox).not.toBeNull();
+        const deltaY = headerBox.top > 30 ? -30 : 30;
+        await dragLocator(page, header, { dy: deltaY });
         const after = await panel.boundingBox();
         expect(Math.abs(after.y - before.y)).toBeGreaterThan(5);
       }
@@ -190,19 +194,11 @@ test.describe('mobile canvas room interactions', () => {
     expect(handleBox.height).toBeGreaterThanOrEqual(44);
     await expect(page.locator('.nexus-canvas-mobile-panel-button')).toHaveCount(0);
     const before = await panel.boundingBox();
-    await handle.evaluate((element) => {
-      element.setPointerCapture = () => {};
-      element.hasPointerCapture = () => false;
-      element.releasePointerCapture = () => {};
-      const box = element.getBoundingClientRect();
-      const init = {
-        pointerId: 11, pointerType: 'touch', isPrimary: true,
-        button: 0, buttons: 1, clientX: box.left + 8, clientY: box.top + 8,
-      };
-      element.dispatchEvent(new PointerEvent('pointerdown', { ...init, bubbles: true }));
-      element.dispatchEvent(new PointerEvent('pointermove', { ...init, clientX: init.clientX - 40, clientY: init.clientY - 30, bubbles: true }));
-      element.dispatchEvent(new PointerEvent('pointerup', { ...init, buttons: 0, clientX: init.clientX - 40, clientY: init.clientY - 30, bubbles: true }));
-    });
+    await panel.locator('.nexus-canvas-panel-header').click({ position: { x: 24, y: 24 } });
+    await page.mouse.move(handleBox.x + handleBox.width - 4, handleBox.y + handleBox.height - 4);
+    await page.mouse.down();
+    await page.mouse.move(handleBox.x + handleBox.width - 44, handleBox.y + handleBox.height - 34, { steps: 8 });
+    await page.mouse.up();
     const after = await panel.boundingBox();
     expect(Math.abs(after.width - before.width)).toBeGreaterThan(5);
     expect(Math.abs(after.height - before.height)).toBeGreaterThan(5);
@@ -215,16 +211,7 @@ test.describe('mobile canvas room interactions', () => {
     await page.goto('/index.html');
     const panel = page.locator('.nexus-canvas-panel[data-panel-id="board-summary"]');
     await expandPanelIfCollapsed(panel);
-    await panel.locator('.nexus-canvas-panel-header').evaluate((element) => {
-      element.setPointerCapture = () => {};
-      element.hasPointerCapture = () => false;
-      element.releasePointerCapture = () => {};
-      const box = element.getBoundingClientRect();
-      const init = { pointerId: 21, pointerType: 'touch', isPrimary: true, button: 0, buttons: 1, clientX: box.left + 20, clientY: box.top + 20 };
-      element.dispatchEvent(new PointerEvent('pointerdown', { ...init, bubbles: true }));
-      element.dispatchEvent(new PointerEvent('pointermove', { ...init, clientY: init.clientY + 2000, bubbles: true }));
-      element.dispatchEvent(new PointerEvent('pointerup', { ...init, buttons: 0, clientY: init.clientY + 2000, bubbles: true }));
-    });
+    await dragLocator(page, panel.locator('.nexus-canvas-panel-header'), { dy: 2000 });
     const box = await panel.boundingBox();
     expect(box.y + box.height).toBeGreaterThan(820);
     expect(box.y + box.height).toBeLessThanOrEqual(844.5);
@@ -240,7 +227,8 @@ test.describe('mobile canvas room interactions', () => {
     await expandPanelIfCollapsed(panel);
     const before = await panel.boundingBox();
     await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-    await toggle.press('Enter');
+    await panel.locator('.nexus-canvas-panel-header').click({ position: { x: 24, y: 24 } });
+    await toggle.click();
     const minimized = await panel.boundingBox();
     await expect(panel).toHaveClass(/is-collapsed/);
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
@@ -251,7 +239,7 @@ test.describe('mobile canvas room interactions', () => {
     expect(minimizedToggle).not.toBeNull();
     expect(minimizedToggle.width).toBeGreaterThanOrEqual(minimized.width - 2);
     expect(minimizedToggle.height).toBeGreaterThanOrEqual(minimized.height - 2);
-    await toggle.press('Enter');
+    await toggle.click();
     const restored = await panel.boundingBox();
     await expect(toggle).toHaveAttribute('aria-expanded', 'true');
     expect(Math.abs(restored.height - before.height)).toBeLessThanOrEqual(2.5);
