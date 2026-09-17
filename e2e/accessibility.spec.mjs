@@ -109,7 +109,7 @@ async function expandPanelIfCollapsed(panel) {
   if (!(await panel.evaluate((element) => element.classList.contains('is-collapsed')))) return;
   const toggle = panel.locator('.nexus-canvas-panel-toggle');
   await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-  await toggle.press('Enter');
+  await toggle.click();
   await expect(toggle).toHaveAttribute('aria-expanded', 'true');
   await expect(panel).not.toHaveClass(/is-collapsed/);
 }
