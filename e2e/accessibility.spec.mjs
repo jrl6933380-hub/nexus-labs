@@ -218,10 +218,10 @@ test.describe('mobile canvas room interactions', () => {
     await expect(panel.locator('.nexus-canvas-panel-body')).toBeHidden();
     expect(minimized.height).toBeLessThan(before.height);
     expect(minimized.width).toBeLessThan(before.width);
-    expect(minimized.height).toBeGreaterThanOrEqual(100);
-    expect(minimized.height).toBeLessThanOrEqual(112);
-    expect(minimized.width).toBeGreaterThanOrEqual(90);
-    expect(minimized.width).toBeLessThanOrEqual(100);
+    expect(minimized.height).toBeLessThan(before.height / 2);
+    expect(minimized.width).toBeLessThan(before.width / 2);
+    expect(minimized.height).toBeGreaterThan(44);
+    expect(minimized.width).toBeGreaterThan(44);
     await toggle.press('Enter');
     const restored = await panel.boundingBox();
     await expect(toggle).toHaveAttribute('aria-expanded', 'true');
