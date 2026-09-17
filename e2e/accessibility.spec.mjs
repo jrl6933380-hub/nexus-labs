@@ -260,12 +260,15 @@ test.describe('mobile canvas room interactions', () => {
   });
 });
 
-test('build feedback does not spawn a legacy floating mobile status pill', async ({ page }) => {
-  await page.setViewportSize({ width: 393, height: 852 });
-  await page.route('**/api/board**', (route) => route.fulfill({ status: 503, json: { error: 'test offline' } }));
-  await page.goto('/index.html');
-  await page.evaluate(() => window.dispatchEvent(new CustomEvent('nexus:build-feedback', {
-    detail: { state: 'running', tool: 'testing', label: 'Running client preview tests' },
-  })));
-  await expect(page.locator('.nexus-build-feedback')).toHaveCount(0);
+test.describe('mobile build feedback', () => {
+  test.use({ viewport: { width: 393, height: 852 }, isMobile: true, hasTouch: true });
+
+  test('build feedback does not spawn a legacy floating mobile status pill', async ({ page }) => {
+    await page.route('**/api/board**', (route) => route.fulfill({ status: 503, json: { error: 'test offline' } }));
+    await page.goto('/index.html');
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent('nexus:build-feedback', {
+      detail: { state: 'running', tool: 'testing', label: 'Running client preview tests' },
+    })));
+    await expect(page.locator('.nexus-build-feedback')).toHaveCount(0);
+  });
 });
