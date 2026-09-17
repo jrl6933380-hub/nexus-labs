@@ -44,13 +44,20 @@ const pages = fs.readdirSync(publicDir).filter((file) => file.endsWith('.html'))
 const pageUrl = (file) => file === 'canvas.html' ? '/canvas?id=mobile-test' : `/${file}`;
 
 async function stubRoomAuth(page, username = 'a11y-test') {
-  await page.route('**/api/room-auth', (route) => route.fulfill({ json: { username } }));
+  await page.route(/\/api\/room-auth(?:\?.*)?$/, (route) => route.fulfill({ json: { username } }));
 }
 
-async function stubBoard(page, canvasId = 'a11y-test') {
-  await page.route('**/api/board**', (route) => {
+async function stubBoardCreate(page, canvasId = 'a11y-test') {
+  await page.route('**/api/board', (route) => {
     if (route.request().method() === 'POST') return route.fulfill({ json: { canvas: { id: canvasId } } });
-    return route.fulfill({ status: 503, json: { error: 'test offline' } });
+    return route.fallback();
+  });
+}
+
+async function stubBoardOffline(page) {
+  await page.route('**/api/board**', (route) => {
+    if (route.request().method() === 'GET') return route.fulfill({ status: 503, json: { error: 'test offline' } });
+    return route.fallback();
   });
 }
 
@@ -122,7 +129,8 @@ test.describe('mobile canvas room interactions', () => {
       const pageErrors = [];
       page.on('pageerror', (error) => pageErrors.push(error.message));
       await stubRoomAuth(page, 'mobile-test');
-      await stubBoard(page, 'mobile-test');
+      await stubBoardCreate(page, 'mobile-test');
+      await stubBoardOffline(page);
       await page.route('**/api/tenants**', (route) => route.fulfill({ json: { tenants: [] } }));
       await page.goto(pageUrl(file));
       await expect(page.locator('.nexus-canvas-panel'), `${file} page errors: ${pageErrors.join(' | ')}; body: ${(await page.locator('body').innerText()).slice(0, 240)}`).toHaveCount(expectedPanels);
@@ -159,7 +167,8 @@ test.describe('mobile canvas room interactions', () => {
 
   test('the Agents panel has a working touch resize grip and no mobile switcher buttons', async ({ page }) => {
     await stubRoomAuth(page, 'mobile-test');
-    await stubBoard(page, 'dashboard');
+    await stubBoardCreate(page, 'dashboard');
+    await stubBoardOffline(page);
     await page.goto('/index.html');
     const panel = page.locator('.nexus-canvas-panel[data-panel-id="agent-list"]');
     const handle = panel.locator('.nexus-canvas-resize-handle');
@@ -191,7 +200,8 @@ test.describe('mobile canvas room interactions', () => {
 
   test('panels can use the full phone height below the old reserved dock strip', async ({ page }) => {
     await stubRoomAuth(page, 'mobile-test');
-    await stubBoard(page, 'dashboard');
+    await stubBoardCreate(page, 'dashboard');
+    await stubBoardOffline(page);
     await page.goto('/index.html');
     const panel = page.locator('.nexus-canvas-panel[data-panel-id="board-summary"]');
     await expandPanelIfCollapsed(panel);
@@ -212,7 +222,8 @@ test.describe('mobile canvas room interactions', () => {
 
   test('every board minimizes to a launcher tile and restores its full size', async ({ page }) => {
     await stubRoomAuth(page, 'mobile-test');
-    await stubBoard(page, 'dashboard');
+    await stubBoardCreate(page, 'dashboard');
+    await stubBoardOffline(page);
     await page.goto('/index.html');
     const panel = page.locator('.nexus-canvas-panel[data-panel-id="board-summary"]');
     const toggle = panel.locator('.nexus-canvas-panel-toggle');
@@ -239,7 +250,8 @@ test.describe('mobile canvas room interactions', () => {
 
   test('locked workspace panels stay full-screen and keep their body visible on mobile', async ({ page }) => {
     await stubRoomAuth(page, 'mobile-test');
-    await stubBoard(page, 'room-builder');
+    await stubBoardCreate(page, 'room-builder');
+    await stubBoardOffline(page);
     await page.goto('/room.html');
     const panel = page.locator('.nexus-canvas-panel[data-panel-id="room-builder"]');
     await expect(panel).toBeVisible();
@@ -267,7 +279,8 @@ test.describe('mobile build feedback', () => {
 
   test('build feedback does not spawn a legacy floating mobile status pill', async ({ page }) => {
     await stubRoomAuth(page, 'mobile-test');
-    await stubBoard(page, 'dashboard');
+    await stubBoardCreate(page, 'dashboard');
+    await stubBoardOffline(page);
     await page.goto('/index.html');
     await page.evaluate(() => window.dispatchEvent(new CustomEvent('nexus:build-feedback', {
       detail: { state: 'running', tool: 'testing', label: 'Running client preview tests' },
