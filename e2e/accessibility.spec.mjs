@@ -227,6 +227,7 @@ test.describe('mobile canvas room interactions', () => {
     expect(minimized.height).toBeLessThan(before.height);
     expect(minimized.width).toBeLessThan(before.width);
     const minimizedToggle = await toggle.boundingBox();
+    expect(minimizedToggle).not.toBeNull();
     expect(minimizedToggle.width).toBeGreaterThanOrEqual(minimized.width - 2);
     expect(minimizedToggle.height).toBeGreaterThanOrEqual(minimized.height - 2);
     await toggle.press('Enter');
@@ -248,6 +249,8 @@ test.describe('mobile canvas room interactions', () => {
     await expect(panel.locator('.nexus-canvas-panel-body')).toBeVisible();
     const box = await panel.boundingBox();
     const viewport = page.viewportSize();
+    expect(box).not.toBeNull();
+    expect(viewport).not.toBeNull();
     expect(box.x).toBeGreaterThanOrEqual(0);
     expect(box.y).toBeGreaterThanOrEqual(0);
     expect(box.x).toBeLessThanOrEqual(1);
