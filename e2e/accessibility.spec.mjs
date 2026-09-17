@@ -129,14 +129,24 @@ test.describe('mobile canvas room interactions', () => {
       const pageErrors = [];
       page.on('pageerror', (error) => pageErrors.push(error.message));
       await stubRoomAuth(page, 'mobile-test');
-      await stubBoardCreate(page, 'mobile-test');
       await stubBoardOffline(page);
+      await stubBoardCreate(page, 'mobile-test');
       await page.route('**/api/tenants**', (route) => route.fulfill({ json: { tenants: [] } }));
       await page.goto(pageUrl(file));
-      await expect(page.locator('.nexus-canvas-panel'), `${file} page errors: ${pageErrors.join(' | ')}; body: ${(await page.locator('body').innerText()).slice(0, 240)}`).toHaveCount(expectedPanels);
+      const panels = page.locator('.nexus-canvas-panel');
+      await expect(panels, `${file} page errors: ${pageErrors.join(' | ')}; body: ${(await page.locator('body').innerText()).slice(0, 240)}`).toHaveCount(expectedPanels);
       await expect(page.locator('.nexus-canvas-mobile-panels')).toHaveCount(0);
+      const usablePanels = await panels.evaluateAll((elements) => elements.filter((element) => {
+        const style = window.getComputedStyle(element);
+        const rect = element.getBoundingClientRect();
+        return !element.hidden
+          && style.display !== 'none'
+          && style.visibility !== 'hidden'
+          && rect.width > 0
+          && rect.height > 0;
+      }).length);
+      expect(usablePanels).toBe(expectedPanels);
       const visiblePanels = page.locator('.nexus-canvas-panel:visible');
-      expect(await visiblePanels.count()).toBeGreaterThan(0);
       const panel = visiblePanels.first();
       await expect(panel).toBeVisible();
       await expandPanelIfCollapsed(panel);
@@ -167,8 +177,8 @@ test.describe('mobile canvas room interactions', () => {
 
   test('the Agents panel has a working touch resize grip and no mobile switcher buttons', async ({ page }) => {
     await stubRoomAuth(page, 'mobile-test');
-    await stubBoardCreate(page, 'dashboard');
     await stubBoardOffline(page);
+    await stubBoardCreate(page, 'dashboard');
     await page.goto('/index.html');
     const panel = page.locator('.nexus-canvas-panel[data-panel-id="agent-list"]');
     const handle = panel.locator('.nexus-canvas-resize-handle');
@@ -200,8 +210,8 @@ test.describe('mobile canvas room interactions', () => {
 
   test('panels can use the full phone height below the old reserved dock strip', async ({ page }) => {
     await stubRoomAuth(page, 'mobile-test');
-    await stubBoardCreate(page, 'dashboard');
     await stubBoardOffline(page);
+    await stubBoardCreate(page, 'dashboard');
     await page.goto('/index.html');
     const panel = page.locator('.nexus-canvas-panel[data-panel-id="board-summary"]');
     await expandPanelIfCollapsed(panel);
@@ -222,8 +232,8 @@ test.describe('mobile canvas room interactions', () => {
 
   test('every board minimizes to a launcher tile and restores its full size', async ({ page }) => {
     await stubRoomAuth(page, 'mobile-test');
-    await stubBoardCreate(page, 'dashboard');
     await stubBoardOffline(page);
+    await stubBoardCreate(page, 'dashboard');
     await page.goto('/index.html');
     const panel = page.locator('.nexus-canvas-panel[data-panel-id="board-summary"]');
     const toggle = panel.locator('.nexus-canvas-panel-toggle');
@@ -250,8 +260,8 @@ test.describe('mobile canvas room interactions', () => {
 
   test('locked workspace panels stay full-screen and keep their body visible on mobile', async ({ page }) => {
     await stubRoomAuth(page, 'mobile-test');
-    await stubBoardCreate(page, 'room-builder');
     await stubBoardOffline(page);
+    await stubBoardCreate(page, 'room-builder');
     await page.goto('/room.html');
     const panel = page.locator('.nexus-canvas-panel[data-panel-id="room-builder"]');
     await expect(panel).toBeVisible();
@@ -279,8 +289,8 @@ test.describe('mobile build feedback', () => {
 
   test('build feedback does not spawn a legacy floating mobile status pill', async ({ page }) => {
     await stubRoomAuth(page, 'mobile-test');
-    await stubBoardCreate(page, 'dashboard');
     await stubBoardOffline(page);
+    await stubBoardCreate(page, 'dashboard');
     await page.goto('/index.html');
     await page.evaluate(() => window.dispatchEvent(new CustomEvent('nexus:build-feedback', {
       detail: { state: 'running', tool: 'testing', label: 'Running client preview tests' },
