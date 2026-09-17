@@ -31,8 +31,9 @@ test('only a 401 response triggers operator login navigation', () => {
   assert.deepEqual(destinations, ['/room-login.html?next=%2F']);
 });
 
-test('login page accepts only safe same-origin return paths', () => {
-  assert.match(loginPage, /requested\.startsWith\('\/'\)/u);
-  assert.match(loginPage, /!requested\.startsWith\('\/\/'\)/u);
-  assert.match(loginPage, /!requested\.startsWith\('\/room-login\.html'\)/u);
+test('login page preserves operator return paths without weakening customer redirects', () => {
+  assert.match(loginPage, /new URL\(requested \|\| '\/', window\.location\.origin\)/u);
+  assert.match(loginPage, /candidate\.origin !== window\.location\.origin/u);
+  assert.match(loginPage, /data\.operator === true && operatorNextPath/u);
+  assert.match(loginPage, /customerWorkspaces\.has\(requested\)/u);
 });
