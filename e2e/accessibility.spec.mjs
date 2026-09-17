@@ -233,6 +233,7 @@ test.describe('mobile canvas room interactions', () => {
     const restored = await panel.boundingBox();
     await expect(toggle).toHaveAttribute('aria-expanded', 'true');
     expect(Math.abs(restored.height - before.height)).toBeLessThanOrEqual(2.5);
+    expect(Math.abs(restored.width - before.width)).toBeLessThanOrEqual(2.5);
   });
 
   test('locked workspace panels stay full-screen and keep their body visible on mobile', async ({ page }) => {
