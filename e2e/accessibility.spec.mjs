@@ -260,6 +260,7 @@ test.describe('mobile build feedback', () => {
   test.use({ viewport: { width: 393, height: 852 }, isMobile: true, hasTouch: true });
 
   test('build feedback does not spawn a legacy floating mobile status pill', async ({ page }) => {
+    await stubRoomAuth(page, 'mobile-test');
     await stubBoard(page, 'dashboard');
     await page.goto('/index.html');
     await page.evaluate(() => window.dispatchEvent(new CustomEvent('nexus:build-feedback', {
