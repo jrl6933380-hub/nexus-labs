@@ -10,7 +10,6 @@ import { initSentry, Sentry } from '../lib/sentry.js';
 import { askNex } from '../lib/nexBrain.js';
 import crypto from 'node:crypto';
 import { getRequestUser, isOperatorUser } from '../lib/roomAuth.js';
-import { primaryOperatorUsername } from '../lib/nexConversationStore.js';
 
 function timingSafeEqual(left, right) {
   const leftHash = crypto.createHash('sha256').update(String(left || '')).digest();
@@ -44,7 +43,7 @@ export default async function handler(req, res) {
   try {
     // No history in, none saved after — fully stateless per call.
     const { reply } = await askNex(message, [], null, {}, null, {
-      userId: operatorSession ? sessionUser : primaryOperatorUsername(),
+      userId: operatorSession ? sessionUser : 'agent:claude',
       sourceAgent: 'claude',
     });
     return res.status(200).json({ reply });
