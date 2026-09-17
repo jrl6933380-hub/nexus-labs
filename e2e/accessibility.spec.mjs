@@ -48,14 +48,14 @@ async function stubRoomAuth(page, username = 'a11y-test') {
 }
 
 async function stubBoardCreate(page, canvasId = 'a11y-test') {
-  await page.route('**/api/board', (route) => {
+  await page.route(/\/api\/board(?:\?.*)?$/, (route) => {
     if (route.request().method() === 'POST') return route.fulfill({ json: { canvas: { id: canvasId } } });
     return route.fallback();
   });
 }
 
 async function stubBoardOffline(page) {
-  await page.route('**/api/board**', (route) => {
+  await page.route(/\/api\/board(?:\?.*)?$/, (route) => {
     if (route.request().method() === 'GET') return route.fulfill({ status: 503, json: { error: 'test offline' } });
     return route.fallback();
   });
