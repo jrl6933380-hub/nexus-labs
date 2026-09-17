@@ -358,10 +358,17 @@
   tabLogin.addEventListener('click', showLogin);
   tabSignup.addEventListener('click', showSignup);
 
-  const nextPath = (() => {
-    const requested = new URLSearchParams(window.location.search).get('next');
-    const customerWorkspaces = new Set(['/room.html', '/story-studio.html']);
-    return customerWorkspaces.has(requested) ? requested : '/room.html';
+  const requested = new URLSearchParams(window.location.search).get('next');
+  const customerWorkspaces = new Set(['/room.html', '/story-studio.html']);
+  const nextPath = customerWorkspaces.has(requested) ? requested : '/room.html';
+  const operatorNextPath = (() => {
+    try {
+      const candidate = new URL(requested || '/', window.location.origin);
+      if (candidate.origin !== window.location.origin || candidate.pathname === '/room-login.html') return null;
+      return `${candidate.pathname}${candidate.search}${candidate.hash}`;
+    } catch {
+      return null;
+    }
   })();
 
   async function submitAuth(action, body, errorEl, submitBtn) {
@@ -385,7 +392,9 @@
         continueFree.focus();
         return;
       }
-      window.location.href = nextPath;
+      window.location.href = data.operator === true && operatorNextPath
+        ? operatorNextPath
+        : nextPath;
     } catch (err) {
       errorEl.innerText = 'Could not reach the server.';
       submitBtn.disabled = false;
