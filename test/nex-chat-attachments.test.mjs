@@ -23,7 +23,7 @@ test('attached picture is compressed and takes precedence over a live Vision fra
   assert.equal(getBoundedImageScale(640, 2560), 0.5);
   assert.equal(getBoundedImageScale(2560, 640), 0.5);
   assert.match(chatBar, /canvas\.toDataURL\('image\/jpeg', 0\.8\)/u);
-  assert.match(chatBar, /const visualForMessage = attachedVisual \|\| await captureVisualFrame\(\)/u);
+  assert.match(chatBar, /visualForMessage = attachedVisual \|\| await captureVisualFrame\(\)/u);
   assert.match(chatBar, /visual: visualForMessage/u);
   assert.match(chatBar, /const text = typedText \|\| 'Look at this image\.'/u);
 });
