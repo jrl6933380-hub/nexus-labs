@@ -51,7 +51,7 @@ function ensureStylesheet() {
   if (document.querySelector('link[data-pinned-visual-styles]')) return;
   const link = document.createElement('link');
   link.rel = 'stylesheet';
-  link.href = '/pinned-visual-panel.css?v=20260918-1';
+  link.href = '/pinned-visual-panel.css?v=20260918-2';
   link.dataset.pinnedVisualStyles = 'true';
   document.head.appendChild(link);
 }

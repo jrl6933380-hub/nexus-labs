@@ -37,3 +37,8 @@ test('the iframe permits scripts but does not grant same-origin access', () => {
   assert.doesNotMatch(panel, /allow-same-origin/u);
   assert.match(panel, /referrerpolicy="no-referrer"/u);
 });
+
+test('an empty pinned visual cannot cover or intercept the room canvas', () => {
+  const styles = read('../public/pinned-visual-panel.css');
+  assert.match(styles, /\.pinned-visual-panel\.is-empty\s*\{[^}]*visibility:\s*hidden;[^}]*pointer-events:\s*none;/u);
+});

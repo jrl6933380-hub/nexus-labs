@@ -4,7 +4,7 @@
  * Embedded in the Conference Room and other rooms.
  */
 
-import './pinned-visual-panel.js?v=20260918-1';
+import './pinned-visual-panel.js?v=20260918-2';
 
 export function canSendNexMessage({ typedText, attachedVisual, visionMode }) {
   return Boolean(typedText || attachedVisual || visionMode);
