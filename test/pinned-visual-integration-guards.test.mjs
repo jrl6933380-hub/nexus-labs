@@ -19,6 +19,11 @@ test('pinned visual API stays behind owner auth and the shared Vercel function',
   const board = read('../api/board.js');
   const vercel = JSON.parse(read('../vercel.json'));
   assert.match(board, /getNexusOwner\(req\)/u);
+  assert.match(board, /internalAgentAuthorized\(req\)/u);
+  assert.match(board, /action === 'render'/u);
+  assert.match(board, /renderPinnedVisual/u);
+  assert.match(board, /NEXUS_AGENT_API_TOKEN/u);
+  assert.match(board, /Internal agents may render visuals but cannot change owner panel controls/u);
   assert.match(board, /path\.startsWith\('\/api\/pinned-visuals'\)/u);
   assert.deepEqual(
     vercel.rewrites.find((rewrite) => rewrite.source === '/api/pinned-visuals'),
