@@ -25,15 +25,17 @@ test('a normal code change uses the code lane without summoning the full crew', 
   assert.ok(plan.requireEvidence.includes('relevant_tests'));
 });
 
-test('complex risky work activates the ordered Brain Crew', () => {
+test('complex risky work stays direct unless Crew Mode is explicitly requested', () => {
   const plan = planCognitiveRun({
     message: 'Migrate the production auth database, then update tenant permissions and deploy it.',
+    forcedTier: 'heavy',
     toolContext: { deepThoughtRequested: true },
   });
   assert.equal(plan.lane, 'code');
-  assert.equal(plan.mode, 'crew');
+  assert.equal(plan.mode, 'direct');
   assert.equal(plan.risk, 'high');
-  assert.deepEqual(plan.crew, ['scout', 'architect', 'implementer', 'reviewer']);
+  assert.deepEqual(plan.crew, ['nex']);
+  assert.equal(plan.minimumTier, 'standard');
   assert.ok(plan.requireEvidence.includes('explicit_approval_for_gated_action'));
 });
 
@@ -41,6 +43,18 @@ test('an explicit council request activates crew mode', () => {
   const plan = planCognitiveRun({ message: 'Have the brain crew give me a second opinion on this architecture.' });
   assert.equal(plan.mode, 'crew');
   assert.ok(plan.reasons.includes('explicit_council'));
+});
+
+test('plain-language Crew Mode and forceCrew are both explicit opt-ins', () => {
+  const spoken = planCognitiveRun({ message: 'Use Crew Mode for this migration.' });
+  const forced = planCognitiveRun({
+    message: 'Review this architecture.',
+    toolContext: { forceCrew: true },
+  });
+
+  assert.equal(spoken.mode, 'crew');
+  assert.deepEqual(spoken.crew, ['scout', 'architect', 'implementer', 'reviewer']);
+  assert.equal(forced.mode, 'crew');
 });
 
 test('routing respects the safety floor even when a cheaper model is manually preferred', () => {
