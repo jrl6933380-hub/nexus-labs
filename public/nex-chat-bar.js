@@ -83,10 +83,9 @@ export function addActionMessage(container, { label, state, tool }) {
 
 export function recoveryForRun(run = {}) {
   const reasons = {
-    model_step_budget_exhausted: 'Nex reached the thinking-step limit for this request.',
-    tool_call_budget_exhausted: 'Nex reached the tool-call limit for this request.',
     tool_search_budget_exhausted: 'Nex reached the tool-search limit for this request.',
-    reasoning_time_budget_exhausted: 'Nex reached the time limit for this request.',
+    runaway_safety_ceiling_hit: 'This run has gone on far longer than a normal task should, so Nex paused it as a safety check.',
+    no_progress_stall_detected: 'Nex kept repeating the same action with no new result, so it stopped instead of looping.',
     latest_tool_failed: 'The last tool failed. Its result needs inspection.',
     completion_not_verified: 'Nex still needs evidence that the work is complete.',
   };
@@ -95,7 +94,7 @@ export function recoveryForRun(run = {}) {
     ? 'The same action failed repeatedly. Nex stopped to prevent a loop.'
     : 'Nex stopped before completing the work.');
   const canContinue = run.state === 'waiting' && run.runId &&
-    (/budget_exhausted$/.test(run.blocker || '') || run.blocker === 'completion_not_verified' || String(run.blocker || '').startsWith('missing_evidence:'));
+    (/budget_exhausted$/.test(run.blocker || '') || run.blocker === 'runaway_safety_ceiling_hit' || run.blocker === 'completion_not_verified' || String(run.blocker || '').startsWith('missing_evidence:'));
   return { reason, action: canContinue ? 'Continue' : 'Review blocker', canContinue: Boolean(canContinue) };
 }
 

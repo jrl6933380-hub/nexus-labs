@@ -33,7 +33,7 @@ test('persisted exhausted model budget resumes twice, keeps totals, and re-enfor
     const now = 1000 + window * 200000;
     assert.equal(registerModelStep(reasoning, now).allowed, true);
     assert.equal(registerModelStep(reasoning, now).allowed, true);
-    assert.equal(registerModelStep(reasoning, now).reason, 'model_step_budget_exhausted');
+    assert.equal(registerModelStep(reasoning, now).reason, 'runaway_safety_ceiling_hit');
     assert.equal(reasoningStateForCheckpoint(reasoning).model_steps, 2 * (window + 1));
     if (window < 2) {
       const next = await roundTrip(run, reasoning, now + 200000);

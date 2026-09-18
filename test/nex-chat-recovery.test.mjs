@@ -4,13 +4,13 @@ import { recoveryForRun } from '../public/nex-chat-bar.js';
 import { requestKey, chatRequest } from '../lib/nexChatRequests.js';
 
 test('only a saved resumable pause offers Continue', () => {
-  for (const blocker of ['model_step_budget_exhausted', 'tool_call_budget_exhausted', 'reasoning_time_budget_exhausted', 'completion_not_verified', 'missing_evidence:tests']) {
+  for (const blocker of ['runaway_safety_ceiling_hit', 'tool_search_budget_exhausted', 'completion_not_verified', 'missing_evidence:tests']) {
     assert.equal(recoveryForRun({ state: 'waiting', runId: 'nex-turn-123', blocker }).canContinue, true);
   }
   for (const state of ['blocked', 'failed', 'cancelled']) {
-    assert.equal(recoveryForRun({ state, runId: 'nex-turn-123', blocker: 'model_step_budget_exhausted' }).canContinue, false);
+    assert.equal(recoveryForRun({ state, runId: 'nex-turn-123', blocker: 'runaway_safety_ceiling_hit' }).canContinue, false);
   }
-  assert.equal(recoveryForRun({ state: 'waiting', blocker: 'model_step_budget_exhausted' }).canContinue, false);
+  assert.equal(recoveryForRun({ state: 'waiting', blocker: 'runaway_safety_ceiling_hit' }).canContinue, false);
   assert.equal(recoveryForRun({ state: 'waiting', runId: 'nex-turn-123', blocker: 'latest_tool_failed' }).canContinue, false);
   assert.equal(recoveryForRun({ state: 'completed' }), null);
 });

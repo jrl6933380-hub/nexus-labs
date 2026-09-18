@@ -73,6 +73,30 @@ test('changed nested tool input is a changed plan, not an identical retry', () =
   assert.notEqual(state.status, 'blocked');
 });
 
+test('repeating the exact same tool call with no new result trips stall detection, not a step count', () => {
+  const state = createReasoningState({ message: 'Keep checking.', budgets: { maxNoProgressSteps: 2 } });
+  const call = { name: 'read_repo_file', input: { path: 'lib/example.js' } };
+  assert.equal(registerReasoningToolCall(state, call).allowed, true);
+  recordReasoningToolResult(state, call, { is_error: false, content: 'ok' });
+  assert.equal(registerReasoningToolCall(state, call).allowed, true);
+  recordReasoningToolResult(state, call, { is_error: false, content: 'ok' });
+  assert.equal(registerReasoningToolCall(state, call).allowed, false);
+  assert.equal(state.status, 'blocked');
+  assert.equal(state.blocker, 'no_progress_stall_detected');
+});
+
+test('a large number of distinct, useful steps is never stopped by an arbitrary count', () => {
+  const state = createReasoningState({ message: 'Do a long real task.' });
+  for (let i = 0; i < 60; i++) {
+    const call = { name: 'read_repo_file', input: { path: `lib/file-${i}.js` } };
+    assert.equal(registerModelStep(state).allowed, true);
+    assert.equal(registerReasoningToolCall(state, call).allowed, true);
+    recordReasoningToolResult(state, call, { is_error: false, content: 'ok' });
+  }
+  assert.notEqual(state.status, 'blocked');
+  assert.notEqual(state.status, 'waiting');
+});
+
 test('completion is terminal only when required evidence is satisfied', () => {
   const state = createReasoningState({ message: 'Fix it.', plan: { lane: 'code' } });
   finalizeReasoningState(state, { status: 'incomplete', missing: ['relevant_tests'] });
