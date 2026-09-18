@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-const paused = { reply: 'Progress saved.', runState: { state: 'waiting', runId: 'nex-turn-12345678', blocker: 'model_step_budget_exhausted', nextSafeAction: 'Run tests.' } };
+const paused = { reply: 'Progress saved.', runState: { state: 'waiting', runId: 'nex-turn-12345678', blocker: 'runaway_safety_ceiling_hit', nextSafeAction: 'Run tests.' } };
 const stream = data => `event: result\ndata: ${JSON.stringify(data)}\n\n`;
 async function fixture(page, handler) {
   await page.route('**/recovery-test', route => route.fulfill({ contentType: 'text/html', body: '<html><body style="background:#101820"><script type="module" src="/nex-chat-bar.js"></script></body></html>' }));
