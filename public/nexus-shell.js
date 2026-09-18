@@ -41,9 +41,9 @@
   themeSelect?.addEventListener('change', () => applyTheme(themeSelect.value));
   applyTheme(savedTheme);
 
-  fetch('/api/room-auth', { headers: { Accept: 'application/json' }, cache: 'no-store' })
+  fetch('/api/nexus-auth', { headers: { Accept: 'application/json' }, cache: 'no-store' })
     .then((response) => response.ok ? response.json() : null)
-    .then((user) => { if (user?.username) document.getElementById('nexus-operator').textContent = user.username.slice(0, 2).toUpperCase(); })
+    .then((session) => { if (session?.owner?.id) document.getElementById('nexus-operator').textContent = session.owner.id.slice(0, 2).toUpperCase(); })
     .catch(() => {});
   document.body.dataset.nexusScreen = 'workspace';
 
@@ -51,7 +51,7 @@
   // other shell-backed workspace gets the same compact chat bar, which shares
   // /api/chat history and reports location.pathname with every message.
   const hasMissionControlChat = activePath === '/' || activePath === '/mission-control.html';
-  const isLoginScreen = activePath === '/room-login.html';
+  const isLoginScreen = activePath === '/nexus-login.html' || activePath === '/room-login.html';
   if (!hasMissionControlChat && !isLoginScreen && !document.getElementById('nexChatBar')) {
     const nexChat = document.createElement('script');
     nexChat.type = 'module';

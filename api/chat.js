@@ -13,7 +13,7 @@ import {
 } from '../lib/claudeHandoff.js';
 import { getNexChatMode, disengageNex, engageNex } from '../lib/nexMode.js';
 import { detectHyperfocusTrigger, buildHyperfocusDirective } from '../lib/hyperfocusTriggers.js';
-import { getRequestUser, isOperatorUser } from '../lib/roomAuth.js';
+import { getNexusOwner } from '../lib/nexusOwnerAuth.js';
 import { loadRecentConversation, recentKeyFor, saveRecentConversation } from '../lib/nexConversationStore.js';
 
 // ============================================================
@@ -90,10 +90,9 @@ async function saveRecent(operatorUser, fullHistory) {
 // ============================================================
 export default async function handler(req, res) {
   initSentry();
-  const operatorUser = await getRequestUser(req).catch(() => null);
-  if (!operatorUser || !isOperatorUser(operatorUser)) {
-    return res.status(401).json({ error: 'Operator authentication required.' });
-  }
+  const owner = await getNexusOwner(req).catch(() => null);
+  if (!owner) return res.status(401).json({ error: 'Nexus owner authentication required.' });
+  const operatorUser = owner.id;
 
   // GET — used by the frontend on page load to re-render whatever
   // conversation is already saved, instead of always showing the

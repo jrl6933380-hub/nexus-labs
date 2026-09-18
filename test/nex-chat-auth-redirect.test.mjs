@@ -8,16 +8,16 @@ import {
   shouldRedirectToOperatorLogin,
 } from '../public/nex-chat-bar.js';
 
-const loginPage = await readFile(new URL('../public/room-login.html', import.meta.url), 'utf8');
+const loginPage = await readFile(new URL('../public/nexus-login.html', import.meta.url), 'utf8');
 
 test('operator login redirect preserves a safe same-origin return path', () => {
   assert.equal(
     operatorLoginUrl({ pathname: '/conference-room.html', search: '?view=board', hash: '#nex' }),
-    '/room-login.html?next=%2Fconference-room.html%3Fview%3Dboard%23nex',
+    '/nexus-login.html?next=%2Fconference-room.html%3Fview%3Dboard%23nex',
   );
   assert.equal(
     operatorLoginUrl({ pathname: '//attacker.example/steal', search: '?token=nope' }),
-    '/room-login.html?next=%2F',
+    '/nexus-login.html?next=%2F',
   );
 });
 
@@ -40,12 +40,12 @@ test('only a user-initiated 401 redirects to operator login', () => {
 
   assert.equal(shouldRedirectToOperatorLogin({ status: 401 }, 'message'), true);
   assert.equal(redirectToOperatorLogin({ status: 401 }, locationLike), true);
-  assert.deepEqual(destinations, ['/room-login.html?next=%2F']);
+  assert.deepEqual(destinations, ['/nexus-login.html?next=%2F']);
 });
 
-test('login page preserves operator return paths without weakening customer redirects', () => {
-  assert.match(loginPage, /new URL\(requested \|\| '\/', window\.location\.origin\)/u);
-  assert.match(loginPage, /candidate\.origin !== window\.location\.origin/u);
-  assert.match(loginPage, /data\.operator === true && operatorNextPath/u);
-  assert.match(loginPage, /customerWorkspaces\.has\(requested\)/u);
+test('Nexus login preserves only safe same-origin return paths', () => {
+  assert.match(loginPage, /requestedNext\.startsWith\('\/'\)/u);
+  assert.match(loginPage, /!requestedNext\.startsWith\('\/\/'\)/u);
+  assert.match(loginPage, /!requestedNext\.startsWith\('\/nexus-login\.html'\)/u);
+  assert.match(loginPage, /separate from every Forge account/u);
 });

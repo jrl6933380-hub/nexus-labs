@@ -9,7 +9,7 @@
 import { initSentry, Sentry } from '../lib/sentry.js';
 import { askNex } from '../lib/nexBrain.js';
 import crypto from 'node:crypto';
-import { getRequestUser, isOperatorUser } from '../lib/roomAuth.js';
+import { getNexusOwner } from '../lib/nexusOwnerAuth.js';
 
 function timingSafeEqual(left, right) {
   const leftHash = crypto.createHash('sha256').update(String(left || '')).digest();
@@ -31,10 +31,10 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const sessionUser = await getRequestUser(req).catch(() => null);
-  const operatorSession = Boolean(sessionUser && isOperatorUser(sessionUser));
-  if (!operatorSession && !internalTokenAuthorized(req)) {
-    return res.status(401).json({ error: 'Operator session or internal agent token required.' });
+  const owner = await getNexusOwner(req).catch(() => null);
+  const ownerSession = Boolean(owner);
+  if (!ownerSession && !internalTokenAuthorized(req)) {
+    return res.status(401).json({ error: 'Nexus owner session or internal agent token required.' });
   }
 
   const { message } = req.body;
@@ -43,7 +43,7 @@ export default async function handler(req, res) {
   try {
     // No history in, none saved after — fully stateless per call.
     const { reply } = await askNex(message, [], null, {}, null, {
-      userId: operatorSession ? sessionUser : 'agent:claude',
+      userId: ownerSession ? owner.id : 'agent:claude',
       sourceAgent: 'claude',
     });
     return res.status(200).json({ reply });
