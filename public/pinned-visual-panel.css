@@ -38,6 +38,7 @@
 .pvp-empty b { color: #a8d8de; font-size: 13px; letter-spacing: .04em; }
 .is-empty .pvp-frame { display: none; }
 .is-empty .pvp-empty { display: flex; }
+.pinned-visual-panel.is-empty { visibility: hidden; opacity: 0; pointer-events: none; }
 
 .pvp-footer { position: relative; min-height: 42px; display: flex; align-items: center; justify-content: space-between; padding: 7px 11px; border-top: 1px solid rgba(102, 221, 232, .14); color: #6e999f; background: rgba(3, 12, 17, .96); }
 .pvp-source { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 9px; letter-spacing: .14em; }
