@@ -110,5 +110,5 @@ openScene(sceneFromLocation(), false);
 startPolling(renderBoard, { intervalMs:3000 });
 const nexChat = document.createElement('script');
 nexChat.type = 'module';
-nexChat.src = '/nex-chat-bar.js?v=20260912-2';
+nexChat.src = '/nex-chat-bar.js?v=20260918-2';
 document.body.appendChild(nexChat);

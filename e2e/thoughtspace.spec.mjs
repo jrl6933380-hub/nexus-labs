@@ -25,7 +25,10 @@ test('Thoughtspace focuses live rooms without leaving the owner dashboard', asyn
   await page.goto('/');
 
   await expect(page.locator('#nexus-canvas-root')).toHaveClass(/is-spatial/u);
-  await expect(page.locator('.nexus-canvas-cockpit')).toBeVisible();
+  const unifiedDock = page.locator('#nexChatBar.nex-thoughtspace-dock');
+  await expect(unifiedDock).toBeVisible();
+  await expect(unifiedDock.locator('.nexus-canvas-cockpit')).toBeVisible();
+  await expect(page.locator('#nexus-canvas-root > .nexus-canvas-cockpit')).toHaveCount(0);
   await expect(page.locator('#nexus-canvas-world')).not.toHaveCSS('transform', 'none');
 
   const command = page.locator('[data-panel-id="thoughtspace-mission"]');
@@ -53,6 +56,7 @@ test('phone view keeps the launcher and static cockpit usable', async ({ page })
   await expect(page.locator('.nexus-canvas-cockpit .nexus-canvas-overview')).toBeVisible();
   await expect(page.locator('.nexus-canvas-cockpit .nexus-canvas-home')).toBeVisible();
   await expect(page.locator('.nexus-canvas-cockpit .nexus-canvas-zoom-in')).toBeHidden();
+  await expect(page.locator('#nexChatBar.nex-thoughtspace-dock')).toHaveClass(/collapsed/u);
   const command = page.locator('[data-panel-id="thoughtspace-mission"]');
   await expect(command).toHaveClass(/is-collapsed/u);
   await command.locator('.nexus-canvas-panel-toggle').click();
