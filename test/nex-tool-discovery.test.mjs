@@ -39,6 +39,15 @@ test('an explicit visual request must execute render_visual', () => {
   });
 });
 
+test('a natural request to show a system breakdown uses the universal visual workspace', () => {
+  const request = 'Show me the Forge broken down into sections and where we could upgrade';
+  assert.ok(inferPreloadedToolCategories(request).includes('rooms'));
+  assert.deepEqual(initialToolChoiceForRequest(request), {
+    type: 'tool',
+    name: 'render_visual',
+  });
+});
+
 test('explicit repository listing must execute list_repos', () => {
   assert.deepEqual(initialToolChoiceForRequest('List every repository under my account'), {
     type: 'tool',

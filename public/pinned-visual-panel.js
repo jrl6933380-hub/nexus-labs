@@ -51,7 +51,7 @@ function ensureStylesheet() {
   if (document.querySelector('link[data-pinned-visual-styles]')) return;
   const link = document.createElement('link');
   link.rel = 'stylesheet';
-  link.href = '/pinned-visual-panel.css?v=20260918-2';
+  link.href = '/pinned-visual-panel.css?v=20260918-3';
   link.dataset.pinnedVisualStyles = 'true';
   document.head.appendChild(link);
 }
@@ -62,9 +62,11 @@ export function mountPinnedVisualPanel() {
   if (!roomId) return null;
   ensureStylesheet();
 
+  const workspaceHost = document.getElementById('nexus-visual-stage');
+
   const panel = document.createElement('aside');
   panel.id = PANEL_ID;
-  panel.className = 'pinned-visual-panel is-empty';
+  panel.className = `pinned-visual-panel is-empty${workspaceHost ? ' is-workspace-surface' : ''}`;
   panel.setAttribute('aria-label', 'Nex pinned visual');
   panel.innerHTML = `
     <header class="pvp-header">
@@ -82,7 +84,7 @@ export function mountPinnedVisualPanel() {
         <details class="pvp-history"><summary>HISTORY <span>0</span></summary><div class="pvp-history-list"></div></details>
       </footer>
     </div>`;
-  document.body.appendChild(panel);
+  (workspaceHost || document.body).appendChild(panel);
 
   const frame = panel.querySelector('.pvp-frame');
   const lockButton = panel.querySelector('.pvp-lock');
@@ -105,6 +107,10 @@ export function mountPinnedVisualPanel() {
     lockButton.title = visual?.locked ? 'Unlock current visual' : 'Lock current visual';
     source.textContent = String(visual?.source || 'NEX').toUpperCase().slice(0, 24);
     if (hasVisual) frame.srcdoc = buildSandboxedDocument(visual.widget_code);
+    if (hasVisual && workspaceHost) {
+      panel.classList.remove('workspace-hidden');
+      window.dispatchEvent(new CustomEvent('nexus:visual-updated', { detail: { roomId, source: visual.source } }));
+    }
 
     const history = Array.isArray(visual?.history) ? visual.history : [];
     historyCount.textContent = String(history.length);
@@ -160,6 +166,11 @@ export function mountPinnedVisualPanel() {
   });
 
   minimizeButton.addEventListener('click', () => {
+    if (workspaceHost) {
+      panel.classList.add('workspace-hidden');
+      window.dispatchEvent(new CustomEvent('nexus:workspace-overview'));
+      return;
+    }
     const minimized = panel.classList.toggle('is-minimized');
     minimizeButton.textContent = minimized ? '+' : '−';
     minimizeButton.setAttribute('aria-label', minimized ? 'Expand pinned visual' : 'Minimize pinned visual');
