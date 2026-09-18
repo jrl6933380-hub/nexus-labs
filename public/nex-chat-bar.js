@@ -46,23 +46,57 @@ export function redirectToOperatorLogin(response, locationLike, { requestIntent 
   return true;
 }
 
-// Inline, in-chat version of "what Nex is doing right now" — replaces
-// the old separate floating HUD entirely. Each stage event becomes its
-// own short log line right in the conversation, the same way a tool
-// call and its result show up as two lines when Claude is working:
-// one line when a step starts, a second when it finishes or fails.
-// Deliberately two lines, not one updating line — for a slow step
-// (launching a client project can take a while) seeing "still going"
-// stay on screen is more honest than a line that silently sits there.
-export function addActionMessage(container, { label, state }) {
+// One changing activity line, plus a bounded, collapsed list of milestones.
+export function addActionMessage(container, { label, state, tool }) {
   if (!container || !label) return null;
-  const el = document.createElement('div');
+  const follow = container.scrollHeight - container.scrollTop - container.clientHeight < 80;
+  let el = container.querySelector('[data-nex-activity]');
+  if (!el) {
+    el = document.createElement('div');
+    el.dataset.nexActivity = 'true';
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', 'polite');
+    container.appendChild(el);
+  }
   el.className = `nex-message nex-action nex-action-${state || 'running'}`;
-  const icon = state === 'complete' ? '✓' : state === 'failed' ? '✗' : '⋯';
-  el.innerText = `${icon} ${label}`;
-  container.appendChild(el);
-  container.scrollTop = container.scrollHeight;
+  el.textContent = `${state === 'failed' ? '✗' : state === 'complete' ? '✓' : '⋯'} ${label}`;
+  const important = /^(create_branch|create_repo_file|update_repo_file|patch_repo_file|delete_repo_file|commit_repo_files|run_sandbox|create_pull_request|merge_pull_request)$/;
+  if (state === 'complete' && important.test(tool || '')) {
+    let details = container.querySelector('[data-nex-milestones]');
+    if (!details) {
+      details = document.createElement('details');
+      details.dataset.nexMilestones = 'true';
+      details.className = 'nex-message nex-action';
+      const summary = document.createElement('summary');
+      summary.textContent = 'Important actions';
+      details.appendChild(summary);
+      container.appendChild(details);
+    }
+    const item = document.createElement('div');
+    item.textContent = `✓ ${label}`;
+    details.appendChild(item);
+    while (details.children.length > 6) details.children[1].remove();
+  }
+  if (follow) container.scrollTop = container.scrollHeight;
   return el;
+}
+
+export function recoveryForRun(run = {}) {
+  const reasons = {
+    model_step_budget_exhausted: 'Nex reached the thinking-step limit for this request.',
+    tool_call_budget_exhausted: 'Nex reached the tool-call limit for this request.',
+    tool_search_budget_exhausted: 'Nex reached the tool-search limit for this request.',
+    reasoning_time_budget_exhausted: 'Nex reached the time limit for this request.',
+    latest_tool_failed: 'The last tool failed. Its result needs inspection.',
+    completion_not_verified: 'Nex still needs evidence that the work is complete.',
+  };
+  if (!['waiting', 'blocked', 'failed', 'cancelled'].includes(run.state)) return null;
+  const reason = reasons[run.blocker] || (String(run.blocker || '').startsWith('repeated_failure:')
+    ? 'The same action failed repeatedly. Nex stopped to prevent a loop.'
+    : 'Nex stopped before completing the work.');
+  const canContinue = run.state === 'waiting' && run.runId &&
+    (/budget_exhausted$/.test(run.blocker || '') || run.blocker === 'completion_not_verified' || String(run.blocker || '').startsWith('missing_evidence:'));
+  return { reason, action: canContinue ? 'Continue' : 'Review blocker', canContinue: Boolean(canContinue) };
 }
 
 export function showSuccessfulNexReply({ data, clearAttachment, addMessage, speak }) {
@@ -228,6 +262,8 @@ export function createNexChatBar() {
       --nex-mono: 'JetBrains Mono', monospace;
       --nex-sans: 'Inter', -apple-system, sans-serif;
     }
+
+    .nex-chat-bar-container, .nex-chat-bar-container * { box-sizing: border-box; }
 
     .nex-chat-bar-container {
       position: fixed;
@@ -632,6 +668,7 @@ export function createNexChatBar() {
 
     .nex-chat-input {
       flex: 1;
+      min-width: 0;
       background: rgba(255, 255, 255, 0.04);
       border: 1px solid var(--nex-border);
       border-radius: 10px;
@@ -1209,68 +1246,7 @@ export function createNexChatBar() {
     micBtn.remove();
   }
 
-  async function send(overrideText) {
-    const typedText = overrideText !== undefined ? overrideText : input.value.trim();
-    if (!overrideText && !canSendNexMessage({ typedText, attachedVisual, visionMode })) return;
-    const text = typedText || 'Look at this image.';
-    const visualForMessage = attachedVisual || await captureVisualFrame();
-
-    addMessage(attachedVisual ? `${text} [picture attached]` : text, 'nex-user');
-    input.value = '';
-    input.disabled = true;
-    sendBtn.disabled = true;
-
-    try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-        body: JSON.stringify({
-          message: text,
-          model: modelSelect.value || undefined,
-          effort: effortSelect.value || undefined,
-          deepThought: deepThoughtEnabled,
-          resumeRunId: localStorage.getItem('nex-active-run-id') || undefined,
-          workspace: {
-            active_view: window.location.pathname,
-            screen: captureWorkspaceSnapshot(),
-            visual: visualForMessage,
-          },
-        }),
-      });
-      if (redirectToOperatorLogin(response, window.location)) return;
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || 'Nex could not process that message.');
-      }
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error('Nex could not start the live build stream.');
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let data = null;
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const events = buffer.split('\n\n');
-        buffer = events.pop() || '';
-        for (const raw of events) {
-          const type = raw.match(/^event: (.+)$/m)?.[1];
-          const payload = raw.match(/^data: (.+)$/m)?.[1];
-          if (!type || !payload) continue;
-          const eventData = JSON.parse(payload);
-          if (type === 'stage') addActionMessage(messagesEl, eventData);
-          else if (type === 'result') data = eventData;
-          else if (type === 'error') throw new Error(eventData.error || 'Nex could not process that message.');
-        }
-      }
-      if (!data) throw new Error('Nex did not return a response.');
-      const terminalRun = ['completed', 'blocked', 'cancelled', 'failed'].includes(data.runState?.state);
-      if (data.runState?.runId && !terminalRun) {
-        localStorage.setItem('nex-active-run-id', data.runState.runId);
-      } else {
-        localStorage.removeItem('nex-active-run-id');
-      }
-      showSuccessfulNexReply({ data, clearAttachment, addMessage, speak });
+  function renderResponseActions(data) {
       if (data.pendingApproval) {
         renderApprovalAction({
           approval: data.pendingApproval,
@@ -1291,6 +1267,141 @@ export function createNexChatBar() {
       if (Array.isArray(tapOptions) && tapOptions.length) {
         renderQuestionOptions({ options: tapOptions, container: messagesEl, onPick: (choice) => send(choice) });
       }
+  }
+  let sending = false;
+  function recoveryButton(label, onClick) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'nex-approval-button nex-recovery';
+    button.textContent = label;
+    button.addEventListener('click', async () => {
+      if (sending || button.disabled) return;
+      button.disabled = true;
+      try { await onClick(); } catch { addMessage('Could not check status. Please try again.', 'nex-system'); }
+      finally { button.disabled = false; }
+    });
+    messagesEl.appendChild(button);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+  function renderRunRecovery(run) {
+    const recovery = recoveryForRun(run);
+    if (!recovery) { localStorage.removeItem('nex-last-paused-run'); return; }
+    localStorage.setItem('nex-last-paused-run', JSON.stringify(run));
+    messagesEl.querySelectorAll('.nex-recovery').forEach(el => el.remove());
+    addMessage(recovery.reason + (run.nextSafeAction ? ` Next: ${run.nextSafeAction}` : ''), 'nex-system');
+    recoveryButton(recovery.action, () => {
+      if (recovery.canContinue) {
+        localStorage.setItem('nex-active-run-id', run.runId);
+        return send('Continue from the saved checkpoint. Verify existing work before making further changes.');
+      }
+      addMessage(`Blocker: ${run.blocker || run.state}. ${run.currentStep || ''} Resolve this blocker before retrying.`, 'nex-system');
+    });
+  }
+  async function checkRequest() {
+    const id = localStorage.getItem('nex-pending-request');
+    if (!id) return;
+    const response = await fetch(`/api/chat?requestId=${encodeURIComponent(id)}`);
+    if (redirectToOperatorLogin(response, window.location)) return;
+    if (!response.ok) throw new Error('Status unavailable');
+    const { request } = await response.json();
+    if (request?.state === 'finished') {
+      localStorage.removeItem('nex-pending-request');
+      const data = request.response;
+      if (data.runState?.state === 'waiting') localStorage.setItem('nex-active-run-id', data.runState.runId);
+      else localStorage.removeItem('nex-active-run-id');
+      await loadHistory();
+      renderRunRecovery(data.runState);
+      renderResponseActions(data);
+    } else if (request?.state === 'running' && Date.now() - request.updatedAt < 360000) {
+      addActionMessage(messagesEl, { label: 'Nex is still processing. Check again shortly.', state: 'running' });
+    } else {
+      await loadHistory();
+      localStorage.removeItem('nex-pending-request');
+      messagesEl.querySelectorAll('.nex-recovery').forEach(el => el.remove());
+      addMessage(request?.error || 'Completion is unconfirmed. Review the saved conversation and changed files before sending another instruction; work may have continued after the connection ended.', 'nex-system');
+    }
+  }
+  async function send(overrideText) {
+    if (sending) return;
+    if (localStorage.getItem('nex-pending-request')) { await checkRequest(); return; }
+    const typedText = overrideText !== undefined ? overrideText : input.value.trim();
+    if (!overrideText && !canSendNexMessage({ typedText, attachedVisual, visionMode })) return;
+    const text = typedText || 'Look at this image.';
+    sending = true;
+    let visualForMessage;
+    try { visualForMessage = attachedVisual || await captureVisualFrame(); }
+    catch (err) { sending = false; addMessage(err.message || 'Could not capture image.', 'nex-system'); return; }
+
+    addMessage(attachedVisual ? `${text} [picture attached]` : text, 'nex-user');
+    input.value = '';
+    input.disabled = true;
+    sendBtn.disabled = true;
+
+    const requestId = crypto.randomUUID();
+    localStorage.setItem('nex-pending-request', requestId);
+    localStorage.removeItem('nex-last-paused-run');
+    messagesEl.querySelectorAll('.nex-recovery').forEach(el => el.remove());
+    messagesEl.querySelector('[data-nex-activity]')?.remove();
+    messagesEl.querySelector('[data-nex-milestones]')?.removeAttribute('data-nex-milestones');
+    addActionMessage(messagesEl, { label: 'Reading your request', state: 'running' });
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+        body: JSON.stringify({
+          message: text,
+          requestId,
+          model: modelSelect.value || undefined,
+          effort: effortSelect.value || undefined,
+          deepThought: deepThoughtEnabled,
+          resumeRunId: localStorage.getItem('nex-active-run-id') || undefined,
+          workspace: {
+            active_view: window.location.pathname,
+            screen: captureWorkspaceSnapshot(),
+            visual: visualForMessage,
+          },
+        }),
+      });
+      if (redirectToOperatorLogin(response, window.location)) { localStorage.removeItem('nex-pending-request'); return; }
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        if (response.status < 500) localStorage.removeItem('nex-pending-request');
+        throw new Error(data.error || 'Nex could not process that message.');
+      }
+      const isStream = response.headers.get('content-type')?.includes('text/event-stream');
+      let data = isStream ? null : await response.json();
+      const reader = isStream ? response.body?.getReader() : null;
+      if (isStream && !reader) throw new Error('Nex could not start the live build stream.');
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (reader) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split('\n\n');
+        buffer = events.pop() || '';
+        for (const raw of events) {
+          const type = raw.match(/^event: (.+)$/m)?.[1];
+          const payload = raw.match(/^data: (.+)$/m)?.[1];
+          if (!type || !payload) continue;
+          const eventData = JSON.parse(payload);
+          if (type === 'stage') addActionMessage(messagesEl, eventData);
+          else if (type === 'result') data = eventData;
+          else if (type === 'error') throw new Error(eventData.error || 'Nex could not process that message.');
+        }
+      }
+      if (!data) throw new Error('Nex did not return a response.');
+      localStorage.removeItem('nex-pending-request');
+      addActionMessage(messagesEl, { label: data.runState?.state === 'waiting' ? 'Paused — progress saved' : 'Response ready', state: 'complete' });
+      const terminalRun = ['completed', 'blocked', 'cancelled', 'failed'].includes(data.runState?.state);
+      if (data.runState?.runId && !terminalRun) {
+        localStorage.setItem('nex-active-run-id', data.runState.runId);
+      } else {
+        localStorage.removeItem('nex-active-run-id');
+      }
+      showSuccessfulNexReply({ data, clearAttachment, addMessage, speak });
+      renderRunRecovery(data.runState);
+      renderResponseActions(data);
       if (data.navigation?.type === 'room' && typeof data.navigation.url === 'string' && window.NexusSpace) {
         // Room navigation belongs to the visual room switcher. The shared Nex
         // dock appears across operator pages, so falling back to
@@ -1302,8 +1413,12 @@ export function createNexChatBar() {
         window.dispatchEvent(event);
       }
     } catch (err) {
-      addMessage(err.message || 'Message failed to send. Try again.', 'nex-system');
+      addActionMessage(messagesEl, { label: 'Connection interrupted — checking status is safe', state: 'failed' });
+      addMessage(err.message || 'The connection was interrupted. Work may still be running.', 'nex-system');
+      if (localStorage.getItem('nex-pending-request')) recoveryButton('Check status', checkRequest);
+      else recoveryButton('Retry request', () => send(text));
     } finally {
+      sending = false;
       input.disabled = false;
       sendBtn.disabled = false;
       input.focus();
@@ -1374,6 +1489,16 @@ export function createNexChatBar() {
     try { localStorage.setItem(positionKey, JSON.stringify(next)); } catch {}
   });
 
+  // Expanding the dock or adding recovery controls changes its size after
+  // the toggle handler runs. Keep the resulting controls inside the viewport.
+  if (typeof ResizeObserver !== 'undefined') {
+    const dockResize = new ResizeObserver(() => {
+      if (!container.isConnected || !container.style.left) return;
+      const rect = container.getBoundingClientRect();
+      setDockPosition(rect.left, rect.top);
+    });
+    dockResize.observe(container);
+  }
   restoreDockPosition();
 
   // Keep the room visible on phones. The bar expands only after the user taps it.
@@ -1381,7 +1506,14 @@ export function createNexChatBar() {
     container.classList.add('collapsed');
   }
 
-  loadHistory();
+  loadHistory().then(() => {
+    if (localStorage.getItem('nex-pending-request')) {
+      addMessage('A previous response was interrupted. Check its status before continuing.', 'nex-system');
+      recoveryButton('Check status', checkRequest);
+    } else {
+      try { renderRunRecovery(JSON.parse(localStorage.getItem('nex-last-paused-run') || 'null') || {}); } catch {}
+    }
+  });
   return container;
 }
 
