@@ -7,17 +7,16 @@
 // message.
 
 import { loadRecentConversation } from '../lib/nexConversationStore.js';
-import { getRequestUser, isOperatorUser } from '../lib/roomAuth.js';
+import { getNexusOwner } from '../lib/nexusOwnerAuth.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
     return res.status(405).json({ error: 'GET only' });
   }
-  const operatorUser = await getRequestUser(req).catch(() => null);
-  if (!operatorUser || !isOperatorUser(operatorUser)) {
-    return res.status(401).json({ error: 'Operator authentication required.' });
-  }
+  const owner = await getNexusOwner(req).catch(() => null);
+  if (!owner) return res.status(401).json({ error: 'Nexus owner authentication required.' });
+  const operatorUser = owner.id;
 
   try {
     const messages = await loadRecentConversation(operatorUser);

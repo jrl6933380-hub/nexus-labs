@@ -5,16 +5,14 @@
 // "how's everything looking?" tool; this just exposes the same data
 // to the page itself.
 
-import { getRequestUser, isOperatorUser } from '../lib/roomAuth.js';
+import { getNexusOwner } from '../lib/nexusOwnerAuth.js';
 import { getVenturesOverview } from '../lib/venturesOverview.js';
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'private, no-store');
 
-  const username = await getRequestUser(req);
-  if (!username || !isOperatorUser(username)) {
-    return res.status(403).json({ error: 'Operator access required.' });
-  }
+  const owner = await getNexusOwner(req);
+  if (!owner) return res.status(401).json({ error: 'Nexus owner access required.' });
 
   try {
     const overview = await getVenturesOverview();

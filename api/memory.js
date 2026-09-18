@@ -4,14 +4,25 @@
 
 import { listMemories, addMemory, updateMemory, deleteMemory, listMemoryCandidates, curatePendingMemories, promoteMemoryCandidate, rejectMemoryCandidate } from '../lib/memory.js';
 import { initSentry, Sentry } from '../lib/sentry.js';
-import { getRequestUser, isOperatorUser } from '../lib/roomAuth.js';
+import { getNexusOwner } from '../lib/nexusOwnerAuth.js';
+import crypto from 'node:crypto';
+
+function internalAgentAuthorized(req) {
+  const expected = process.env.NEXUS_AGENT_API_TOKEN;
+  const header = String(req.headers?.authorization || '');
+  const supplied = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+  if (!expected || !supplied) return false;
+  const left = crypto.createHash('sha256').update(supplied).digest();
+  const right = crypto.createHash('sha256').update(expected).digest();
+  return crypto.timingSafeEqual(left, right);
+}
 
 export default async function handler(req, res) {
   initSentry();
 
-  const username = await getRequestUser(req).catch(() => null);
-  if (!username || !isOperatorUser(username)) {
-    return res.status(401).json({ error: 'Operator authentication required.' });
+  const owner = await getNexusOwner(req).catch(() => null);
+  if (!owner && !internalAgentAuthorized(req)) {
+    return res.status(401).json({ error: 'Nexus owner or internal agent authentication required.' });
   }
 
   try {

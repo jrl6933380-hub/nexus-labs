@@ -33,7 +33,7 @@ export function operatorLoginUrl(locationLike = {}) {
   const safePath = pathname.startsWith('/') && !pathname.startsWith('//')
     ? `${pathname}${search}${hash}`
     : '/';
-  return `/room-login.html?next=${encodeURIComponent(safePath)}`;
+  return `/nexus-login.html?next=${encodeURIComponent(safePath)}`;
 }
 
 export function shouldRedirectToOperatorLogin(response, requestIntent = 'message') {
