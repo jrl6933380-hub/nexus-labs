@@ -28,3 +28,12 @@ test('embedded rooms do not create a second global Nex chat bar', () => {
   assert.match(chat, /window === window\.top/u);
   assert.match(chat, /nexus_embed/u);
 });
+
+test('Thoughtspace camera controls merge into one fixed Nex command dock', () => {
+  const chat = read('../public/nex-chat-bar.js');
+  assert.match(chat, /nex-thoughtspace-dock/u);
+  assert.match(chat, /document\.querySelector\('\.nexus-canvas-cockpit'\)/u);
+  assert.match(chat, /header\.insertBefore\(thoughtspaceCockpit/u);
+  assert.match(chat, /nex-thoughtspace-dock-expanded-v1/u);
+  assert.match(chat, /if \(isThoughtspaceDock\) return/u);
+});
