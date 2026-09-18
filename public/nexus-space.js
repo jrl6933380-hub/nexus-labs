@@ -94,6 +94,7 @@ function openScene(key, push) {
   renderSceneContent(scene);
   renderBoard(state.board);
   if (push && location.hash !== '#' + next) history.pushState({ scene:next }, '', '#' + next);
+  window.dispatchEvent(new CustomEvent('nexus:room-changed', { detail: { scene: next } }));
 }
 
 window.NexusSpace = { open:(reference) => openScene(sceneKeyFromReference(reference), true) };

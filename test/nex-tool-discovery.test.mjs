@@ -32,6 +32,13 @@ test('explicit room navigation must execute open_room instead of answering from 
   });
 });
 
+test('an explicit visual request must execute render_visual', () => {
+  assert.deepEqual(initialToolChoiceForRequest('Render a visual plan and pin it in the conference room'), {
+    type: 'tool',
+    name: 'render_visual',
+  });
+});
+
 test('explicit repository listing must execute list_repos', () => {
   assert.deepEqual(initialToolChoiceForRequest('List every repository under my account'), {
     type: 'tool',
