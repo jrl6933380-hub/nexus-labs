@@ -1,3 +1,4 @@
+import { chatRequest, requestKey } from '../lib/nexChatRequests.js';
 // /pages/api/chat.js
 // Nex's visible chat endpoint — thin wrapper around the shared brain
 // in lib/nexBrain.js. Handles the KV-backed rolling history so the
@@ -98,10 +99,16 @@ export default async function handler(req, res) {
   // conversation is already saved, instead of always showing the
   // same hardcoded starter message.
   if (req.method === 'GET') {
+    res.setHeader('Cache-Control', 'no-store');
     try {
+      if (req.query?.requestId) {
+        const request = await chatRequest(operatorUser, req.query.requestId);
+        return res.status(200).json({ request });
+      }
       const recent = await loadRecent(operatorUser);
       return res.status(200).json({ messages: recent });
     } catch (err) {
+      if (req.query?.requestId) return res.status(503).json({ error: 'Request status is temporarily unavailable.' });
       console.error('GET /api/chat failed to load history:', err.message);
       return res.status(200).json({ messages: [] });
     }
@@ -111,7 +118,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { message, model, workspace, effort, deepThought, resumeRunId, forceSkill } = req.body;
+  const { message, model, workspace, effort, deepThought, resumeRunId, forceSkill, requestId } = req.body;
   if (!message) return res.status(400).json({ error: 'Missing message' });
   // Control commands return their own immediate JSON payloads before a
   // normal Nex turn begins. Keep them on that established contract; the
@@ -120,8 +127,15 @@ export default async function handler(req, res) {
     && !isDisengageCommand(message)
     && !isEngageCommand(message);
   let buildStreamStarted = false;
+  let tracked = false;
+  if (requestId) {
+    try { requestKey(operatorUser, requestId); } catch { return res.status(400).json({ error: 'Invalid request id' }); }
+  }
+  const saveStatus = async (value) => {
+    if (requestId) await chatRequest(operatorUser, requestId, { ...value, updatedAt: Date.now() }).catch(() => {});
+  };
   const sendBuildEvent = (event, payload) => {
-    if (buildStreamStarted) res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
+    if (buildStreamStarted && !res.destroyed && !res.writableEnded) res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
   };
 
   // model is an optional tier override from the model picker: 'cheap',
@@ -214,6 +228,8 @@ export default async function handler(req, res) {
     // Do not start the stream until every command/mode response that uses
     // normal JSON has returned. Starting it earlier made a disengaged Nex try
     // to send JSON after SSE headers, producing ERR_HTTP_HEADERS_SENT.
+    tracked = true;
+    await saveStatus({ state: 'running' });
     if (wantsBuildStream) {
       res.statusCode = 200;
       res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
@@ -300,6 +316,7 @@ export default async function handler(req, res) {
       securityReceipt,
       degraded,
     };
+    await saveStatus({ state: 'finished', response });
     if (wantsBuildStream) {
       sendBuildEvent('stage', { state: 'complete', tool: 'planning', label: 'Build response ready' });
       sendBuildEvent('result', response);
@@ -307,6 +324,7 @@ export default async function handler(req, res) {
     }
     return res.status(200).json(response);
   } catch (err) {
+    if (tracked) await saveStatus({ state: 'failed', error: 'Nex hit a server error. Inspect the last saved progress before trying again.' });
     console.error('Nex chat handler crashed:', err);
     Sentry.captureException(err);
     await Sentry.flush(2000); // wait for Sentry to actually send before the function ends
