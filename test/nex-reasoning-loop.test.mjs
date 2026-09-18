@@ -167,3 +167,35 @@ test('budget exhaustion pauses both model and tool execution until resume', () =
   assert.equal(state.status, 'waiting');
   assert.equal(registerModelStep(state).allowed, false);
 });
+
+test('a complex/crew plan gets a materially larger default budget window than simple chat', () => {
+  const simpleState = createReasoningState({
+    message: 'Quick question.',
+    plan: { lane: 'chat', mode: 'direct', complexity: 'simple' },
+  });
+  const complexState = createReasoningState({
+    message: 'Refactor the whole billing pipeline and migrate the schema.',
+    plan: { lane: 'code', mode: 'direct', complexity: 'complex' },
+  });
+  const crewState = createReasoningState({
+    message: 'Coordinate a multi-agent build.',
+    plan: { lane: 'code', mode: 'crew' },
+  });
+
+  assert.ok(complexState.budgets.maxModelSteps > simpleState.budgets.maxModelSteps);
+  assert.ok(complexState.budgets.maxToolCalls > simpleState.budgets.maxToolCalls);
+  assert.ok(complexState.budgets.maxElapsedMs > simpleState.budgets.maxElapsedMs);
+  // crew mode is treated as complex regardless of the reported complexity score
+  assert.deepEqual(crewState.budgets.maxModelSteps, complexState.budgets.maxModelSteps);
+});
+
+test('an explicit caller-supplied budget field still wins over the plan complexity tier', () => {
+  const state = createReasoningState({
+    message: 'Deep task but cap tool calls tightly.',
+    plan: { lane: 'code', mode: 'direct', complexity: 'complex' },
+    budgets: { maxToolCalls: 5 },
+  });
+  assert.equal(state.budgets.maxToolCalls, 5);
+  // untouched fields still pick up the complex tier, not the flat default
+  assert.ok(state.budgets.maxModelSteps >= 26);
+});
