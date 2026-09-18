@@ -67,12 +67,43 @@ import {
   listCanvases,
 } from '../lib/canvasState.js';
 import { maybeCheckSystemStatus } from '../lib/systemMonitor.js';
+import { getNexusOwner } from '../lib/nexusOwnerAuth.js';
+import { getPinnedVisual, restorePinnedVisual, setPinnedVisualLocked } from '../lib/pinnedVisuals.js';
 
 // This must exactly match the Authorization Callback URL / Redirect
 // URL registered with GitHub and Vercel — deriving it from the
 // request's Host header instead would break on any preview domain,
 // since the OAuth apps only trust this one exact origin.
 const NEXUS_PUBLIC_URL = process.env.NEXUS_PUBLIC_URL || 'https://nexus-labs-sigma.vercel.app';
+
+async function handlePinnedVisuals(req, res) {
+  res.setHeader('Cache-Control', 'private, no-store');
+  const owner = await getNexusOwner(req).catch(() => null);
+  if (!owner) return res.status(401).json({ error: 'Nexus owner authentication required' });
+
+  try {
+    if (req.method === 'GET') {
+      const roomId = req.query?.room_id;
+      if (!roomId) return res.status(400).json({ error: 'room_id is required' });
+      return res.status(200).json({ visual: await getPinnedVisual(roomId) });
+    }
+
+    if (req.method === 'POST') {
+      const { action, ...params } = req.body || {};
+      if (action === 'set_lock') {
+        return res.status(200).json({ visual: await setPinnedVisualLocked(params) });
+      }
+      if (action === 'restore') {
+        return res.status(200).json({ visual: await restorePinnedVisual(params) });
+      }
+      return res.status(400).json({ error: `Unknown action: ${action || '(none)'}` });
+    }
+
+    return res.status(405).json({ error: 'Method Not Allowed' });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+}
 
 async function handleBoard(req, res) {
   if (req.method === 'GET') {
@@ -463,7 +494,7 @@ export default async function handler(req, res) {
   try {
     // req.url still reflects the ORIGINAL request path even when a
     // vercel.json rewrite sent /api/hyperfocus, /api/agentlog,
-    // /api/vault, /api/tenants, or /api/oauth/:provider/callback
+    // /api/vault, /api/pinned-visuals, /api/tenants, or /api/oauth/:provider/callback
     // traffic to this same function — rewrites change which function
     // runs, not what req.url reports. That's what makes routing on it
     // safe here.
@@ -471,6 +502,7 @@ export default async function handler(req, res) {
     if (path.startsWith('/api/hyperfocus')) return await handleHyperfocus(req, res);
     if (path.startsWith('/api/agentlog')) return await handleAgentLog(req, res);
     if (path.startsWith('/api/vault')) return await handleVault(req, res);
+    if (path.startsWith('/api/pinned-visuals')) return await handlePinnedVisuals(req, res);
     if (path.startsWith('/api/sentry-webhook')) return await handleSentryWebhook(req, res);
     if (path.startsWith('/api/tenants')) return await handleTenants(req, res);
     if (path.startsWith('/api/oauth/')) {
@@ -479,7 +511,7 @@ export default async function handler(req, res) {
     }
     return await handleBoard(req, res);
   } catch (err) {
-    console.error('board/hyperfocus/agentlog/vault/tenants/oauth handler crashed:', err.message);
+    console.error('board/hyperfocus/agentlog/vault/pinned-visuals/tenants/oauth handler crashed:', err.message);
     return res.status(500).json({ error: err.message });
   }
 }

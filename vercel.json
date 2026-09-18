@@ -13,6 +13,10 @@
       "destination": "/api/board"
     },
     {
+      "source": "/api/pinned-visuals",
+      "destination": "/api/board"
+    },
+    {
       "source": "/api/sentry-webhook",
       "destination": "/api/board"
     },
