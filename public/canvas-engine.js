@@ -19,7 +19,14 @@
 // setBackdropUrl) layers on top of this same atmosphere rather than
 // replacing it outright.
 
-import { clampPosition, defaultMobileRect, finalizeResize } from './canvas-geometry.js?v=20260913-2';
+import {
+  cameraForRect,
+  clampPosition,
+  clampZoom,
+  defaultMobileRect,
+  finalizeResize,
+  zoomCameraAtPoint,
+} from './canvas-geometry.js?v=20260918-1';
 
 const POLL_INTERVAL_MS = 4000;
 const DEFAULT_CANVAS_ID = 'dashboard';
@@ -83,6 +90,76 @@ function injectStyles() {
       background-position: center;
       background-repeat: no-repeat;
       transition: background-image 260ms ease;
+    }
+    #nexus-canvas-world {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      transform-origin: 0 0;
+      will-change: transform;
+    }
+    #nexus-canvas-root.is-spatial { cursor: grab; overscroll-behavior: none; }
+    #nexus-canvas-root.is-spatial.is-panning { cursor: grabbing; }
+    #nexus-canvas-root.is-spatial .nexus-canvas-panel { cursor: default; }
+    .nexus-canvas-cockpit {
+      position: fixed;
+      top: max(14px, env(safe-area-inset-top));
+      right: 16px;
+      z-index: 10020;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px;
+      border: 1px solid var(--nx-line);
+      border-radius: 13px;
+      background: rgba(13, 18, 27, .9);
+      box-shadow: 0 16px 42px rgba(0, 0, 0, .42);
+      backdrop-filter: blur(18px);
+    }
+    .nexus-canvas-cockpit button {
+      display: grid;
+      place-items: center;
+      min-width: 34px;
+      height: 34px;
+      padding: 0 9px;
+      border: 1px solid transparent;
+      border-radius: 9px;
+      background: transparent;
+      color: var(--nx-muted);
+      font: 650 12px var(--nx-sans);
+      cursor: pointer;
+    }
+    .nexus-canvas-cockpit button:hover,
+    .nexus-canvas-cockpit button:focus-visible {
+      border-color: var(--nx-line-strong);
+      background: rgba(255, 255, 255, .055);
+      color: var(--nx-text);
+      outline: none;
+    }
+    .nexus-canvas-cockpit .nexus-canvas-zoom-label {
+      min-width: 52px;
+      color: var(--nx-text);
+      font-family: var(--nx-mono);
+    }
+    .nexus-canvas-panel.is-focused {
+      border-color: rgba(93, 184, 255, .55);
+      box-shadow: 0 28px 90px rgba(0, 0, 0, .62), 0 0 0 1px rgba(93, 184, 255, .22);
+    }
+    .nexus-portal-frame {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: #05070c;
+    }
+    .nexus-portal-loading {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      color: var(--nx-muted);
+      font: 600 11px var(--nx-mono);
+      letter-spacing: .08em;
+      text-transform: uppercase;
     }
     .nexus-canvas-brand {
       position: fixed;
@@ -202,6 +279,10 @@ function injectStyles() {
     .nexus-canvas-panel.is-collapsed {
       min-height: 0;
       height: auto !important;
+    }
+    #nexus-canvas-root.is-spatial .nexus-canvas-panel.is-collapsed {
+      width: 190px !important;
+      min-width: 190px;
     }
     .nexus-canvas-panel.is-collapsed .nexus-canvas-panel-header { border-bottom: 0; }
     .nexus-canvas-panel.is-collapsed .nexus-canvas-panel-context,
@@ -345,6 +426,15 @@ function injectStyles() {
         overscroll-behavior-y: contain;
         -webkit-overflow-scrolling: touch;
       }
+      #nexus-canvas-world { transform: none !important; }
+      .nexus-canvas-cockpit {
+        top: max(10px, env(safe-area-inset-top));
+        right: 10px;
+        padding: 4px;
+      }
+      .nexus-canvas-cockpit .nexus-canvas-zoom-out,
+      .nexus-canvas-cockpit .nexus-canvas-zoom-in,
+      .nexus-canvas-cockpit .nexus-canvas-zoom-label { display: none; }
       .nexus-canvas-brand { top: max(10px, env(safe-area-inset-top)); left: 12px; }
       .nexus-canvas-brand-copy { display: none; }
       .nexus-canvas-panel { border-radius: 14px; min-width: 0; }
@@ -485,7 +575,7 @@ function postCanvasAction(action, params) {
   });
 }
 
-export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Venture Factory' } = {}) {
+export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Venture Factory', spatial = false } = {}) {
   injectStyles();
 
   // Root/backdrop/atmosphere elements are per-page (one canvas visible
@@ -500,6 +590,7 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
     document.body.appendChild(root);
   }
   root.dataset.canvasId = canvasId;
+  root.classList.toggle('is-spatial', spatial);
   let brand = root.querySelector('.nexus-canvas-brand');
   if (!brand) {
     brand = document.createElement('div');
@@ -543,8 +634,109 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
     root.appendChild(backdrop);
   }
 
+  let world = root.querySelector('#nexus-canvas-world');
+  if (!world) {
+    world = document.createElement('div');
+    world.id = 'nexus-canvas-world';
+    root.appendChild(world);
+  }
+
   const panels = new Map(); // id -> { el, dragging, resizing, title, remoteRect, mobileRect }
   let topPanelZ = 2;
+  const cameraStorageKey = `nexus-canvas-camera:${canvasId}`;
+  let camera = { x: 0, y: 0, zoom: 1 };
+  try {
+    const savedCamera = JSON.parse(localStorage.getItem(cameraStorageKey));
+    if (savedCamera && [savedCamera.x, savedCamera.y, savedCamera.zoom].every(Number.isFinite)) {
+      camera = { x: savedCamera.x, y: savedCamera.y, zoom: clampZoom(savedCamera.zoom) };
+    }
+  } catch {}
+
+  let cockpit = null;
+  let zoomLabel = null;
+  function applyCamera({ persist = true } = {}) {
+    if (!spatial || isMobileViewport()) {
+      world.style.transform = 'none';
+      return;
+    }
+    world.style.transform = `translate3d(${camera.x}px, ${camera.y}px, 0) scale(${camera.zoom})`;
+    if (zoomLabel) zoomLabel.textContent = `${Math.round(camera.zoom * 100)}%`;
+    if (persist) {
+      try { localStorage.setItem(cameraStorageKey, JSON.stringify(camera)); } catch {}
+    }
+  }
+
+  function setCamera(next, options) {
+    camera = {
+      x: Number(next?.x) || 0,
+      y: Number(next?.y) || 0,
+      zoom: clampZoom(next?.zoom),
+    };
+    applyCamera(options);
+  }
+
+  function zoomBy(delta, point = { x: viewport().width / 2, y: viewport().height / 2 }) {
+    setCamera(zoomCameraAtPoint(camera, camera.zoom + delta, point));
+  }
+
+  function focusPanel(id, { maxZoom = 1, load = true } = {}) {
+    const entry = panels.get(id);
+    if (!entry) return false;
+    if (load) entry.loadPortal?.();
+    if (entry.collapsed) entry.setCollapsed(false, false);
+    for (const panel of panels.values()) panel.el.classList.toggle('is-focused', panel === entry);
+    topPanelZ += 1;
+    entry.el.style.zIndex = String(topPanelZ);
+    if (!isMobileViewport() && spatial) {
+      setCamera(cameraForRect(entry.remoteRect, viewport(), { padding: 62, maxZoom }));
+    } else {
+      entry.el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    if (entry.portalHref) history.replaceState({ thoughtspace: id }, '', `#${id}`);
+    window.dispatchEvent(new CustomEvent('nexus:canvas-focus', { detail: { canvasId, panelId: id } }));
+    return true;
+  }
+
+  function overview() {
+    const entries = [...panels.values()];
+    if (!entries.length || isMobileViewport() || !spatial) {
+      setCamera({ x: 0, y: 0, zoom: 1 });
+      return;
+    }
+    const bounds = entries.reduce((result, entry) => ({
+      x: Math.min(result.x, entry.remoteRect.x),
+      y: Math.min(result.y, entry.remoteRect.y),
+      right: Math.max(result.right, entry.remoteRect.x + entry.remoteRect.w),
+      bottom: Math.max(result.bottom, entry.remoteRect.y + entry.remoteRect.h),
+    }), { x: Infinity, y: Infinity, right: -Infinity, bottom: -Infinity });
+    setCamera(cameraForRect({ x: bounds.x, y: bounds.y, w: bounds.right - bounds.x, h: bounds.bottom - bounds.y }, viewport(), { padding: 96, maxZoom: 0.82 }));
+    for (const entry of entries) entry.el.classList.remove('is-focused');
+  }
+
+  function resetView() {
+    setCamera({ x: 0, y: 0, zoom: 1 });
+    for (const entry of panels.values()) entry.el.classList.remove('is-focused');
+  }
+
+  if (spatial) {
+    cockpit = document.createElement('div');
+    cockpit.className = 'nexus-canvas-cockpit';
+    cockpit.setAttribute('aria-label', 'Thoughtspace view controls');
+    cockpit.innerHTML = `
+      <button type="button" class="nexus-canvas-overview" title="Show the whole Thoughtspace">Overview</button>
+      <button type="button" class="nexus-canvas-zoom-out" title="Zoom out" aria-label="Zoom out">−</button>
+      <button type="button" class="nexus-canvas-zoom-label" title="Reset zoom">100%</button>
+      <button type="button" class="nexus-canvas-zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
+      <button type="button" class="nexus-canvas-home" title="Reset view">Home</button>
+    `;
+    root.appendChild(cockpit);
+    zoomLabel = cockpit.querySelector('.nexus-canvas-zoom-label');
+    cockpit.querySelector('.nexus-canvas-overview').addEventListener('click', overview);
+    cockpit.querySelector('.nexus-canvas-zoom-out').addEventListener('click', () => zoomBy(-0.12));
+    zoomLabel.addEventListener('click', () => setCamera({ ...camera, zoom: 1 }));
+    cockpit.querySelector('.nexus-canvas-zoom-in').addEventListener('click', () => zoomBy(0.12));
+    cockpit.querySelector('.nexus-canvas-home').addEventListener('click', resetView);
+  }
 
   let currentBackdropUrl = null;
   function applyBackdrop(url) {
@@ -579,6 +771,41 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
 
   function isMobileViewport() {
     return viewport().width <= MOBILE_BREAKPOINT_PX;
+  }
+
+  applyCamera({ persist: false });
+
+  if (spatial) {
+    let pan = null;
+    root.addEventListener('pointerdown', (event) => {
+      if (isMobileViewport() || event.button !== 0 || event.target.closest('.nexus-canvas-panel, .nexus-canvas-cockpit, #nexus-canvas-backdrop-control, #nexChatBar')) return;
+      pan = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, cameraX: camera.x, cameraY: camera.y };
+      root.classList.add('is-panning');
+      root.setPointerCapture(event.pointerId);
+    });
+    root.addEventListener('pointermove', (event) => {
+      if (!pan || event.pointerId !== pan.pointerId) return;
+      setCamera({ ...camera, x: pan.cameraX + event.clientX - pan.startX, y: pan.cameraY + event.clientY - pan.startY }, { persist: false });
+    });
+    const finishPan = (event) => {
+      if (!pan || event.pointerId !== pan.pointerId) return;
+      if (root.hasPointerCapture(event.pointerId)) root.releasePointerCapture(event.pointerId);
+      root.classList.remove('is-panning');
+      pan = null;
+      applyCamera();
+    };
+    root.addEventListener('pointerup', finishPan);
+    root.addEventListener('pointercancel', finishPan);
+    root.addEventListener('wheel', (event) => {
+      if (isMobileViewport() || event.target.closest('.nexus-canvas-panel, .nexus-canvas-cockpit, #nexus-canvas-backdrop-control, #nexChatBar')) return;
+      event.preventDefault();
+      if (event.ctrlKey || event.metaKey) {
+        const direction = event.deltaY > 0 ? -0.09 : 0.09;
+        zoomBy(direction, { x: event.clientX, y: event.clientY });
+        return;
+      }
+      setCamera({ ...camera, x: camera.x - event.deltaX, y: camera.y - event.deltaY });
+    }, { passive: false });
   }
 
   function interactionViewport() {
@@ -634,11 +861,16 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
       entry.el.hidden = false;
       panelIndex += 1;
     }
+    applyCamera({ persist: false });
   }
 
   function currentPanelRect(el) {
-    const rect = el.getBoundingClientRect();
-    return { x: rect.left, y: rect.top, w: rect.width, h: rect.height };
+    return {
+      x: Number.parseFloat(el.style.left) || 0,
+      y: Number.parseFloat(el.style.top) || 0,
+      w: Number.parseFloat(el.style.width) || el.offsetWidth,
+      h: Number.parseFloat(el.style.height) || el.offsetHeight,
+    };
   }
 
   // Called on every poll for panels the current tab isn't actively
@@ -668,7 +900,7 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
   poll();
   const pollTimer = setInterval(poll, POLL_INTERVAL_MS);
 
-  function addPanel({ id, title, content, x = 80, y = 80, w = 360, h = 280, locked = false, href = null, onActivate = null, progress = null }) {
+  function addPanel({ id, title, content, x = 80, y = 80, w = 360, h = 280, locked = false, href = null, portalHref = null, onActivate = null, progress = null }) {
     const el = document.createElement('div');
     el.className = 'nexus-canvas-panel';
     el.classList.toggle('is-workspace-locked', locked);
@@ -716,7 +948,7 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
     handle.setAttribute('aria-label', `Resize ${title}`);
     el.appendChild(handle);
 
-    root.appendChild(el);
+    world.appendChild(el);
     let mobileRect = null;
     let collapsed = false;
     try {
@@ -733,7 +965,7 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
       collapsed = isMobileViewport() && !locked;
     }
     if (locked) collapsed = false;
-    const entry = { el, dragging: false, resizing: false, collapsed, title, remoteRect: { x, y, w, h }, mobileRect };
+    const entry = { el, dragging: false, resizing: false, collapsed, title, remoteRect: { x, y, w, h }, mobileRect, portalHref, portalLoaded: false };
     panels.set(id, entry);
     el.classList.toggle('is-collapsed', collapsed);
 
@@ -748,6 +980,50 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
       return isMobileViewport() ? (entry.mobileRect || entry.remoteRect) : entry.remoteRect;
     }
 
+    function setCollapsed(next, persistPreference = true) {
+      if (locked) return;
+      if (next && !entry.collapsed) saveFinishedRect(currentRect());
+      entry.collapsed = Boolean(next);
+      el.classList.toggle('is-collapsed', entry.collapsed);
+      updateToggle();
+      if (persistPreference) {
+        try {
+          if (entry.collapsed) localStorage.setItem(`nexus-panel-collapsed:${canvasId}:${id}`, '1');
+          else localStorage.removeItem(`nexus-panel-collapsed:${canvasId}:${id}`);
+        } catch {}
+      }
+      applyRect(el, expandedRect());
+    }
+
+    function loadPortal() {
+      if (!portalHref || entry.portalLoaded) return;
+      entry.portalLoaded = true;
+      body.replaceChildren();
+      const loading = document.createElement('div');
+      loading.className = 'nexus-portal-loading';
+      loading.textContent = `Opening ${title}`;
+      const frame = document.createElement('iframe');
+      frame.className = 'nexus-portal-frame';
+      frame.title = title;
+      frame.loading = 'eager';
+      const url = new URL(portalHref, window.location.origin);
+      url.searchParams.set('nexus_embed', '1');
+      frame.src = `${url.pathname}${url.search}${url.hash}`;
+      frame.addEventListener('load', () => {
+        loading.remove();
+        try {
+          const frameDocument = frame.contentDocument;
+          const style = frameDocument.createElement('style');
+          style.textContent = '.return-link,.canvas-title-bar,#nexChatBar,#nexus-canvas-backdrop-control,.nexus-canvas-brand{display:none!important}';
+          frameDocument.head.appendChild(style);
+        } catch {}
+      });
+      body.append(loading, frame);
+    }
+
+    entry.setCollapsed = setCollapsed;
+    entry.loadPortal = loadPortal;
+
     updateToggle();
     el.addEventListener('pointerdown', () => {
       topPanelZ += 1;
@@ -756,8 +1032,7 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
     refreshPanels();
 
     function currentRect() {
-      const r = el.getBoundingClientRect();
-      return { x: r.left, y: r.top, w: r.width, h: r.height };
+      return currentPanelRect(el);
     }
 
     function persist(rect) {
@@ -783,17 +1058,25 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
     toggle.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
+      if (portalHref) {
+        if (entry.collapsed) {
+          setCollapsed(false);
+          loadPortal();
+          focusPanel(id);
+        } else {
+          setCollapsed(true);
+          el.classList.remove('is-focused');
+        }
+        return;
+      }
       if (href) { window.location.href = href; return; }
       if (onActivate) { onActivate(); return; }
-      if (!entry.collapsed) saveFinishedRect(currentRect());
-      entry.collapsed = !entry.collapsed;
-      el.classList.toggle('is-collapsed', entry.collapsed);
-      updateToggle();
-      try {
-        if (entry.collapsed) localStorage.setItem(`nexus-panel-collapsed:${canvasId}:${id}`, '1');
-        else localStorage.removeItem(`nexus-panel-collapsed:${canvasId}:${id}`);
-      } catch {}
-      applyRect(el, expandedRect());
+      setCollapsed(!entry.collapsed);
+    });
+    header.addEventListener('dblclick', (event) => {
+      if (!spatial || event.target.closest('button')) return;
+      event.preventDefault();
+      focusPanel(id);
     });
 
     // Drag — same pointer-capture pattern as the existing Nex chat
@@ -811,9 +1094,11 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
     });
     header.addEventListener('pointermove', (event) => {
       if (!drag || event.pointerId !== drag.pointerId) return;
-      const dx = event.clientX - drag.startX;
-      const dy = event.clientY - drag.startY;
-      const next = clampPosition({ x: drag.rect.x + dx, y: drag.rect.y + dy, w: drag.rect.w, h: drag.rect.h }, interactionViewport());
+      const scale = spatial && !isMobileViewport() ? camera.zoom : 1;
+      const dx = (event.clientX - drag.startX) / scale;
+      const dy = (event.clientY - drag.startY) / scale;
+      const raw = { x: drag.rect.x + dx, y: drag.rect.y + dy, w: drag.rect.w, h: drag.rect.h };
+      const next = spatial && !isMobileViewport() ? raw : { ...raw, ...clampPosition(raw, interactionViewport()) };
       el.style.left = `${next.x}px`;
       el.style.top = `${next.y}px`;
     });
@@ -841,9 +1126,11 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
     });
     handle.addEventListener('pointermove', (event) => {
       if (!resize || event.pointerId !== resize.pointerId) return;
-      const dx = event.clientX - resize.startX;
-      const dy = event.clientY - resize.startY;
-      const next = finalizeResize({ startRect: resize.rect, dx, dy, handle: 'se' }, viewport());
+      const scale = spatial && !isMobileViewport() ? camera.zoom : 1;
+      const dx = (event.clientX - resize.startX) / scale;
+      const dy = (event.clientY - resize.startY) / scale;
+      const resizeViewport = spatial && !isMobileViewport() ? { width: 4000, height: 3000 } : viewport();
+      const next = finalizeResize({ startRect: resize.rect, dx, dy, handle: 'se' }, resizeViewport);
       applyRect(el, next);
     });
     function endResize(event) {
@@ -856,7 +1143,7 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
     handle.addEventListener('pointerup', endResize);
     handle.addEventListener('pointercancel', endResize);
 
-    return { el, body };
+    return { el, body, focus: () => focusPanel(id), load: loadPortal, collapse: () => setCollapsed(true), expand: () => setCollapsed(false) };
   }
 
   function setBackdropUrl(url, personalOnly = false) {
@@ -878,5 +1165,5 @@ export function mountCanvas({ canvasId = DEFAULT_CANVAS_ID, canvasTitle = 'Ventu
   window.addEventListener('resize', refreshPanels);
   window.visualViewport?.addEventListener('resize', refreshPanels);
 
-  return { root, canvasId, addPanel, setBackdropUrl, getBackdropUrl, destroy };
+  return { root, world, canvasId, addPanel, focusPanel, overview, resetView, setCamera, getCamera: () => ({ ...camera }), setBackdropUrl, getBackdropUrl, destroy };
 }

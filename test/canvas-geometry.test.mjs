@@ -1,7 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-const { clampPosition, clampSize, defaultMobileRect, resizeFromHandle, finalizeResize } = await import('../public/canvas-geometry.js');
+const {
+  cameraForRect,
+  clampPosition,
+  clampSize,
+  clampZoom,
+  defaultMobileRect,
+  resizeFromHandle,
+  finalizeResize,
+  zoomCameraAtPoint,
+} = await import('../public/canvas-geometry.js');
 
 const viewport = { width: 1000, height: 800 };
 
@@ -72,4 +81,22 @@ test('finalizeResize clamps a normal "se" resize without moving x/y', () => {
   const startRect = { x: 100, y: 100, w: 300, h: 200 };
   const result = finalizeResize({ startRect, dx: 40, dy: 20, handle: 'se' }, viewport);
   assert.deepEqual(result, { x: 100, y: 100, w: 340, h: 220 });
+});
+
+test('clampZoom keeps Thoughtspace inside usable zoom limits', () => {
+  assert.equal(clampZoom(0.01), 0.2);
+  assert.equal(clampZoom(4), 1.6);
+  assert.equal(clampZoom(0.75), 0.75);
+});
+
+test('zoomCameraAtPoint preserves the world point under the cursor', () => {
+  const camera = { x: 100, y: 50, zoom: 1 };
+  const next = zoomCameraAtPoint(camera, 0.5, { x: 300, y: 250 });
+  assert.deepEqual(next, { x: 200, y: 150, zoom: 0.5 });
+});
+
+test('cameraForRect centers and fits a panel in the viewport', () => {
+  const camera = cameraForRect({ x: 1000, y: 500, w: 800, h: 600 }, { width: 1200, height: 900 }, { padding: 50 });
+  assert.equal(camera.zoom, 1);
+  assert.deepEqual(camera, { x: -800, y: -350, zoom: 1 });
 });

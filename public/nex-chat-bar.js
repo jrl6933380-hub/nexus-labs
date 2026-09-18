@@ -1519,7 +1519,7 @@ export function createNexChatBar() {
 }
 
 // Auto-initialize if imported in HTML
-if (typeof document !== 'undefined') {
+if (typeof document !== 'undefined' && window === window.top && new URLSearchParams(window.location.search).get('nexus_embed') !== '1') {
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
       if (!document.getElementById('nexChatBar')) {

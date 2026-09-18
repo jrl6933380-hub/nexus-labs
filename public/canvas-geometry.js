@@ -7,6 +7,51 @@
 
 export const MIN_PANEL_W = 200;
 export const MIN_PANEL_H = 120;
+export const MIN_CANVAS_ZOOM = 0.2;
+export const MAX_CANVAS_ZOOM = 1.6;
+
+export function clampZoom(value, min = MIN_CANVAS_ZOOM, max = MAX_CANVAS_ZOOM) {
+  const zoom = Number(value);
+  if (!Number.isFinite(zoom)) return 1;
+  return Math.max(min, Math.min(max, zoom));
+}
+
+// Keeps the world point under the cursor stationary while zooming. This is
+// what makes the canvas feel like one physical space instead of a web page
+// whose contents merely grow and shrink around the top-left corner.
+export function zoomCameraAtPoint(camera, nextZoom, point) {
+  const currentZoom = clampZoom(camera?.zoom);
+  const zoom = clampZoom(nextZoom);
+  const px = Number(point?.x) || 0;
+  const py = Number(point?.y) || 0;
+  const worldX = (px - (Number(camera?.x) || 0)) / currentZoom;
+  const worldY = (py - (Number(camera?.y) || 0)) / currentZoom;
+  return {
+    x: px - worldX * zoom,
+    y: py - worldY * zoom,
+    zoom,
+  };
+}
+
+// Fits one world-space panel into the viewport while reserving room for the
+// fixed cockpit controls. The same helper powers user clicks and Nex-driven
+// navigation so both land on exactly the same view.
+export function cameraForRect(rect, viewport, { padding = 72, maxZoom = 1 } = {}) {
+  const width = Math.max(1, Number(viewport?.width) || 1);
+  const height = Math.max(1, Number(viewport?.height) || 1);
+  const usableW = Math.max(1, width - padding * 2);
+  const usableH = Math.max(1, height - padding * 2);
+  const rectW = Math.max(1, Number(rect?.w) || 1);
+  const rectH = Math.max(1, Number(rect?.h) || 1);
+  const zoom = clampZoom(Math.min(usableW / rectW, usableH / rectH, maxZoom));
+  const centerX = (Number(rect?.x) || 0) + rectW / 2;
+  const centerY = (Number(rect?.y) || 0) + rectH / 2;
+  return {
+    x: width / 2 - centerX * zoom,
+    y: height / 2 - centerY * zoom,
+    zoom,
+  };
+}
 
 // Gives every panel an immediately reachable title bar on a phone. Desktop
 // layouts often place several panels beyond the mobile viewport's right edge;
