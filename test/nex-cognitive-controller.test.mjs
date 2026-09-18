@@ -46,7 +46,7 @@ test('an explicit council request activates crew mode', () => {
 });
 
 test('plain-language Crew Mode and forceCrew are both explicit opt-ins', () => {
-  const spoken = planCognitiveRun({ message: 'Use Crew Mode for this migration.' });
+  const spoken = planCognitiveRun({ message: 'Use Crew Mode to migrate the production auth database.' });
   const forced = planCognitiveRun({
     message: 'Review this architecture.',
     toolContext: { forceCrew: true },
