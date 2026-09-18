@@ -16,6 +16,8 @@
 // lib/tenantProvisioning.js (the actual storage/safety logic) are
 // completely untouched by this file.
 
+import crypto from 'node:crypto';
+
 import {
   readBoard,
   getTaskById,
@@ -68,7 +70,7 @@ import {
 } from '../lib/canvasState.js';
 import { maybeCheckSystemStatus } from '../lib/systemMonitor.js';
 import { getNexusOwner } from '../lib/nexusOwnerAuth.js';
-import { getPinnedVisual, restorePinnedVisual, setPinnedVisualLocked } from '../lib/pinnedVisuals.js';
+import { getPinnedVisual, renderPinnedVisual, restorePinnedVisual, setPinnedVisualLocked } from '../lib/pinnedVisuals.js';
 
 // This must exactly match the Authorization Callback URL / Redirect
 // URL registered with GitHub and Vercel — deriving it from the
@@ -76,10 +78,26 @@ import { getPinnedVisual, restorePinnedVisual, setPinnedVisualLocked } from '../
 // since the OAuth apps only trust this one exact origin.
 const NEXUS_PUBLIC_URL = process.env.NEXUS_PUBLIC_URL || 'https://nexus-labs-sigma.vercel.app';
 
+function internalAgentAuthorized(req) {
+  const expected = process.env.NEXUS_AGENT_API_TOKEN;
+  const header = String(req.headers?.authorization || '');
+  const supplied = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+  if (!expected || !supplied) return false;
+  const expectedHash = crypto.createHash('sha256').update(expected).digest();
+  const suppliedHash = crypto.createHash('sha256').update(supplied).digest();
+  return crypto.timingSafeEqual(expectedHash, suppliedHash);
+}
+
+function developerSource(value) {
+  const source = String(value || 'developer').trim().toLowerCase();
+  return `developer:${/^[a-z0-9_-]{1,32}$/u.test(source) ? source : 'developer'}`;
+}
+
 async function handlePinnedVisuals(req, res) {
   res.setHeader('Cache-Control', 'private, no-store');
   const owner = await getNexusOwner(req).catch(() => null);
-  if (!owner) return res.status(401).json({ error: 'Nexus owner authentication required' });
+  const internalAgent = internalAgentAuthorized(req);
+  if (!owner && !internalAgent) return res.status(401).json({ error: 'Nexus owner session or internal agent token required' });
 
   try {
     if (req.method === 'GET') {
@@ -90,6 +108,26 @@ async function handlePinnedVisuals(req, res) {
 
     if (req.method === 'POST') {
       const { action, ...params } = req.body || {};
+      if (!owner && action !== 'render') {
+        return res.status(403).json({ error: 'Internal agents may render visuals but cannot change owner panel controls' });
+      }
+      if (action === 'render') {
+        const visual = await renderPinnedVisual({
+          ...params,
+          source: internalAgent ? developerSource(params.source_agent) : 'owner',
+        });
+        return res.status(200).json({
+          visual: {
+            room_id: visual.room_id,
+            source: visual.source,
+            locked: visual.locked,
+            rendered: visual.rendered,
+            saved_to_history: visual.saved_to_history,
+            history_count: visual.history.length,
+            updated_at: visual.updated_at,
+          },
+        });
+      }
       if (action === 'set_lock') {
         return res.status(200).json({ visual: await setPinnedVisualLocked(params) });
       }
