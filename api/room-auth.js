@@ -43,9 +43,12 @@ export default async function handler(req, res) {
       return res.status(200).json({ username: user.username, operator: isOperatorUser(user.username) });
     }
 
-    if (action === 'login') {
+    if (action === 'login' || action === 'operator-login') {
       const user = await verifyUser(username, password);
       if (!user) return res.status(401).json({ error: 'Wrong username or password.' });
+      if (action === 'operator-login' && !isOperatorUser(user.username)) {
+        return res.status(403).json({ error: 'This account cannot access the operator dashboard. Sign in with your operator account.' });
+      }
       const token = await createSession(user.username);
       res.setHeader('Set-Cookie', serializeSessionCookie(token));
       return res.status(200).json({ username: user.username, operator: isOperatorUser(user.username) });

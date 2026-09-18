@@ -1,3 +1,5 @@
+import { requestOperatorSignIn } from './nex-operator-sign-in.js';
+
 /**
  * Nex Chat Bar Component
  * A creative, stylized chat interface for direct communication with Nex.
@@ -1237,7 +1239,14 @@ export function createNexChatBar() {
           },
         }),
       });
-      if (redirectToOperatorLogin(response, window.location)) return;
+      if (response.status === 401) {
+        input.value = typedText;
+        const signedIn = await requestOperatorSignIn();
+        addMessage(signedIn
+          ? 'Signed in. Your message is still in the box—press Send when ready.'
+          : 'Your message is saved in the box. Sign in with your operator account to talk to Nex.', 'nex-system');
+        return;
+      }
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
         throw new Error(data.error || 'Nex could not process that message.');
