@@ -5,6 +5,7 @@ import {
   createReasoningState,
   formatReasoningState,
   recordReasoningToolResult,
+  reasoningStateForCheckpoint,
   registerModelStep,
   registerReasoningToolCall,
   registerToolSearch,
@@ -102,29 +103,48 @@ test('a latest failed action cannot be overwritten by earlier verified evidence'
   assert.equal(state.blocker, 'latest_tool_failed');
 });
 
-test('resumed runs keep counters, elapsed time, and blocked fingerprints', () => {
+test('resumed runs get a fresh budget window while preserving cumulative progress and safety state', () => {
   const state = createReasoningState({
     message: 'Resume it.',
     now: 50_000,
+    budgets: { maxModelSteps: 2, maxToolCalls: 1, maxToolSearches: 1, maxElapsedMs: 5_000 },
     runState: {
       resumed: true,
-      state: 'blocked',
-      blocker: 'repeated_failure:run_sandbox',
-      toolCalls: 7,
-      modelSteps: 3,
-      completionReplans: 1,
+      state: 'waiting',
+      blocker: 'model_step_budget_exhausted',
+      toolCalls: 24,
+      modelSteps: 12,
+      completionReplans: 2,
+      searchedCapabilities: ['coding'],
       failureCounts: [['failure-key', 2]],
       blockedToolCalls: ['blocked-key'],
       startedAt: 10_000,
     },
   });
-  assert.equal(state.status, 'blocked');
-  assert.equal(state.toolCalls, 7);
-  assert.equal(state.modelSteps, 3);
-  assert.equal(state.completionReplans, 1);
+
+  assert.equal(state.status, 'planning');
+  assert.equal(state.blocker, null);
+  assert.equal(state.toolCalls, 0);
+  assert.equal(state.modelSteps, 0);
+  assert.equal(state.toolSearches, 0);
+  assert.equal(state.completionReplans, 0);
+  assert.equal(state.totalToolCalls, 24);
+  assert.equal(state.totalModelSteps, 12);
+  assert.equal(state.totalCompletionReplans, 2);
   assert.equal(state.failureCounts.get('failure-key'), 2);
   assert.equal(state.blockedToolCalls.has('blocked-key'), true);
-  assert.equal(state.startedAt, 10_000);
+  assert.equal(state.startedAt, 50_000);
+
+  assert.equal(registerModelStep(state, 50_000).allowed, true);
+  assert.equal(registerReasoningToolCall(state, { name: 'read_repo_file', input: { path: 'README.md' } }, 50_000).allowed, true);
+  assert.equal(registerToolSearch(state, 'coding').reason, 'duplicate_tool_search');
+  assert.equal(registerToolSearch(state, 'billing').allowed, true);
+
+  const checkpoint = reasoningStateForCheckpoint(state);
+  assert.equal(checkpoint.model_steps, 13);
+  assert.equal(checkpoint.tool_calls, 25);
+  assert.equal(checkpoint.completion_replans, 2);
+  assert.equal(registerToolSearch(state, 'deploy').reason, 'tool_search_budget_exhausted');
 });
 
 test('native provider web tools are capped by and counted against the tool budget', () => {
