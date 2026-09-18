@@ -45,6 +45,9 @@ const pageUrl = (file) => file === 'canvas.html' ? '/canvas?id=mobile-test' : `/
 
 async function stubRoomAuth(page, username = 'a11y-test') {
   await page.route(/\/api\/room-auth(?:\?.*)?$/, (route) => route.fulfill({ json: { username } }));
+  await page.route(/\/api\/nexus-auth(?:\?.*)?$/, (route) => route.fulfill({
+    json: { authenticated: true, owner: { id: username } },
+  }));
 }
 
 async function stubBoardCreate(page, canvasId = 'a11y-test') {
