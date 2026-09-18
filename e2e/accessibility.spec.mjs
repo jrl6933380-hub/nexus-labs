@@ -218,8 +218,9 @@ test.describe('mobile canvas room interactions', () => {
     await expandPanelIfCollapsed(panel);
     await dragLocator(page, panel.locator('.nexus-canvas-panel-header'), { dy: 2000 });
     const box = await panel.boundingBox();
+    const viewportHeight = page.viewportSize()?.height ?? 852;
     expect(box.y + box.height).toBeGreaterThan(820);
-    expect(box.y + box.height).toBeLessThanOrEqual(844.5);
+    expect(box.y + box.height).toBeLessThanOrEqual(viewportHeight);
   });
 
   test('every board minimizes to a launcher tile and restores its full size', async ({ page }) => {
