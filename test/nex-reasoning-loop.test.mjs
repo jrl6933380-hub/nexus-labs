@@ -74,7 +74,7 @@ test('changed nested tool input is a changed plan, not an identical retry', () =
 });
 
 test('repeating the exact same tool call with no new result trips stall detection, not a step count', () => {
-  const state = createReasoningState({ message: 'Keep checking.', budgets: { maxNoProgressSteps: 3 } });
+  const state = createReasoningState({ message: 'Keep checking.', budgets: { maxNoProgressSteps: 2 } });
   const call = { name: 'read_repo_file', input: { path: 'lib/example.js' } };
   assert.equal(registerReasoningToolCall(state, call).allowed, true);
   recordReasoningToolResult(state, call, { is_error: false, content: 'ok' });
