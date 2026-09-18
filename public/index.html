@@ -213,7 +213,7 @@
     location.replace(`/nexus-login.html?next=${next}`);
     await new Promise(() => {});
   }
-  const { mountCanvas } = await import('/canvas-engine.js?v=20260913-2');
+  const { mountCanvas } = await import('/canvas-engine.js?v=20260918-1');
   await import('/nex-chat-bar.js?v=20260912-2');
 
   function escapeHtml(text) {
@@ -222,7 +222,10 @@
     return div.innerHTML;
   }
 
-  const canvas = mountCanvas({ canvasTitle: 'Venture Factory' });
+  const hadSavedThoughtspaceView = (() => {
+    try { return Boolean(localStorage.getItem('nexus-canvas-camera:dashboard')); } catch { return false; }
+  })();
+  const canvas = mountCanvas({ canvasTitle: 'Thoughtspace', spatial: true });
 
   // A phone opens on a launcher, not three overlapping desktop windows.
   // Respect an existing user choice, but start each homepage panel minimized
@@ -245,14 +248,14 @@
   // tile on the home screen directly — addPanel's href support makes
   // the tile itself the link, no expand step needed.
   const ROOMS = [
-    { id: 'room-mission', title: 'Command Deck', href: '/mission-control.html' },
-    { id: 'room-conference', title: 'Conference Room', href: '/conference-room.html' },
-    { id: 'room-builder', title: 'Forge Builder', href: '/room.html' },
-    { id: 'room-story', title: 'Story Studio', href: '/story-studio.html' },
-    { id: 'room-memory', title: 'Memory Archive', href: '/memory.html' },
-    { id: 'room-approvals', title: 'Approval Queue', href: '/queue.html' },
-    { id: 'room-connectors', title: 'Connector Bay', href: '/connectors.html' },
-    { id: 'room-tenants', title: 'Tenant Hub', href: '/tenants.html' },
+    { id: 'thoughtspace-mission', title: 'Command Deck', href: '/mission-control.html', x: 0, y: 560 },
+    { id: 'thoughtspace-conference', title: 'Conference Room', href: '/conference-room.html', x: 1100, y: 560 },
+    { id: 'thoughtspace-builder', title: 'Forge Builder', href: '/room.html', x: 2200, y: 560 },
+    { id: 'thoughtspace-story', title: 'Story Studio', href: '/story-studio.html', x: 0, y: 1320 },
+    { id: 'thoughtspace-memory', title: 'Memory Archive', href: '/memory.html', x: 1100, y: 1320 },
+    { id: 'thoughtspace-approvals', title: 'Approval Queue', href: '/queue.html', x: 2200, y: 1320 },
+    { id: 'thoughtspace-connectors', title: 'Connector Bay', href: '/connectors.html', x: 0, y: 2080 },
+    { id: 'thoughtspace-tenants', title: 'Tenant Hub', href: '/tenants.html', x: 1100, y: 2080 },
   ];
 
   // These are pure link/action tiles with nothing meaningful to expand
@@ -304,11 +307,51 @@
   agentBody.innerHTML = '<span class="empty">Loading agents…</span>';
   canvas.addPanel({ id: 'agent-list', title: 'Agent Network', content: agentBody, x: 780, y: 80, w: 300, h: 280 });
 
-  ROOMS.forEach((room, i) => {
+  const roomPanels = new Map();
+  ROOMS.forEach((room) => {
     registerApp({ id: room.id, title: room.title, href: room.href });
     if (isHidden(room.id)) return;
-    canvas.addPanel({ id: room.id, title: room.title, content: document.createElement('div'), href: room.href, x: 80 + i * 108, y: 460, w: 96, h: 108 });
+    const panel = canvas.addPanel({
+      id: room.id,
+      title: room.title,
+      content: document.createElement('div'),
+      portalHref: room.href,
+      x: room.x,
+      y: room.y,
+      w: 1040,
+      h: 700,
+    });
+    roomPanels.set(room.id, panel);
   });
+
+  function roomForNavigation(reference) {
+    const raw = String(reference || '').toLowerCase();
+    return ROOMS.find((room) => raw === room.href.toLowerCase()
+      || raw.includes(room.href.replace(/\.html$/u, '').toLowerCase())
+      || raw.includes(room.title.toLowerCase())
+      || raw.includes(room.id.replace('thoughtspace-', '')));
+  }
+
+  // Nex's open_room result is now a camera move inside Thoughtspace. The
+  // underlying routes remain available for direct links and customer flows,
+  // but the owner's normal workflow never has to leave the command surface.
+  window.addEventListener('nexus:navigate', (event) => {
+    const reference = event.detail?.url || event.detail?.room || '';
+    const room = roomForNavigation(reference);
+    if (!room || !roomPanels.has(room.id)) return;
+    event.preventDefault?.();
+    roomPanels.get(room.id).load();
+    roomPanels.get(room.id).expand();
+    roomPanels.get(room.id).focus();
+    history.replaceState({ thoughtspace: room.id }, '', `#${room.id}`);
+  });
+
+  const initialRoom = roomForNavigation(location.hash.replace(/^#/u, ''));
+  if (initialRoom && roomPanels.has(initialRoom.id)) {
+    requestAnimationFrame(() => roomPanels.get(initialRoom.id).focus());
+  } else if (!hadSavedThoughtspaceView && !window.matchMedia('(max-width: 720px)').matches) {
+    requestAnimationFrame(() => canvas.overview());
+  }
 
   // "+" tile — doesn't navigate anywhere. It opens the Nex dock and
   // hands him a starter prompt; the actual scoping happens as a real
