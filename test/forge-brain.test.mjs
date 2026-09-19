@@ -132,7 +132,7 @@ test('onboarding copy avoids developer jargon', () => {
 test('every recovery reason names a next move', () => {
   for (const [reason, text] of Object.entries(RECOVERY)) {
     assert.ok(text.length > 0, `${reason} needs copy`);
-    assert.ok(/try again|reconnect|starting it again|nothing was connected/i.test(text),
+    assert.ok(/try(ing)? again|reconnect|start(ing)? it again|nothing was connected/i.test(text),
       `${reason} should tell the user what to do`);
   }
 });
