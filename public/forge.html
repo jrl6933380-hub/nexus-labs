@@ -309,6 +309,60 @@ function drawRecents(){
 }
 drawRecents();
 
+async function runForgeBuild(message, onProgress){
+  const response = await fetch('/api/room-chat', {
+    method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      message,
+      history,
+      projectId: 'default',
+      requireOwnBrain: true,
+    }),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    const error = new Error(data?.error || 'That did not go through. Try again in a moment.');
+    error.code = data?.code;
+    throw error;
+  }
+  if (!response.body) throw new Error('The build stream did not start.');
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let builtHtml = '';
+  let savedId = null;
+
+  const handleEvent = (block) => {
+    const line = block.split('\n').find((item) => item.startsWith('data: '));
+    if (!line) return;
+    let event;
+    try { event = JSON.parse(line.slice(6)); } catch { return; }
+    if (event.action === 'progress' && event.message) onProgress?.(event.message);
+    if (event.action === 'error') throw new Error(event.message || 'The build could not finish.');
+    if (event.action === 'html') builtHtml = event.html || '';
+    if (event.action === 'saved') savedId = event.projectId || event.id || null;
+  };
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const blocks = buffer.split('\n\n');
+    buffer = blocks.pop() || '';
+    for (const block of blocks) handleEvent(block);
+  }
+  if (buffer.trim()) handleEvent(buffer);
+  if (!builtHtml) throw new Error('The builder stopped before returning a complete page.');
+  return {
+    html: builtHtml,
+    savedId,
+    reply: savedId
+      ? 'Built it and saved the working version. Open Preview whenever you want to see it.'
+      : 'Built the working version. It could not be saved, so keep this page open for now.',
+  };
+}
+
 async function submit(){
   const raw = el('input').value.trim();
   if (!raw || busy) return;
@@ -321,13 +375,10 @@ async function submit(){
   busy = true; el('send').disabled = true;
   const pending = bubble('a', '<p style="color:#61656f">Working on it…</p>');
   try {
-    const response = await fetch('/api/room-chat', {
-      method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ message: raw, history }),
+    const result = await runForgeBuild(raw, (message) => {
+      pending.innerHTML = paragraphs(message);
     });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data?.error || 'That did not go through. Try again in a moment.');
-    const reply = data.reply || data.message || 'Done.';
+    const reply = result.reply;
     pending.innerHTML = paragraphs(reply);
     history.push({ role:'user', content:raw }, { role:'assistant', content:reply });
     saveThread();
@@ -417,13 +468,8 @@ async function dockAsk(text){
   const body = el('dockBody');
   body.textContent = 'Working on it…';
   try {
-    const response = await fetch('/api/room-chat', {
-      method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ message: text, history }),
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error('That did not go through.');
-    body.textContent = data.reply || data.message || 'Done.';
+    const result = await runForgeBuild(text, (message) => { body.textContent = message; });
+    body.textContent = result.reply;
   } catch (error) { body.textContent = error.message; }
 }
 el('dockSend').onclick = () => {
@@ -434,7 +480,8 @@ el('dockSend').onclick = () => {
 };
 el('dockInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') el('dockSend').click(); });
 
-showView('chat');
+const requestedView = new URLSearchParams(location.search).get('view');
+showView(requestedView && FORGE_VIEWS[requestedView] ? requestedView : 'chat');
 </script>
 </body>
 </html>
