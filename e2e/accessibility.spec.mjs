@@ -112,7 +112,7 @@ for (const file of pages) {
 
 
 const canvasRooms = [
-  ['index.html', 12], ['canvas.html', 4], ['connectors.html', 1],
+  ['canvas.html', 4], ['connectors.html', 1],
   ['memory.html', 4], ['mission-control.html', 4], ['nexus-canvas.html', 12],
   ['queue.html', 1], ['room.html', 1], ['story-studio.html', 1], ['tenants.html', 2],
 ];
@@ -184,72 +184,42 @@ test.describe('mobile canvas room interactions', () => {
     });
   }
 
-  test('the Agents panel has a working touch resize grip and no mobile switcher buttons', async ({ page }) => {
+  test('the universal workspace keeps system views and the compact Nex dock usable on mobile', async ({ page }) => {
     await stubRoomAuth(page, 'mobile-test');
-    await stubBoardOffline(page);
-    await stubBoardCreate(page, 'dashboard');
+    await page.route(/\/api\/board(?:\?.*)?$/, (route) => route.fulfill({ json: { telemetry: { total_tasks: 8, completed_tasks: 5, needs_approval: 1, active_agents: 2 } } }));
+    await page.route(/\/api\/pinned-visuals(?:\?.*)?$/, (route) => route.fulfill({ json: { visual: null } }));
     await page.goto('/index.html');
-    const panel = page.locator('.nexus-canvas-panel[data-panel-id="agent-list"]');
-    const handle = panel.locator('.nexus-canvas-resize-handle');
-    await expect(panel).toBeVisible();
-    await expandPanelIfCollapsed(panel);
-    await expect(handle).toBeVisible();
-    const handleBox = await handle.boundingBox();
-    expect(handleBox.width).toBeGreaterThanOrEqual(44);
-    expect(handleBox.height).toBeGreaterThanOrEqual(44);
-    await expect(page.locator('.nexus-canvas-mobile-panel-button')).toHaveCount(0);
-    const before = await panel.boundingBox();
-    await panel.locator('.nexus-canvas-panel-header').click({ position: { x: 24, y: 24 } });
-    await page.mouse.move(handleBox.x + handleBox.width - 4, handleBox.y + handleBox.height - 4);
-    await page.mouse.down();
-    await page.mouse.move(handleBox.x + handleBox.width - 44, handleBox.y + handleBox.height - 34, { steps: 8 });
-    await page.mouse.up();
-    const after = await panel.boundingBox();
-    expect(Math.abs(after.width - before.width)).toBeGreaterThan(5);
-    expect(Math.abs(after.height - before.height)).toBeGreaterThan(5);
+    await expect(page.locator('.workspace-card')).toHaveCount(6);
+    await page.getByRole('button', { name: /AI Team/u }).click();
+    await expect(page.getByRole('heading', { name: 'AI Team' })).toBeVisible();
+    const dock = page.locator('#nexChatBar.nex-thoughtspace-dock');
+    await expect(dock).toHaveClass(/collapsed/u);
+    await expect(dock.locator('.nex-chat-input')).toBeVisible();
+    const dockBox = await dock.boundingBox();
+    expect(dockBox.height).toBeLessThanOrEqual(60);
   });
 
-  test('panels can use the full phone height below the old reserved dock strip', async ({ page }) => {
+  test('the blank canvas uses the full visual stage above the universal dock', async ({ page }) => {
     await stubRoomAuth(page, 'mobile-test');
-    await stubBoardOffline(page);
-    await stubBoardCreate(page, 'dashboard');
+    await page.route(/\/api\/board(?:\?.*)?$/, (route) => route.fulfill({ json: { telemetry: {} } }));
+    await page.route(/\/api\/pinned-visuals(?:\?.*)?$/, (route) => route.fulfill({ json: { visual: null } }));
     await page.goto('/index.html');
-    const panel = page.locator('.nexus-canvas-panel[data-panel-id="board-summary"]');
-    await expandPanelIfCollapsed(panel);
-    await dragLocator(page, panel.locator('.nexus-canvas-panel-header'), { dy: 2000 });
-    const box = await panel.boundingBox();
-    const viewportHeight = page.viewportSize()?.height ?? 852;
-    expect(box.y + box.height).toBeGreaterThan(820);
-    expect(box.y + box.height).toBeLessThanOrEqual(viewportHeight);
+    await page.getByRole('button', { name: 'Blank Canvas' }).click();
+    const blank = page.locator('.workspace-blank');
+    await expect(blank).toBeVisible();
+    const box = await page.locator('#nexus-visual-stage').boundingBox();
+    expect(box.height).toBeGreaterThan(700);
   });
 
-  test('every board minimizes to a launcher tile and restores its full size', async ({ page }) => {
+  test('Nexus home always returns from a system view to the visual overview', async ({ page }) => {
     await stubRoomAuth(page, 'mobile-test');
-    await stubBoardOffline(page);
-    await stubBoardCreate(page, 'dashboard');
+    await page.route(/\/api\/board(?:\?.*)?$/, (route) => route.fulfill({ json: { telemetry: {} } }));
+    await page.route(/\/api\/pinned-visuals(?:\?.*)?$/, (route) => route.fulfill({ json: { visual: null } }));
     await page.goto('/index.html');
-    const panel = page.locator('.nexus-canvas-panel[data-panel-id="board-summary"]');
-    const toggle = panel.locator('.nexus-canvas-panel-toggle');
-    await expandPanelIfCollapsed(panel);
-    const before = await panel.boundingBox();
-    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-    await panel.locator('.nexus-canvas-panel-header').click({ position: { x: 24, y: 24 } });
-    await toggle.click();
-    const minimized = await panel.boundingBox();
-    await expect(panel).toHaveClass(/is-collapsed/);
-    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-    await expect(panel.locator('.nexus-canvas-panel-body')).toBeHidden();
-    expect(minimized.height).toBeLessThan(before.height);
-    expect(minimized.width).toBeLessThan(before.width);
-    const minimizedToggle = await toggle.boundingBox();
-    expect(minimizedToggle).not.toBeNull();
-    expect(minimizedToggle.width).toBeGreaterThanOrEqual(minimized.width - 2);
-    expect(minimizedToggle.height).toBeGreaterThanOrEqual(minimized.height - 2);
-    await toggle.click();
-    const restored = await panel.boundingBox();
-    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-    expect(Math.abs(restored.height - before.height)).toBeLessThanOrEqual(2.5);
-    expect(Math.abs(restored.width - before.width)).toBeLessThanOrEqual(2.5);
+    await page.getByRole('button', { name: /Nexus Forge/u }).click();
+    await expect(page.getByRole('heading', { name: 'Nexus Forge' })).toBeVisible();
+    await page.locator('#nexHomeButton').click();
+    await expect(page.getByRole('heading', { name: 'Your whole operation, tuned into one view.' })).toBeVisible();
   });
 
   test('locked workspace panels stay full-screen and keep their body visible on mobile', async ({ page }) => {

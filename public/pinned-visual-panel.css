@@ -39,6 +39,26 @@
 .is-empty .pvp-frame { display: none; }
 .is-empty .pvp-empty { display: flex; }
 .pinned-visual-panel.is-empty { visibility: hidden; opacity: 0; pointer-events: none; }
+.pinned-visual-panel.workspace-hidden { visibility: hidden; opacity: 0; pointer-events: none; }
+
+.pinned-visual-panel.is-workspace-surface {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  background: #060910;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.pinned-visual-panel.is-workspace-surface .pvp-header { padding-inline: clamp(14px, 4vw, 48px); }
+.pinned-visual-panel.is-workspace-surface .pvp-title small { font-size: 0; }
+.pinned-visual-panel.is-workspace-surface .pvp-title small::after { content: 'LIVE WORKSPACE'; font-size: 8px; }
+.pinned-visual-panel.is-workspace-surface .pvp-minimize { font-size: 0 !important; }
+.pinned-visual-panel.is-workspace-surface .pvp-minimize::after { content: '×'; font-size: 16px; }
+.pinned-visual-panel.is-workspace-surface .pvp-footer { padding-inline: clamp(14px, 4vw, 48px); }
 
 .pvp-footer { position: relative; min-height: 42px; display: flex; align-items: center; justify-content: space-between; padding: 7px 11px; border-top: 1px solid rgba(102, 221, 232, .14); color: #6e999f; background: rgba(3, 12, 17, .96); }
 .pvp-source { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 9px; letter-spacing: .14em; }
@@ -59,4 +79,5 @@
 @media (max-width: 720px) {
   .pinned-visual-panel { top: 70px; right: 10px; width: calc(100vw - 20px); height: min(62vh, 520px); }
   .pinned-visual-panel.is-minimized { width: 190px; height: 52px; }
+  .pinned-visual-panel.is-workspace-surface { inset: 0; width: 100%; height: 100%; }
 }

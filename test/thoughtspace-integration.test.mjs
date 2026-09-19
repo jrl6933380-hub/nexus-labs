@@ -4,36 +4,40 @@ import fs from 'node:fs';
 
 const read = (path) => fs.readFileSync(new URL(path, import.meta.url), 'utf8');
 
-test('owner dashboard mounts the spatial Thoughtspace and embeds every core room', () => {
+test('owner dashboard is one visual workspace instead of a stack of static room panels', () => {
   const index = read('../public/index.html');
-  assert.match(index, /spatial:\s*true/u);
-  assert.match(index, /canvas\.overview\(\)/u);
-  assert.match(index, /window\.addEventListener\('nexus:navigate'/u);
-  for (const route of ['mission-control', 'conference-room', 'room', 'story-studio', 'memory', 'queue', 'connectors', 'tenants']) {
-    assert.match(index, new RegExp(`portalHref: room\\.href|/${route}\\.html`, 'u'));
+  const workspace = read('../public/nexus-workspace.js');
+  assert.match(index, /id="nexus-visual-stage"/u);
+  assert.match(index, /nexus-workspace\.js/u);
+  assert.doesNotMatch(index, /mountCanvas|canvas\.addPanel|portalHref/u);
+  assert.match(workspace, /Nexus Forge/u);
+  assert.match(workspace, /Blank Canvas/u);
+  assert.match(workspace, /window\.addEventListener\('nexus:navigate'/u);
+  assert.match(workspace, /Do not navigate me to a static page/u);
+});
+
+test('the static engines remain reachable underneath without becoming the default UI', () => {
+  const workspace = read('../public/nexus-workspace.js');
+  for (const route of ['mission-control', 'conference-room', 'room', 'story-studio', 'memory', 'connectors']) {
+    assert.match(workspace, new RegExp(`/${route}\\.html`, 'u'));
   }
+  assert.match(workspace, /Engine access/u);
 });
 
-test('canvas engine exposes camera navigation and lazy room portals', () => {
-  const engine = read('../public/canvas-engine.js');
-  assert.match(engine, /function focusPanel/u);
-  assert.match(engine, /function overview/u);
-  assert.match(engine, /function loadPortal/u);
-  assert.match(engine, /nexus-canvas-camera:/u);
-  assert.match(engine, /nexus_embed/u);
-});
-
-test('embedded rooms do not create a second global Nex chat bar', () => {
+test('the Nex dock is universal across operator pages and always has a Nexus return control', () => {
   const chat = read('../public/nex-chat-bar.js');
-  assert.match(chat, /window === window\.top/u);
-  assert.match(chat, /nexus_embed/u);
-});
-
-test('Thoughtspace camera controls merge into one fixed Nex command dock', () => {
-  const chat = read('../public/nex-chat-bar.js');
+  assert.match(chat, /id="nexHomeButton"/u);
+  assert.match(chat, /operatorPaths/u);
   assert.match(chat, /nex-thoughtspace-dock/u);
-  assert.match(chat, /document\.querySelector\('\.nexus-canvas-cockpit'\)/u);
-  assert.match(chat, /header\.insertBefore\(thoughtspaceCockpit/u);
-  assert.match(chat, /nex-thoughtspace-dock-expanded-v1/u);
-  assert.match(chat, /if \(isThoughtspaceDock\) return/u);
+  assert.match(chat, /nexus:open-dock/u);
+  assert.match(chat, /NexusWorkspace\.showView\('overview'\)/u);
+});
+
+test('pinned Nex visuals become the primary workspace surface', () => {
+  const panel = read('../public/pinned-visual-panel.js');
+  const styles = read('../public/pinned-visual-panel.css');
+  assert.match(panel, /getElementById\('nexus-visual-stage'\)/u);
+  assert.match(panel, /nexus:visual-updated/u);
+  assert.match(styles, /\.pinned-visual-panel\.is-workspace-surface/u);
+  assert.match(styles, /\.pinned-visual-panel\.workspace-hidden/u);
 });

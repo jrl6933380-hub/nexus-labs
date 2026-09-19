@@ -4,7 +4,7 @@
  * Embedded in the Conference Room and other rooms.
  */
 
-import './pinned-visual-panel.js?v=20260918-2';
+import './pinned-visual-panel.js?v=20260918-3';
 
 export function canSendNexMessage({ typedText, attachedVisual, visionMode }) {
   return Boolean(typedText || attachedVisual || visionMode);
@@ -190,6 +190,7 @@ export function createNexChatBar() {
           <span class="nex-status">Operational</span>
         </div>
         <div class="nex-chat-actions">
+          <button class="nex-home-button" id="nexHomeButton" aria-label="Return to Nexus Thoughtspace" title="Nexus Thoughtspace"><span aria-hidden="true">Nexus</span></button>
           <button class="nex-vision-toggle" id="nexVisionToggle" aria-label="Share the current tab visually with Nex" title="Share the current tab visually with Nex"><span aria-hidden="true">Vision</span></button>
           <button class="nex-voice-toggle" id="nexVoiceToggle" aria-label="Toggle spoken replies" title="Toggle spoken replies"><span aria-hidden="true">Audio</span></button>
           <button class="nex-chat-toggle" aria-label="Toggle chat" title="Open or minimize Nex chat">
@@ -327,6 +328,12 @@ export function createNexChatBar() {
       max-height: none;
     }
 
+    .nex-chat-bar-container.nex-thoughtspace-dock.collapsed .nex-chat-wrapper {
+      height: 58px;
+      flex-direction: row;
+      align-items: stretch;
+    }
+
     .nex-chat-bar-container.nex-thoughtspace-dock .nex-chat-header {
       cursor: default;
       gap: 10px;
@@ -334,13 +341,21 @@ export function createNexChatBar() {
 
     .nex-chat-bar-container.nex-thoughtspace-dock.collapsed .nex-chat-wrapper > .nex-chat-input-area {
       display: flex;
-      padding-top: 9px;
-      padding-bottom: 9px;
+      flex: 1 1 auto;
+      min-width: 0;
+      padding: 6px;
+      border-top: 0;
     }
 
     .nex-chat-bar-container.nex-thoughtspace-dock.collapsed .nex-chat-header {
-      border-bottom: 1px solid var(--nex-border);
+      flex: 0 0 auto;
+      padding: 6px 7px;
+      border-right: 1px solid var(--nex-border);
+      border-bottom: 0;
     }
+
+    .nex-chat-bar-container.nex-thoughtspace-dock.collapsed .nex-attach-btn,
+    .nex-chat-bar-container.nex-thoughtspace-dock.collapsed .nex-mic-btn { display: none; }
 
     .nex-chat-bar-container.nex-thoughtspace-dock .nexus-canvas-cockpit {
       position: static;
@@ -453,6 +468,7 @@ export function createNexChatBar() {
     }
 
     .nex-chat-toggle,
+    .nex-home-button,
     .nex-voice-toggle,
     .nex-vision-toggle {
       background: none;
@@ -473,7 +489,8 @@ export function createNexChatBar() {
     }
 
     .nex-voice-toggle,
-    .nex-vision-toggle {
+    .nex-vision-toggle,
+    .nex-home-button {
       width: auto;
       min-width: 46px;
       padding: 0 8px;
@@ -529,6 +546,7 @@ export function createNexChatBar() {
     }
 
     .nex-chat-toggle:hover,
+    .nex-home-button:hover,
     .nex-voice-toggle:hover,
     .nex-vision-toggle:hover {
       color: #fff;
@@ -872,6 +890,8 @@ export function createNexChatBar() {
         display: none;
       }
 
+      .nex-chat-bar-container.nex-thoughtspace-dock.collapsed .nex-chat-title > span:nth-child(3) { display: none; }
+
       .nex-chat-bar-container.nex-thoughtspace-dock .nexus-canvas-cockpit {
         padding: 0 5px;
         justify-content: flex-end;
@@ -910,17 +930,29 @@ export function createNexChatBar() {
   const visionToggle = container.querySelector('#nexVisionToggle');
   const messagesEl = container.querySelector('#nexMessages');
   const toggleBtn = container.querySelector('.nex-chat-toggle');
+  const homeButton = container.querySelector('#nexHomeButton');
   const header = container.querySelector('.nex-chat-header');
   const positionKey = 'nex-chat-dock-position-v1';
-  const thoughtspaceExpandedKey = 'nex-thoughtspace-dock-expanded-v1';
+  const thoughtspaceExpandedKey = 'nex-universal-dock-expanded-v2';
   const thoughtspaceCockpit = document.querySelector('.nexus-canvas-cockpit');
-  const isThoughtspaceDock = Boolean(thoughtspaceCockpit);
-  if (thoughtspaceCockpit) {
+  const operatorPaths = new Set(['/', '/index.html', '/mission-control.html', '/conference-room.html', '/room.html', '/canvas.html', '/nexus-canvas.html', '/memory.html', '/queue.html', '/connectors.html', '/tenants.html', '/story-studio.html']);
+  const isThoughtspaceDock = operatorPaths.has(window.location.pathname);
+  if (isThoughtspaceDock) {
     container.classList.add('nex-thoughtspace-dock');
-    thoughtspaceCockpit.classList.add('is-docked');
-    header.insertBefore(thoughtspaceCockpit, container.querySelector('.nex-chat-actions'));
+    if (thoughtspaceCockpit) {
+      thoughtspaceCockpit.classList.add('is-docked');
+      header.insertBefore(thoughtspaceCockpit, container.querySelector('.nex-chat-actions'));
+    }
     container.classList.toggle('collapsed', localStorage.getItem(thoughtspaceExpandedKey) !== '1');
   }
+
+  homeButton.addEventListener('click', () => {
+    if (window.NexusWorkspace) {
+      window.NexusWorkspace.showView('overview');
+      return;
+    }
+    window.location.href = '/';
+  });
 
   // Shared with mission-control.html's own model/effort picker via the
   // same localStorage keys, so a choice made in either interface carries
@@ -1577,6 +1609,12 @@ export function createNexChatBar() {
     container.classList.remove('collapsed');
     if (isThoughtspaceDock) localStorage.setItem(thoughtspaceExpandedKey, '1');
     send(prompt);
+  });
+
+  window.addEventListener('nexus:open-dock', () => {
+    container.classList.remove('collapsed');
+    if (isThoughtspaceDock) localStorage.setItem(thoughtspaceExpandedKey, '1');
+    input.focus();
   });
 
   let drag = null;
