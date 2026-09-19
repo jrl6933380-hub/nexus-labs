@@ -44,6 +44,10 @@ const SYSTEMS = [
 ];
 
 let boardSnapshot = null;
+let activeView = 'overview';
+let activeSection = null;
+const backStack = [];
+const forwardStack = [];
 
 function element(tag, className = '', text = null) {
   const node = document.createElement(tag);
@@ -140,6 +144,7 @@ function renderSystem(system) {
   const sections = element('section', 'workspace-section-grid');
   for (const [title, description] of system.sections) {
     const section = element('article', 'workspace-section');
+    section.dataset.sectionTitle = title;
     const header = element('header');
     header.append(element('h2', '', title), element('small', '', 'READY'));
     const controls = element('div', 'workspace-section-actions');
@@ -195,7 +200,20 @@ function showLatestVisual() {
   return true;
 }
 
-function showView(view) {
+function resolvedView(view) {
+  return view === 'overview' || view === 'blank' || SYSTEMS.some((system) => system.id === view) ? view : 'overview';
+}
+
+function showView(view, { record = true } = {}) {
+  view = resolvedView(view);
+  if (record && view !== activeView) {
+    backStack.push(activeView);
+    if (backStack.length > 30) backStack.shift();
+    forwardStack.length = 0;
+  }
+  const previous = activeView;
+  activeView = view;
+  activeSection = null;
   document.querySelectorAll('[data-workspace-view]').forEach((button) => button.classList.toggle('is-active', button.dataset.workspaceView === view));
   if (view === 'overview') renderOverview();
   else if (view === 'blank') renderBlank();
@@ -205,6 +223,40 @@ function showView(view) {
     else renderOverview();
   }
   history.replaceState({ nexusView: view }, '', view === 'overview' ? location.pathname : `#${view}`);
+  window.dispatchEvent(new CustomEvent('nexus:workspace-view-changed', { detail: { view, previous } }));
+}
+
+function focusSection(title) {
+  const wanted = String(title || '').toLowerCase();
+  const sections = [...stage.querySelectorAll('[data-section-title]')];
+  const target = sections.find((section) => section.dataset.sectionTitle.toLowerCase() === wanted);
+  sections.forEach((section) => section.classList.toggle('is-focused', section === target));
+  if (!target) return false;
+  activeSection = target.dataset.sectionTitle;
+  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  return true;
+}
+
+function moveHistory(from, to) {
+  if (!from.length) return false;
+  to.push(activeView);
+  showView(from.pop(), { record: false });
+  return true;
+}
+
+async function getLiveState() {
+  try {
+    const response = await fetch('/api/nex/action', {
+      method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ verb: 'snapshot', room_id: 'command-center' }),
+    });
+    const data = await response.json();
+    if (response.ok && data.snapshot) {
+      boardSnapshot = { ...(boardSnapshot || {}), ...data.snapshot };
+      return boardSnapshot;
+    }
+  } catch {}
+  return boardSnapshot || { telemetry: {} };
 }
 
 function systemForReference(reference) {
@@ -235,7 +287,17 @@ window.addEventListener('nexus:visual-updated', () => {
 window.addEventListener('nexus:workspace-overview', () => showView('overview'));
 
 window.NexusSpace = { openRoom(reference) { const system = systemForReference(reference); if (system) showView(system.id); } };
-window.NexusWorkspace = { showView, showLatestVisual, systems: SYSTEMS.map(({ id, title }) => ({ id, title })) };
+window.NexusWorkspace = {
+  showView,
+  showLatestVisual,
+  focusSection,
+  back: () => moveHistory(backStack, forwardStack),
+  forward: () => moveHistory(forwardStack, backStack),
+  getState: () => ({ view: activeView, section: activeSection }),
+  getLiveState,
+  labelForView(view) { return view === 'overview' ? 'System Overview' : view === 'blank' ? 'Blank Canvas' : SYSTEMS.find((system) => system.id === view)?.title || 'Thoughtspace'; },
+  systems: SYSTEMS.map(({ id, title }) => ({ id, title })),
+};
 
 try {
   const response = await fetch('/api/board', { headers: { Accept: 'application/json' }, cache: 'no-store' });
@@ -243,4 +305,4 @@ try {
 } catch {}
 
 const initial = location.hash.replace(/^#/u, '');
-showView(initial === 'blank' || SYSTEMS.some((system) => system.id === initial) ? initial : 'overview');
+showView(initial === 'blank' || SYSTEMS.some((system) => system.id === initial) ? initial : 'overview', { record: false });

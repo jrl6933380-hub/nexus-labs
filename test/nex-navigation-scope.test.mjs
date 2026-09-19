@@ -13,7 +13,8 @@ test('shared Nex dock only sends room navigation to the in-place room switcher',
   );
   assert.match(chatBar, /window\.dispatchEvent\(event\)/);
   assert.doesNotMatch(chatBar, /window\.location\.assign\(data\.navigation\.url\)/);
-  assert.match(dashboard, /await import\('\/nex-chat-bar\.js\?v=20260919-1'\);/);
+  assert.match(dashboard, /await import\('\/workspace-director\.js\?v=20260919-1'\);/);
+  assert.match(dashboard, /await import\('\/nex-chat-bar\.js\?v=20260919-2'\);/);
 });
 
 test('NexusSpace still handles deliberate in-place room navigation', () => {

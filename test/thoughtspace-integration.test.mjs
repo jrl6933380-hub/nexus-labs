@@ -14,6 +14,9 @@ test('owner dashboard is one visual workspace instead of a stack of static room 
   assert.match(workspace, /Blank Canvas/u);
   assert.match(workspace, /window\.addEventListener\('nexus:navigate'/u);
   assert.match(workspace, /do not navigate to a legacy page/u);
+  assert.match(index, /workspace-director\.js/u);
+  assert.match(workspace, /focusSection/u);
+  assert.match(workspace, /getLiveState/u);
 });
 
 test('the static engines are hidden behind a developer fallback instead of driving the workspace', () => {
@@ -33,6 +36,7 @@ test('the Nex dock is universal across operator pages and always has a Nexus ret
   assert.match(chat, /nex-thoughtspace-dock/u);
   assert.match(chat, /nexus:open-dock/u);
   assert.match(chat, /NexusWorkspace\.showView\('overview'\)/u);
+  assert.match(chat, /window\.NexusDirector\.handle\(text\)/u);
 });
 
 test('pinned Nex visuals become the primary workspace surface', () => {

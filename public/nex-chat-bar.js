@@ -605,6 +605,14 @@ export function createNexChatBar() {
       color: var(--nex-text-dim);
     }
 
+    .nex-message.nexus-system {
+      background: rgba(180, 121, 255, .075);
+      border-left: 2px solid #b479ff;
+      color: var(--nex-text);
+      align-self: flex-start;
+      max-width: 90%;
+    }
+
     .nex-message.nex-user {
       background: rgba(93, 184, 255, .11);
       border-left: 2px solid var(--nex-accent);
@@ -1483,6 +1491,20 @@ export function createNexChatBar() {
       localStorage.setItem(thoughtspaceExpandedKey, '1');
     }
     const text = typedText || 'Look at this image.';
+
+    // Thoughtspace has a deterministic nervous system for routine movement
+    // and known controls. Keep those commands instant and model-free; only
+    // ambiguous, creative, or reasoning-heavy requests continue to Nex.
+    if (!attachedVisual && !visionMode && window.NexusDirector) {
+      const directed = await window.NexusDirector.handle(text);
+      if (directed?.handled) {
+        addMessage(text, 'nex-user');
+        input.value = '';
+        addMessage(directed.reply, 'nexus-system');
+        return;
+      }
+    }
+
     sending = true;
     let visualForMessage;
     try { visualForMessage = attachedVisual || await captureVisualFrame(); }

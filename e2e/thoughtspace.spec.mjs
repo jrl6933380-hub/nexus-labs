@@ -1,11 +1,14 @@
 import { expect, test } from '@playwright/test';
 
-async function mockNexus(page, visual = null) {
+async function mockNexus(page, visual = null, hooks = {}) {
   await page.route('**/api/**', async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === '/api/nexus-auth') return route.fulfill({ json: { owner: { id: 'mrlopez' } } });
     if (url.pathname === '/api/board') return route.fulfill({ json: { tasks: [], messages: [], agents: [], telemetry: { total_tasks: 8, completed_tasks: 5, needs_approval: 1, active_agents: 2 } } });
-    if (url.pathname === '/api/chat') return route.fulfill({ json: { messages: [] } });
+    if (url.pathname === '/api/chat') {
+      if (route.request().method() === 'POST') hooks.onChatPost?.();
+      return route.fulfill({ json: { messages: [] } });
+    }
     if (url.pathname === '/api/pinned-visuals') return route.fulfill({ json: { visual } });
     if (url.pathname === '/api/nex/action') return route.fulfill({ json: { ok: true, snapshot: { tasks: [], agents: [], approvals: [], telemetry: {} } } });
     return route.fulfill({ status: 404, json: { error: 'not mocked' } });
@@ -48,4 +51,19 @@ test('phone view keeps one compact dock and a usable blank canvas', async ({ pag
   await page.getByRole('button', { name: 'Blank Canvas' }).click();
   await expect(page.getByRole('heading', { name: 'Start with nothing.' })).toBeVisible();
   await expect(page.locator('#nexus-visual-stage')).toBeVisible();
+});
+
+test('known system commands move Thoughtspace without calling an AI', async ({ page }) => {
+  let chatPosts = 0;
+  await mockNexus(page, null, { onChatPost: () => { chatPosts += 1; } });
+  await page.goto('/');
+
+  const input = page.locator('#nexChatBar .nex-chat-input');
+  await input.fill('show deployments');
+  await input.press('Enter');
+
+  await expect(page.getByRole('heading', { name: 'Command Deck' })).toBeVisible();
+  await expect(page.locator('[data-section-title="Deployments"]')).toHaveClass(/is-focused/u);
+  await expect(page.getByText('Deployments is in focus.')).toBeVisible();
+  expect(chatPosts).toBe(0);
 });
