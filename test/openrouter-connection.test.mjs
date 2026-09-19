@@ -38,6 +38,22 @@ test('PKCE start binds a one-time attempt to the Forge account and project', asy
   assert.equal(started.tenantId, forgeCredentialScope({ ownerUsername: 'alice', projectId: 'salon' }));
 });
 
+test('preview OAuth returns to the preview deployment instead of production', async () => {
+  const started = await beginOpenRouterOAuth({
+    ownerUsername: 'alice',
+    projectId: 'preview-app',
+    store: createMemoryAttemptStore(),
+    env: {
+      VERCEL_ENV: 'preview',
+      VERCEL_URL: 'preview.example.vercel.app',
+      VERCEL_PROJECT_PRODUCTION_URL: 'forge.example',
+      NODE_ENV: 'production',
+    },
+  });
+  const callback = new URL(new URL(started.authorizeUrl).searchParams.get('callback_url'));
+  assert.equal(callback.origin, 'https://preview.example.vercel.app');
+});
+
 test('callback exchanges and validates the key once without returning it as metadata', async () => {
   const store = createMemoryAttemptStore();
   const started = await beginOpenRouterOAuth({
