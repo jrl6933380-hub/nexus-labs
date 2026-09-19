@@ -94,6 +94,70 @@ export const FORGE_VIEWS = {
     },
   },
 
+  stack: {
+    label: 'Your Stack',
+    icon: '⬡',
+    say: ['stack', 'my stack', 'your stack', 'setup', 'services'],
+    async render(ctx) {
+      const nodes = [];
+      let manifest = null;
+      try { manifest = await getJSON('/api/forge-stack?projectId=default'); } catch {}
+
+      if (!manifest?.slots) {
+        nodes.push(say(`I couldn't load your stack checklist just now. Nothing was marked connected.`));
+        nodes.push(chips([
+          { label: 'Try again', run: () => ctx.go('stack') },
+          { label: 'Ask Nex', run: () => ctx.ask('Help me check what my project needs to run.') },
+        ]));
+        return nodes;
+      }
+
+      const progress = manifest.progress || { ready: 0, required: 0, percent: 0 };
+      nodes.push(say(
+        progress.required
+          ? `Your project stack is ${progress.percent}% ready — ${progress.ready} of ${progress.required} required pieces are tested and working. I'll walk you through the rest one piece at a time.`
+          : `Tell me what you're building and I'll turn it into a stack checklist.`
+      ));
+
+      const statusLabel = {
+        not_needed: 'optional',
+        recommended: 'next',
+        selected: 'selected',
+        connecting: 'connecting',
+        connected: 'test needed',
+        testing: 'testing',
+        ready: 'ready',
+        error: 'needs attention',
+        skipped: 'skipped',
+      };
+      const entries = Object.entries(manifest.slots);
+      const required = entries.filter(([, slot]) => slot.required);
+      const optional = entries.filter(([, slot]) => !slot.required);
+      const makeRow = ([slotId, slot]) => {
+        const definition = manifest.catalog?.[slotId] || {};
+        const provider = slot.provider
+          ? (definition.providers || []).find((item) => item.id === slot.provider)?.label || slot.provider
+          : 'Choose when needed';
+        const label = statusLabel[slot.status] || slot.status;
+        return row({
+          title: definition.label || slotId,
+          meta: `${provider} · ${definition.purpose || 'Project service'}`,
+          tone: { label, kind: slot.status === 'ready' ? 'f' : 'g' },
+          onClick: () => ctx.ask(`Walk me through setting up ${definition.label || slotId} for my project. Check its real connection state first and do not call it ready until it passes a test.`),
+        });
+      };
+
+      if (required.length) nodes.push(group('Needed for this project', required.map(makeRow)));
+      if (optional.length) nodes.push(group('Add when you need them', optional.map(makeRow)));
+      nodes.push(chips([
+        { label: 'Plan my stack', run: () => ctx.ask('Ask me what I am building, then recommend the full stack it needs and update my checklist.') },
+        { label: 'Set up the next piece', run: () => ctx.ask('Open my stack checklist and walk me through the next unfinished required piece.') },
+        { label: 'Add a database', run: () => ctx.ask('I need a database. Explain the recommended option and walk me through connecting it.') },
+      ]));
+      return nodes;
+    },
+  },
+
   brain: {
     label: 'Builder Brain',
     icon: '◉',
@@ -171,6 +235,7 @@ export const FORGE_VIEWS = {
           row({ title: 'Your Project', meta: '“project”', onClick: () => ctx.go('project') }),
           row({ title: 'Pages', meta: '“pages”', onClick: () => ctx.go('pages') }),
           row({ title: 'Preview', meta: '“preview”', onClick: () => ctx.go('preview') }),
+          row({ title: 'Your Stack', meta: '“stack”', onClick: () => ctx.go('stack') }),
           row({ title: 'Builder Brain', meta: '“brain”', onClick: () => ctx.go('brain') }),
           row({ title: 'Plan', meta: '“plan”', onClick: () => ctx.go('billing') }),
         ]),
