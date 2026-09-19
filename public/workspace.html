@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0e0e0e" />
+<title>Nexus // Workspace</title>
+<!--
+  /workspace.html — chat-first shell.
+
+  Deliberately a NEW route. /nexus-space.html, /mission-control.html and every
+  other surface are untouched, so this can be lived with (or abandoned) without
+  taking anything away first.
+
+  Shape: conversation is the workspace. Navigation lives behind a hamburger that
+  pushes the whole screen aside rather than overlaying it, so the thread always
+  owns the full width. Anything Nex renders lands inline in the thread and
+  scrolls with it, instead of taking over one pinned slot that the next visual
+  overwrites.
+
+  Two paths out of the composer, which is the point of the thing:
+    - a known command routes locally and moves the view with no model call
+    - anything else goes to Nex via /api/chat
+  The local table below is intentionally small and literal. It is a router, not
+  an intent classifier: if it is not an exact known phrase it must fall through
+  to Nex rather than guess, because a navigation command that silently does the
+  wrong thing is worse than one that takes a second.
+-->
+<style>
+  :root{
+    --bg:#0e0e0e; --rail:#141414; --tx:#f2f0ed; --dm:#8f8b85; --ln:#262626;
+    --card:#131313; --chip:#1f1f1f; --rw:212px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--rail);color:var(--tx);overflow:hidden;
+    font-family:-apple-system,"SF Pro Text",Inter,system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  button{cursor:pointer;border:0;background:none;color:inherit;font:inherit;text-align:left}
+
+  /* ---------- rail ---------- */
+  .rail{position:fixed;inset:0 auto 0 0;width:var(--rw);display:flex;flex-direction:column;
+    padding:calc(env(safe-area-inset-top) + 20px) 12px 14px}
+  .brand{font:400 26px ui-serif,Georgia,"Times New Roman",serif;padding:0 10px 20px}
+  .item{display:flex;align-items:center;gap:13px;width:100%;padding:10px;border-radius:10px;
+    font-size:15px;color:#e4e1dd;transition:background .13s}
+  .item:hover{background:#1e1e1e}
+  .item.on{background:#2a2a2a}
+  .ic{width:17px;text-align:center;font-size:14px;color:#a5a09a;flex-shrink:0}
+  .grp{font-size:12.5px;color:var(--dm);padding:0 10px;margin:18px 0 6px}
+  .recents{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .recents .item{font-size:14.5px;color:#cfcbc5;padding:9px 10px}
+  .dot{width:6px;height:6px;border-radius:50%;background:#4a4a4a;flex-shrink:0;margin-left:5px}
+  .tr{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .new{margin-top:10px;display:flex;align-items:center;justify-content:center;gap:8px;
+    background:#f2f0ed;color:#0e0e0e;border-radius:24px;padding:12px;font-size:15px;font-weight:500}
+
+  /* ---------- screen ---------- */
+  .screen{position:fixed;inset:0;background:var(--bg);z-index:5;display:flex;flex-direction:column;
+    transition:transform .32s cubic-bezier(.32,.72,0,1);will-change:transform;
+    box-shadow:-16px 0 44px rgba(0,0,0,.65)}
+  .screen.open{transform:translateX(var(--rw))}
+
+  .top{display:flex;align-items:center;gap:18px;padding:calc(env(safe-area-inset-top) + 14px) 16px 10px}
+  .burger{width:21px;display:flex;flex-direction:column;gap:4.5px;flex-shrink:0;padding:6px 0}
+  .burger i{display:block;height:1.8px;background:#d8d4cf;border-radius:2px}
+  .burger i:nth-child(2){width:14px}.burger i:nth-child(3){width:17px}
+  .grow{flex:1}
+  .ticon{font-size:17px;color:#d8d4cf;opacity:.85;padding:4px}
+
+  .thread{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 18px 4px}
+  .msg{margin-bottom:26px}
+  .msg.u{display:flex;justify-content:flex-end}
+  .msg.u .body{background:#1f1f1f;padding:12px 17px;border-radius:20px;max-width:82%;
+    font-size:16px;line-height:1.5}
+  .msg.a .body{font:400 16.5px/1.72 ui-serif,Georgia,"Times New Roman",serif;color:#efece8}
+  .msg.a .body p{margin-bottom:15px}
+  .msg.a .body p:last-child{margin-bottom:0}
+  .msg.sys .body{font-size:14px;color:var(--dm);line-height:1.6}
+
+  /* an inline visual: full width, scrolls with the thread, never a slot */
+  .visual{margin-top:14px;border:1px solid var(--ln);border-radius:14px;overflow:hidden;background:var(--card)}
+  .visual iframe{display:block;width:100%;border:0;background:var(--card)}
+  .vbar{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--ln)}
+  .vt{font-size:12.5px;color:#cfcbc5}
+  .vb{margin-left:auto;font-size:12px;color:var(--dm);padding:5px 10px;border-radius:7px;background:#191919}
+  .vb:hover{color:var(--tx)}
+
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
+  .chip{font-size:13.5px;padding:9px 15px;border-radius:20px;background:#191919;
+    border:1px solid var(--ln);color:#c4c0ba;transition:.13s}
+  .chip:hover{border-color:#3a3a3a;color:var(--tx)}
+
+  .disc{font-size:12.5px;color:#6e6a64;padding:6px 18px 10px}
+  .foot{padding:0 14px calc(env(safe-area-inset-bottom) + 14px)}
+  .comp{border:1px solid #2e2e2e;border-radius:24px;padding:14px 15px 11px;background:var(--card)}
+  .comp input{width:100%;background:none;border:0;outline:none;color:var(--tx);font-size:16px}
+  .comp input::placeholder{color:#7a766f}
+  .crow{display:flex;align-items:center;gap:9px;margin-top:13px}
+  .round{width:31px;height:31px;border-radius:50%;background:var(--chip);display:flex;
+    align-items:center;justify-content:center;font-size:17px;color:#cfcbc5;flex-shrink:0}
+  .pill{padding:7px 14px;border-radius:18px;background:var(--chip);font-size:13.5px;color:#cfcbc5}
+  .pill em{font-style:normal;color:#7a766f}
+  .send{width:33px;height:33px;border-radius:50%;background:#f2f0ed;color:#0e0e0e;display:flex;
+    align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+  .send[disabled]{opacity:.4;cursor:default}
+
+  /* ---------- capability sheet ---------- */
+  .sheet{position:fixed;inset:auto 0 0 0;max-height:76%;background:var(--rail);z-index:20;
+    border-radius:20px 20px 0 0;border-top:1px solid var(--ln);overflow-y:auto;
+    padding:0 16px calc(env(safe-area-inset-bottom) + 20px);
+    transform:translateY(101%);transition:transform .3s cubic-bezier(.32,.72,0,1)}
+  .sheet.on{transform:translateY(0)}
+  .grab{width:36px;height:4px;background:#3a3a3a;border-radius:3px;margin:10px auto 6px}
+  .sh{font:400 20px ui-serif,Georgia,serif;padding:8px 2px 4px}
+  .ss{font-size:13.5px;color:var(--dm);line-height:1.6;padding:0 2px 14px}
+  .cap{display:flex;align-items:center;gap:11px;padding:11px;border-radius:11px;background:#191919;margin-bottom:7px}
+  .cn{font-size:14.5px}
+  .cd{font-size:12px;color:var(--dm);margin-top:3px;line-height:1.45}
+  .tag{margin-left:auto;font-size:11px;padding:4px 9px;border-radius:20px;flex-shrink:0}
+  .tag.f{background:#16281f;color:#68d9a4}
+  .tag.g{background:#2b2318;color:#e3b467}
+  .scrim{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:15;opacity:0;pointer-events:none;
+    transition:opacity .28s}
+  .scrim.on{opacity:1;pointer-events:auto}
+
+  @media (min-width:900px){
+    .screen{left:var(--rw);transform:none!important;box-shadow:none;border-left:1px solid var(--ln)}
+    .burger{display:none}
+    .thread,.foot,.disc{max-width:780px;margin-left:auto;margin-right:auto;width:100%}
+  }
+</style>
+</head>
+<body>
+
+<nav class="rail" id="rail">
+  <div class="brand">Nexus</div>
+  <button class="item on" data-view="chat"><span class="ic">◇</span>Workspace</button>
+  <button class="item" data-go="/mission-control.html"><span class="ic">◈</span>Command Deck</button>
+  <button class="item" data-go="/room.html"><span class="ic">⚒</span>Forge</button>
+  <button class="item" data-go="/story-studio.html"><span class="ic">✦</span>Story Studio</button>
+  <button class="item" data-go="/conference-room.html"><span class="ic">⬡</span>AI Team</button>
+  <button class="item" data-go="/queue.html"><span class="ic">⚑</span>Approvals</button>
+  <button class="item" data-go="/memory.html"><span class="ic">◍</span>Memory</button>
+  <button class="item" id="capBtn"><span class="ic">?</span>What can you do</button>
+  <div class="grp">Recents</div>
+  <div class="recents" id="recents"></div>
+  <button class="new" id="newBtn">+&nbsp; New</button>
+</nav>
+
+<div class="screen" id="screen">
+  <div class="top">
+    <button class="burger" id="burger" aria-label="Menu"><i></i><i></i><i></i></button>
+    <div class="grow"></div>
+    <button class="ticon" id="capTop" aria-label="Capabilities">◫</button>
+    <button class="ticon" id="newTop" aria-label="New">＋</button>
+  </div>
+
+  <div class="thread" id="thread"></div>
+
+  <div class="disc">Nex can make mistakes.</div>
+
+  <div class="foot">
+    <div class="comp">
+      <input id="input" placeholder="Command or question…" autocomplete="off" />
+      <div class="crow">
+        <div class="round">+</div>
+        <div class="pill">Nex <em id="tier">Heavy</em></div>
+        <div class="grow"></div>
+        <button class="send" id="send" aria-label="Send">↑</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet">
+  <div class="grab"></div>
+  <div class="sh">Where I can take you</div>
+  <div class="ss">Type any of these and the workspace moves immediately — no model call, no waiting.</div>
+  <div id="cmdList"></div>
+  <div class="sh" style="margin-top:14px">What I can act on</div>
+  <div class="ss">Anything on a button Nex draws comes from this list. Nothing outside it can be clicked into existence.</div>
+  <div class="cap"><div><div class="cn">prompt</div><div class="cd">Send a message to Nex</div></div><div class="tag f">free</div></div>
+  <div class="cap"><div><div class="cn">open-system</div><div class="cd">Move the workspace to another surface</div></div><div class="tag f">free</div></div>
+  <div class="cap"><div><div class="cn">snapshot</div><div class="cd">Read what's currently on screen</div></div><div class="tag f">free</div></div>
+  <div class="cap"><div><div class="cn">create-task · update-task</div><div class="cd">Writes to the Agent Board</div></div><div class="tag g">gated</div></div>
+  <div class="cap"><div><div class="cn">approve · reject</div><div class="cd">Acts on the approval queue</div></div><div class="tag g">gated</div></div>
+</div>
+
+<script type="module">
+// ---------------------------------------------------------------------------
+// Local command table. Exact phrases only — see the header comment: this is a
+// router, not a classifier. Unknown input falls through to Nex on purpose.
+// ---------------------------------------------------------------------------
+const DESTINATIONS = [
+  { label:'Command Deck', url:'/mission-control.html', say:['command deck','mission control','command center','deck'] },
+  { label:'Forge',        url:'/room.html',            say:['forge','open forge','builder','room builder'] },
+  { label:'Story Studio', url:'/story-studio.html',    say:['story studio','story','comic'] },
+  { label:'AI Team',      url:'/conference-room.html', say:['ai team','conference room','agents'] },
+  { label:'Approvals',    url:'/queue.html',           say:['approvals','approval queue','queue'] },
+  { label:'Memory',       url:'/memory.html',          say:['memory','memories','archive'] },
+  { label:'Connectors',   url:'/connectors.html',      say:['connectors','integrations','tools'] },
+  { label:'Forge Ops',    url:'/forge-dashboard.html', say:['forge ops','forge dashboard','operator'] },
+  { label:'Forge Field',  url:'/forge-caller.html',    say:['forge field','caller','leads'] },
+];
+
+const el = (id) => document.getElementById(id);
+const thread = el('thread');
+const screenEl = el('screen');
+
+function railOpen(open){ screenEl.classList.toggle('open', open); }
+el('burger').onclick = () => railOpen(!screenEl.classList.contains('open'));
+screenEl.addEventListener('click', (e) => {
+  if (screenEl.classList.contains('open') && !e.target.closest('#burger')) railOpen(false);
+}, true);
+
+function sheet(on){ el('sheet').classList.toggle('on', on); el('scrim').classList.toggle('on', on); }
+el('capBtn').onclick = () => { railOpen(false); setTimeout(() => sheet(true), 260); };
+el('capTop').onclick = () => sheet(true);
+el('scrim').onclick = () => sheet(false);
+el('sheet').querySelector('.grab').onclick = () => sheet(false);
+
+// Render the destination list into the sheet so it can never drift from the
+// table the router actually uses.
+el('cmdList').innerHTML = DESTINATIONS.map((d) =>
+  `<div class="cap"><div><div class="cn">${d.label}</div><div class="cd">“${d.say[0]}”</div></div></div>`
+).join('');
+
+for (const button of document.querySelectorAll('[data-go]')) {
+  button.onclick = () => { location.href = button.dataset.go; };
+}
+
+function bubble(role, html){
+  const wrap = document.createElement('div');
+  wrap.className = `msg ${role}`;
+  const body = document.createElement('div');
+  body.className = 'body';
+  body.innerHTML = html;
+  wrap.appendChild(body);
+  thread.appendChild(wrap);
+  thread.scrollTop = thread.scrollHeight;
+  return body;
+}
+function escape(text){
+  return String(text).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+function paragraphs(text){
+  return String(text).split(/\n{2,}/).map((p) => `<p>${escape(p).replace(/\n/g,'<br>')}</p>`).join('');
+}
+
+// An inline visual. Sandboxed the same way the pinned panel does it: no network,
+// no same-origin, data: images only. It sits in the thread and scrolls away like
+// any other message rather than occupying a slot something else will overwrite.
+function renderVisual(widgetCode, title){
+  const card = document.createElement('div');
+  card.className = 'visual';
+  const csp = "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; media-src data:; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'";
+  card.innerHTML = `<div class="vbar"><span class="vt">${escape(title || 'Visual')}</span>
+    <button class="vb">Pin</button></div>`;
+  const frame = document.createElement('iframe');
+  frame.setAttribute('sandbox','allow-scripts');
+  frame.setAttribute('referrerpolicy','no-referrer');
+  frame.srcdoc = `<!DOCTYPE html><html><head><meta charset="utf-8">
+    <meta http-equiv="Content-Security-Policy" content="${csp}">
+    <style>html,body{margin:0;background:#131313;color:#f2f0ed;
+      font-family:-apple-system,system-ui,sans-serif}</style></head>
+    <body>${widgetCode}</body></html>`;
+  frame.style.height = '420px';
+  card.appendChild(frame);
+  thread.appendChild(card);
+  thread.scrollTop = thread.scrollHeight;
+}
+window.NexusWorkspaceRenderVisual = renderVisual;
+
+const RECENTS_KEY = 'nexus:workspace:recents';
+function loadRecents(){
+  let list = [];
+  try { list = JSON.parse(localStorage.getItem(RECENTS_KEY) || '[]'); } catch { list = []; }
+  el('recents').innerHTML = list.length
+    ? list.map((r) => `<button class="item"><span class="dot"></span><span class="tr">${escape(r)}</span></button>`).join('')
+    : '<div style="font-size:13px;color:#5f5b56;padding:8px 10px">Nothing yet</div>';
+}
+function noteRecent(text){
+  let list = [];
+  try { list = JSON.parse(localStorage.getItem(RECENTS_KEY) || '[]'); } catch { list = []; }
+  list = [text.slice(0, 48), ...list.filter((x) => x !== text.slice(0, 48))].slice(0, 12);
+  try { localStorage.setItem(RECENTS_KEY, JSON.stringify(list)); } catch {}
+  loadRecents();
+}
+loadRecents();
+
+function matchDestination(raw){
+  const text = raw.toLowerCase().trim().replace(/^(open|go to|show|take me to|switch to)\s+/,'').replace(/[.?!]$/,'');
+  return DESTINATIONS.find((d) => d.say.includes(text)) || null;
+}
+
+let busy = false;
+const history = [];
+
+async function submit(){
+  const raw = el('input').value.trim();
+  if (!raw || busy) return;
+  el('input').value = '';
+  bubble('u', escape(raw));
+
+  // Path 1 — known command. Moves the workspace with no model call.
+  const destination = matchDestination(raw);
+  if (destination) {
+    bubble('sys', `Opening ${escape(destination.label)}…`);
+    setTimeout(() => { location.href = destination.url; }, 260);
+    return;
+  }
+  if (/^(what can you do|help|options|capabilities)$/i.test(raw)) { sheet(true); return; }
+
+  // Path 2 — everything else goes to Nex.
+  busy = true;
+  el('send').disabled = true;
+  const pending = bubble('a', '<p style="color:#6e6a64">Thinking…</p>');
+  try {
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: raw, history }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data?.error || `Request failed (${response.status})`);
+    const reply = data.reply || 'No reply came back.';
+    pending.innerHTML = paragraphs(reply);
+    history.push({ role: 'user', content: raw }, { role: 'assistant', content: reply });
+    noteRecent(raw);
+    // Nex can ask the workspace to move; honour it the same as a typed command.
+    if (data.navigation?.url) {
+      bubble('sys', `Opening ${escape(data.navigation.room || data.navigation.url)}…`);
+      setTimeout(() => { location.href = data.navigation.url; }, 500);
+    }
+  } catch (error) {
+    pending.innerHTML = `<p style="color:#c98b78">${escape(error.message)}</p>`;
+  } finally {
+    busy = false;
+    el('send').disabled = false;
+  }
+}
+
+el('send').onclick = submit;
+el('input').addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+el('newBtn').onclick = el('newTop').onclick = () => {
+  thread.innerHTML = '';
+  history.length = 0;
+  railOpen(false);
+  greet();
+};
+
+function greet(){
+  bubble('a', paragraphs(
+    'This is the workspace. Type where you want to go and it moves immediately — “forge”, “approvals”, “memory”.\n\nAnything else is a question for me.'
+  ));
+  const chips = document.createElement('div');
+  chips.className = 'chips';
+  for (const d of DESTINATIONS.slice(0, 4)) {
+    const b = document.createElement('button');
+    b.className = 'chip';
+    b.textContent = d.label;
+    b.onclick = () => { location.href = d.url; };
+    chips.appendChild(b);
+  }
+  const ask = document.createElement('button');
+  ask.className = 'chip';
+  ask.textContent = 'What can you do';
+  ask.onclick = () => sheet(true);
+  chips.appendChild(ask);
+  thread.lastChild.appendChild(chips);
+}
+greet();
+</script>
+</body>
+</html>
