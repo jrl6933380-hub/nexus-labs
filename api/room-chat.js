@@ -1,12 +1,13 @@
 // api/room-chat.js
 // Live-canvas room, v3: generates a real, complete, self-contained HTML
-// document per request (inline CSS/JS), streamed token-by-token through
-// the centrally funded Vercel AI Gateway via modelRouter. A full page for an ambitious request can
-// genuinely take longer to generate than modelRouter's 90s hard
+// document per request (inline CSS/JS), streamed token-by-token. Hosted
+// Room requests use the Vercel AI Gateway; Forge requests explicitly use the
+// signed-in customer's OpenRouter connection and fail closed if it is absent.
+// A full page for an ambitious request can genuinely take longer than modelRouter's 90s hard
 // timeout ceiling (tuned for normal chat replies, not this), so it uses
 // routeMessageStream and owns the longer request deadline itself. This
-// route is deliberately Gateway-only: removing or exhausting a separate
-// direct Anthropic account must never disable customer builds.
+// Hosted Room routing remains deliberately Gateway-only: removing or
+// exhausting a separate direct Anthropic account must never disable it.
 //
 // v4: follow-up edits (currentHtml present) now ask for a small patch
 // instead of a full-document rewrite. Re-sending and re-generating the
