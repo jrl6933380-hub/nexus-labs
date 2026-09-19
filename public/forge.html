@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0b0c0f" />
+<title>Nexus Forge</title>
+<!--
+  /forge.html — the customer's workspace.
+
+  Same shell as the operator's (/workspace.html): rail behind a hamburger that
+  pushes the screen, thread as the surface, rooms as views, draggable Nex head.
+  Different furniture and a different gate.
+
+  Nex is the same identity with a Forge tool belt and a Forge persona. He is
+  walking someone into building something, not running a business with them —
+  so no operator language anywhere in this file.
+
+  Auth is roomAuth (/api/room-auth, /room-login.html), NOT the owner gate. A
+  customer must never reach an owner surface and the owner's session must never
+  be what lets a customer in. This is the same reason the rail here links to
+  nothing outside Forge.
+-->
+<style>
+  :root{
+    --bg:#0b0c0f; --rail:#111318; --tx:#f2f0ed; --dm:#8b8f99; --ln:#232733;
+    --card:#14171e; --chip:#1d212a; --accent:#c8a86b; --rw:214px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--rail);color:var(--tx);overflow:hidden;
+    font-family:-apple-system,"SF Pro Text",Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  button{cursor:pointer;border:0;background:none;color:inherit;font:inherit;text-align:left}
+
+  .rail{position:fixed;inset:0 auto 0 0;width:var(--rw);display:flex;flex-direction:column;
+    padding:calc(env(safe-area-inset-top) + 20px) 12px 14px}
+  .brand{padding:0 10px 18px}
+  .brand b{display:block;font:400 25px ui-serif,Georgia,"Times New Roman",serif}
+  .brand small{display:block;font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--accent);margin-top:3px}
+  .item{display:flex;align-items:center;gap:13px;width:100%;padding:10px;border-radius:10px;
+    font-size:15px;color:#e2e0dc;transition:background .13s}
+  .item:hover{background:#1a1e26}
+  .item.on{background:#242935}
+  .ic{width:17px;text-align:center;font-size:14px;color:#9aa0ad;flex-shrink:0}
+  .grp{font-size:12.5px;color:var(--dm);padding:0 10px;margin:16px 0 6px}
+  .scrollpart{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0}
+  .scrollpart .item{font-size:14.5px;color:#c8ccd4;padding:9px 10px}
+  .dot{width:6px;height:6px;border-radius:50%;background:#474d5b;flex-shrink:0;margin-left:5px}
+  .tr{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .new{margin-top:10px;display:flex;align-items:center;justify-content:center;gap:8px;
+    background:var(--accent);color:#17130a;border-radius:24px;padding:12px;font-size:15px;font-weight:600}
+
+  .screen{position:fixed;inset:0;background:var(--bg);z-index:5;display:flex;flex-direction:column;
+    transition:transform .32s cubic-bezier(.32,.72,0,1);will-change:transform;
+    box-shadow:-16px 0 44px rgba(0,0,0,.65)}
+  .screen.open{transform:translateX(var(--rw))}
+
+  .top{display:flex;align-items:center;gap:16px;padding:calc(env(safe-area-inset-top) + 14px) 16px 10px}
+  .burger{width:21px;display:flex;flex-direction:column;gap:4.5px;flex-shrink:0;padding:6px 0}
+  .burger i{display:block;height:1.8px;background:#d4d2ce;border-radius:2px}
+  .burger i:nth-child(2){width:14px}.burger i:nth-child(3){width:17px}
+  .vt{font-size:15px;color:#c0c4cc}
+  .grow{flex:1}
+  .ticon{font-size:17px;color:#d4d2ce;opacity:.85;padding:4px}
+
+  .thread{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 18px 4px}
+  .msg{margin-bottom:24px}
+  .msg.u{display:flex;justify-content:flex-end}
+  .msg.u .body{background:#232833;padding:12px 17px;border-radius:20px;max-width:82%;font-size:16px;line-height:1.5}
+  .msg.a .body{font:400 16.5px/1.72 ui-serif,Georgia,"Times New Roman",serif;color:#eeece8}
+  .msg.a .body p{margin-bottom:15px}
+  .msg.a .body p:last-child{margin-bottom:0}
+  .msg.sys .body{font-size:14px;color:var(--dm);line-height:1.6}
+
+  .lgroup{margin-bottom:18px}
+  .lhead{font-size:12.5px;color:var(--dm);margin-bottom:8px}
+  .lrow{display:flex;align-items:center;gap:12px;width:100%;padding:13px 14px;border-radius:12px;
+    background:var(--card);border:1px solid var(--ln);margin-bottom:7px;transition:border-color .13s}
+  button.lrow:hover{border-color:#3b4354}
+  .lt{font-size:15px;line-height:1.35}
+  .lm{font-size:12.5px;color:var(--dm);margin-top:4px;line-height:1.4}
+  .tag{margin-left:auto;font-size:11px;padding:4px 9px;border-radius:20px;flex-shrink:0;white-space:nowrap}
+  .tag.f{background:#16281f;color:#68d9a4}
+  .tag.g{background:#2b2318;color:#e3b467}
+  .lempty{font-size:14px;color:#61656f;padding:10px 2px 18px}
+
+  .visual{margin-top:14px;border:1px solid var(--ln);border-radius:14px;overflow:hidden;background:var(--card)}
+  .visual iframe{display:block;width:100%;border:0;background:var(--card)}
+  .vbar{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--ln)}
+  .vname{font-size:12.5px;color:#c8ccd4}
+
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 6px}
+  .chip{font-size:13.5px;padding:9px 15px;border-radius:20px;background:#191d25;
+    border:1px solid var(--ln);color:#c0c4cc;transition:.13s}
+  .chip:hover{border-color:#3b4354;color:var(--tx)}
+
+  .disc{font-size:12.5px;color:#61656f;padding:6px 18px 10px}
+  .foot{padding:0 14px calc(env(safe-area-inset-bottom) + 14px)}
+  .comp{border:1px solid #2b3040;border-radius:24px;padding:14px 15px 11px;background:var(--card)}
+  .comp input{width:100%;background:none;border:0;outline:none;color:var(--tx);font-size:16px}
+  .comp input::placeholder{color:#767b87}
+  .crow{display:flex;align-items:center;gap:9px;margin-top:13px}
+  .round{width:31px;height:31px;border-radius:50%;background:var(--chip);display:flex;
+    align-items:center;justify-content:center;font-size:17px;color:#c8ccd4;flex-shrink:0}
+  .send{width:33px;height:33px;border-radius:50%;background:var(--accent);color:#17130a;display:flex;
+    align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+  .send[disabled]{opacity:.4;cursor:default}
+
+  .head{position:fixed;z-index:40;width:52px;height:52px;border-radius:50%;
+    background:linear-gradient(160deg,#d9bc80,#a8843f);color:#17130a;display:none;
+    align-items:center;justify-content:center;font:600 17px ui-serif,Georgia,serif;
+    box-shadow:0 8px 26px rgba(0,0,0,.55);touch-action:none;user-select:none}
+  .head.show{display:flex}
+  .dock{position:fixed;z-index:41;width:min(330px,calc(100vw - 24px));background:var(--rail);
+    border:1px solid #2b3040;border-radius:16px;box-shadow:0 14px 44px rgba(0,0,0,.6);display:none;overflow:hidden}
+  .dock.show{display:block}
+  .dhead{display:flex;align-items:center;gap:9px;padding:11px 13px;border-bottom:1px solid var(--ln)}
+  .dname{font:400 15px ui-serif,Georgia,serif}
+  .dclose{margin-left:auto;color:var(--dm);font-size:17px;padding:2px 6px}
+  .dacts{display:flex;gap:7px;flex-wrap:wrap;padding:11px 13px 4px}
+  .dact{font-size:12.5px;padding:7px 12px;border-radius:16px;background:#191d25;
+    border:1px solid var(--ln);color:#c0c4cc}
+  .dbody{max-height:190px;overflow-y:auto;padding:10px 13px;font-size:14px;line-height:1.6;color:#c8ccd4}
+  .dfoot{display:flex;align-items:center;gap:8px;padding:10px 13px calc(env(safe-area-inset-bottom) + 12px);
+    border-top:1px solid var(--ln)}
+  .dfoot input{flex:1;background:#191d25;border:1px solid var(--ln);border-radius:18px;
+    padding:9px 13px;color:var(--tx);font-size:14.5px;outline:none;min-width:0}
+  .dsend{width:30px;height:30px;border-radius:50%;background:var(--accent);color:#17130a;
+    display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+
+  @media (min-width:900px){
+    .screen{left:var(--rw);transform:none!important;box-shadow:none;border-left:1px solid var(--ln)}
+    .burger{display:none}
+    .thread,.foot,.disc{max-width:780px;margin-left:auto;margin-right:auto;width:100%}
+  }
+</style>
+</head>
+<body>
+
+<nav class="rail" id="rail">
+  <div class="brand"><b>Nexus</b><small>Forge</small></div>
+  <div id="viewNav"></div>
+  <div class="grp">Recent</div>
+  <div class="scrollpart" id="recents"></div>
+  <button class="new" id="newBtn">+&nbsp; Build something</button>
+</nav>
+
+<div class="screen" id="screen">
+  <div class="top">
+    <button class="burger" id="burger" aria-label="Menu"><i></i><i></i><i></i></button>
+    <div class="vt" id="viewTitle">Nexus Forge</div>
+    <div class="grow"></div>
+    <button class="ticon" id="headBtn" aria-label="Nex">◉</button>
+    <button class="ticon" id="newTop" aria-label="New">＋</button>
+  </div>
+  <div class="thread" id="thread"></div>
+  <div class="disc">Nex can make mistakes.</div>
+  <div class="foot">
+    <div class="comp">
+      <input id="input" placeholder="Tell me what you want to build…" autocomplete="off" />
+      <div class="crow">
+        <button class="round" id="helpBtn" title="What I can do">?</button>
+        <button class="round" id="previewBtn" title="Preview">◱</button>
+        <div class="grow"></div>
+        <button class="send" id="send" aria-label="Send">↑</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<button class="head" id="head">N</button>
+<div class="dock" id="dock">
+  <div class="dhead"><span class="dname">Nex</span><button class="dclose" id="dockClose">×</button></div>
+  <div class="dacts" id="dockActs"></div>
+  <div class="dbody" id="dockBody">Ask me anything without leaving this screen.</div>
+  <div class="dfoot">
+    <input id="dockInput" placeholder="Ask Nex…" autocomplete="off" />
+    <button class="dsend" id="dockSend">↑</button>
+  </div>
+</div>
+
+<script type="module">
+import { FORGE_VIEWS, matchForgeView } from '/forge-views.js';
+import { say, chips, esc } from '/workspace-views.js';
+
+// Customer gate. roomAuth, not the owner session — a customer must never be
+// admitted by an owner cookie, and an owner must not land here by accident.
+// Runs before any view renders or any endpoint is read; the redirect never
+// resolves, so nothing past it executes.
+const session = await fetch('/api/room-auth', {
+  credentials: 'include', headers: { Accept: 'application/json' }, cache: 'no-store',
+}).catch(() => null);
+if (!session?.ok) {
+  const next = encodeURIComponent(`${location.pathname}${location.search}`);
+  location.replace(`/room-login.html?next=${next}`);
+  await new Promise(() => {});
+}
+
+const el = (id) => document.getElementById(id);
+const thread = el('thread');
+const screenEl = el('screen');
+let currentView = 'project';
+let busy = false;
+let threadId = null;
+const history = [];
+
+const ctx = {
+  ask: (text) => { el('input').value = text; submit(); },
+  go: (id) => showView(id),
+  signOut: async () => {
+    await fetch('/api/room-auth', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'logout' }),
+    }).catch(() => {});
+    location.replace('/room-login.html');
+  },
+};
+
+function railOpen(open){ screenEl.classList.toggle('open', open); }
+el('burger').onclick = () => railOpen(!screenEl.classList.contains('open'));
+screenEl.addEventListener('click', (e) => {
+  if (screenEl.classList.contains('open') && !e.target.closest('#burger')) railOpen(false);
+}, true);
+
+const nav = el('viewNav');
+for (const [id, view] of Object.entries(FORGE_VIEWS)) {
+  const button = document.createElement('button');
+  button.className = 'item';
+  button.dataset.view = id;
+  button.innerHTML = `<span class="ic">${view.icon}</span>${esc(view.label)}`;
+  button.onclick = () => showView(id);
+  nav.appendChild(button);
+}
+
+function bubble(role, html){
+  const wrap = document.createElement('div');
+  wrap.className = `msg ${role}`;
+  const body = document.createElement('div');
+  body.className = 'body';
+  body.innerHTML = html;
+  wrap.appendChild(body);
+  thread.appendChild(wrap);
+  thread.scrollTop = thread.scrollHeight;
+  return body;
+}
+function paragraphs(text){
+  return String(text).split(/\n{2,}/).map((p) => `<p>${esc(p).replace(/\n/g,'<br>')}</p>`).join('');
+}
+
+async function showView(id){
+  currentView = id;
+  railOpen(false);
+  for (const button of document.querySelectorAll('[data-view]')) {
+    button.classList.toggle('on', button.dataset.view === id);
+  }
+  el('viewTitle').textContent = id === 'chat' ? 'Nexus Forge' : FORGE_VIEWS[id].label;
+  if (id === 'chat') { replay(); return; }
+  thread.innerHTML = '';
+  bubble('sys', 'One second…');
+  try {
+    const nodes = await FORGE_VIEWS[id].render(ctx);
+    thread.innerHTML = '';
+    for (const node of nodes) thread.appendChild(node);
+  } catch (error) {
+    thread.innerHTML = '';
+    bubble('sys', `Couldn't load that just now.`);
+    thread.appendChild(chips([{ label: 'Ask Nex', run: () => ctx.ask(`Something didn't load. What's going on with my ${FORGE_VIEWS[id].label}?`) }]));
+  }
+}
+
+function replay(){
+  thread.innerHTML = '';
+  if (!history.length) { greet(); return; }
+  for (const message of history) {
+    if (message.role === 'user') bubble('u', esc(message.content));
+    else bubble('a', paragraphs(message.content));
+  }
+}
+
+const KEY = 'forge:threads:v1';
+function readStore(){
+  try { const v = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(v) ? v : []; }
+  catch { return []; }
+}
+function saveThread(){
+  if (!history.length) return;
+  const all = readStore();
+  const record = { id: threadId, title: String(history[0].content).slice(0,48), messages: history.slice(-40) };
+  try { localStorage.setItem(KEY, JSON.stringify([record, ...all.filter((t) => t && t.id !== threadId)].slice(0,20))); } catch {}
+  drawRecents();
+}
+function drawRecents(){
+  const all = readStore(), host = el('recents');
+  if (!all.length) { host.innerHTML = '<div style="font-size:13px;color:#61656f;padding:8px 10px">Nothing yet</div>'; return; }
+  host.innerHTML = '';
+  for (const record of all) {
+    const button = document.createElement('button');
+    button.className = 'item';
+    button.innerHTML = `<span class="dot"></span><span class="tr">${esc(record.title)}</span>`;
+    button.onclick = () => {
+      threadId = record.id; history.length = 0;
+      for (const m of record.messages || []) history.push(m);
+      showView('chat');
+    };
+    host.appendChild(button);
+  }
+}
+drawRecents();
+
+async function submit(){
+  const raw = el('input').value.trim();
+  if (!raw || busy) return;
+  el('input').value = '';
+  const target = matchForgeView(raw);
+  if (target) { showView(target); return; }
+  if (currentView !== 'chat') showView('chat');
+  bubble('u', esc(raw));
+  if (!threadId) threadId = `f${Date.now().toString(36)}`;
+  busy = true; el('send').disabled = true;
+  const pending = bubble('a', '<p style="color:#61656f">Working on it…</p>');
+  try {
+    const response = await fetch('/api/room-chat', {
+      method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ message: raw, history }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data?.error || 'That did not go through. Try again in a moment.');
+    const reply = data.reply || data.message || 'Done.';
+    pending.innerHTML = paragraphs(reply);
+    history.push({ role:'user', content:raw }, { role:'assistant', content:reply });
+    saveThread();
+  } catch (error) {
+    pending.innerHTML = `<p style="color:#d09a82">${esc(error.message)}</p>`;
+  } finally { busy = false; el('send').disabled = false; }
+}
+el('send').onclick = submit;
+el('input').addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+el('helpBtn').onclick = () => showView('help');
+el('previewBtn').onclick = () => showView('preview');
+el('newBtn').onclick = el('newTop').onclick = () => {
+  history.length = 0; threadId = null; railOpen(false); showView('chat');
+};
+
+function greet(){
+  thread.appendChild(say(`Hey, I'm Nex. Welcome to Forge.\n\nTell me what you want to build and I'll build it. You don't need to know how any of it works — just describe it like you'd describe it to a person.`));
+  thread.appendChild(chips([
+    { label: 'A site for my business', run: () => ctx.ask('I want a site for my business. Ask me what you need to know.') },
+    { label: 'A way for customers to reach me', run: () => ctx.ask('I want a way for customers to contact me.') },
+    { label: 'What can you build', run: () => showView('help') },
+  ]));
+}
+
+// Nex head — same behaviour as the operator shell.
+const head = el('head'), dock = el('dock');
+let pos = (() => {
+  try { return JSON.parse(localStorage.getItem('forge:head') || 'null') || { x: window.innerWidth - 72, y: window.innerHeight - 190 }; }
+  catch { return { x: window.innerWidth - 72, y: window.innerHeight - 190 }; }
+})();
+function place(){
+  const x = Math.max(8, Math.min(pos.x, window.innerWidth - 60));
+  const y = Math.max(8, Math.min(pos.y, window.innerHeight - 60));
+  pos = { x, y };
+  head.style.left = `${x}px`; head.style.top = `${y}px`;
+  const left = x < window.innerWidth / 2;
+  dock.style.left = left ? `${Math.max(8, x)}px` : 'auto';
+  dock.style.right = left ? 'auto' : `${Math.max(8, window.innerWidth - x - 52)}px`;
+  const above = y > window.innerHeight / 2;
+  dock.style.top = above ? 'auto' : `${y + 60}px`;
+  dock.style.bottom = above ? `${window.innerHeight - y + 8}px` : 'auto';
+}
+place();
+let dragging = false, moved = false, offset = { x:0, y:0 };
+head.addEventListener('pointerdown', (e) => {
+  dragging = true; moved = false;
+  offset = { x: e.clientX - pos.x, y: e.clientY - pos.y };
+  head.setPointerCapture(e.pointerId);
+});
+head.addEventListener('pointermove', (e) => {
+  if (!dragging) return;
+  const nx = e.clientX - offset.x, ny = e.clientY - offset.y;
+  if (Math.abs(nx - pos.x) > 3 || Math.abs(ny - pos.y) > 3) moved = true;
+  pos = { x: nx, y: ny }; place();
+});
+head.addEventListener('pointerup', (e) => {
+  dragging = false;
+  head.releasePointerCapture?.(e.pointerId);
+  pos.x = pos.x + 26 < window.innerWidth / 2 ? 12 : window.innerWidth - 64;
+  place();
+  try { localStorage.setItem('forge:head', JSON.stringify(pos)); } catch {}
+  if (!moved) dock.classList.toggle('show');
+});
+el('headBtn').onclick = () => {
+  head.classList.toggle('show');
+  if (!head.classList.contains('show')) dock.classList.remove('show');
+};
+el('dockClose').onclick = () => dock.classList.remove('show');
+window.addEventListener('resize', place);
+
+for (const action of [
+  { label: 'Show my site', text: 'Show me my site as it looks right now.' },
+  { label: 'Change something', text: 'I want to change something on my site.' },
+  { label: 'Preview', view: 'preview' },
+]) {
+  const button = document.createElement('button');
+  button.className = 'dact';
+  button.textContent = action.label;
+  button.onclick = () => {
+    if (action.view) { showView(action.view); dock.classList.remove('show'); return; }
+    dockAsk(action.text);
+  };
+  el('dockActs').appendChild(button);
+}
+async function dockAsk(text){
+  const body = el('dockBody');
+  body.textContent = 'Working on it…';
+  try {
+    const response = await fetch('/api/room-chat', {
+      method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ message: text, history }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error('That did not go through.');
+    body.textContent = data.reply || data.message || 'Done.';
+  } catch (error) { body.textContent = error.message; }
+}
+el('dockSend').onclick = () => {
+  const value = el('dockInput').value.trim();
+  if (!value) return;
+  el('dockInput').value = '';
+  dockAsk(value);
+};
+el('dockInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') el('dockSend').click(); });
+
+showView('chat');
+</script>
+</body>
+</html>
