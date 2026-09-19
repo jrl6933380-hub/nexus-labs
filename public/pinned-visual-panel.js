@@ -38,7 +38,8 @@ export function roomIdFromLocation(locationLike = {}) {
 
 export function buildSandboxedDocument(widgetCode) {
   const csp = "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; media-src data:; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'";
-  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;min-height:100%;background:#071016;color:#e8fbff;font-family:Inter,ui-sans-serif,system-ui,sans-serif}*{box-sizing:border-box}</style></head><body>${String(widgetCode || '')}</body></html>`;
+  const bridge = `<script>(()=>{const allowed=new Set(['open-system','prompt','snapshot','create-task','update-task','approve','reject']);document.addEventListener('click',event=>{const target=event.target.closest('[data-nexus-action]');if(!target||!event.isTrusted)return;const action=target.dataset.nexusAction;if(!allowed.has(action))return;event.preventDefault();const payload={};for(const [key,value] of Object.entries(target.dataset)){if(!key.startsWith('nexus'))payload[key]=value}parent.postMessage({source:'nexus-visual',version:1,requestId:String(Date.now()),action,target:target.dataset.nexusTarget||'',prompt:target.dataset.nexusPrompt||'',payload},'*')});window.addEventListener('message',event=>{if(event.data?.source!=='nexus-host'||event.data?.version!==1)return;window.dispatchEvent(new CustomEvent('nexus-action-result',{detail:event.data}))})})()</script>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;min-height:100%;background:#071016;color:#e8fbff;font-family:Inter,ui-sans-serif,system-ui,sans-serif}*{box-sizing:border-box}</style></head><body>${String(widgetCode || '')}${bridge}</body></html>`;
 }
 
 function timeLabel(value) {
@@ -51,7 +52,7 @@ function ensureStylesheet() {
   if (document.querySelector('link[data-pinned-visual-styles]')) return;
   const link = document.createElement('link');
   link.rel = 'stylesheet';
-  link.href = '/pinned-visual-panel.css?v=20260918-3';
+  link.href = '/pinned-visual-panel.css?v=20260919-1';
   link.dataset.pinnedVisualStyles = 'true';
   document.head.appendChild(link);
 }
@@ -94,6 +95,43 @@ export function mountPinnedVisualPanel() {
   const historyList = panel.querySelector('.pvp-history-list');
   let signature = '';
   let busy = false;
+
+  function sendResult(requestId, detail) {
+    frame.contentWindow?.postMessage({ source: 'nexus-host', version: 1, requestId, ...detail }, '*');
+    window.dispatchEvent(new CustomEvent('nexus:visual-action-result', { detail }));
+  }
+
+  async function runVisualAction(message) {
+    const action = message.action;
+    if (action === 'open-system') {
+      window.dispatchEvent(new CustomEvent('nexus:navigate', { detail: { room: message.target, url: message.target } }));
+      return sendResult(message.requestId, { ok: true, action });
+    }
+    if (action === 'prompt') {
+      const prompt = String(message.prompt || '').trim().slice(0, 4000);
+      if (!prompt || !window.confirm('Ask Nex to work on this from the visual panel?')) return;
+      window.dispatchEvent(new CustomEvent('nexus:nex-prompt', { detail: { text: prompt } }));
+      return sendResult(message.requestId, { ok: true, action });
+    }
+
+    const verbByAction = { snapshot: 'snapshot', 'create-task': 'create_task', 'update-task': 'update_task', approve: 'approve', reject: 'reject' };
+    const verb = verbByAction[action];
+    if (!verb) return;
+    if (verb !== 'snapshot' && !window.confirm(`Confirm ${action.replace(/-/gu, ' ')} from this visual?`)) return;
+    const response = await fetch('/api/nex/action', {
+      method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ verb, room_id: roomId, payload: message.payload || {} }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || 'Visual action failed');
+    sendResult(message.requestId, { ok: true, action, data });
+    if (verb !== 'snapshot') refresh();
+  }
+
+  window.addEventListener('message', (event) => {
+    if (event.source !== frame.contentWindow || event.data?.source !== 'nexus-visual' || event.data?.version !== 1) return;
+    runVisualAction(event.data).catch((error) => sendResult(event.data?.requestId, { ok: false, action: event.data?.action, error: error.message }));
+  });
 
   function render(visual) {
     const nextSignature = JSON.stringify(visual || null);

@@ -7,6 +7,7 @@ async function mockNexus(page, visual = null) {
     if (url.pathname === '/api/board') return route.fulfill({ json: { tasks: [], messages: [], agents: [], telemetry: { total_tasks: 8, completed_tasks: 5, needs_approval: 1, active_agents: 2 } } });
     if (url.pathname === '/api/chat') return route.fulfill({ json: { messages: [] } });
     if (url.pathname === '/api/pinned-visuals') return route.fulfill({ json: { visual } });
+    if (url.pathname === '/api/nex/action') return route.fulfill({ json: { ok: true, snapshot: { tasks: [], agents: [], approvals: [], telemetry: {} } } });
     return route.fulfill({ status: 404, json: { error: 'not mocked' } });
   });
 }
@@ -26,6 +27,8 @@ test('Thoughtspace uses one visual surface and tunes systems in place', async ({
   await page.getByRole('button', { name: /Nexus Forge/u }).click();
   await expect(page.getByRole('heading', { name: 'Nexus Forge' })).toBeVisible();
   await expect(page.getByText('Intent & Scope')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Open live panel' }).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Change this' }).first()).toBeVisible();
   await expect(page).toHaveURL(/#forge$/u);
 
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('nexus:navigate', { detail: { room: 'Story Studio', url: '/story-studio.html' } })));

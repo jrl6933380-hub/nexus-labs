@@ -24,7 +24,7 @@ test('room auth returns only its server-derived operator capability', () => {
 
 test('Room Builder mounts the portable Nex dock only for an operator session', () => {
   assert.match(room, /if \(data\.operator === true\) mountOperatorNexDock\(\)/);
-  assert.match(room, /script\.src = '\/nex-chat-bar\.js\?v=20260918-3'/);
+  assert.match(room, /script\.src = '\/nex-chat-bar\.js\?v=20260919-1'/);
   assert.match(room, /script\.dataset\.operatorNexDock = 'true'/);
   assert.doesNotMatch(room, /data\.username\s*===\s*['"]Mrlopez['"]/i);
 });

@@ -13,15 +13,17 @@ test('owner dashboard is one visual workspace instead of a stack of static room 
   assert.match(workspace, /Nexus Forge/u);
   assert.match(workspace, /Blank Canvas/u);
   assert.match(workspace, /window\.addEventListener\('nexus:navigate'/u);
-  assert.match(workspace, /Do not navigate me to a static page/u);
+  assert.match(workspace, /do not navigate to a legacy page/u);
 });
 
-test('the static engines remain reachable underneath without becoming the default UI', () => {
+test('the static engines are hidden behind a developer fallback instead of driving the workspace', () => {
   const workspace = read('../public/nexus-workspace.js');
   for (const route of ['mission-control', 'conference-room', 'room', 'story-studio', 'memory', 'connectors']) {
     assert.match(workspace, new RegExp(`/${route}\\.html`, 'u'));
   }
-  assert.match(workspace, /Engine access/u);
+  assert.match(workspace, /Developer fallback/u);
+  assert.match(workspace, /Open live panel/u);
+  assert.match(workspace, /Change this/u);
 });
 
 test('the Nex dock is universal across operator pages and always has a Nexus return control', () => {
@@ -38,6 +40,10 @@ test('pinned Nex visuals become the primary workspace surface', () => {
   const styles = read('../public/pinned-visual-panel.css');
   assert.match(panel, /getElementById\('nexus-visual-stage'\)/u);
   assert.match(panel, /nexus:visual-updated/u);
+  assert.match(panel, /data-nexus-action/u);
+  assert.match(panel, /\/api\/nex\/action/u);
+  assert.match(panel, /event\.source !== frame\.contentWindow/u);
+  assert.match(panel, /window\.confirm/u);
   assert.match(styles, /\.pinned-visual-panel\.is-workspace-surface/u);
   assert.match(styles, /\.pinned-visual-panel\.workspace-hidden/u);
 });

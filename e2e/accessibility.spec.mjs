@@ -113,7 +113,7 @@ for (const file of pages) {
 
 const canvasRooms = [
   ['canvas.html', 4], ['connectors.html', 1],
-  ['memory.html', 4], ['mission-control.html', 4], ['nexus-canvas.html', 12],
+  ['memory.html', 4], ['mission-control.html', 4],
   ['queue.html', 1], ['room.html', 1], ['story-studio.html', 1], ['tenants.html', 2],
 ];
 

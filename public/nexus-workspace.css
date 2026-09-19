@@ -59,9 +59,16 @@ button { font: inherit; }
 .workspace-section h2 { margin: 0; font-size: 15px; }
 .workspace-section small { color: var(--ws-green); font: 600 8px var(--ws-mono); letter-spacing: .12em; }
 .workspace-section p { margin: 10px 0 0; color: var(--ws-muted); font-size: 12px; line-height: 1.55; }
+.workspace-section-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 16px; }
+.workspace-section-actions button { min-height: 34px; padding: 0 11px; border: 1px solid var(--ws-line); border-radius: 9px; color: var(--ws-muted); background: rgba(255,255,255,.025); font: 600 9px var(--ws-mono); cursor: pointer; }
+.workspace-section-actions button:first-child { border-color: rgba(93,184,255,.32); color: #d9efff; background: rgba(93,184,255,.07); }
+.workspace-section-actions button:hover,.workspace-section-actions button:focus-visible { color: var(--ws-text); border-color: var(--ws-line-strong); outline: none; }
 .workspace-detail-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
 .workspace-detail-actions button,.workspace-detail-actions a { min-height: 40px; display: inline-flex; align-items: center; padding: 0 14px; border: 1px solid var(--ws-line); border-radius: 10px; color: var(--ws-text); background: rgba(255,255,255,.035); font: 600 10px var(--ws-mono); text-decoration: none; cursor: pointer; }
 .workspace-detail-actions .primary { border-color: var(--ws-line-strong); color: #d9efff; background: rgba(93,184,255,.09); }
+.workspace-engine-fallback { width: fit-content; margin-top: 28px; color: var(--ws-faint); font: 600 9px var(--ws-mono); }
+.workspace-engine-fallback summary { cursor: pointer; }
+.workspace-engine-fallback a { display: inline-flex; margin-top: 10px; color: var(--ws-muted); }
 .workspace-blank { min-height: calc(100vh - 230px); display: grid; place-items: center; border: 1px dashed rgba(148,163,184,.2); border-radius: 22px; background: radial-gradient(circle at 50% 40%,rgba(76,103,190,.1),transparent 38%); }
 .workspace-blank-copy { max-width: 470px; padding: 28px; text-align: center; }
 .workspace-blank-orb { width: 58px; height: 58px; margin: 0 auto 18px; border: 1px solid rgba(93,184,255,.4); border-radius: 20px; background: radial-gradient(circle at 35% 28%,#9bd7ff,#3476b8 30%,#152d50 70%); box-shadow: 0 0 50px rgba(93,184,255,.22); }
