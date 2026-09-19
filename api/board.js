@@ -71,6 +71,7 @@ import {
 import { maybeCheckSystemStatus } from '../lib/systemMonitor.js';
 import { getNexusOwner } from '../lib/nexusOwnerAuth.js';
 import { getPinnedVisual, renderPinnedVisual, restorePinnedVisual, setPinnedVisualLocked } from '../lib/pinnedVisuals.js';
+import { listQueue, approveQueueItem, rejectQueueItem, notifyQueue } from '../lib/queue.js';
 
 // This must exactly match the Authorization Callback URL / Redirect
 // URL registered with GitHub and Vercel — deriving it from the
@@ -140,6 +141,83 @@ async function handlePinnedVisuals(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   } catch (err) {
     return res.status(400).json({ error: err.message });
+  }
+}
+
+const VISUAL_TASK_STATUSES = new Set(['idle', 'planning', 'building', 'testing', 'blocked', 'waiting_for_justin', 'complete']);
+
+function clipped(value, limit = 500) {
+  return String(value || '').replace(/\s+/gu, ' ').trim().slice(0, limit);
+}
+
+// Trusted action boundary for the visual workspace. Sandboxed widgets can
+// request these verbs through postMessage, but the parent UI owns the request,
+// confirms mutations, and this handler independently requires an owner session.
+async function handleNexAction(req, res) {
+  res.setHeader('Cache-Control', 'private, no-store');
+  const owner = await getNexusOwner(req).catch(() => null);
+  if (!owner) return res.status(401).json({ error: 'Nexus owner authentication required.' });
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
+
+  const { verb, payload = {}, room_id: roomId = 'command-center' } = req.body || {};
+  try {
+    if (verb === 'snapshot') {
+      const [board, agents, approvals] = await Promise.all([readBoard(), listAgents(), listQueue()]);
+      const tasks = board.tasks || [];
+      return res.status(200).json({
+        ok: true,
+        room_id: clipped(roomId, 80),
+        snapshot: {
+          tasks,
+          agents,
+          approvals,
+          telemetry: {
+            total_tasks: tasks.length,
+            completed_tasks: tasks.filter((task) => task.status === 'complete').length,
+            needs_approval: approvals.length,
+            active_agents: agents.filter((agent) => ['online', 'busy'].includes(agent.status)).length,
+          },
+          observed_at: Date.now(),
+        },
+      });
+    }
+
+    if (verb === 'create_task') {
+      const title = clipped(payload.title, 140);
+      if (!title) return res.status(400).json({ error: 'Task title is required.' });
+      const task = await createTask({
+        title,
+        description: clipped(payload.description, 2000),
+        owner: clipped(payload.owner, 40) || null,
+        canvas_id: clipped(payload.canvas_id, 100) || null,
+      });
+      return res.status(200).json({ ok: true, task });
+    }
+
+    if (verb === 'update_task') {
+      const id = clipped(payload.id, 120);
+      const status = clipped(payload.status, 40);
+      if (!id || !VISUAL_TASK_STATUSES.has(status)) return res.status(400).json({ error: 'A valid task id and status are required.' });
+      const task = status === 'complete'
+        ? await completeTask({ id, result: clipped(payload.note, 2000) })
+        : status === 'blocked'
+          ? await markBlocked({ id, reason: clipped(payload.note, 1000) || 'Blocked from visual workspace' })
+          : await updateProgress({ id, status, note: clipped(payload.note, 1000) });
+      return res.status(200).json({ ok: true, task });
+    }
+
+    if (verb === 'approve' || verb === 'reject') {
+      const id = clipped(payload.id, 120);
+      if (!id) return res.status(400).json({ error: 'Approval id is required.' });
+      const outcome = verb === 'approve' ? await approveQueueItem(id) : await rejectQueueItem(id);
+      await notifyQueue();
+      return res.status(200).json({ ok: true, outcome });
+    }
+
+    return res.status(400).json({ error: `Unsupported visual action: ${verb || '(none)'}` });
+  } catch (error) {
+    console.error('visual action failed:', verb, error.message);
+    return res.status(400).json({ error: error.message });
   }
 }
 
@@ -541,6 +619,7 @@ export default async function handler(req, res) {
     if (path.startsWith('/api/agentlog')) return await handleAgentLog(req, res);
     if (path.startsWith('/api/vault')) return await handleVault(req, res);
     if (path.startsWith('/api/pinned-visuals')) return await handlePinnedVisuals(req, res);
+    if (path.startsWith('/api/nex/action')) return await handleNexAction(req, res);
     if (path.startsWith('/api/sentry-webhook')) return await handleSentryWebhook(req, res);
     if (path.startsWith('/api/tenants')) return await handleTenants(req, res);
     if (path.startsWith('/api/oauth/')) {

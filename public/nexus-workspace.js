@@ -71,6 +71,11 @@ function promptNex(text) {
   window.dispatchEvent(new CustomEvent('nexus:nex-prompt', { detail: { text } }));
 }
 
+function systemPrompt(system, focus, mode = 'control') {
+  const base = `Work from the Nexus Thoughtspace visual layer. ${mode === 'edit' ? 'Help me change' : 'Render a live interactive control panel for'} ${system.title} — ${focus}.`;
+  return `${base} Read the real current state first. Keep me on this visual surface; do not navigate to a legacy page. Use live buttons for every useful operation and preserve the normal approval gate for consequential actions.`;
+}
+
 function metric(label, value) {
   const card = element('div', 'workspace-metric');
   card.append(element('span', '', label), element('strong', '', String(value ?? 0)));
@@ -137,18 +142,29 @@ function renderSystem(system) {
     const section = element('article', 'workspace-section');
     const header = element('header');
     header.append(element('h2', '', title), element('small', '', 'READY'));
-    section.append(header, element('p', '', description));
+    const controls = element('div', 'workspace-section-actions');
+    const open = element('button', '', 'Open live panel');
+    open.type = 'button';
+    open.addEventListener('click', () => promptNex(systemPrompt(system, title)));
+    const edit = element('button', '', 'Change this');
+    edit.type = 'button';
+    edit.addEventListener('click', () => promptNex(systemPrompt(system, title, 'edit')));
+    controls.append(open, edit);
+    section.append(header, element('p', '', description), controls);
     sections.append(section);
   }
   const actions = element('div', 'workspace-detail-actions');
-  const inspect = element('button', 'primary', `Ask Nex to inspect ${system.title}`);
+  const inspect = element('button', 'primary', `Open ${system.title} controls`);
   inspect.type = 'button';
-  inspect.addEventListener('click', () => promptNex(`Inspect ${system.title} as it exists right now. Draw an interactive breakdown in the command-center visual workspace showing its sections, current strengths, weak points, and the best upgrades. Do not navigate me to a static page.`));
-  const engine = element('a', '', 'Engine access');
+  inspect.addEventListener('click', () => promptNex(systemPrompt(system, 'the whole system, its live state, current work, editable settings, and the best upgrades')));
+  actions.append(inspect);
+  const fallback = element('details', 'workspace-engine-fallback');
+  const summary = element('summary', '', 'Developer fallback');
+  const engine = element('a', '', `Open the ${system.title} engine page`);
   engine.href = system.href;
-  engine.title = 'Open the underlying static tool only when direct access is needed';
-  actions.append(inspect, engine);
-  surface.append(back, hero, sections, actions);
+  engine.title = 'Fallback access to the underlying engine';
+  fallback.append(summary, engine);
+  surface.append(back, hero, sections, actions, fallback);
   stage.prepend(surface);
 }
 
