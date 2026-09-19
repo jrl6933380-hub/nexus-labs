@@ -145,6 +145,8 @@
   <button class="item" data-go="/queue.html"><span class="ic">⚑</span>Approvals</button>
   <button class="item" data-go="/memory.html"><span class="ic">◍</span>Memory</button>
   <button class="item" id="capBtn"><span class="ic">?</span>What can you do</button>
+  <div class="grp">Pinned</div>
+  <div id="pinned"></div>
   <div class="grp">Recents</div>
   <div class="recents" id="recents"></div>
   <button class="new" id="newBtn">+&nbsp; New</button>
@@ -270,6 +272,16 @@ function renderVisual(widgetCode, title){
     <body>${widgetCode}</body></html>`;
   frame.style.height = '420px';
   card.appendChild(frame);
+
+  // Pinning keeps the visual reachable from the rail without taking it out of
+  // the thread it was made in — the thread stays the record of how it got here.
+  const pinButton = card.querySelector('.vb');
+  pinButton.onclick = () => {
+    const id = pinVisual(widgetCode, title || 'Visual');
+    pinButton.textContent = id ? 'Pinned' : 'Too large to pin';
+    pinButton.disabled = true;
+  };
+
   thread.appendChild(card);
   thread.scrollTop = thread.scrollHeight;
 }
