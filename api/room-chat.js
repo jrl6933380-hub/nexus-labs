@@ -159,6 +159,32 @@ export default async function handler(req, res) {
     res.write(`data: ${JSON.stringify(event)}\n\n`);
   };
 
+  // Forward generated text to the client as it arrives, so the canvas can
+  // render the build in progress instead of sitting on a spinner until the
+  // whole document lands. Coalesced on a short interval: a provider can emit
+  // dozens of tiny deltas per second, and one SSE frame each is a lot of
+  // per-frame overhead for no visible gain. Display pacing is the client's
+  // job (see public/liveCodeStream.js) — this side only forwards.
+  //
+  // Additive on purpose. The final `html` action and every existing action
+  // are unchanged, so a client that ignores `code_delta` behaves exactly as
+  // it does today. Nothing here gates, validates, or saves: the truncation
+  // and document checks below still run against the complete response, and
+  // a build that fails them is still never saved or shown as finished. A
+  // delta is a preview of work in progress, never evidence it succeeded.
+  let pendingDelta = '';
+  let lastDeltaAt = 0;
+  const DELTA_FLUSH_MS = 50;
+  const flushDelta = (force = false) => {
+    if (!pendingDelta) return;
+    const now = Date.now();
+    if (!force && now - lastDeltaAt < DELTA_FLUSH_MS) return;
+    lastDeltaAt = now;
+    const text = pendingDelta;
+    pendingDelta = '';
+    send({ action: 'code_delta', text });
+  };
+
   const isEdit = Boolean(currentHtml);
   const sendBuildError = (reason) => {
     console.error('room-chat: automatic build failed:', reason);
@@ -233,12 +259,15 @@ export default async function handler(req, res) {
         }
         if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'text_delta') {
           raw += parsed.delta.text;
+          pendingDelta += parsed.delta.text;
+          flushDelta();
         } else if (parsed.type === 'message_delta' && parsed.delta?.stop_reason) {
           stopReason = parsed.delta.stop_reason;
         }
       }
     }
 
+    flushDelta(true);
     clearTimeout(timer);
 
     // Strip stray markdown fences if the model added them despite
