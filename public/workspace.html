@@ -287,22 +287,107 @@ function renderVisual(widgetCode, title){
 }
 window.NexusWorkspaceRenderVisual = renderVisual;
 
-const RECENTS_KEY = 'nexus:workspace:recents';
-function loadRecents(){
-  let list = [];
-  try { list = JSON.parse(localStorage.getItem(RECENTS_KEY) || '[]'); } catch { list = []; }
-  el('recents').innerHTML = list.length
-    ? list.map((r) => `<button class="item"><span class="dot"></span><span class="tr">${escape(r)}</span></button>`).join('')
-    : '<div style="font-size:13px;color:#5f5b56;padding:8px 10px">Nothing yet</div>';
+// ---------------------------------------------------------------------------
+// Threads and pins. localStorage-backed, per-device — deliberately NOT sent to
+// the server. This shell is a first look; persisting conversations server-side
+// is a real schema decision that shouldn't be made as a side effect of a UI
+// experiment. Every write is try/caught and every read tolerates junk, because
+// a full or disabled localStorage must degrade to "no history" rather than a
+// blank page.
+// ---------------------------------------------------------------------------
+const THREADS_KEY = 'nexus:workspace:threads:v1';
+const PINS_KEY = 'nexus:workspace:pins:v1';
+const MAX_THREADS = 20;
+const MAX_PINS = 12;
+const MAX_PIN_BYTES = 120000; // same ceiling the server puts on a widget
+
+function readStore(key){
+  try {
+    const parsed = JSON.parse(localStorage.getItem(key) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
 }
-function noteRecent(text){
-  let list = [];
-  try { list = JSON.parse(localStorage.getItem(RECENTS_KEY) || '[]'); } catch { list = []; }
-  list = [text.slice(0, 48), ...list.filter((x) => x !== text.slice(0, 48))].slice(0, 12);
-  try { localStorage.setItem(RECENTS_KEY, JSON.stringify(list)); } catch {}
-  loadRecents();
+function writeStore(key, value){
+  try { localStorage.setItem(key, JSON.stringify(value)); return true; }
+  catch { return false; }
 }
-loadRecents();
+
+let threadId = null;
+
+function saveThread(){
+  if (!history.length) return;
+  const threads = readStore(THREADS_KEY);
+  const title = String(history[0]?.content || 'Untitled').slice(0, 48);
+  const record = { id: threadId, title, ts: Date.now(), messages: history.slice(-40) };
+  const next = [record, ...threads.filter((t) => t && t.id !== threadId)].slice(0, MAX_THREADS);
+  writeStore(THREADS_KEY, next);
+  drawRecents();
+}
+
+function openThread(id){
+  const record = readStore(THREADS_KEY).find((t) => t && t.id === id);
+  if (!record) return;
+  threadId = record.id;
+  history.length = 0;
+  thread.innerHTML = '';
+  for (const message of (record.messages || [])) {
+    if (message.role === 'user') bubble('u', escape(message.content));
+    else bubble('a', paragraphs(message.content));
+    history.push(message);
+  }
+  railOpen(false);
+}
+
+function drawRecents(){
+  const threads = readStore(THREADS_KEY);
+  const host = el('recents');
+  if (!threads.length) {
+    host.innerHTML = '<div style="font-size:13px;color:#5f5b56;padding:8px 10px">Nothing yet</div>';
+    return;
+  }
+  host.innerHTML = '';
+  for (const record of threads) {
+    const button = document.createElement('button');
+    button.className = 'item';
+    button.innerHTML = `<span class="dot"></span><span class="tr">${escape(record.title)}</span>`;
+    button.onclick = () => openThread(record.id);
+    host.appendChild(button);
+  }
+}
+
+function pinVisual(widgetCode, title){
+  if (String(widgetCode).length > MAX_PIN_BYTES) return null;
+  const pins = readStore(PINS_KEY);
+  const id = `p${Date.now().toString(36)}`;
+  const next = [{ id, title, code: widgetCode, ts: Date.now() }, ...pins].slice(0, MAX_PINS);
+  if (!writeStore(PINS_KEY, next)) return null;
+  drawPins();
+  return id;
+}
+
+function drawPins(){
+  const pins = readStore(PINS_KEY);
+  const host = el('pinned');
+  if (!pins.length) {
+    host.innerHTML = '<div style="font-size:13px;color:#5f5b56;padding:8px 10px">Nothing pinned</div>';
+    return;
+  }
+  host.innerHTML = '';
+  for (const pin of pins) {
+    const button = document.createElement('button');
+    button.className = 'item';
+    button.innerHTML = `<span class="ic">▣</span><span class="tr">${escape(pin.title)}</span>`;
+    button.onclick = () => {
+      railOpen(false);
+      bubble('sys', `Pinned — ${escape(pin.title)}`);
+      renderVisual(pin.code, pin.title);
+    };
+    host.appendChild(button);
+  }
+}
+
+drawRecents();
+drawPins();
 
 function matchDestination(raw){
   const text = raw.toLowerCase().trim().replace(/^(open|go to|show|take me to|switch to)\s+/,'').replace(/[.?!]$/,'');
@@ -311,6 +396,10 @@ function matchDestination(raw){
 
 let busy = false;
 const history = [];
+
+function ensureThread(){
+  if (!threadId) threadId = `t${Date.now().toString(36)}`;
+}
 
 async function submit(){
   const raw = el('input').value.trim();
@@ -328,6 +417,7 @@ async function submit(){
   if (/^(what can you do|help|options|capabilities)$/i.test(raw)) { sheet(true); return; }
 
   // Path 2 — everything else goes to Nex.
+  ensureThread();
   busy = true;
   el('send').disabled = true;
   const pending = bubble('a', '<p style="color:#6e6a64">Thinking…</p>');
@@ -342,7 +432,7 @@ async function submit(){
     const reply = data.reply || 'No reply came back.';
     pending.innerHTML = paragraphs(reply);
     history.push({ role: 'user', content: raw }, { role: 'assistant', content: reply });
-    noteRecent(raw);
+    saveThread();
     // Nex can ask the workspace to move; honour it the same as a typed command.
     if (data.navigation?.url) {
       bubble('sys', `Opening ${escape(data.navigation.room || data.navigation.url)}…`);
@@ -361,6 +451,7 @@ el('input').addEventListener('keydown', (e) => { if (e.key === 'Enter') submit()
 el('newBtn').onclick = el('newTop').onclick = () => {
   thread.innerHTML = '';
   history.length = 0;
+  threadId = null;
   railOpen(false);
   greet();
 };
