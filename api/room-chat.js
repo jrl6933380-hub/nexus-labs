@@ -31,6 +31,9 @@ import { roomMeter } from '../lib/roomMetering.js';
 import { roomConversations } from '../lib/roomConversation.js';
 import { attachmentManifest, attachmentMessageContent, embedRoomAttachments, parseRoomAttachments } from '../lib/roomAttachments.js';
 import { routeMessageStream } from '../lib/modelRouter.js';
+import { getTenantCredential } from '../lib/tenantCredentials.js';
+import { forgeCredentialScope } from '../lib/openRouterConnection.js';
+import { routeOpenRouterStream } from '../lib/openRouterRouter.js';
 
 // Comfortably inside Vercel's function ceiling below, so a slow
 // generation gets a clear timeout message instead of the platform
@@ -123,10 +126,33 @@ export default async function handler(req, res) {
   const message = typedMessage || (attachments.length ? 'Use the attached image in the project.' : '');
   if (!message) return res.status(400).json({ error: 'Missing message' });
 
-  let username = await getRequestUser(req);
+  const signedInUsername = await getRequestUser(req);
+  let username = signedInUsername;
   if (!username) username = getOrCreateAnonId(req, res);
 
-  if (!process.env.AI_GATEWAY_API_KEY) {
+  // Forge explicitly opts into the customer-owned brain path. That path is
+  // fail-closed: a missing/invalid customer connection never falls through to
+  // the owner's centrally funded AI Gateway key.
+  const customerOwnedBrain = req.body?.requireOwnBrain === true;
+  let openRouterCredential = null;
+  if (customerOwnedBrain) {
+    if (!signedInUsername) return res.status(401).json({ error: 'Sign in required.' });
+    try {
+      openRouterCredential = await getTenantCredential({
+        tenantId: forgeCredentialScope({ ownerUsername: signedInUsername, projectId: projectId || 'default' }),
+        provider: 'openrouter',
+      });
+    } catch (credentialError) {
+      console.error('room-chat: customer brain lookup failed:', credentialError.message);
+      return res.status(503).json({ error: 'Your Builder Brain connection could not be checked. Try again shortly.' });
+    }
+    if (!openRouterCredential?.accessToken) {
+      return res.status(409).json({
+        error: 'Connect your Builder Brain before starting this build.',
+        code: 'BUILDER_BRAIN_REQUIRED',
+      });
+    }
+  } else if (!process.env.AI_GATEWAY_API_KEY) {
     return res.status(500).json({ error: 'The AI Gateway is not configured for this environment.' });
   }
 
@@ -213,25 +239,32 @@ export default async function handler(req, res) {
   const timer = setTimeout(() => controller.abort(), STREAM_TIMEOUT_MS);
 
   try {
-    const { response, provider, model } = await routeMessageStream({
-      tier: 'heavy',
-      claudeModel: process.env.ROOM_BUILDER_MODEL || 'claude-sonnet-5',
-      gatewayOnly: true,
-      body: {
-        max_tokens: 16000,
-        system: isEdit ? EDIT_SYSTEM_PROMPT : FRESH_SYSTEM_PROMPT,
-        messages: [
-          {
-            role: 'user',
-            content: attachmentMessageContent(isEdit
-              ? `Current HTML:\n${currentHtml}\n\nAttached images:\n${attachmentManifest(attachments)}\n\nRequested change: ${message}`
-              : `No existing page yet (build from scratch).\n\nAttached images:\n${attachmentManifest(attachments)}\n\nUser request: ${message}`,
-            attachments),
-          },
-        ],
-      },
-      signal: controller.signal,
-    });
+    const generationBody = {
+      max_tokens: 16000,
+      system: isEdit ? EDIT_SYSTEM_PROMPT : FRESH_SYSTEM_PROMPT,
+      messages: [
+        {
+          role: 'user',
+          content: attachmentMessageContent(isEdit
+            ? `Current HTML:\n${currentHtml}\n\nAttached images:\n${attachmentManifest(attachments)}\n\nRequested change: ${message}`
+            : `No existing page yet (build from scratch).\n\nAttached images:\n${attachmentManifest(attachments)}\n\nUser request: ${message}`,
+          attachments),
+        },
+      ],
+    };
+    const { response, provider, model } = customerOwnedBrain
+      ? await routeOpenRouterStream({
+          apiKey: openRouterCredential.accessToken,
+          body: generationBody,
+          signal: controller.signal,
+        })
+      : await routeMessageStream({
+          tier: 'heavy',
+          claudeModel: process.env.ROOM_BUILDER_MODEL || 'claude-sonnet-5',
+          gatewayOnly: true,
+          body: generationBody,
+          signal: controller.signal,
+        });
     console.log('room-chat: streaming build opened through', provider, model);
 
     const reader = response.body.getReader();
@@ -263,6 +296,16 @@ export default async function handler(req, res) {
           flushDelta();
         } else if (parsed.type === 'message_delta' && parsed.delta?.stop_reason) {
           stopReason = parsed.delta.stop_reason;
+        } else if (typeof parsed.choices?.[0]?.delta?.content === 'string') {
+          const text = parsed.choices[0].delta.content;
+          raw += text;
+          pendingDelta += text;
+          flushDelta();
+          const finishReason = parsed.choices[0].finish_reason;
+          if (finishReason) stopReason = finishReason === 'length' ? 'max_tokens' : finishReason;
+        } else if (parsed.choices?.[0]?.finish_reason) {
+          const finishReason = parsed.choices[0].finish_reason;
+          stopReason = finishReason === 'length' ? 'max_tokens' : finishReason;
         }
       }
     }
