@@ -165,38 +165,50 @@ export const FORGE_VIEWS = {
     async render(ctx) {
       const nodes = [];
       let status = null;
-      let failed = false;
-      try { status = await getJSON('/api/forge-brain'); } catch { failed = true; }
+      try { status = await getJSON('/api/openrouter-oauth?action=status&projectId=default'); } catch {}
 
-      // The connection flow is not built yet. Say so plainly rather than
-      // rendering a panel that implies a connection exists — a brain that
-      // claims to be connected when it isn't is the worst possible lie here,
-      // because every build failure afterwards looks like a broken product.
-      if (failed || !status) {
-        nodes.push(say(`Your Builder Brain isn't set up yet.\n\nThis is where you'll connect the AI that does the building, pick how much power you want, and see what you've used. Right now your builds run on Forge's own connection.`));
-        nodes.push(group('Coming here', [
-          row({ title: 'Free', meta: 'Start building, no card needed' }),
-          row({ title: 'Fast', meta: 'Quicker, for lots of small changes' }),
-          row({ title: 'Strong', meta: 'For the hard stuff' }),
+      const callbackResult = new URLSearchParams(location.search).get('connection');
+      const connected = Boolean(status?.connected);
+      if (!connected) {
+        nodes.push(say(callbackResult === 'error'
+          ? `OpenRouter didn't finish connecting. Nothing was saved and no Forge build used your owner's key. Try again when you're ready.`
+          : `Your Builder Brain needs a power source before Forge can build. Connect OpenRouter once, sign in there, and approve Nexus Forge. OpenRouter creates your own key behind the scenes — you never copy or paste it, and Forge never shows it.`));
+        nodes.push(group('What you get', [
+          row({ title: 'One account, many models', meta: 'Choose free or paid models through OpenRouter' }),
+          row({ title: 'Your usage, your limits', meta: 'Model charges stay on your OpenRouter account' }),
+          row({ title: 'Private connection', meta: 'The key stays encrypted on the server' }),
         ]));
         nodes.push(chips([
-          { label: 'How does this work', run: () => ctx.ask('Explain the Builder Brain — what am I connecting and why?') },
+          { label: 'Connect OpenRouter', run: () => location.assign('/api/openrouter-oauth?action=start&projectId=default') },
+          { label: 'How does this work', run: () => ctx.ask('Explain the Builder Brain connection and what OpenRouter controls.') },
         ]));
         return nodes;
       }
 
-      const connected = Boolean(field(status, 'connected'));
-      nodes.push(say(connected
-        ? `Your brain is connected and working.`
-        : `Your brain isn't connected yet. Builds run on Forge's connection until you set one up.`));
+      const metadata = status.metadata || {};
+      nodes.push(say(callbackResult === 'success'
+        ? `Your Builder Brain is connected, tested, and ready. From now on Forge build requests use this OpenRouter connection — not the Forge owner's AI bill.`
+        : `Your Builder Brain is connected and ready. Forge uses your OpenRouter connection for builds.`));
       nodes.push(group(null, [
-        row({ title: 'Connection', meta: String(field(status, 'provider') || 'Forge'), tone: connected ? { label: 'on', kind: 'f' } : { label: 'off', kind: 'g' } }),
-        row({ title: 'Power', meta: String(field(status, 'tier', 'model') || 'Free') }),
-        row({ title: 'Last checked', meta: relative(field(status, 'tested_at', 'updated_at')) || 'Not yet' }),
+        row({ title: 'Connection', meta: 'OpenRouter', tone: { label: status.status === 'ready' ? 'ready' : status.status, kind: 'f' } }),
+        row({ title: 'Account type', meta: metadata.is_free_tier ? 'Free tier' : 'Funded account' }),
+        row({ title: 'Available limit', meta: Number.isFinite(metadata.limit_remaining) ? String(metadata.limit_remaining) : 'Managed by OpenRouter' }),
+        row({ title: 'Last tested', meta: relative(status.tested_at) || 'Just now' }),
       ]));
       nodes.push(chips([
-        { label: 'Test it', run: () => ctx.ask('Test my Builder Brain connection.') },
-        { label: 'Change power', run: () => ctx.ask('I want to change how much power my builds use.') },
+        ...(metadata.settings_url ? [{ label: 'Open settings', run: () => window.open(metadata.settings_url, '_blank', 'noopener') }] : []),
+        ...(metadata.logs_url ? [{ label: 'View usage', run: () => window.open(metadata.logs_url, '_blank', 'noopener') }] : []),
+        {
+          label: 'Disconnect',
+          run: async () => {
+            await fetch('/api/openrouter-oauth', {
+              method: 'POST', credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'disconnect', projectId: 'default' }),
+            });
+            ctx.go('brain');
+          },
+        },
       ]));
       return nodes;
     },

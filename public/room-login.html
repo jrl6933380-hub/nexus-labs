@@ -359,8 +359,17 @@
   tabSignup.addEventListener('click', showSignup);
 
   const requested = new URLSearchParams(window.location.search).get('next');
-  const customerWorkspaces = new Set(['/room.html', '/story-studio.html']);
-  const nextPath = customerWorkspaces.has(requested) ? requested : '/room.html';
+  const customerWorkspaces = new Set(['/room.html', '/story-studio.html', '/forge.html']);
+  const customerNextPath = (() => {
+    try {
+      const candidate = new URL(requested || '/', window.location.origin);
+      if (candidate.origin !== window.location.origin || !customerWorkspaces.has(candidate.pathname)) return null;
+      return `${candidate.pathname}${candidate.search}${candidate.hash}`;
+    } catch {
+      return null;
+    }
+  })();
+  const nextPath = customerNextPath || '/room.html';
   const operatorNextPath = (() => {
     try {
       const candidate = new URL(requested || '/', window.location.origin);
