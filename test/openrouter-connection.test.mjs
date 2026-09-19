@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 
 import {
   beginOpenRouterOAuth,
@@ -112,6 +113,12 @@ test('OAuth handler stores the raw key only through the encrypted credential bou
   assert.equal(stored[0].accessToken, 'sk-or-v1-private');
   assert.deepEqual(states.map((item) => item.status), ['connected', 'testing', 'ready']);
   assert.equal(JSON.stringify({ headers: res.headers, body: res.body }).includes('sk-or-v1-private'), false);
+});
+
+test('room login preserves the allowlisted Forge Builder Brain return URL', async () => {
+  const login = await readFile(new URL('../public/room-login.html', import.meta.url), 'utf8');
+  assert.match(login, /customerWorkspaces = new Set\(\['\/room\.html', '\/story-studio\.html', '\/forge\.html'\]\)/);
+  assert.match(login, /candidate\.pathname\}\$\{candidate\.search\}\$\{candidate\.hash/);
 });
 
 test('OpenRouter routing uses the supplied customer key and never reads the owner gateway key', async () => {
