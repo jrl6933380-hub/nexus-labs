@@ -347,6 +347,7 @@ function greet(){
   thread.appendChild(say(`Hey, I'm Nex. Welcome to Forge.\n\nTell me what you want to build and I'll build it. You don't need to know how any of it works — just describe it like you'd describe it to a person.`));
   thread.appendChild(chips([
     { label: 'A site for my business', run: () => ctx.ask('I want a site for my business. Ask me what you need to know.') },
+    { label: 'Set up my full stack', run: () => showView('stack') },
     { label: 'A way for customers to reach me', run: () => ctx.ask('I want a way for customers to contact me.') },
     { label: 'What can you build', run: () => showView('help') },
   ]));
