@@ -201,6 +201,24 @@
 <script type="module">
 import { VIEWS, matchView, say, chips, esc } from '/workspace-views.js';
 
+// Owner gate. The previous root page checked this before rendering anything, and
+// this shell now sits at the root, so it has to hold the same line — without it,
+// making this the default entry point would have quietly opened the whole
+// workspace to anyone with the URL.
+//
+// The import above is hoisted and therefore always evaluates, which is fine:
+// workspace-views.js only defines functions and touches nothing on load. What
+// matters is that this runs before any view renders or any endpoint is read,
+// and the redirect below never resolves, so nothing after it executes.
+const session = await fetch('/api/nexus-auth', {
+  credentials: 'include', headers: { Accept: 'application/json' }, cache: 'no-store',
+}).catch(() => null);
+if (!session?.ok) {
+  const next = encodeURIComponent(`${location.pathname}${location.search}${location.hash}`);
+  location.replace(`/nexus-login.html?next=${next}`);
+  await new Promise(() => {});
+}
+
 const el = (id) => document.getElementById(id);
 const thread = el('thread');
 const screenEl = el('screen');
