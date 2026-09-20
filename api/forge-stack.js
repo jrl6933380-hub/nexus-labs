@@ -1,8 +1,6 @@
-// api/forge-stack.js
-// Authenticated control plane for a customer's project Stack Manifest.
-// This route never accepts or returns credentials. Provider callbacks and
-// provisioning workers will advance selected slots through connected/testing/
-// ready using lib/forgeStack.js in later slices.
+// Authenticated control plane for a customer's project Build Plan.
+// Credentials never enter this route. Every readiness claim comes from a
+// provider-aware verifier in lib/forge/stackActions.js.
 
 import { getRequestUser } from '../lib/roomAuth.js';
 import {
@@ -12,9 +10,17 @@ import {
   resetStackSlot,
   publicStack,
 } from '../lib/forgeStack.js';
+import { describeStackActions, runStackAction } from '../lib/forge/stackActions.js';
 
 function projectIdFrom(req) {
   return String((req.query || {}).projectId || (req.body || {}).projectId || 'default');
+}
+
+function responseFor(manifest, outcome = null) {
+  const body = publicStack(manifest);
+  body.actions = describeStackActions(manifest);
+  if (outcome) body.outcome = outcome;
+  return body;
 }
 
 export function createForgeStackHandler({
@@ -23,6 +29,7 @@ export function createForgeStackHandler({
   recommend = applyStackRecommendation,
   select = selectStackProvider,
   reset = resetStackSlot,
+  runAction = runStackAction,
 } = {}) {
   return async function handler(req, res) {
     res.setHeader('Cache-Control', 'private, no-store');
@@ -40,7 +47,7 @@ export function createForgeStackHandler({
 
       if (req.method === 'GET') {
         const manifest = await ensure({ ownerUsername: username, projectId });
-        return res.status(200).json(publicStack(manifest));
+        return res.status(200).json(responseFor(manifest));
       }
 
       const body = req.body || {};
@@ -73,21 +80,32 @@ export function createForgeStackHandler({
           });
           break;
         case 'reset':
-          manifest = await reset({
+          manifest = await reset({ ownerUsername: username, projectId, slotId: body.slotId });
+          break;
+        case 'run': {
+          const result = await runAction({
             ownerUsername: username,
             projectId,
             slotId: body.slotId,
+            operation: body.operation,
           });
-          break;
+          const outcome = {
+            ok: Boolean(result.ok),
+            changed: Boolean(result.changed),
+            message: result.message || null,
+            next_view: result.next_view || null,
+          };
+          return res.status(200).json(responseFor(result.manifest, outcome));
+        }
         default:
           return res.status(400).json({ error: 'Unknown stack action.' });
       }
-      return res.status(200).json(publicStack(manifest));
+      return res.status(200).json(responseFor(manifest));
     } catch (error) {
-      const message = error?.message || 'Stack setup failed.';
-      const status = /required|invalid|unknown|not available|transition/i.test(message) ? 400 : 500;
+      const message = error?.message || 'Build Plan setup failed.';
+      const status = /required|invalid|unknown|not available|transition|selected/i.test(message) ? 400 : 500;
       if (status === 500) console.error('forge-stack failed:', message);
-      return res.status(status).json({ error: status === 500 ? 'Stack setup failed.' : message });
+      return res.status(status).json({ error: status === 500 ? 'Build Plan setup failed.' : message });
     }
   };
 }

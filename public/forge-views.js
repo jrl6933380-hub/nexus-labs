@@ -254,15 +254,18 @@ export const FORGE_VIEWS = {
       const optional = entries.filter(([, slot]) => !slot.required);
       const makeRow = ([slotId, slot]) => {
         const definition = manifest.catalog?.[slotId] || {};
+        const action = manifest.actions?.[slotId] || null;
         const provider = slot.provider
           ? (definition.providers || []).find((item) => item.id === slot.provider)?.label || slot.provider
           : 'Choose when needed';
         const label = statusLabel[slot.status] || slot.status;
         return row({
           title: definition.label || slotId,
-          meta: `${provider} · ${definition.purpose || 'Project service'}`,
+          meta: `${provider} · ${action?.available === false && action?.blocker ? action.blocker : (definition.purpose || 'Project service')}`,
           tone: { label, kind: slot.status === 'ready' ? 'f' : 'g' },
-          onClick: () => ctx.ask(`Walk me through setting up ${definition.label || slotId} for my project. Check its real connection state first and do not call it ready until it passes a test.`),
+          onClick: () => action
+            ? ctx.runStackAction(slotId, action.operation)
+            : ctx.ask(`Walk me through setting up ${definition.label || slotId} for my project. Check its real connection state first and do not call it ready until it passes a test.`),
         });
       };
 
@@ -270,7 +273,12 @@ export const FORGE_VIEWS = {
       if (optional.length) nodes.push(group('Add when you need them', optional.map(makeRow)));
       nodes.push(chips([
         { label: 'Plan my stack', run: () => ctx.ask('Ask me what I am building, then recommend the full stack it needs and update my checklist.') },
-        { label: 'Set up the next piece', run: () => ctx.ask('Open my stack checklist and walk me through the next unfinished required piece.') },
+        { label: 'Set up the next piece', run: () => {
+          const next = progress.next;
+          const action = next ? manifest.actions?.[next] : null;
+          if (next && action) ctx.runStackAction(next, action.operation);
+          else ctx.ask('Open my Build Plan and walk me through the next unfinished required piece.');
+        } },
         { label: 'Add a database', run: () => ctx.ask('I need a database. Explain the recommended option and walk me through connecting it.') },
       ]));
       return nodes;

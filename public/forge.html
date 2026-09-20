@@ -243,6 +243,22 @@ const ctx = {
     await showView('chat');
     await runBuild('Build the first working version from my approved Project Brief.', 'Project Brief approved');
   },
+  runStackAction: async (slotId, operation) => {
+    const notice = bubble('sys', 'Checking the safest next step…');
+    try {
+      const data = await stackAction(slotId, operation);
+      const outcome = data?.outcome || {};
+      notice.textContent = outcome.message || (outcome.ok ? 'Ready.' : 'That piece needs another step first.');
+      if (outcome.next_view) {
+        await showView(outcome.next_view);
+        if (!outcome.ok && outcome.message) bubble('sys', esc(outcome.message));
+      } else if (outcome.ok) {
+        await showView('stack');
+      }
+    } catch (error) {
+      notice.textContent = error.message;
+    }
+  },
   signOut: async () => {
     await fetch('/api/room-auth', {
       method: 'POST', credentials: 'include',
@@ -275,7 +291,10 @@ const ctx = {
       notice.textContent = data.ok
         ? 'Working.'
         : (data.recovery || data.message || "That check didn't pass.");
-      if (data.ok) showView('brain');
+      if (data.ok) {
+        await stackAction('brain', 'verify').catch(() => null);
+        showView('brain');
+      }
     } catch (error) {
       notice.textContent = error.message;
     }
@@ -323,6 +342,17 @@ async function briefAction(action, extra = {}) {
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data?.error || 'That answer could not be saved.');
+  return data;
+}
+
+async function stackAction(slotId, operation) {
+  const response = await fetch('/api/forge-stack', {
+    method: 'POST', credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'run', projectId: 'default', slotId, operation }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data?.error || 'That setup step did not go through.');
   return data;
 }
 
