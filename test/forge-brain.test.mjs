@@ -179,3 +179,16 @@ test('the advertised providers expose tiers without leaking internals', () => {
   assert.ok(Array.isArray(provider.tiers) && provider.tiers.length === 3);
   assert.equal(typeof provider.beginAuthorization, 'undefined', 'adapter functions must not be serialised outward');
 });
+
+test('the Free tier points at the free router, not the paid auto-router', () => {
+  const model = modelForTier('openrouter', 'free');
+  assert.equal(model, 'openrouter/free');
+  assert.notEqual(model, 'openrouter/auto', 'openrouter/auto is billed and would 402 a user with no credit');
+});
+
+test('paid tiers are distinct from the free one', () => {
+  const free = modelForTier('openrouter', 'free');
+  for (const tier of ['fast', 'strong']) {
+    assert.notEqual(modelForTier('openrouter', tier), free);
+  }
+});
