@@ -26,7 +26,7 @@
 import { saveBuild } from '../lib/roomHistory.js';
 import { recordProjectSpend } from '../lib/roomProjectLedger.js';
 import { getRequestUser } from '../lib/roomAuth.js';
-import { openBuildStream } from '../lib/forge/brainStream.js';
+import { openBuildStream, hasOwnBrain } from '../lib/forge/brainStream.js';
 import { getOrCreateAnonId } from '../lib/anonSession.js';
 import { roomMeter } from '../lib/roomMetering.js';
 import { roomConversations } from '../lib/roomConversation.js';
@@ -133,26 +133,40 @@ export default async function handler(req, res) {
   // id colliding with a real one.
   const brainUser = signedIn ? username : null;
 
-  if (!process.env.AI_GATEWAY_API_KEY) {
+  if (!process.env.AI_GATEWAY_API_KEY && !(await hasOwnBrain(brainUser))) {
     return res.status(500).json({ error: 'The AI Gateway is not configured for this environment.' });
   }
 
+  // Build credits pay for inference the owner funds. A customer running on
+  // their own Builder Brain is paying their provider directly, so metering
+  // them here would charge for something Forge is no longer providing. Their
+  // builds are unmetered; Forge charges for what it actually supplies
+  // (hosting, live sites, domains, exports) elsewhere.
+  //
+  // `reservation` stays undefined in that case, which the settlement block at
+  // the end already guards on, so nothing is charged or refunded either.
+  const ownBrain = await hasOwnBrain(brainUser);
+
   let reservation;
-  try {
-    reservation = await roomMeter.reserveBuild({
-      userId: username,
-      kind: currentHtml ? 'edit' : 'fresh',
-    });
-  } catch (meterError) {
-    console.error('room-chat: usage meter unavailable:', meterError.message);
-    return res.status(503).json({ error: 'Room usage meter is temporarily unavailable. Try again shortly.' });
-  }
-  if (!reservation.ok) {
-    return res.status(429).json({
-      error: 'This Room account has reached its build-credit limit for the current period.',
-      code: 'ROOM_CREDITS_EXHAUSTED',
-      usage: reservation,
-    });
+  if (!ownBrain) {
+    try {
+      reservation = await roomMeter.reserveBuild({
+        userId: username,
+        kind: currentHtml ? 'edit' : 'fresh',
+      });
+    } catch (meterError) {
+      console.error('room-chat: usage meter unavailable:', meterError.message);
+      return res.status(503).json({ error: 'Room usage meter is temporarily unavailable. Try again shortly.' });
+    }
+    if (!reservation.ok) {
+      return res.status(429).json({
+        error: 'This Room account has reached its build-credit limit for the current period.',
+        code: 'ROOM_CREDITS_EXHAUSTED',
+        usage: reservation,
+        // Tell them the way out that doesn't involve paying us for inference.
+        hint: 'Connecting your own Builder Brain removes this limit — your builds then run on your own connection.',
+      });
+    }
   }
 
   let buildSucceeded = false;
