@@ -27,6 +27,7 @@ import { saveBuild } from '../lib/roomHistory.js';
 import { recordProjectSpend } from '../lib/roomProjectLedger.js';
 import { getRequestUser } from '../lib/roomAuth.js';
 import { openBuildStream, hasOwnBrain, NoBrainError } from '../lib/forge/brainStream.js';
+import { getProjectBrief, compileBriefForModel } from '../lib/forge/projectBrief.js';
 import { getOrCreateAnonId } from '../lib/anonSession.js';
 import { roomMeter } from '../lib/roomMetering.js';
 import { roomConversations } from '../lib/roomConversation.js';
@@ -132,6 +133,20 @@ export default async function handler(req, res) {
   // through would be a pointless lookup at best, and at worst a guest session
   // id colliding with a real one.
   const brainUser = signedIn ? username : null;
+  const resolvedProjectId = projectId || 'default';
+
+  // Ground the first build in the durable Project Brief when the customer has
+  // completed one. The browser never gets to invent or rewrite this context:
+  // it is read server-side under the authenticated account boundary.
+  let projectBriefText = '';
+  if (signedIn && !currentHtml) {
+    try {
+      const projectBrief = await getProjectBrief({ ownerUsername: username, projectId: resolvedProjectId });
+      projectBriefText = compileBriefForModel(projectBrief);
+    } catch (error) {
+      console.error('room-chat: project brief lookup failed:', error.message);
+    }
+  }
 
   // Forge is customer-powered: builds run on the customer's own Builder Brain,
   // never on the owner's credentials. Refuse early with something actionable
@@ -228,7 +243,7 @@ export default async function handler(req, res) {
             role: 'user',
             content: attachmentMessageContent(isEdit
               ? `Current HTML:\n${currentHtml}\n\nAttached images:\n${attachmentManifest(attachments)}\n\nRequested change: ${message}`
-              : `No existing page yet (build from scratch).\n\nAttached images:\n${attachmentManifest(attachments)}\n\nUser request: ${message}`,
+              : `No existing page yet (build from scratch).\n\nApproved Project Brief:\n${projectBriefText || 'No completed brief was available.'}\n\nTreat the approved brief as the source of truth. Use the user request only as an additional instruction; do not contradict collected customer answers.\n\nAttached images:\n${attachmentManifest(attachments)}\n\nUser request: ${message}`,
             attachments),
           },
         ],
@@ -357,7 +372,7 @@ export default async function handler(req, res) {
         label: customerMessage,
         requestMessage: customerMessage,
         html,
-        projectId,
+        projectId: resolvedProjectId,
       });
       send({ action: 'saved', id: saved.id, projectId: saved.projectId || saved.id });
       if (saved.projectId) {
@@ -409,7 +424,7 @@ export default async function handler(req, res) {
         try {
           await recordProjectSpend({
             userId: username,
-            projectId,
+            projectId: resolvedProjectId,
             credits: settled?.charged,
           });
         } catch (ledgerError) {
