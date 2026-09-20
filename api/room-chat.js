@@ -213,10 +213,13 @@ export default async function handler(req, res) {
   const timer = setTimeout(() => controller.abort(), STREAM_TIMEOUT_MS);
 
   try {
-    const { response, provider, model } = await routeMessageStream({
-      tier: 'heavy',
-      claudeModel: process.env.ROOM_BUILDER_MODEL || 'claude-sonnet-5',
-      gatewayOnly: true,
+    const { response, provider, model, byo } = await openBuildStream({
+      username,
+      ownerOptions: {
+        tier: 'heavy',
+        claudeModel: process.env.ROOM_BUILDER_MODEL || 'claude-sonnet-5',
+        gatewayOnly: true,
+      },
       body: {
         max_tokens: 16000,
         system: isEdit ? EDIT_SYSTEM_PROMPT : FRESH_SYSTEM_PROMPT,
@@ -232,7 +235,7 @@ export default async function handler(req, res) {
       },
       signal: controller.signal,
     });
-    console.log('room-chat: streaming build opened through', provider, model);
+    console.log('room-chat: streaming build opened through', byo ? `customer brain (${provider})` : provider, model);
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
