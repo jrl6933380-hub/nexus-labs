@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createAssistantHandler, parseAssistantDecision } from '../api/room-assistant.js';
+import {
+  createAssistantHandler,
+  getDirectOpenProjectCommand,
+  isConversationOnlyMessage,
+  parseAssistantDecision,
+} from '../api/room-assistant.js';
 
 function response() {
   return {
@@ -56,6 +61,43 @@ test('advice remains conversation and consumes only the assistant reservation', 
   assert.equal(calls.reserve[0].kind, 'assistant');
   assert.equal(calls.settle[0].success, true);
   assert.equal(calls.append.length, 1);
+});
+
+test('a named saved project opens directly and never reaches the builder classifier', async () => {
+  const id = '1789900007465-5xiu9n';
+  assert.deepEqual(
+    getDirectOpenProjectCommand(`Open "${id}" and tell me where it stands.`),
+    { kind: 'command', command: 'open_project', target: id, message: `Opening saved project "${id}".` },
+  );
+  const { handler, calls } = harness({
+    kind: 'build',
+    message: 'Wrong path',
+    instruction: 'Rebuild it.',
+  });
+  const res = response();
+  await handler({ method: 'POST', body: { message: `Open "${id}" and tell me where it stands.`, projectId: 'p1' } }, res);
+  assert.equal(res.code, 200);
+  assert.equal(res.body.kind, 'command');
+  assert.equal(res.body.command, 'open_project');
+  assert.equal(res.body.target, id);
+  assert.equal(calls.route, 0, 'safe local navigation bypasses the model');
+  assert.equal(calls.reserve.length, 0, 'opening history does not consume an assistant credit');
+});
+
+test('questions cannot be promoted into builds by a classifier mistake', async () => {
+  assert.equal(isConversationOnlyMessage('Should I add a contact form?'), true);
+  assert.equal(isConversationOnlyMessage('Can you add a contact form?'), false);
+  const { handler, calls } = harness({
+    kind: 'build',
+    message: 'I’ll change it now.',
+    instruction: 'Add a contact form.',
+  });
+  const res = response();
+  await handler({ method: 'POST', body: { message: 'Should I add a contact form?', projectId: 'p1' } }, res);
+  assert.equal(res.code, 200);
+  assert.equal(res.body.kind, 'reply');
+  assert.match(res.body.message, /won’t change the project/);
+  assert.equal(calls.settle[0].success, true, 'the guarded turn stays conversational');
 });
 
 test('an explicit build is compiled and releases the assistant reservation for build metering', async () => {
@@ -121,6 +163,10 @@ test('only allowlisted workspace commands can cross the assistant boundary', () 
   assert.deepEqual(
     parseAssistantDecision('{"kind":"command","command":"preview_phone","message":"Showing phone view."}'),
     { kind: 'command', command: 'preview_phone', message: 'Showing phone view.' },
+  );
+  assert.deepEqual(
+    parseAssistantDecision('{"kind":"command","command":"open_project","target":"1789900007465-5xiu9n","message":"Opening it."}'),
+    { kind: 'command', command: 'open_project', target: '1789900007465-5xiu9n', message: 'Opening it.' },
   );
   assert.deepEqual(
     parseAssistantDecision('{"kind":"team","message":"This needs the team.","instruction":"Build the complete multi-route app."}'),
