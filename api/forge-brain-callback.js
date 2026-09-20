@@ -26,6 +26,11 @@ import { consumePendingAuthorization, saveConnection } from '../lib/forge/brainS
 import { getAdapter } from '../lib/forge/brainProviders.js';
 
 function back(res, params) {
+  // Every branch below logs its reason. An earlier version redirected silently
+  // on the expired/rejected paths, so a broken connection looked identical to
+  // a working one from the logs — the 302 was there, the error was not.
+  // Reasons only, never the code, the state, or any provider payload.
+  console.log('forge-brain-callback:', params.brain);
   const query = new URLSearchParams(params).toString();
   res.setHeader('Location', `/forge.html?${query}`);
   return res.status(302).end();
@@ -57,6 +62,7 @@ export default async function handler(req, res) {
     username = null;
   }
   if (!username || username !== pending.username) {
+    console.log('forge-brain-callback: session did not match the account that started this');
     return back(res, { brain: 'rejected' });
   }
 
