@@ -203,6 +203,9 @@ const screenEl = el('screen');
 let currentView = 'project';
 let busy = false;
 let threadId = null;
+// The page built so far. Sent back as currentHtml so a follow-up becomes a
+// small patch instead of a full rebuild.
+let currentBuild = '';
 const history = [];
 
 const ctx = {
@@ -382,17 +385,63 @@ async function submit(){
   if (!threadId) threadId = `f${Date.now().toString(36)}`;
   busy = true; el('send').disabled = true;
   const pending = bubble('a', '<p style="color:#61656f">Working on it…</p>');
+
+  // /api/room-chat is a BUILD endpoint and answers with an SSE stream, not
+  // JSON. Calling response.json() on it throws, which is why this used to
+  // print a fallback string and look like a reply. Read the stream properly:
+  // progress lines while it works, the finished page when it lands.
   try {
     const response = await fetch('/api/room-chat', {
       method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ message: raw, history }),
+      body: JSON.stringify({ message: raw, currentHtml: currentBuild || undefined }),
     });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data?.error || 'That did not go through. Try again in a moment.');
-    const reply = data.reply || data.message || 'Done.';
-    pending.innerHTML = paragraphs(reply);
-    history.push({ role:'user', content:raw }, { role:'assistant', content:reply });
-    saveThread();
+
+    // Refusals (no Builder Brain, bad request) come back as JSON before the
+    // stream starts, so check the content type rather than assuming.
+    const type = response.headers.get('content-type') || '';
+    if (!type.includes('text/event-stream')) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data?.error || 'That did not go through.');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let finished = false;
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const events = buffer.split('\n\n');
+      buffer = events.pop() || '';
+      for (const evt of events) {
+        const line = evt.split('\n').find((l) => l.startsWith('data: '));
+        if (!line) continue;
+        let data;
+        try { data = JSON.parse(line.slice(6)); } catch { continue; }
+
+        if (data.action === 'progress') {
+          pending.innerHTML = `<p style="color:#61656f">${esc(data.message || 'Working on it…')}</p>`;
+        } else if (data.action === 'html') {
+          finished = true;
+          currentBuild = data.html || '';
+          pending.innerHTML = '<p>Here it is.</p>';
+          renderVisual(currentBuild, 'Your site');
+          history.push({ role:'user', content:raw }, { role:'assistant', content:'Built it.' });
+          saveThread();
+        } else if (data.action === 'build_error' || data.action === 'error') {
+          finished = true;
+          pending.innerHTML = `<p style="color:#d09a82">${esc(data.message || 'That build did not finish.')}</p>`;
+        } else if (data.action === 'save_error') {
+          thread.appendChild(say(data.message || "Built it, but couldn't save it."));
+        }
+      }
+    }
+
+    if (!finished) {
+      pending.innerHTML = '<p style="color:#d09a82">That build stopped before it finished. Try again.</p>';
+    }
   } catch (error) {
     pending.innerHTML = `<p style="color:#d09a82">${esc(error.message)}</p>`;
   } finally { busy = false; el('send').disabled = false; }
