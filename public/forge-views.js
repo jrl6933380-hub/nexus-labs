@@ -168,35 +168,68 @@ export const FORGE_VIEWS = {
       let failed = false;
       try { status = await getJSON('/api/forge-brain'); } catch { failed = true; }
 
-      // The connection flow is not built yet. Say so plainly rather than
-      // rendering a panel that implies a connection exists — a brain that
-      // claims to be connected when it isn't is the worst possible lie here,
-      // because every build failure afterwards looks like a broken product.
+      // Only reached when the endpoint itself is unreachable or misconfigured.
+      // Say that plainly rather than implying the user simply hasn't connected:
+      // "you haven't set this up" sends them looking for a button when the
+      // actual problem is on our side.
       if (failed || !status) {
-        nodes.push(say(`Your Builder Brain isn't set up yet.\n\nThis is where you'll connect the AI that does the building, pick how much power you want, and see what you've used. Right now your builds run on Forge's own connection.`));
-        nodes.push(group('Coming here', [
-          row({ title: 'Free', meta: 'Start building, no card needed' }),
-          row({ title: 'Fast', meta: 'Quicker, for lots of small changes' }),
-          row({ title: 'Strong', meta: 'For the hard stuff' }),
-        ]));
+        nodes.push(say(`I can't reach the Builder Brain settings right now.\n\nYour builds still work — they're running on Forge's connection. This is worth another try in a minute.`));
         nodes.push(chips([
-          { label: 'How does this work', run: () => ctx.ask('Explain the Builder Brain — what am I connecting and why?') },
+          { label: 'Try again', run: () => ctx.go('brain') },
         ]));
         return nodes;
       }
 
       const connected = Boolean(field(status, 'connected'));
-      nodes.push(say(connected
+      const tiers = (status.providers?.[0]?.tiers) || [];
+      const currentTier = String(field(status, 'tier') || 'free');
+
+      if (!connected) {
+        nodes.push(say(`Right now your builds run on Forge's own connection.\n\nConnecting your own takes one tap — nothing to copy, nothing to paste, and no card unless you want more power later. What you use stays on your account.`));
+
+        if (tiers.length) {
+          nodes.push(group('Pick how much power', tiers.map((tier) => row({
+            title: tier.label,
+            meta: tier.blurb,
+            tone: tier.id === currentTier ? { label: 'picked', kind: 'f' } : null,
+            onClick: () => ctx.connectBrain(tier.id),
+          }))));
+        }
+
+        nodes.push(chips([
+          { label: 'Connect', run: () => ctx.connectBrain(currentTier) },
+          { label: 'What am I connecting', run: () => ctx.ask('Explain the Builder Brain in plain terms — what am I connecting and what does it cost me?') },
+        ]));
+        return nodes;
+      }
+
+      nodes.push(say(field(status, 'tested_at')
         ? `Your brain is connected and working.`
-        : `Your brain isn't connected yet. Builds run on Forge's connection until you set one up.`));
+        : `Your brain is connected. Worth checking it before we build something big.`));
+
+      const used = field(status, 'usage');
+      const cap = field(status, 'limit');
       nodes.push(group(null, [
-        row({ title: 'Connection', meta: String(field(status, 'provider') || 'Forge'), tone: connected ? { label: 'on', kind: 'f' } : { label: 'off', kind: 'g' } }),
-        row({ title: 'Power', meta: String(field(status, 'tier', 'model') || 'Free') }),
-        row({ title: 'Last checked', meta: relative(field(status, 'tested_at', 'updated_at')) || 'Not yet' }),
+        row({ title: 'Connection', meta: String(field(status, 'provider') || 'Connected'), tone: { label: 'on', kind: 'f' } }),
+        row({ title: 'Power', meta: (tiers.find((t) => t.id === currentTier) || {}).label || currentTier }),
+        row({ title: 'Last checked', meta: relative(field(status, 'tested_at')) || 'Not yet' }),
+        ...(used !== '' && used !== null
+          ? [row({ title: 'Used so far', meta: cap ? `${used} of ${cap}` : String(used) })]
+          : []),
       ]));
+
+      if (tiers.length) {
+        nodes.push(group('Change power', tiers.map((tier) => row({
+          title: tier.label,
+          meta: tier.blurb,
+          tone: tier.id === currentTier ? { label: 'current', kind: 'f' } : null,
+          onClick: () => ctx.setTier(tier.id),
+        }))));
+      }
+
       nodes.push(chips([
-        { label: 'Test it', run: () => ctx.ask('Test my Builder Brain connection.') },
-        { label: 'Change power', run: () => ctx.ask('I want to change how much power my builds use.') },
+        { label: 'Check it', run: () => ctx.testBrain() },
+        { label: 'Disconnect', run: () => ctx.disconnectBrain() },
       ]));
       return nodes;
     },
