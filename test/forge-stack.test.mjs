@@ -128,8 +128,9 @@ test('Build Plan publishes truthful provider-aware actions', async () => {
   const actions = describeStackActions(manifest);
   assert.equal(actions.brain.available, true);
   assert.equal(actions.auth.operation, 'verify');
-  assert.equal(actions.database.available, false);
-  assert.match(actions.database.blocker, /project ID and publish target/i);
+  assert.equal(actions.database.available, true);
+  assert.equal(actions.database.operation, 'provision');
+  assert.match(actions.database.help, /isolated database/i);
   assert.equal(actions.storage.available, false);
 });
 
@@ -164,17 +165,23 @@ test('failed evidence never marks a service ready', async () => {
   assert.match(result.message, /failed/i);
 });
 
-test('unsupported provider setup returns its blocker without changing state', async () => {
+test('managed database action delegates to its protected provisioner', async () => {
   const store = createMemoryStore();
   const before = await ensureStackManifest({
     ownerUsername: 'alice', projectId: 'booking', projectType: 'booking', store,
   });
+  const calls = [];
   const result = await runStackAction({
-    ownerUsername: 'alice', projectId: 'booking', slotId: 'database', operation: 'prepare', store,
+    ownerUsername: 'alice', projectId: 'booking', slotId: 'database', operation: 'provision', store,
+    provisionDatabase: async (input) => {
+      calls.push(input);
+      return { ok: true, changed: true, message: 'Database ready.', manifest: before };
+    },
   });
-  assert.equal(result.ok, false);
-  assert.equal(result.changed, false);
-  assert.match(result.message, /project ID and publish target/i);
+  assert.equal(result.ok, true);
+  assert.equal(result.changed, true);
+  assert.equal(calls[0].ownerUsername, 'alice');
+  assert.equal(calls[0].projectId, 'booking');
   assert.equal(before.slots.database.status, 'recommended');
 });
 
@@ -208,4 +215,36 @@ test('API stack actions keep authenticated owner and requested project scope', a
   assert.equal(calls[0].projectId, 'customer-app');
   assert.equal(calls[0].slotId, 'database');
   assert.equal(res.body.outcome.ok, false);
+});
+
+test('one-click setup stays scoped to the signed-in owner and requested project', async () => {
+  const calls = [];
+  const handler = createForgeStackHandler({
+    resolveUser: async () => 'signed-in-user',
+    setup: async (input) => {
+      calls.push(input);
+      return {
+        ok: true,
+        changed: true,
+        message: 'Managed setup finished.',
+        completed: [{ slot: 'database' }],
+        waiting: [{ slot: 'brain', next_view: 'brain' }],
+        later: [],
+        manifest: {
+          owner: input.ownerUsername,
+          project_id: input.projectId,
+          slots: {},
+          created_at: 1,
+          updated_at: 1,
+        },
+      };
+    },
+  });
+  const res = responseRecorder();
+  await handler({ method: 'POST', query: {}, body: { action: 'setup', projectId: 'customer-app' } }, res);
+  assert.equal(res.code, 200);
+  assert.equal(calls[0].ownerUsername, 'signed-in-user');
+  assert.equal(calls[0].projectId, 'customer-app');
+  assert.equal(res.body.outcome.next_view, 'brain');
+  assert.deepEqual(res.body.outcome.completed, [{ slot: 'database' }]);
 });

@@ -10,7 +10,7 @@ import {
   resetStackSlot,
   publicStack,
 } from '../lib/forgeStack.js';
-import { describeStackActions, runStackAction } from '../lib/forge/stackActions.js';
+import { describeStackActions, runStackAction, runStackSetup } from '../lib/forge/stackActions.js';
 
 function projectIdFrom(req) {
   return String((req.query || {}).projectId || (req.body || {}).projectId || 'default');
@@ -30,6 +30,7 @@ export function createForgeStackHandler({
   select = selectStackProvider,
   reset = resetStackSlot,
   runAction = runStackAction,
+  setup = runStackSetup,
 } = {}) {
   return async function handler(req, res) {
     res.setHeader('Cache-Control', 'private, no-store');
@@ -94,6 +95,19 @@ export function createForgeStackHandler({
             changed: Boolean(result.changed),
             message: result.message || null,
             next_view: result.next_view || null,
+          };
+          return res.status(200).json(responseFor(result.manifest, outcome));
+        }
+        case 'setup': {
+          const result = await setup({ ownerUsername: username, projectId });
+          const outcome = {
+            ok: Boolean(result.ok),
+            changed: Boolean(result.changed),
+            message: result.message || null,
+            completed: result.completed || [],
+            waiting: result.waiting || [],
+            later: result.later || [],
+            next_view: result.waiting?.find((item) => item.next_view)?.next_view || null,
           };
           return res.status(200).json(responseFor(result.manifest, outcome));
         }
