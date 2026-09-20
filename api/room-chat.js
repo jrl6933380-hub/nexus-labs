@@ -26,6 +26,7 @@
 import { saveBuild } from '../lib/roomHistory.js';
 import { recordProjectSpend } from '../lib/roomProjectLedger.js';
 import { getRequestUser } from '../lib/roomAuth.js';
+import { openBuildStream } from '../lib/forge/brainStream.js';
 import { getOrCreateAnonId } from '../lib/anonSession.js';
 import { roomMeter } from '../lib/roomMetering.js';
 import { roomConversations } from '../lib/roomConversation.js';
@@ -124,7 +125,13 @@ export default async function handler(req, res) {
   if (!message) return res.status(400).json({ error: 'Missing message' });
 
   let username = await getRequestUser(req);
+  const signedIn = Boolean(username);
   if (!username) username = getOrCreateAnonId(req, res);
+
+  // Only a signed-in account can have a Builder Brain. Passing an anonymous id
+  // through would be a pointless lookup at best, and at worst a guest session
+  // id colliding with a real one.
+  const brainUser = signedIn ? username : null;
 
   if (!process.env.AI_GATEWAY_API_KEY) {
     return res.status(500).json({ error: 'The AI Gateway is not configured for this environment.' });
@@ -214,7 +221,7 @@ export default async function handler(req, res) {
 
   try {
     const { response, provider, model, byo } = await openBuildStream({
-      username,
+      username: brainUser,
       ownerOptions: {
         tier: 'heavy',
         claudeModel: process.env.ROOM_BUILDER_MODEL || 'claude-sonnet-5',
