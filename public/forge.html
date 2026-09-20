@@ -314,6 +314,42 @@ function paragraphs(text){
   return String(text).split(/\n{2,}/).map((p) => `<p>${esc(p).replace(/\n/g,'<br>')}</p>`).join('');
 }
 
+// Renders a finished build inline in the thread.
+//
+// This was referenced by the build handler but never defined here — it existed
+// only in the operator shell — so a SUCCESSFUL build threw "Can't find
+// variable: renderVisual" at the last step and looked like a build failure.
+//
+// The page is sandboxed: allow-scripts only, no same-origin, no network. It is
+// generated HTML being shown back to the person who asked for it, but it still
+// must not be able to reach this page's session or call anything out.
+function renderVisual(html, title){
+  const card = document.createElement('div');
+  card.className = 'visual';
+  card.innerHTML = `<div class="vbar"><span class="vname">${esc(title || 'Your site')}</span>
+    <button class="vb" id="vb-${Date.now()}">Open full</button></div>`;
+
+  const frame = document.createElement('iframe');
+  frame.setAttribute('sandbox', 'allow-scripts allow-forms');
+  frame.setAttribute('referrerpolicy', 'no-referrer');
+  frame.srcdoc = html;
+  frame.style.height = '460px';
+  card.appendChild(frame);
+
+  card.querySelector('.vb').onclick = () => {
+    // Blob URL rather than document.write so the preview opens in its own
+    // origin instead of inheriting this one.
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank', 'noopener');
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  };
+
+  thread.appendChild(card);
+  thread.scrollTop = thread.scrollHeight;
+  return card;
+}
+
 async function showView(id){
   currentView = id;
   railOpen(false);
