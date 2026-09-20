@@ -133,10 +133,6 @@ export default async function handler(req, res) {
   // id colliding with a real one.
   const brainUser = signedIn ? username : null;
 
-  if (!process.env.AI_GATEWAY_API_KEY && false) {
-    return res.status(500).json({ error: 'The AI Gateway is not configured for this environment.' });
-  }
-
   // Forge is customer-powered: builds run on the customer's own Builder Brain,
   // never on the owner's credentials. Refuse early with something actionable
   // rather than opening a stream that is going to fail. The AI Gateway is not
@@ -389,6 +385,9 @@ export default async function handler(req, res) {
     console.error('room-chat handler crashed:', err.message);
     if (err.name === 'AbortError') {
       sendBuildError('The requested build exceeded the automatic builder time limit.');
+    } else if (err instanceof NoBrainError || err.code === 'BRAIN_REQUIRED') {
+      // Already phrased for a customer; don't wrap it in builder jargon.
+      sendBuildError(err.message);
     } else {
       sendBuildError(`The automatic builder failed: ${err.message}`);
     }
