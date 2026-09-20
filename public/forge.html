@@ -259,6 +259,17 @@ const ctx = {
       notice.textContent = error.message;
     }
   },
+  setupStack: async () => {
+    const notice = bubble('sys', 'Setting up the managed parts of your project…');
+    try {
+      const data = await stackSetupAction();
+      const outcome = data?.outcome || {};
+      notice.textContent = outcome.message || 'Managed setup finished.';
+      await showView('stack');
+    } catch (error) {
+      notice.textContent = error.message;
+    }
+  },
   signOut: async () => {
     await fetch('/api/room-auth', {
       method: 'POST', credentials: 'include',
@@ -353,6 +364,17 @@ async function stackAction(slotId, operation) {
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data?.error || 'That setup step did not go through.');
+  return data;
+}
+
+async function stackSetupAction() {
+  const response = await fetch('/api/forge-stack', {
+    method: 'POST', credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'setup', projectId: 'default' }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data?.error || 'Project setup did not go through.');
   return data;
 }
 

@@ -272,6 +272,7 @@ export const FORGE_VIEWS = {
       if (required.length) nodes.push(group('Needed for this project', required.map(makeRow)));
       if (optional.length) nodes.push(group('Add when you need them', optional.map(makeRow)));
       nodes.push(chips([
+        { label: 'Set up this project', run: () => ctx.setupStack() },
         { label: 'Plan my stack', run: () => ctx.ask('Ask me what I am building, then recommend the full stack it needs and update my checklist.') },
         { label: 'Set up the next piece', run: () => {
           const next = progress.next;
