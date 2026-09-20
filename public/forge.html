@@ -216,7 +216,69 @@ const ctx = {
     }).catch(() => {});
     location.replace('/room-login.html');
   },
+
+  // --- Builder Brain ------------------------------------------------------
+  // Authorizing does a full-page navigation rather than opening a popup:
+  // popups get blocked on mobile, and the provider has to be able to redirect
+  // back onto /forge.html with its result either way.
+  connectBrain: async (tier) => {
+    const notice = bubble('sys', 'Setting that up…');
+    try {
+      const data = await brainAction('authorize', { tier });
+      if (!data?.redirectUrl) throw new Error('Could not start that just now.');
+      notice.textContent = 'Taking you over to authorize…';
+      location.href = data.redirectUrl;
+    } catch (error) {
+      notice.textContent = error.message;
+    }
+  },
+
+  testBrain: async () => {
+    const notice = bubble('sys', 'Checking…');
+    try {
+      const data = await brainAction('test');
+      notice.textContent = data.ok
+        ? 'Working.'
+        : (data.recovery || data.message || "That check didn't pass.");
+      if (data.ok) showView('brain');
+    } catch (error) {
+      notice.textContent = error.message;
+    }
+  },
+
+  setTier: async (tier) => {
+    const notice = bubble('sys', 'Changing that…');
+    try {
+      await brainAction('set_tier', { tier });
+      notice.remove();
+      showView('brain');
+    } catch (error) {
+      notice.textContent = error.message;
+    }
+  },
+
+  disconnectBrain: async () => {
+    const notice = bubble('sys', 'Disconnecting…');
+    try {
+      await brainAction('disconnect');
+      notice.textContent = "Disconnected. Builds go back to Forge's connection.";
+      showView('brain');
+    } catch (error) {
+      notice.textContent = error.message;
+    }
+  },
 };
+
+async function brainAction(action, extra = {}) {
+  const response = await fetch('/api/forge-brain', {
+    method: 'POST', credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, ...extra }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data?.error || data?.recovery || 'That did not go through.');
+  return data;
+}
 
 function railOpen(open){ screenEl.classList.toggle('open', open); }
 el('burger').onclick = () => railOpen(!screenEl.classList.contains('open'));
@@ -434,7 +496,32 @@ el('dockSend').onclick = () => {
 };
 el('dockInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') el('dockSend').click(); });
 
-showView('chat');
+// The provider redirect lands back here with ?brain=<result>. Say something
+// human about it, then strip the parameter so a refresh can't replay a stale
+// outcome. Note window.history: `history` in this module is the conversation
+// array, not the browser's.
+const BRAIN_RESULTS = {
+  connected: null,
+  cancelled: 'Looks like you backed out before finishing — nothing was connected.',
+  expired: 'That took a little too long and the link expired. Starting it again takes a second.',
+  rejected: 'That request got turned down. Trying again usually sorts it.',
+  test_failed: "It connected, but the check didn't pass. Worth reconnecting.",
+  network: "Couldn't reach the provider just now. Might be a blip — try again in a moment.",
+  unknown: "Something went sideways. Nothing's lost, and we can try again.",
+};
+
+async function handleBrainResult(){
+  const result = new URLSearchParams(location.search).get('brain');
+  if (!result) return false;
+  window.history.replaceState?.({}, '', location.pathname);
+  await showView('brain');
+  const message = result in BRAIN_RESULTS ? BRAIN_RESULTS[result] : BRAIN_RESULTS.unknown;
+  if (message) bubble('sys', esc(message));
+  else if (result === 'connected') ctx.testBrain();
+  return true;
+}
+
+if (!await handleBrainResult()) showView('chat');
 </script>
 </body>
 </html>
