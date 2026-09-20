@@ -95,6 +95,24 @@
     border:1px solid var(--ln);color:#c0c4cc;transition:.13s}
   .chip:hover{border-color:#3b4354;color:var(--tx)}
 
+  .qcard{margin:4px 0 22px;padding:18px;border:1px solid #303748;border-radius:18px;
+    background:linear-gradient(155deg,#171b24,#11141a);box-shadow:0 16px 40px rgba(0,0,0,.22)}
+  .qhead{display:flex;flex-direction:column;gap:7px;margin-bottom:16px}
+  .qhead span{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+  .qhead strong{font:500 21px/1.25 ui-serif,Georgia,serif;color:var(--tx)}
+  .qhead small{font-size:13.5px;line-height:1.5;color:var(--dm)}
+  .qoptions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+  .qoption{min-height:48px;padding:11px 13px;border:1px solid #303748;border-radius:13px;
+    background:#12161d;color:#d7d9df;font-size:14px;line-height:1.3;text-align:center;transition:.14s}
+  .qoption:hover{border-color:#586277}.qoption.picked{border-color:var(--accent);background:#2a2419;color:#f3dfb8}
+  .qcomment{width:100%;resize:vertical;margin-top:12px;padding:12px 13px;background:#0e1117;
+    border:1px solid #303748;border-radius:12px;color:var(--tx);font:14px/1.45 inherit;outline:none}
+  .qcomment:focus{border-color:var(--accent)}.qcomment::placeholder{color:#666c78}
+  .qcomment.qmain{margin-top:0;min-height:108px;font-size:15px}
+  .qactions{display:flex;align-items:center;gap:12px;margin-top:13px}
+  .qsave{padding:11px 17px;border-radius:20px;background:var(--accent);color:#17130a;font-size:14px;font-weight:650}
+  .qsave[disabled]{opacity:.5}.qerror{font-size:12.5px;color:#d09a82}
+
   .disc{font-size:12.5px;color:#61656f;padding:6px 18px 10px}
   .foot{padding:0 14px calc(env(safe-area-inset-bottom) + 14px)}
   .comp{border:1px solid #2b3040;border-radius:24px;padding:14px 15px 11px;background:var(--card)}
@@ -134,6 +152,7 @@
     .burger{display:none}
     .thread,.foot,.disc{max-width:780px;margin-left:auto;margin-right:auto;width:100%}
   }
+  @media (max-width:520px){.qoptions{grid-template-columns:1fr}.qcard{padding:15px}}
 </style>
 </head>
 <body>
@@ -211,6 +230,19 @@ const history = [];
 const ctx = {
   ask: (text) => { el('input').value = text; submit(); },
   go: (id) => showView(id),
+  answerBrief: async (questionId, values, comment) => {
+    await briefAction('answer', { questionId, values, comment });
+    await showView('brief');
+  },
+  resetBrief: async () => {
+    await briefAction('reset');
+    currentBuild = '';
+    await showView('brief');
+  },
+  buildFromBrief: async () => {
+    await showView('chat');
+    await runBuild('Build the first working version from my approved Project Brief.', 'Project Brief approved');
+  },
   signOut: async () => {
     await fetch('/api/room-auth', {
       method: 'POST', credentials: 'include',
@@ -264,7 +296,7 @@ const ctx = {
     const notice = bubble('sys', 'Disconnecting…');
     try {
       await brainAction('disconnect');
-      notice.textContent = "Disconnected. Builds go back to Forge's connection.";
+      notice.textContent = 'Disconnected. Connect a Builder Brain again before your next build.';
       showView('brain');
     } catch (error) {
       notice.textContent = error.message;
@@ -280,6 +312,17 @@ async function brainAction(action, extra = {}) {
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data?.error || data?.recovery || 'That did not go through.');
+  return data;
+}
+
+async function briefAction(action, extra = {}) {
+  const response = await fetch('/api/forge-brief', {
+    method: 'POST', credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, projectId: 'default', ...extra }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data?.error || 'That answer could not be saved.');
   return data;
 }
 
@@ -416,8 +459,30 @@ async function submit(){
   el('input').value = '';
   const target = matchForgeView(raw);
   if (target) { showView(target); return; }
+  if (!currentBuild) {
+    try {
+      const brief = await fetch('/api/forge-brief?projectId=default', {
+        credentials: 'include', headers: { Accept: 'application/json' }, cache: 'no-store',
+      }).then((response) => response.ok ? response.json() : null);
+      if (!brief?.progress?.ready) {
+        if (brief?.next_question?.id === 'idea') {
+          await briefAction('answer', { questionId: 'idea', values: raw });
+        }
+        await showView('brief');
+        return;
+      }
+    } catch {
+      await showView('brief');
+      return;
+    }
+  }
+  await runBuild(raw);
+}
+
+async function runBuild(raw, displayMessage = raw){
+  if (!raw || busy) return;
   if (currentView !== 'chat') showView('chat');
-  bubble('u', esc(raw));
+  bubble('u', esc(displayMessage));
   if (!threadId) threadId = `f${Date.now().toString(36)}`;
   busy = true; el('send').disabled = true;
   const pending = bubble('a', '<p style="color:#61656f">Working on it…</p>');
@@ -429,7 +494,7 @@ async function submit(){
   try {
     const response = await fetch('/api/room-chat', {
       method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ message: raw, currentHtml: currentBuild || undefined }),
+      body: JSON.stringify({ message: raw, displayMessage, projectId: 'default', currentHtml: currentBuild || undefined }),
     });
 
     // Refusals (no Builder Brain, bad request) come back as JSON before the
@@ -464,7 +529,7 @@ async function submit(){
           currentBuild = data.html || '';
           pending.innerHTML = '<p>Here it is.</p>';
           renderVisual(currentBuild, 'Your site');
-          history.push({ role:'user', content:raw }, { role:'assistant', content:'Built it.' });
+          history.push({ role:'user', content:displayMessage }, { role:'assistant', content:'Built it.' });
           saveThread();
         } else if (data.action === 'build_error' || data.action === 'error') {
           finished = true;
@@ -491,11 +556,10 @@ el('newBtn').onclick = el('newTop').onclick = () => {
 };
 
 function greet(){
-  thread.appendChild(say(`Hey, I'm Nex. Welcome to Forge.\n\nTell me what you want to build and I'll build it. You don't need to know how any of it works — just describe it like you'd describe it to a person.`));
+  thread.appendChild(say(`Hey, I'm Nex. Welcome to Forge.\n\nTell me what you want to create. I'll ask a few focused questions, save your answers into a Project Brief, and then build the first version from what you actually want.`));
   thread.appendChild(chips([
-    { label: 'A site for my business', run: () => ctx.ask('I want a site for my business. Ask me what you need to know.') },
-    { label: 'Set up my full stack', run: () => showView('stack') },
-    { label: 'A way for customers to reach me', run: () => ctx.ask('I want a way for customers to contact me.') },
+    { label: 'Start my Project Brief', run: () => showView('brief') },
+    { label: 'See my build plan', run: () => showView('stack') },
     { label: 'What can you build', run: () => showView('help') },
   ]));
 }

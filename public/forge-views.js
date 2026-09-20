@@ -15,6 +15,90 @@
 export { esc, pick, getJSON, field, relative, say, row, group, chips, empty, pill } from '/workspace-views.js';
 import { esc, pick, getJSON, field, relative, say, row, group, chips, empty } from '/workspace-views.js';
 
+function briefQuestionCard(question, progress, ctx) {
+  const card = document.createElement('section');
+  card.className = 'qcard';
+  card.setAttribute('aria-label', question.question);
+
+  const head = document.createElement('div');
+  head.className = 'qhead';
+  head.innerHTML = `<span>Project brief · ${progress.answered + 1} of ${progress.required}</span><strong>${esc(question.question)}</strong><small>${esc(question.helper || '')}</small>`;
+  card.appendChild(head);
+
+  const selected = new Set();
+  let longText = null;
+  if (question.type === 'long_text') {
+    longText = document.createElement('textarea');
+    longText.className = 'qcomment qmain';
+    longText.placeholder = question.placeholder || 'Tell Nex a little more…';
+    longText.rows = 4;
+    card.appendChild(longText);
+  } else {
+    const options = document.createElement('div');
+    options.className = 'qoptions';
+    for (const option of question.options || []) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'qoption';
+      button.textContent = option.label;
+      button.dataset.value = option.value;
+      button.setAttribute('aria-pressed', 'false');
+      button.onclick = () => {
+        if (question.type === 'single_select') {
+          selected.clear();
+          for (const sibling of options.querySelectorAll('.qoption')) {
+            sibling.classList.remove('picked');
+            sibling.setAttribute('aria-pressed', 'false');
+          }
+        }
+        if (selected.has(option.value)) {
+          selected.delete(option.value);
+          button.classList.remove('picked');
+          button.setAttribute('aria-pressed', 'false');
+        } else {
+          selected.add(option.value);
+          button.classList.add('picked');
+          button.setAttribute('aria-pressed', 'true');
+        }
+      };
+      options.appendChild(button);
+    }
+    card.appendChild(options);
+  }
+
+  let comment = null;
+  if (question.allow_comment) {
+    comment = document.createElement('textarea');
+    comment.className = 'qcomment';
+    comment.placeholder = 'Add a focused note for Nex (optional)…';
+    comment.rows = 2;
+    card.appendChild(comment);
+  }
+
+  const actions = document.createElement('div');
+  actions.className = 'qactions';
+  const save = document.createElement('button');
+  save.type = 'button';
+  save.className = 'qsave';
+  save.textContent = 'Save and continue';
+  const error = document.createElement('span');
+  error.className = 'qerror';
+  save.onclick = async () => {
+    save.disabled = true;
+    error.textContent = '';
+    try {
+      const values = question.type === 'long_text' ? longText.value.trim() : [...selected];
+      await ctx.answerBrief(question.id, values, comment?.value.trim() || '');
+    } catch (failure) {
+      error.textContent = failure.message || 'Choose an answer first.';
+      save.disabled = false;
+    }
+  };
+  actions.append(save, error);
+  card.appendChild(actions);
+  return card;
+}
+
 export const FORGE_VIEWS = {
   project: {
     label: 'Your Project',
@@ -28,7 +112,7 @@ export const FORGE_VIEWS = {
 
       nodes.push(say(builds.length
         ? `Here's what you've built so far. Pick one up, or tell me something new and I'll start it.`
-        : `Nothing built yet. Tell me what you want — a site for your business, a booking page, somewhere for customers to find you — and I'll start it.`));
+        : `Nothing built yet. I'll ask a few focused questions first, then build the first version from your real answers instead of guessing.`));
 
       if (builds.length) {
         nodes.push(group(null, builds.slice(0, 12).map((build) => row({
@@ -39,8 +123,43 @@ export const FORGE_VIEWS = {
       }
 
       nodes.push(chips([
-        { label: 'Start something new', run: () => ctx.ask('I want to build something new. Ask me what you need to know.') },
+        { label: 'Start something new', run: () => ctx.go('brief') },
         { label: 'What can you build', run: () => ctx.ask('What kinds of things can you build for me?') },
+      ]));
+      return nodes;
+    },
+  },
+
+  brief: {
+    label: 'Project Brief',
+    icon: '✦',
+    say: ['brief', 'project brief', 'questions', 'plan my project'],
+    async render(ctx) {
+      const nodes = [];
+      let brief = null;
+      try { brief = await getJSON('/api/forge-brief?projectId=default'); } catch {}
+      if (!brief?.progress) {
+        return [
+          say(`I couldn't load your Project Brief just now. None of your answers were changed.`),
+          chips([{ label: 'Try again', run: () => ctx.go('brief') }]),
+        ];
+      }
+
+      if (!brief.progress.ready && brief.next_question) {
+        nodes.push(say(`I'll collect the important decisions one at a time. Each answer saves automatically, and the next question adapts to your project.`));
+        nodes.push(briefQuestionCard(brief.next_question, brief.progress, ctx));
+        return nodes;
+      }
+
+      nodes.push(say(`Your Project Brief is ready. This is the information I'll use as the source of truth for the first build.`));
+      nodes.push(group('What Nex understands', (brief.summary || []).map((item) => row({
+        title: item.value || 'Answered',
+        meta: `${item.label}${item.comment ? ` · ${item.comment}` : ''}`,
+        tone: { label: 'saved', kind: 'f' },
+      }))));
+      nodes.push(chips([
+        { label: 'Build the first version', run: () => ctx.buildFromBrief() },
+        { label: 'Start the brief over', run: () => ctx.resetBrief() },
       ]));
       return nodes;
     },
@@ -95,9 +214,9 @@ export const FORGE_VIEWS = {
   },
 
   stack: {
-    label: 'Your Stack',
+    label: 'Build Plan',
     icon: '⬡',
-    say: ['stack', 'my stack', 'your stack', 'setup', 'services'],
+    say: ['stack', 'my stack', 'your stack', 'setup', 'services', 'build plan'],
     async render(ctx) {
       const nodes = [];
       let manifest = null;
@@ -173,7 +292,7 @@ export const FORGE_VIEWS = {
       // "you haven't set this up" sends them looking for a button when the
       // actual problem is on our side.
       if (failed || !status) {
-        nodes.push(say(`I can't reach the Builder Brain settings right now.\n\nYour builds still work — they're running on Forge's connection. This is worth another try in a minute.`));
+        nodes.push(say(`I can't reach the Builder Brain settings right now. Builds require your connected brain, so this is worth another try in a minute.`));
         nodes.push(chips([
           { label: 'Try again', run: () => ctx.go('brain') },
         ]));
@@ -185,7 +304,7 @@ export const FORGE_VIEWS = {
       const currentTier = String(field(status, 'tier') || 'free');
 
       if (!connected) {
-        nodes.push(say(`Right now your builds run on Forge's own connection.\n\nConnecting your own takes one tap — nothing to copy, nothing to paste, and no card unless you want more power later. What you use stays on your account.`));
+        nodes.push(say(`Connect your Builder Brain before the first build. It takes one tap — nothing to copy, nothing to paste, and the free option needs no card. What you use stays on your account.`));
 
         if (tiers.length) {
           nodes.push(group('Pick how much power', tiers.map((tier) => row({
