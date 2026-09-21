@@ -26,9 +26,9 @@
   <main>
     <div class="mark" aria-hidden="true"></div>
     <h1 id="title">Nexus owner access</h1>
-    <p id="intro">Sign in to your private launch station. This password is separate from every Forge account.</p>
+    <p id="intro">Open your private launch station. This access is separate from every Forge account.</p>
     <form id="form">
-      <label for="password">Nexus password</label>
+      <label id="credential-label" for="password">Nexus password</label>
       <input id="password" name="password" type="password" minlength="12" maxlength="256" autocomplete="current-password" required autofocus>
       <div id="confirm-wrap" hidden>
         <label for="confirm" style="margin-top:14px">Confirm password</label>
@@ -37,11 +37,13 @@
       <button id="submit" type="submit">Open Nexus</button>
       <div id="status" role="status" aria-live="polite"></div>
     </form>
-    <div class="private">Owner-only access · remembered securely on this device for 30 days</div>
+    <button id="password-option" type="button" hidden>Use Nexus password instead</button>
+    <div class="private">Your four-digit code works only on a device you have trusted. Forge customers use their own sign-in.</div>
   </main>
   <script type="module">
     const params = new URLSearchParams(location.search);
     const setupTicket = params.get('setup') || '';
+    const pinSetup = params.get('pin-setup') === '1';
     const requestedNext = params.get('next') || '/';
     const next = requestedNext.startsWith('/') && !requestedNext.startsWith('//') && !requestedNext.startsWith('/nexus-login.html') ? requestedNext : '/';
     if (setupTicket) history.replaceState(null, '', '/nexus-login.html');
@@ -52,33 +54,66 @@
     const confirmWrap = document.getElementById('confirm-wrap');
     const submit = document.getElementById('submit');
     const status = document.getElementById('status');
+    const label = document.getElementById('credential-label');
+    const passwordOption = document.getElementById('password-option');
     const isSetup = Boolean(setupTicket);
+    let mode = isSetup ? 'setup' : pinSetup ? 'set_pin' : 'login';
+
+    function showMode(value) {
+      mode = value;
+      const codeMode = mode === 'pin_login' || mode === 'set_pin';
+      document.getElementById('title').textContent = mode === 'set_pin' ? 'Choose your Nexus code' : mode === 'pin_login' ? 'Open Nexus' : mode === 'setup' ? 'Create your Nexus password' : 'Nexus owner access';
+      document.getElementById('intro').textContent = mode === 'set_pin'
+        ? 'Choose four digits for quick access on this device. Keep your Nexus password for recovery on a new device.'
+        : mode === 'pin_login' ? 'Enter your four-digit code to open your private workspace.'
+        : 'Sign in to your private launch station. This password is separate from every Forge account.';
+      label.textContent = codeMode ? 'Four-digit Nexus code' : 'Nexus password';
+      password.value = '';
+      password.inputMode = codeMode ? 'numeric' : 'text';
+      password.setAttribute('pattern', codeMode ? '[0-9]{4}' : '.{12,256}');
+      password.minLength = codeMode ? 4 : 12;
+      password.maxLength = codeMode ? 4 : 256;
+      password.autocomplete = codeMode ? 'one-time-code' : mode === 'setup' ? 'new-password' : 'current-password';
+      confirmWrap.hidden = mode !== 'setup';
+      confirm.required = mode === 'setup';
+      passwordOption.hidden = mode !== 'pin_login';
+      submit.textContent = mode === 'set_pin' ? 'Save code and open Nexus' : mode === 'setup' ? 'Set password and open Nexus' : 'Open Nexus';
+      password.focus();
+    }
 
     if (isSetup) {
-      document.getElementById('title').textContent = 'Create your Nexus password';
-      document.getElementById('intro').textContent = 'Choose the dedicated password for your private launch station. It will not change or connect to your Forge account.';
-      password.autocomplete = 'new-password';
-      confirmWrap.hidden = false;
-      confirm.required = true;
-      submit.textContent = 'Set password and open Nexus';
-    } else {
+      showMode('setup');
+    } else if (pinSetup) {
       fetch('/api/nexus-auth', { credentials:'include', cache:'no-store' }).then((response) => {
-        if (response.ok) location.replace(next);
+        if (!response.ok) location.replace('/nexus-login.html?next=%2Fworkspace.html');
+        else showMode('set_pin');
+      }).catch(() => { status.textContent = 'Could not check your Nexus session.'; });
+    } else {
+      fetch('/api/nexus-auth', { credentials:'include', cache:'no-store' }).then(async (response) => {
+        if (response.ok) { location.replace(next); return; }
+        const data = await response.json().catch(() => ({}));
+        if (data.pinAvailable) showMode('pin_login');
       }).catch(() => {});
     }
+    passwordOption.onclick = () => showMode('login');
 
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       status.textContent = '';
-      if (isSetup && password.value !== confirm.value) { status.textContent = 'Those passwords do not match.'; return; }
+      if (mode === 'setup' && password.value !== confirm.value) { status.textContent = 'Those passwords do not match.'; return; }
       submit.disabled = true;
       try {
         const response = await fetch('/api/nexus-auth', {
           method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({ action:isSetup ? 'setup' : 'login', password:password.value, ticket:setupTicket }),
+          body:JSON.stringify({ action:mode, password:mode === 'login' || mode === 'setup' ? password.value : undefined,
+            pin:mode === 'pin_login' || mode === 'set_pin' ? password.value : undefined, ticket:setupTicket }),
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Could not sign in.');
+        if ((mode === 'login' || mode === 'setup') && !data.pinAvailable) {
+          showMode('set_pin');
+          return;
+        }
         location.replace(next);
       } catch (error) {
         status.textContent = error.message;

@@ -155,6 +155,8 @@
   <div class="scrollpart" id="recents"></div>
   <div class="grp">Pinned</div>
   <div id="pinned"></div>
+  <button class="item" id="pinSetupBtn"><span class="ic">◈</span>Set Nexus code</button>
+  <button class="item" id="lockBtn"><span class="ic">◇</span>Lock Nexus</button>
   <button class="new" id="newBtn">+&nbsp; New</button>
 </nav>
 
@@ -220,6 +222,11 @@ if (!session?.ok) {
 }
 
 const el = (id) => document.getElementById(id);
+el('pinSetupBtn').onclick = () => location.assign('/nexus-login.html?pin-setup=1&next=%2Fworkspace.html');
+el('lockBtn').onclick = async () => {
+  await fetch('/api/nexus-auth', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ action:'lock' }) });
+  location.replace('/nexus-login.html?next=%2Fworkspace.html');
+};
 const thread = el('thread');
 const screenEl = el('screen');
 
