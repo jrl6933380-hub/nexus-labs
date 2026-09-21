@@ -210,7 +210,7 @@ export default async function handler(req, res) {
     console.error('room-chat: automatic build failed:', reason);
     send({
       action: 'error',
-      message: 'The automatic builder could not finish this attempt. Your project was not changed—please try again.',
+      message: reason,
     });
   };
 
@@ -399,12 +399,17 @@ export default async function handler(req, res) {
     clearTimeout(timer);
     console.error('room-chat handler crashed:', err.message);
     if (err.name === 'AbortError') {
-      sendBuildError('The requested build exceeded the automatic builder time limit.');
+      sendBuildError('Your Builder Brain took too long to finish. Your project was not changed. Try a smaller first version, or switch to a faster Brain option.');
     } else if (err instanceof NoBrainError || err.code === 'BRAIN_REQUIRED') {
       // Already phrased for a customer; don't wrap it in builder jargon.
       sendBuildError(err.message);
     } else {
-      sendBuildError(`The automatic builder failed: ${err.message}`);
+      const knownProviderError = [
+        'Your Builder Brain is out of credit.',
+        'Your Builder Brain hit its rate limit.',
+        'Your Builder Brain could not start that build.',
+      ].some((prefix) => err.message?.startsWith(prefix));
+      sendBuildError(knownProviderError ? err.message : 'The builder could not finish this attempt. Your project was not changed. Try again.');
     }
   } finally {
     try {
