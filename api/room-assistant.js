@@ -250,7 +250,27 @@ export function createAssistantHandler({
           messages: [{ role: 'user', content: attachmentMessageContent(prompt, attachments) }],
         },
       });
-      let decision = parseAssistantDecision(text);
+      let decision;
+      try {
+        decision = parseAssistantDecision(text);
+      } catch (parseError) {
+        // The model answered, it just didn't follow the decision format. That
+        // is a formatting miss, not an outage, and free-router models miss it
+        // more often than Anthropic does. Treating it as a 502 would tell the
+        // customer to retry something that just worked.
+        //
+        // Degrading to a plain reply is deliberately the SAFE direction: it can
+        // never turn an unparsed response into a build, an edit, or a workspace
+        // command. The worst case is a conversational answer where a structured
+        // one was intended, and the customer can simply ask again.
+        console.error('room-assistant: decision parse failed:', parseError.message);
+        const fallback = String(text || '').trim().slice(0, 1_000);
+        decision = {
+          kind: 'reply',
+          message: fallback || "I didn't catch that — say it once more and I'll pick it up.",
+          suggestions: [],
+        };
+      }
       // A classifier mistake must not turn a question or advice request into a
       // code mutation. Explicit build/edit requests still flow straight
       // through, including polite forms such as "can you build...".
