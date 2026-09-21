@@ -403,6 +403,10 @@ const ctx = {
     try {
       await brainAction('set_tier', { tier });
       notice.remove();
+      // Tier decides which features exist, so refresh the connection and the
+      // rail before re-rendering — an upgrade should reveal its rooms at once.
+      await loadConnection();
+      drawNav();
       showView('brain');
     } catch (error) {
       notice.textContent = error.message;
@@ -961,6 +965,12 @@ if (startupParams.get('onboarding') === '1' || startupParams.get('view') === 'br
   rememberOnboardingReturn();
 }
 
+// Load the connection BEFORE the first render. The rail and the greeting both
+// decide what to offer from it, so rendering first would briefly show options
+// this customer cannot use — and then remove them, which reads as a glitch.
+await loadConnection();
+drawNav();
+
 if (!await handleBrainResult()) {
   const requestedView = startupParams.get('view');
   if (requestedView && FORGE_VIEWS[requestedView]) {
@@ -968,10 +978,7 @@ if (!await handleBrainResult()) {
   } else if (startupParams.get('onboarding') === '1') {
     await showView('brain');
   } else {
-    const brainStatus = await fetch('/api/forge-brain', {
-      credentials: 'include', headers: { Accept: 'application/json' }, cache: 'no-store',
-    }).then((response) => response.ok ? response.json() : null).catch(() => null);
-    await showView(brainStatus?.connected ? 'chat' : 'brain');
+    await showView(connectionSnapshot()?.connected ? 'chat' : 'brain');
   }
 }
 </script>
