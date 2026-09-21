@@ -10,14 +10,21 @@ const [root, login, forge, forgeViews, room] = await Promise.all([
   readFile(new URL('../public/room.html', import.meta.url), 'utf8'),
 ]);
 
-test('root preserves the owner launch station and opens the guest-capable builder', () => {
+test('root opens the Nexus launch station, including after an owner session expires', () => {
   assert.match(root, /fetch\('\/api\/nexus-auth'/u);
   assert.match(root, /location\.replace\('\/workspace\.html'\)/u);
   assert.doesNotMatch(root, /fetch\('\/api\/room-auth'/u);
-  assert.match(root, /location\.replace\('\/room\.html'\)/u);
-  assert.match(root, /href="\/room\.html"/u);
-  assert.doesNotMatch(root, /location\.replace\('\/room-login\.html/u);
+  assert.match(root, /location\.replace\('\/nexus-login\.html\?next=%2Fworkspace\.html'\)/u);
+  assert.match(root, /href="\/forge\.html"/u);
+  assert.doesNotMatch(root, /location\.replace\('\/forge\.html'\)/u);
   assert.doesNotMatch(root, /http-equiv="refresh"/u);
+});
+
+test('Builder Brain explains a 401 and offers Forge sign-in instead of an outage message', () => {
+  assert.match(forgeViews, /needsSignIn = \/returned 401\\b\/\.test/u);
+  assert.match(forgeViews, /Sign in to your Forge account/u);
+  assert.match(forgeViews, /run: \(\) => ctx\.signIn\(\)/u);
+  assert.match(forge, /connectBrain: async \(tier\) => \{\s*if \(!signedIn\) \{ goSignIn\(\); return; \}/u);
 });
 
 test('new customer signup enters Builder Brain onboarding before returning to work', () => {
