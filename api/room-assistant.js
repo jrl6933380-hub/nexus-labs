@@ -75,12 +75,56 @@ export function isConversationOnlyMessage(message) {
     || /\?\s*$/.test(value);
 }
 
+// Returns every balanced {...} span in order, respecting strings and escapes.
+//
+// Needed because the decision JSON now comes from whatever model the customer's
+// Builder Brain routes to. Anthropic reliably answers with a bare object;
+// OpenRouter's free router picks among many open-weight models, and plenty of
+// them wrap the object in prose ("Sure! Here's the JSON:") or add a sign-off
+// after it. The old first-brace-to-last-brace slice broke as soon as that prose
+// contained a brace of its own.
+function jsonCandidates(text) {
+  const value = String(text || '');
+  const spans = [];
+  let start = -1;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < value.length; i++) {
+    const char = value[i];
+    if (inString) {
+      if (escaped) { escaped = false; continue; }
+      if (char === '\\') { escaped = true; continue; }
+      if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') { inString = true; continue; }
+    if (char === '{') { if (depth === 0) start = i; depth++; continue; }
+    if (char === '}') {
+      depth--;
+      if (depth === 0 && start >= 0) { spans.push(value.slice(start, i + 1)); start = -1; }
+      else if (depth < 0) { depth = 0; start = -1; }
+    }
+  }
+  return spans;
+}
+
+/** First balanced span that actually parses, or null. */
+export function extractJsonObject(text) {
+  for (const candidate of jsonCandidates(text)) {
+    try {
+      const parsed = JSON.parse(candidate);
+      if (parsed && typeof parsed === 'object') return candidate;
+    } catch { /* not this span — keep looking */ }
+  }
+  return null;
+}
+
 export function parseAssistantDecision(raw) {
   const cleaned = String(raw || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
-  const start = cleaned.indexOf('{');
-  const end = cleaned.lastIndexOf('}');
-  if (start < 0 || end <= start) throw new Error('Assistant response was not JSON');
-  const parsed = JSON.parse(cleaned.slice(start, end + 1));
+  const objectText = extractJsonObject(cleaned);
+  if (!objectText) throw new Error('Assistant response was not JSON');
+  const parsed = JSON.parse(objectText);
   if (!['reply', 'build', 'team', 'command', 'pitch_agent'].includes(parsed.kind)) throw new Error('Unknown assistant decision');
   const message = String(parsed.message || '').trim().slice(0, 1_000);
   if (!message) throw new Error('Assistant message is required');
@@ -206,7 +250,27 @@ export function createAssistantHandler({
           messages: [{ role: 'user', content: attachmentMessageContent(prompt, attachments) }],
         },
       });
-      let decision = parseAssistantDecision(text);
+      let decision;
+      try {
+        decision = parseAssistantDecision(text);
+      } catch (parseError) {
+        // The model answered, it just didn't follow the decision format. That
+        // is a formatting miss, not an outage, and free-router models miss it
+        // more often than Anthropic does. Treating it as a 502 would tell the
+        // customer to retry something that just worked.
+        //
+        // Degrading to a plain reply is deliberately the SAFE direction: it can
+        // never turn an unparsed response into a build, an edit, or a workspace
+        // command. The worst case is a conversational answer where a structured
+        // one was intended, and the customer can simply ask again.
+        console.error('room-assistant: decision parse failed:', parseError.message);
+        const fallback = String(text || '').trim().slice(0, 1_000);
+        decision = {
+          kind: 'reply',
+          message: fallback || "I didn't catch that — say it once more and I'll pick it up.",
+          suggestions: [],
+        };
+      }
       // A classifier mistake must not turn a question or advice request into a
       // code mutation. Explicit build/edit requests still flow straight
       // through, including polite forms such as "can you build...".
