@@ -359,8 +359,15 @@
   tabSignup.addEventListener('click', showSignup);
 
   const requested = new URLSearchParams(window.location.search).get('next');
-  const customerWorkspaces = new Set(['/room.html', '/story-studio.html']);
-  const nextPath = customerWorkspaces.has(requested) ? requested : '/room.html';
+  const customerWorkspaces = new Set(['/forge.html', '/room.html', '/story-studio.html']);
+  const nextPath = (() => {
+    try {
+      const candidate = new URL(requested || '/forge.html', window.location.origin);
+      if (candidate.origin !== window.location.origin || !customerWorkspaces.has(candidate.pathname)) return '/forge.html';
+      return `${candidate.pathname}${candidate.search}${candidate.hash}`;
+    } catch { return '/forge.html'; }
+  })();
+  const onboardingPath = `/forge.html?onboarding=1&return=${encodeURIComponent(nextPath)}`;
   const operatorNextPath = (() => {
     try {
       const candidate = new URL(requested || '/', window.location.origin);
@@ -415,7 +422,7 @@
   });
 
   continueFree.addEventListener('click', () => {
-    window.location.href = nextPath;
+    window.location.href = onboardingPath;
   });
 
   signupForm.addEventListener('submit', (e) => {

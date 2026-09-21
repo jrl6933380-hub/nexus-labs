@@ -5,29 +5,46 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#0e0e0e" />
 <title>Nexus</title>
-<!--
-  Root now opens the chat-first workspace.
-
-  Done as a redirect rather than by moving or deleting anything: the previous
-  Thoughtspace overview still exists, unchanged, at /thoughtspace.html. If the
-  new shell turns out to be worse in daily use, reverting is deleting this file
-  and restoring the old index — no content has to be recovered, because none of
-  it was thrown away.
-
-  meta refresh plus a script redirect so it works with or without JS, and a real
-  link in the body so a failed redirect still leaves somewhere to tap rather
-  than a blank page.
--->
-<meta http-equiv="refresh" content="0; url=/workspace.html" />
-<script>location.replace('/workspace.html');</script>
 <style>
   html,body{height:100%;margin:0;background:#0e0e0e;color:#8f8b85;
     font-family:-apple-system,"SF Pro Text",Inter,system-ui,sans-serif;
     display:flex;align-items:center;justify-content:center}
-  a{color:#f2f0ed}
+  main{text-align:center;padding:24px}p{margin:0 0 16px}a{color:#f2f0ed;margin:0 8px}
 </style>
 </head>
 <body>
-  <p>Opening the workspace… <a href="/workspace.html">continue</a></p>
+  <main>
+    <p id="status">Opening Nexus…</p>
+    <a href="/room-login.html?next=%2Fforge.html">Open Nexus Forge</a>
+    <a href="/nexus-login.html?next=%2Fworkspace.html">Owner access</a>
+  </main>
+<script>
+  // One public domain, two deliberately separate identities. An existing
+  // owner session keeps Mr. Lopez's launch-station workflow. A customer
+  // session opens Forge. Everyone else sees the customer signup — never the
+  // private owner password screen.
+  (async () => {
+    try {
+      const owner = await fetch('/api/nexus-auth', {
+        credentials: 'include', headers: { Accept: 'application/json' }, cache: 'no-store',
+      });
+      if (owner.ok) {
+        location.replace('/workspace.html');
+        return;
+      }
+
+      const customer = await fetch('/api/room-auth', {
+        credentials: 'include', headers: { Accept: 'application/json' }, cache: 'no-store',
+      });
+      if (customer.ok) {
+        location.replace('/forge.html');
+        return;
+      }
+    } catch {
+      // The login page can still explain/recover if a session lookup is down.
+    }
+    location.replace('/room-login.html?next=%2Fforge.html');
+  })();
+</script>
 </body>
 </html>

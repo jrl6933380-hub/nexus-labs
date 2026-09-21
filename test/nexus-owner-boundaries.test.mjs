@@ -29,10 +29,11 @@ test('the launch station and owner surfaces use Nexus auth', () => {
   assert.match(mission, /nexus-login\.html/u);
 });
 
-test('Forge guest-first behavior remains independent', () => {
-  assert.match(forgeRoom, /Building as a guest/u);
+test('Forge customer behavior remains independent from owner auth', () => {
+  assert.match(forgeRoom, /Exploring as a guest/u);
   assert.match(forgeChat, /getOrCreateAnonId/u);
-  assert.match(forgeChat, /roomMeter/u);
+  assert.match(forgeChat, /hasOwnBrain/u);
+  assert.match(forgeChat, /BRAIN_REQUIRED/u);
   assert.doesNotMatch(forgeRoom, /nexus-login\.html/u);
   assert.doesNotMatch(forgeChat, /nexusOwnerAuth/u);
 });

@@ -11,7 +11,7 @@ const [forgeHtml, forgeViews, roomChat] = await Promise.all([
 test('Forge routes a new customer through the Project Brief before building', () => {
   assert.match(forgeHtml, /brief\?\.next_question\?\.id === 'idea'/);
   assert.match(forgeHtml, /await showView\('brief'\)/);
-  assert.match(forgeViews, /Start something new.*ctx\.go\('brief'\)/s);
+  assert.match(forgeViews, /Start something new.*ctx\.startProject\(\)/s);
   assert.match(forgeViews, /Build the first version/);
 });
 

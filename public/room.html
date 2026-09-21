@@ -660,6 +660,7 @@
           <button class="history-btn" id="export-btn" type="button" role="menuitem" disabled>Export</button>
           <button class="history-btn push-btn" id="push-btn" type="button" role="menuitem" hidden disabled>Open PR</button>
           <button class="history-btn primary" id="history-btn" type="button" role="menuitem">Projects</button>
+          <button class="history-btn" id="brain-setup-btn" type="button" role="menuitem">Builder Brain &amp; Stack</button>
           <button class="history-btn" id="forge-admin-btn" type="button" role="menuitem" hidden>Forge Admin</button>
           <button class="back-link" id="logout-btn" type="button" role="menuitem">Sign out</button>
         </div>
@@ -750,8 +751,8 @@
     const banner = document.createElement('div');
     banner.id = 'guest-banner';
     banner.style.cssText = 'position:relative;z-index:20;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 14px;background:#4DD8E814;border-bottom:1px solid #1F2B42;color:#8891A3;font:600 11px "JetBrains Mono",monospace;';
-    banner.innerHTML = 'Building as a guest — free daily credits, no account needed. '
-      + '<a href="/room-login.html?next=' + encodeURIComponent(location.pathname) + '" style="color:#4DD8E8;text-decoration:underline;">Create a free account</a> to save your work across visits.'
+    banner.innerHTML = 'Exploring as a guest — chat with Nex, then sign in and connect your Builder Brain before the first build. '
+      + '<a href="/room-login.html?next=' + encodeURIComponent(location.pathname) + '" style="color:#4DD8E8;text-decoration:underline;">Create a free account</a> to build and save your work.'
       + '<button type="button" id="guest-banner-dismiss" style="margin-left:auto;background:none;border:none;color:#8891A3;cursor:pointer;font:700 13px monospace;">×</button>';
     document.body.prepend(banner);
     document.getElementById('guest-banner-dismiss').addEventListener('click', () => {
@@ -833,6 +834,10 @@
 
   document.getElementById('forge-admin-btn').addEventListener('click', () => {
     window.location.href = '/forge-admin.html';
+  });
+
+  document.getElementById('brain-setup-btn').addEventListener('click', () => {
+    window.location.href = '/forge.html?view=brain&return=' + encodeURIComponent(location.pathname);
   });
 
   document.getElementById('logout-btn').addEventListener('click', async () => {
@@ -1915,6 +1920,14 @@
         const failure = await res.json().catch(() => ({}));
         if (res.status === 429 && failure.code === 'ROOM_CREDITS_EXHAUSTED') {
           renderCreditsExhausted(buildingBubble, failure);
+        } else if (res.status === 402 && failure.code === 'BRAIN_REQUIRED') {
+          buildingBubble.innerText = failure.error || 'Connect your Builder Brain before the first build.';
+          addQuickActions([{
+            label: 'Connect Builder Brain',
+            run: () => {
+              window.location.href = '/forge.html?view=brain&return=' + encodeURIComponent(location.pathname);
+            },
+          }]);
         } else {
           buildingBubble.innerText = failure.error || 'The Room could not start that build.';
         }
