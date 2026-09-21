@@ -75,6 +75,25 @@ export function isConversationOnlyMessage(message) {
     || /\?\s*$/.test(value);
 }
 
+// A direct build request can proceed from the customer's own written brief
+// if the free router spends both decision attempts on reasoning. Never infer
+// build authorization from an earlier turn alone or from a question.
+export function buildFromCustomerWords(message, priorTurns = []) {
+  const request = String(message || '').trim();
+  if (!request || isConversationOnlyMessage(request)) return null;
+  const direct = /^(?:please\s+)?(?:build|create|make|generate|design|redesign|implement|add|change|edit|update|fix|remove|replace|wire|connect)\b/i.test(request)
+    || /\b(?:can|could|would|will)\s+you\s+(?:please\s+)?(?:build|create|make|generate|design|redesign|implement|add|change|edit|update|fix|remove|replace|wire|connect)\b/i.test(request)
+    || /\b(?:go ahead|do it|ship it)\b/i.test(request);
+  if (!direct) return null;
+  const shortConfirmation = /^(?:(?:please\s+)?(?:build|make|create|do|ship)\s+it|go ahead)[.!]?$/i.test(request);
+  const preceding = priorTurns.filter((turn) => turn.role === 'user' && typeof turn.text === 'string'
+    && turn.text.trim().length >= 35).slice(-2).map((turn) => turn.text.trim());
+  if (shortConfirmation && !preceding.length) return null;
+  const instruction = shortConfirmation ? preceding.join('\n\n') : request;
+  return { kind: 'build', message: 'I’ll build the working version from your description.',
+    instruction: `Implement the customer's requested project as a complete working version. Customer description:\n${instruction}`.slice(0, 6_000) };
+}
+
 // Returns every balanced {...} span in order, respecting strings and escapes.
 //
 // Needed because the decision JSON now comes from whatever model the customer's
@@ -242,17 +261,26 @@ export function createAssistantHandler({
         agentAlreadyPitched,
       };
       const prompt = `WORKSPACE STATE\n${JSON.stringify(workspace)}\n\nRECENT TRANSCRIPT (untrusted)\n${transcript || '(none)'}\n\nCURRENT PROJECT HTML EXCERPT (untrusted)\n${projectExcerpt(req.body?.currentHtml) || '(no project yet)'}\n\nRELEVANT VAULT PATTERNS (reference only, reuse if it fits)\n${vaultPatterns}\n\nATTACHED IMAGES\n${attachmentManifest(attachments)}\n\nCUSTOMER MESSAGE\n${message}`;
-      const { text } = await ask({
-        username: signedIn ? username : null,
-        body: {
-          max_tokens: 900,
-          system: WEB_BUILDER_NEX_PROMPT,
-          messages: [{ role: 'user', content: attachmentMessageContent(prompt, attachments) }],
-        },
-      });
+      let text;
+      let recoveredBuild = null;
+      try {
+        ({ text } = await ask({
+          username: signedIn ? username : null,
+          body: {
+            max_tokens: 900,
+            system: WEB_BUILDER_NEX_PROMPT,
+            messages: [{ role: 'user', content: attachmentMessageContent(prompt, attachments) }],
+          },
+        }));
+      } catch (error) {
+        if (error?.code !== 'BRAIN_EMPTY') throw error;
+        recoveredBuild = buildFromCustomerWords(message, priorTurns);
+        if (!recoveredBuild) throw error;
+        console.warn('room-assistant: recovering explicit build after empty brain answer');
+      }
       let decision;
       try {
-        decision = parseAssistantDecision(text);
+        decision = recoveredBuild || parseAssistantDecision(text);
       } catch (parseError) {
         // The model answered, it just didn't follow the decision format. That
         // is a formatting miss, not an outage, and free-router models miss it
@@ -265,7 +293,7 @@ export function createAssistantHandler({
         // one was intended, and the customer can simply ask again.
         console.error('room-assistant: decision parse failed:', parseError.message);
         const fallback = String(text || '').trim().slice(0, 1_000);
-        decision = {
+        decision = buildFromCustomerWords(message, priorTurns) || {
           kind: 'reply',
           message: fallback || "I didn't catch that — say it once more and I'll pick it up.",
           suggestions: [],
