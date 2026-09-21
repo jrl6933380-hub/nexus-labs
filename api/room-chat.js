@@ -33,14 +33,16 @@ import { roomMeter } from '../lib/roomMetering.js';
 import { roomConversations } from '../lib/roomConversation.js';
 import { attachmentManifest, attachmentMessageContent, embedRoomAttachments, parseRoomAttachments } from '../lib/roomAttachments.js';
 import { routeMessageStream } from '../lib/modelRouter.js';
+import { waitUntil } from '@vercel/functions';
+import { createBuildJob, finishBuildJob } from '../lib/forge/buildJobs.js';
 
 // Comfortably inside Vercel's function ceiling below, so a slow
 // generation gets a clear timeout message instead of the platform
 // killing the function first.
-const STREAM_TIMEOUT_MS = 110_000;
+const STREAM_TIMEOUT_MS = 285_000;
 
 export const config = {
-  maxDuration: 120,
+  maxDuration: 300,
 };
 
 const FRESH_SYSTEM_PROMPT = `You build real, functional, self-contained web pages and mini-apps live, based on what the user asks for. This can be anything renderable in a browser tab: a business website, a landing page, an interactive game, a data visualization, a generative art piece, a utility tool — whatever the user describes.
@@ -162,6 +164,15 @@ export default async function handler(req, res) {
     });
   }
 
+  // Record a resumable status handle before opening the SSE connection. The
+  // result is saved in the normal build history even if the browser leaves.
+  let job;
+  try { job = await createBuildJob(username, resolvedProjectId); }
+  catch (error) {
+    console.error('room-chat: could not create background build:', error.message);
+    return res.status(503).json({ error: 'Could not save this build attempt. Please try again.' });
+  }
+
   // No metering: the customer pays their own provider for inference, so
   // charging a build credit would be charging for something Forge is not
   // providing. `reservation` stays undefined, which the settlement block at the
@@ -169,6 +180,7 @@ export default async function handler(req, res) {
   let reservation;
 
   let buildSucceeded = false;
+  let savedBuildId = null;
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
@@ -176,7 +188,7 @@ export default async function handler(req, res) {
   });
 
   const send = (event) => {
-    res.write(`data: ${JSON.stringify(event)}\n\n`);
+    if (!res.destroyed && !res.writableEnded) res.write(`data: ${JSON.stringify(event)}\n\n`);
   };
 
   // Forward generated text to the client as it arrives, so the canvas can
@@ -216,6 +228,7 @@ export default async function handler(req, res) {
 
   // Start the downstream SSE response immediately, then keep it active
   // while Anthropic streams the response to this function.
+  send({ action: 'job', jobId: job.id, projectId: resolvedProjectId });
   send({
     action: 'progress',
     message: isEdit ? 'Updating the current version…' : 'Creating the first working version…',
@@ -232,9 +245,10 @@ export default async function handler(req, res) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), STREAM_TIMEOUT_MS);
 
-  try {
+  const work = (async () => { try {
     const { response, provider, model, byo } = await openBuildStream({
       username: brainUser,
+      isEdit,
       body: {
         max_tokens: 16000,
         system: isEdit ? EDIT_SYSTEM_PROMPT : FRESH_SYSTEM_PROMPT,
@@ -374,6 +388,7 @@ export default async function handler(req, res) {
         html,
         projectId: resolvedProjectId,
       });
+      savedBuildId = saved.id;
       send({ action: 'saved', id: saved.id, projectId: saved.projectId || saved.id });
       if (saved.projectId) {
         try {
@@ -441,8 +456,19 @@ export default async function handler(req, res) {
       // completed page into a user-facing 500 after the stream is built.
       console.error('room-chat: usage settlement failed:', meterError.message);
     }
+    try {
+      await finishBuildJob(username, job, savedBuildId ? 'complete' : 'failed',
+        savedBuildId ? { buildId: savedBuildId } : { message: 'That build did not finish or could not be saved.' });
+    } catch (statusError) {
+      console.error('room-chat: build status write failed:', statusError.message);
+    }
     clearTimeout(timer);
     clearInterval(heartbeat);
-    res.end();
+    if (!res.destroyed && !res.writableEnded) res.end();
   }
+  })();
+  // Vercel keeps the generation running after the browser disconnects. The
+  // job record lets the customer find the saved result on their return.
+  if (process.env.VERCEL) waitUntil(work);
+  await work;
 }

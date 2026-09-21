@@ -1,4 +1,7 @@
 {
+  "functions": {
+    "api/room-chat.js": { "maxDuration": 300 }
+  },
   "rewrites": [
     {
       "source": "/api/hyperfocus",

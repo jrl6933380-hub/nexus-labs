@@ -145,7 +145,7 @@ test('an unknown block type is dropped rather than breaking the whole request', 
   assert.equal(out[0].content, 'keep');
 });
 
-test('free build finishes within its two-round cap when a model keeps truncating', async () => {
+test('free build finishes within its round cap when a model keeps truncating', async () => {
   let requests = 0;
   const round = (text) => upstreamFrom([
     delta(text),
@@ -156,7 +156,20 @@ test('free build finishes within its two-round cap when a model keeps truncating
     maxRounds: budgetForTier('free').maxRounds,
     openRound: async () => { requests++; return { body: round('<body>unfinished') }; },
   }));
-  assert.equal(requests, 1);
+  assert.equal(requests, budgetForTier('free').maxRounds - 1);
   assert.equal(stopReason, 'max_tokens', 'incomplete HTML is never saved as a finished build');
-  assert.equal(raw, '<!doctype html><html><body>unfinished');
+  assert.ok(raw.startsWith('<!doctype html><html>'));
+});
+
+test('a fresh page that stops before closing HTML requests another round', async () => {
+  let requests = 0;
+  const first = upstreamFrom([delta('<!doctype html><html><body>Hi'), sse({ choices: [{ delta: {}, finish_reason: 'stop' }] })]);
+  const next = upstreamFrom([delta('</body></html>'), sse({ choices: [{ delta: {}, finish_reason: 'stop' }] })]);
+  const { raw, stopReason } = await readLikeRoomChat(continuedStream(first, {
+    baseMessages: [], continueOnIncomplete: true,
+    openRound: async () => { requests++; return { body: next }; },
+  }));
+  assert.equal(requests, 1);
+  assert.match(raw, /<\/html>$/);
+  assert.equal(stopReason, 'stop');
 });

@@ -17,7 +17,7 @@ test('the free tier asks for less, because its models can deliver less', () => {
   assert.ok(free.maxTokens < strong.maxTokens);
   assert.equal(free.compact, true, 'free must also be told to scope down');
   assert.equal(free.maxTokens, 4000, 'free builds must leave room for a complete first version within the request deadline');
-  assert.equal(free.maxRounds, 2, 'free must not spend the whole request on continuations');
+  assert.equal(free.maxRounds, 4, 'free can continue in bounded calls under the longer deadline');
   assert.equal(strong.compact, false);
 });
 
