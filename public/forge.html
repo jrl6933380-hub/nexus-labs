@@ -794,6 +794,57 @@ async function askNex(raw){
   }
 }
 
+const pendingBuildKey = signedIn ? `forge:pending-build:${me.username}` : null;
+let recoveryRunning = false;
+function rememberPendingBuild(job) {
+  if (!pendingBuildKey) return;
+  try { localStorage.setItem(pendingBuildKey, JSON.stringify(job)); } catch {}
+}
+function forgetPendingBuild(jobId) {
+  if (!pendingBuildKey) return;
+  try {
+    const saved = JSON.parse(localStorage.getItem(pendingBuildKey) || 'null');
+    if (!jobId || saved?.jobId === jobId) localStorage.removeItem(pendingBuildKey);
+  } catch {}
+}
+async function recoverPendingBuild() {
+  if (!pendingBuildKey || recoveryRunning) return;
+  let pendingJob;
+  try { pendingJob = JSON.parse(localStorage.getItem(pendingBuildKey) || 'null'); } catch {}
+  if (!pendingJob?.jobId || !pendingJob.projectId) return;
+  recoveryRunning = true;
+  const notice = bubble('sys', 'Nex is still building. You can leave this page; the finished version will be saved here.');
+  try {
+    for (let check = 0; check < 90; check++) {
+      const response = await fetch(`/api/forge-build-status?projectId=${encodeURIComponent(pendingJob.projectId)}&jobId=${encodeURIComponent(pendingJob.jobId)}`, {
+        credentials: 'include', cache: 'no-store',
+      });
+      if (!response.ok) break;
+      const { job } = await response.json();
+      if (!job) { forgetPendingBuild(pendingJob.jobId); break; }
+      if (job.status === 'complete' && job.buildId) {
+        forgetPendingBuild(pendingJob.jobId);
+        notice.remove();
+        if (currentProjectId === pendingJob.projectId && !busy) await ctx.openBuild(job.buildId);
+        else {
+          bubble('sys', 'Your background build is ready.');
+          thread.appendChild(chips([{ label: 'Open finished build', run: () => ctx.openBuild(job.buildId) }]));
+        }
+        return;
+      }
+      if (job.status === 'failed') {
+        forgetPendingBuild(pendingJob.jobId);
+        notice.textContent = job.message || 'That build could not finish. Your project was not changed.';
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+    }
+    notice.textContent = 'Nex is still working. Check your saved projects when you return.';
+  } catch {
+    notice.textContent = 'Build status is temporarily unavailable. Check your saved projects when you return.';
+  } finally { recoveryRunning = false; }
+}
+
 async function runBuild(raw, displayMessage = raw, showUser = true){
   if (!raw || busy) return;
   if (currentView !== 'chat') showView('chat');
@@ -838,6 +889,7 @@ async function runBuild(raw, displayMessage = raw, showUser = true){
     const decoder = new TextDecoder();
     let buffer = '';
     let finished = false;
+    let jobId = null;
 
     while (true) {
       const { value, done } = await reader.read();
@@ -851,7 +903,10 @@ async function runBuild(raw, displayMessage = raw, showUser = true){
         let data;
         try { data = JSON.parse(line.slice(6)); } catch { continue; }
 
-        if (data.action === 'progress') {
+        if (data.action === 'job') {
+          jobId = data.jobId;
+          rememberPendingBuild({ jobId, projectId: data.projectId, displayMessage });
+        } else if (data.action === 'progress') {
           pending.innerHTML = `<p style="color:#61656f">${esc(data.message || 'Working on it…')}</p>`;
         } else if (data.action === 'html') {
           finished = true;
@@ -863,9 +918,11 @@ async function runBuild(raw, displayMessage = raw, showUser = true){
         } else if (data.action === 'saved') {
           currentProjectId = data.projectId || currentProjectId;
           latestBuildId = data.id || latestBuildId;
+          forgetPendingBuild(jobId);
           saveThread();
         } else if (data.action === 'build_error' || data.action === 'error') {
           finished = true;
+          forgetPendingBuild(jobId);
           pending.innerHTML = `<p style="color:#d09a82">${esc(data.message || 'That build did not finish.')}</p>`;
         } else if (data.action === 'save_error') {
           thread.appendChild(say(data.message || "Built it, but couldn't save it."));
@@ -874,10 +931,12 @@ async function runBuild(raw, displayMessage = raw, showUser = true){
     }
 
     if (!finished) {
-      pending.innerHTML = '<p style="color:#d09a82">That build stopped before it finished. Try again.</p>';
+      pending.innerHTML = '<p>Nex is continuing in the background. The finished version will appear in your saved projects.</p>';
+      if (jobId) void recoverPendingBuild();
     }
   } catch (error) {
     pending.innerHTML = `<p style="color:#d09a82">${esc(error.message)}</p>`;
+    void recoverPendingBuild();
   } finally { busy = false; el('send').disabled = false; }
 }
 el('send').onclick = submit;
@@ -1049,6 +1108,7 @@ if (!await handleBrainResult()) {
     await showView(connectionSnapshot()?.connected ? 'chat' : 'brain');
   }
 }
+if (signedIn) void recoverPendingBuild();
 </script>
 </body>
 </html>
