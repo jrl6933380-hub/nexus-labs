@@ -10,12 +10,13 @@ const [root, login, forge, forgeViews, room] = await Promise.all([
   readFile(new URL('../public/room.html', import.meta.url), 'utf8'),
 ]);
 
-test('root preserves the owner launch station without sending customers to owner login', () => {
+test('root preserves the owner launch station and opens the guest-capable builder', () => {
   assert.match(root, /fetch\('\/api\/nexus-auth'/u);
   assert.match(root, /location\.replace\('\/workspace\.html'\)/u);
-  assert.match(root, /fetch\('\/api\/room-auth'/u);
-  assert.match(root, /location\.replace\('\/forge\.html'\)/u);
-  assert.match(root, /room-login\.html\?next=%2Fforge\.html/u);
+  assert.doesNotMatch(root, /fetch\('\/api\/room-auth'/u);
+  assert.match(root, /location\.replace\('\/room\.html'\)/u);
+  assert.match(root, /href="\/room\.html"/u);
+  assert.doesNotMatch(root, /location\.replace\('\/room-login\.html/u);
   assert.doesNotMatch(root, /http-equiv="refresh"/u);
 });
 

@@ -15,14 +15,12 @@
 <body>
   <main>
     <p id="status">Opening Nexus…</p>
-    <a href="/room-login.html?next=%2Fforge.html">Open Nexus Forge</a>
+    <a href="/room.html">Open Nexus Forge</a>
     <a href="/nexus-login.html?next=%2Fworkspace.html">Owner access</a>
   </main>
 <script>
-  // One public domain, two deliberately separate identities. An existing
-  // owner session keeps Mr. Lopez's launch-station workflow. A customer
-  // session opens Forge. Everyone else sees the customer signup — never the
-  // private owner password screen.
+  // The owner keeps the launch-station workflow. Customers and guests share
+  // the Room Builder, which handles its own customer session and signup links.
   (async () => {
     try {
       const owner = await fetch('/api/nexus-auth', {
@@ -32,18 +30,10 @@
         location.replace('/workspace.html');
         return;
       }
-
-      const customer = await fetch('/api/room-auth', {
-        credentials: 'include', headers: { Accept: 'application/json' }, cache: 'no-store',
-      });
-      if (customer.ok) {
-        location.replace('/forge.html');
-        return;
-      }
     } catch {
-      // The login page can still explain/recover if a session lookup is down.
+      // The guest-capable builder remains usable if the owner lookup is down.
     }
-    location.replace('/room-login.html?next=%2Fforge.html');
+    location.replace('/room.html');
   })();
 </script>
 </body>
