@@ -162,6 +162,7 @@
   <div id="viewNav"></div>
   <div class="grp">Recent</div>
   <div class="scrollpart" id="recents"></div>
+  <div id="acctSlot"></div>
   <button class="new" id="newBtn">+&nbsp; Build something</button>
 </nav>
 
@@ -601,6 +602,25 @@ function drawRecents(){
   }
 }
 drawRecents();
+
+// A guest needs a visible, permanent way to create an account — not only the
+// one that appears after a refused build. A signed-in customer sees their
+// username instead, so it is obvious which account the work is saving to.
+(function drawAccount(){
+  const host = el('acctSlot');
+  if (!host) return;
+  host.innerHTML = '<div class="grp">Account</div>';
+  const row = document.createElement('button');
+  row.className = 'item';
+  if (signedIn) {
+    row.innerHTML = `<span class="ic">◈</span><span class="tr">${esc(me.username)}</span>`;
+    row.onclick = () => showView('billing');
+  } else {
+    row.innerHTML = '<span class="ic">○</span><span class="tr">Sign in / sign up</span>';
+    row.onclick = () => goSignIn();
+  }
+  host.appendChild(row);
+})();
 
 async function submit(){
   const raw = el('input').value.trim();
