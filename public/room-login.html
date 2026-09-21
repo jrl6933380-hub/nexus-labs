@@ -362,10 +362,10 @@
   const customerWorkspaces = new Set(['/forge.html', '/room.html', '/story-studio.html']);
   const nextPath = (() => {
     try {
-      const candidate = new URL(requested || '/forge.html', window.location.origin);
-      if (candidate.origin !== window.location.origin || !customerWorkspaces.has(candidate.pathname)) return '/forge.html';
+      const candidate = new URL(requested || '/room.html', window.location.origin);
+      if (candidate.origin !== window.location.origin || !customerWorkspaces.has(candidate.pathname)) return '/room.html';
       return `${candidate.pathname}${candidate.search}${candidate.hash}`;
-    } catch { return '/forge.html'; }
+    } catch { return '/room.html'; }
   })();
   const onboardingPath = `/forge.html?onboarding=1&return=${encodeURIComponent(nextPath)}`;
   const operatorNextPath = (() => {
