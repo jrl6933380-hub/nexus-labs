@@ -84,6 +84,9 @@
   .tag.f{background:#16281f;color:#68d9a4}
   .tag.g{background:#2b2318;color:#e3b467}
   .lempty{font-size:14px;color:#5f5b56;padding:10px 2px 18px}
+  .actionform{display:grid;gap:10px;margin:14px 0;padding:18px;border:1px solid var(--ln);border-radius:14px;background:var(--card)}
+  .actionform input{width:100%;padding:12px;border:1px solid #414141;border-radius:9px;background:#171717;color:var(--tx);font:inherit}
+  .actionform button{padding:11px 15px;border-radius:9px;background:#eee;color:#111;text-align:center}
 
   .visual{margin-top:14px;border:1px solid var(--ln);border-radius:14px;overflow:hidden;background:var(--card)}
   .visual iframe{display:block;width:100%;border:0;background:var(--card)}
@@ -239,9 +242,122 @@ let threadId = null;
 const history = [];
 
 const ctx = {
-  ask: (text) => { el('input').value = text; submit(); },
+  ask: (text) => askFromView(text),
   go: (id) => showView(id),
+  openTask, openApproval, newTask, openDeveloper, createDeveloper, returnToOwner,
 };
+
+async function postAction(verb, payload = {}) {
+  const response = await fetch('/api/nex/action', { method:'POST', credentials:'include',
+    headers:{'Content-Type':'application/json'}, body:JSON.stringify({ verb, payload, room_id:currentView }) });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || `Action failed (${response.status})`);
+  return data;
+}
+async function postForge(action, extra = {}) {
+  const response = await fetch('/api/forge-admin', { method:'POST', credentials:'include',
+    headers:{'Content-Type':'application/json'}, body:JSON.stringify({ action, ...extra }) });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || `Forge action failed (${response.status})`);
+  return data;
+}
+function detail(title, description, actions, back = currentView) {
+  thread.replaceChildren(say(title), say(description || 'No further details saved.'));
+  thread.appendChild(chips([{ label:'Back', run:() => showView(back) }, ...actions]));
+  railOpen(false);
+}
+function actionError(error) { thread.appendChild(say(error.message || 'That action failed.')); }
+function formCard(title, placeholder, submitLabel, onSubmit, { secret = false } = {}) {
+  const form = document.createElement('form'); form.className = 'actionform';
+  if (secret) form.classList.add('secret-card');
+  const label = document.createElement('label'); label.textContent = title;
+  const input = document.createElement('input'); input.placeholder = placeholder; input.required = true;
+  input.autocomplete = secret ? 'new-password' : 'off';
+  const button = document.createElement('button'); button.type = 'submit'; button.textContent = submitLabel;
+  const error = document.createElement('span'); error.setAttribute('role','status');
+  form.append(label, input, button, error);
+  form.onsubmit = async (event) => { event.preventDefault(); button.disabled = true; error.textContent = '';
+    try { await onSubmit(input.value.trim()); } catch (failure) { error.textContent = failure.message; button.disabled = false; } };
+  thread.appendChild(form); input.focus();
+}
+async function openTask(id) {
+  if (!id) return;
+  try {
+    const response = await fetch(`/api/board?task_id=${encodeURIComponent(id)}`, { credentials:'include' });
+    const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Task unavailable.');
+    const task = data.task;
+    detail(task.title || id, [task.description, `Status: ${task.status || 'open'} · Owner: ${task.owner || 'unassigned'}`, task.result].filter(Boolean).join('\n\n'), [
+      { label:'Ask Nex about this', run:() => askFromView(`Read board task ${id} in full and recommend the next step.`) },
+      { label:'Mark working', run:() => updateTask(id, 'in_progress') },
+      { label:'Mark blocked', run:() => taskNote(id, 'blocked') },
+      { label:'Complete', run:() => taskNote(id, 'complete') },
+    ], 'deck');
+  } catch (error) { actionError(error); }
+}
+function taskNote(id, status) {
+  formCard(status === 'complete' ? 'What was completed?' : 'What is blocking this?', 'Add a short note',
+    status === 'complete' ? 'Complete task' : 'Mark blocked', (note) => updateTask(id, status, note));
+}
+async function updateTask(id, status, note = '') {
+  try { await postAction('update_task', { id, status, note }); await showView('deck'); }
+  catch (error) { actionError(error); }
+}
+function newTask() {
+  detail('New board task', 'Give this task a clear title. You can ask Nex to add details after it is created.', [], 'deck');
+  formCard('Task title', 'What needs doing?', 'Create task', async (title) => {
+    await postAction('create_task', { title }); await showView('deck');
+  });
+}
+function openApproval(item) {
+  const id = item.id;
+  detail(item.title || item.description || 'Approval', [item.description, item.reason,
+    `Requested by ${item.agent || item.requested_by || 'system'}`].filter(Boolean).join('\n\n'), [
+    { label:'Ask Nex to explain', run:() => askFromView(`Explain pending approval ${id}: exact action, effects, and risks.`) },
+    { label:'Approve', run:() => decideApproval(id, 'approve') },
+    { label:'Reject', run:() => decideApproval(id, 'reject') },
+  ], 'approvals');
+}
+async function decideApproval(id, verb) {
+  if (!confirm(`${verb === 'approve' ? 'Run' : 'Reject'} approval ${id}?`)) return;
+  try { await postAction(verb, { id }); await showView('approvals'); }
+  catch (error) { actionError(error); }
+}
+function openDeveloper(account) {
+  detail(account.username, `${account.plan || 'free'} plan · ${account.brainConnected ? 'Builder Brain connected' : 'No Builder Brain connected'}\n\n${account.tracked ? 'Tracked tester' : 'Regular account'}${account.billed ? ' · billing on record' : ''}.`, [
+    ...(!account.tracked && !account.billed && account.role !== 'operator' ? [{ label:'Track as tester', run:async () => {
+      if (!confirm(`Mark ${account.username} as your developer account?`)) return;
+      try { await postForge('track_developer', { targetUsername:account.username }); await showView('forge'); }
+      catch (error) { actionError(error); }
+    } }] : []),
+    ...(account.tracked ? [{ label:'Open as this developer', run:async () => {
+      try { await postForge('switch_developer', { targetUsername:account.username }); location.assign('/forge.html'); }
+      catch (error) { actionError(error); }
+    } }] : []),
+    { label:'Ask Nex about account', run:() => askFromView(`Inspect Forge development account ${account.username} and its current project state.`) },
+  ], 'forge');
+}
+function createDeveloper() {
+  detail('Create tester account', 'Create a separate Forge account to test Nex with its own Builder Brain. You can connect its OpenRouter brain after opening it.', [], 'forge');
+  formCard('Username', 'tester_name', 'Review account', (username) => {
+    if (!/^[a-zA-Z0-9_-]{3,32}$/.test(username)) throw new Error('Use 3–32 letters, numbers, dashes or underscores.');
+    detail(`Create ${username}?`, 'Nexus will generate a password and show it once. The account starts on the free tier.', [
+      { label:'Create account', run:async () => {
+        try {
+          const result = await postForge('create_developer', { targetUsername:username });
+          detail(`Created ${result.username}`, 'The password is shown once below. Save it in your password manager before leaving.', [], 'forge');
+          const secret = document.createElement('div'); secret.className = 'actionform secret-card';
+          const value = document.createElement('input'); value.type = 'password'; value.value = result.password; value.readOnly = true;
+          const reveal = document.createElement('button'); reveal.textContent = 'Show password'; reveal.onclick = () => { value.type = value.type === 'password' ? 'text' : 'password'; };
+          secret.append(value, reveal); thread.appendChild(secret);
+        } catch (error) { actionError(error); }
+      } },
+    ], 'forge');
+  });
+}
+async function returnToOwner() {
+  try { await postForge('return_to_owner'); await showView('forge'); }
+  catch (error) { actionError(error); }
+}
 
 function railOpen(open){ screenEl.classList.toggle('open', open); }
 el('burger').onclick = () => railOpen(!screenEl.classList.contains('open'));
@@ -407,7 +523,7 @@ async function submit(){
   const target = matchView(raw);
   if (target) { showView(target); return; }
 
-  if (currentView !== 'chat') showView('chat');
+  if (currentView !== 'chat') { askFromView(raw); return; }
   bubble('u', esc(raw));
   if (!threadId) threadId = `t${Date.now().toString(36)}`;
   busy = true; el('send').disabled = true;
@@ -415,7 +531,7 @@ async function submit(){
   try {
     const response = await fetch('/api/chat', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ message: raw, history }),
+      body: JSON.stringify({ message: raw, history, workspace: workspaceContext() }),
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data?.error || `Request failed (${response.status})`);
@@ -435,6 +551,22 @@ async function submit(){
 }
 el('send').onclick = submit;
 el('input').addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+function workspaceContext() {
+  const visible = [...thread.querySelectorAll('.msg, .lrow, .lhead')]
+    .filter((node) => !node.closest('.secret-card'));
+  return { active_view: `${location.pathname}#${currentView}`,
+    screen: { title: currentView === 'chat' ? 'Workspace' : VIEWS[currentView].label,
+      viewport_text: visible.map((node) => node.innerText).filter(Boolean).slice(0, 30),
+      controls: [...thread.querySelectorAll('button')].filter((node) => !node.closest('.secret-card'))
+        .map((node) => node.textContent).filter(Boolean).slice(0, 40),
+    },
+  };
+}
+function askFromView(text) {
+  if (currentView === 'chat') { el('input').value = text; return submit(); }
+  head.classList.add('show'); dock.classList.add('show'); place();
+  dockAsk(text);
+}
 el('capBtn').onclick = () => showView('skills');
 el('snapBtn').onclick = () => ctx.ask('Here is what I am looking at — read the current view and tell me what stands out.');
 el('pinBtn').onclick = () => ctx.ask(`Draw me a visual of ${currentView === 'chat' ? 'this conversation' : VIEWS[currentView].label} that I can pin.`);
@@ -523,7 +655,7 @@ async function dockAsk(text){
   try {
     const response = await fetch('/api/chat', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ message: text, history }),
+      body: JSON.stringify({ message: text, history, workspace: workspaceContext() }),
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data?.error || `Request failed (${response.status})`);

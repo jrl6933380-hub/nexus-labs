@@ -222,8 +222,92 @@ const me = session?.ok ? await session.json().catch(() => null) : null;
 const signedIn = Boolean(me?.username);
 
 function goSignIn() {
-  const next = encodeURIComponent(`${location.pathname}${location.search}`);
-  location.href = `/room-login.html?next=${next}`;
+  showAuthCard('login');
+}
+
+const FORGE_ACCOUNT_CARD = 'forge:account-card:v1';
+function rememberedUsername() {
+  try { return localStorage.getItem(FORGE_ACCOUNT_CARD) || ''; } catch { return ''; }
+}
+function rememberUsername(username) {
+  try { localStorage.setItem(FORGE_ACCOUNT_CARD, username); } catch {}
+}
+function showAuthCard(mode = 'login') {
+  currentView = 'chat';
+  el('viewTitle').textContent = 'Nexus Forge';
+  railOpen(false);
+  thread.replaceChildren();
+  thread.appendChild(say(mode === 'signup'
+    ? 'Let’s make your Forge account here. Fill in the card, check the summary, and confirm. Then I’ll walk you through connecting your Builder Brain.'
+    : 'Welcome back. Choose your saved account card, or enter your username and password here. Your password goes straight to sign-in.'));
+  const card = document.createElement('form'); card.className = 'qcard';
+  card.setAttribute('autocomplete', 'on');
+  const heading = document.createElement('div'); heading.className = 'qhead';
+  heading.textContent = mode === 'signup' ? 'Create your account' : 'Sign in to Forge';
+  card.appendChild(heading);
+  const add = (labelText, type, name, required = true) => {
+    const label = document.createElement('label'); label.textContent = labelText;
+    const input = document.createElement('input'); input.name = name; input.type = type;
+    input.required = required; input.className = 'qcomment'; input.autocomplete = name === 'username' ? 'username'
+      : name === 'password' ? (mode === 'signup' ? 'new-password' : 'current-password') : name === 'email' ? 'email' : 'off';
+    if (name === 'username') input.value = rememberedUsername();
+    if (name === 'password') input.minLength = 8;
+    label.appendChild(input); card.appendChild(label); return input;
+  };
+  const username = add('Username', 'text', 'username');
+  const password = add('Password', 'password', 'password');
+  let email, answer, question;
+  if (mode === 'signup') {
+    email = add('Email for account recovery', 'email', 'email');
+    const label = document.createElement('label'); label.textContent = 'Recovery question';
+    question = document.createElement('select'); question.className = 'qcomment';
+    for (const value of ['What was the name of your first pet?', 'What city were you born in?',
+      "What was your childhood best friend's first name?", 'What was the make of your first car?',
+      "What is your mother's maiden name?"]) {
+      const option = document.createElement('option'); option.value = value; option.textContent = value; question.appendChild(option);
+    }
+    label.appendChild(question); card.appendChild(label);
+    answer = add('Recovery answer', 'password', 'securityAnswer');
+  }
+  const error = document.createElement('span'); error.className = 'qerror'; error.setAttribute('role','status');
+  const submit = document.createElement('button'); submit.type = 'submit'; submit.className = 'qsave';
+  submit.textContent = mode === 'signup' ? 'Review account' : 'Sign in';
+  card.append(submit, error); thread.appendChild(card);
+  thread.appendChild(chips([{ label:mode === 'signup' ? 'I have an account' : 'Create an account',
+    run:() => showAuthCard(mode === 'signup' ? 'login' : 'signup') }]));
+  card.onsubmit = async (event) => {
+    event.preventDefault(); error.textContent = '';
+    const info = { username: username.value.trim(), password: password.value,
+      email: email?.value.trim(), securityQuestion: question?.value, securityAnswer: answer?.value };
+    if (mode === 'signup') {
+      const review = document.createElement('div'); review.className = 'qcard';
+      const summary = document.createElement('p');
+      summary.textContent = `Create ${info.username} · ${info.email} · Password •••••••• · Recovery answer ••••••••?`;
+      const confirm = document.createElement('button'); confirm.className = 'qsave'; confirm.textContent = 'Yes, create my account';
+      confirm.onclick = () => { confirm.disabled = true; submitAuth('signup', info, review); };
+      review.append(summary, confirm); card.replaceWith(review);
+      return;
+    }
+    submit.disabled = true;
+    await submitAuth('login', info, card);
+  };
+  username.focus();
+}
+async function submitAuth(action, info, card) {
+  const status = document.createElement('p'); status.setAttribute('role','status'); card.appendChild(status);
+  try {
+    const response = await fetch('/api/room-auth', { method:'POST', credentials:'include',
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify({ action, ...info }) });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || 'Account request failed.');
+    rememberUsername(data.username);
+    info.password = ''; info.securityAnswer = '';
+    location.replace('/forge.html?view=brain');
+  } catch (error) {
+    info.password = ''; info.securityAnswer = '';
+    status.textContent = error.message;
+    card.appendChild(chips([{ label:'Try again', run:() => showAuthCard(action === 'signup' ? 'signup' : 'login') }]));
+  }
 }
 
 const el = (id) => document.getElementById(id);
@@ -355,7 +439,7 @@ const ctx = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'logout' }),
     }).catch(() => {});
-    location.replace('/room-login.html');
+    location.replace('/forge.html');
   },
 
   // --- Builder Brain ------------------------------------------------------
@@ -978,6 +1062,8 @@ if (!await handleBrainResult()) {
     await showView(requestedView);
   } else if (startupParams.get('onboarding') === '1') {
     await showView('brain');
+  } else if (!signedIn && rememberedUsername()) {
+    showAuthCard('login');
   } else {
     await showView(connectionSnapshot()?.connected ? 'chat' : 'brain');
   }
