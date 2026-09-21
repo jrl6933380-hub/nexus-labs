@@ -15,6 +15,40 @@
 export { esc, pick, getJSON, field, relative, say, row, group, chips, empty, pill } from '/workspace-views.js';
 import { esc, pick, getJSON, field, relative, say, row, group, chips, empty } from '/workspace-views.js';
 
+// Mirrors lib/forge/features.js. The server is the real gate; this is what the
+// customer sees. Kept as plain data so the two stay readable side by side.
+const TIER_ORDER = ['free', 'fast', 'strong'];
+const tierRank = (tier) => TIER_ORDER.indexOf(String(tier || '').toLowerCase());
+
+const FEATURES = [
+  { id:'build', name:'Build from a description', requires:'free',
+    blurb:'Describe what you want and get a working page.' },
+  { id:'edit', name:'Change what you built', requires:'free',
+    blurb:'Ask for changes and I patch the page instead of rebuilding it.' },
+  { id:'brief', name:'Project Brief', requires:'fast',
+    blurb:'I interview you first — audience, goals, must-haves — then build from your answers instead of guessing.',
+    reason:'Planning takes several passes before anything gets built. On the free router that means a lot of waiting and a lot of rate limits, so it needs a paid brain to feel good.' },
+  { id:'stack', name:'Full stack setup', requires:'strong',
+    blurb:'Database, auth, and payments wired into your project.',
+    reason:'Setup involves long multi-step reasoning where a wrong call costs real money, so it runs on the strongest tier only.' },
+];
+
+export function featureUnlocked(connection, id) {
+  const feature = FEATURES.find((f) => f.id === id);
+  if (!feature) return false;
+  if (!connection?.connected) return false;
+  return tierRank(connection.tier) >= tierRank(feature.requires);
+}
+
+// Cached per view render so each view does not re-fetch the connection.
+let cachedConnection = null;
+export async function loadConnection() {
+  try { cachedConnection = await getJSON('/api/forge-brain'); }
+  catch { cachedConnection = null; }
+  return cachedConnection;
+}
+export function connectionSnapshot() { return cachedConnection; }
+
 function briefQuestionCard(question, progress, ctx) {
   const card = document.createElement('section');
   card.className = 'qcard';
