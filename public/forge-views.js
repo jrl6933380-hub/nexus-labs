@@ -15,6 +15,40 @@
 export { esc, pick, getJSON, field, relative, say, row, group, chips, empty, pill } from '/workspace-views.js';
 import { esc, pick, getJSON, field, relative, say, row, group, chips, empty } from '/workspace-views.js';
 
+// Mirrors lib/forge/features.js. The server is the real gate; this is what the
+// customer sees. Kept as plain data so the two stay readable side by side.
+const TIER_ORDER = ['free', 'fast', 'strong'];
+const tierRank = (tier) => TIER_ORDER.indexOf(String(tier || '').toLowerCase());
+
+const FEATURES = [
+  { id:'build', name:'Build from a description', requires:'free',
+    blurb:'Describe what you want and get a working page.' },
+  { id:'edit', name:'Change what you built', requires:'free',
+    blurb:'Ask for changes and I patch the page instead of rebuilding it.' },
+  { id:'brief', name:'Project Brief', requires:'fast',
+    blurb:'I interview you first — audience, goals, must-haves — then build from your answers instead of guessing.',
+    reason:'Planning takes several passes before anything gets built. On the free router that means a lot of waiting and a lot of rate limits, so it needs a paid brain to feel good.' },
+  { id:'stack', name:'Full stack setup', requires:'strong',
+    blurb:'Database, auth, and payments wired into your project.',
+    reason:'Setup involves long multi-step reasoning where a wrong call costs real money, so it runs on the strongest tier only.' },
+];
+
+export function featureUnlocked(connection, id) {
+  const feature = FEATURES.find((f) => f.id === id);
+  if (!feature) return false;
+  if (!connection?.connected) return false;
+  return tierRank(connection.tier) >= tierRank(feature.requires);
+}
+
+// Cached per view render so each view does not re-fetch the connection.
+let cachedConnection = null;
+export async function loadConnection() {
+  try { cachedConnection = await getJSON('/api/forge-brain'); }
+  catch { cachedConnection = null; }
+  return cachedConnection;
+}
+export function connectionSnapshot() { return cachedConnection; }
+
 function briefQuestionCard(question, progress, ctx) {
   const card = document.createElement('section');
   card.className = 'qcard';
@@ -360,6 +394,64 @@ export const FORGE_VIEWS = {
         { label: 'Check it', run: () => ctx.testBrain() },
         { label: 'Disconnect', run: () => ctx.disconnectBrain() },
       ]));
+      return nodes;
+    },
+  },
+
+  features: {
+    label: 'Features',
+    icon: '◇',
+    say: ['features', 'what do i get', 'unlock', 'upgrade'],
+    async render(ctx) {
+      const nodes = [];
+      const connection = await loadConnection();
+      const connected = Boolean(connection?.connected);
+      const tier = String(connection?.tier || '').toLowerCase();
+
+      nodes.push(say(connected
+        ? `You're on ${tier || 'free'}. Here's what that unlocks — and what the next step up adds.`
+        : `Everything here runs on a Builder Brain you connect yourself. It's one tap, the free option needs no card, and what you pick decides which features are available.`));
+
+      // Unlocked first: what they can actually do right now, before any upsell.
+      const unlocked = FEATURES.filter((f) => featureUnlocked(connection, f.id));
+      const locked = FEATURES.filter((f) => !featureUnlocked(connection, f.id));
+
+      if (unlocked.length) {
+        nodes.push(group('Available now', unlocked.map((feature) => row({
+          title: feature.name,
+          meta: feature.blurb,
+          tone: { label: 'on', kind: 'f' },
+        }))));
+      }
+
+      if (locked.length) {
+        nodes.push(group(connected ? 'Unlocks with more power' : 'Unlocks once connected', locked.map((feature) => row({
+          title: feature.name,
+          meta: feature.blurb,
+          tone: { label: feature.requires, kind: 'g' },
+          onClick: () => (connected ? ctx.go('brain') : ctx.go('brain')),
+        }))));
+      }
+
+      // Why, in the customer's terms. Stating the real constraint beats
+      // "upgrade for more power", which tells them nothing.
+      const gated = locked.filter((feature) => feature.reason && connected);
+      if (gated.length) {
+        nodes.push(group('Why these need more', gated.map((feature) => row({
+          title: feature.name,
+          meta: feature.reason,
+        }))));
+      }
+
+      nodes.push(chips(connected
+        ? [
+            { label: 'Change power', run: () => ctx.go('brain') },
+            { label: 'What can you build', run: () => ctx.go('help') },
+          ]
+        : [
+            { label: 'Connect a brain', run: () => ctx.go('brain') },
+            { label: 'What can you build', run: () => ctx.go('help') },
+          ]));
       return nodes;
     },
   },

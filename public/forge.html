@@ -201,7 +201,7 @@
 </div>
 
 <script type="module">
-import { FORGE_VIEWS, matchForgeView } from '/forge-views.js';
+import { FORGE_VIEWS, matchForgeView, featureUnlocked, loadConnection, connectionSnapshot } from '/forge-views.js';
 import { say, chips, esc } from '/workspace-views.js';
 
 // Guest-first entry. A visitor can walk in, look around, and talk to Nex
@@ -403,6 +403,10 @@ const ctx = {
     try {
       await brainAction('set_tier', { tier });
       notice.remove();
+      // Tier decides which features exist, so refresh the connection and the
+      // rail before re-rendering — an upgrade should reveal its rooms at once.
+      await loadConnection();
+      drawNav();
       showView('brain');
     } catch (error) {
       notice.textContent = error.message;
@@ -471,14 +475,24 @@ screenEl.addEventListener('click', (e) => {
   if (screenEl.classList.contains('open') && !e.target.closest('#burger')) railOpen(false);
 }, true);
 
+// Which rooms a locked feature owns, so a gated room never appears in the
+// rail at all. A visible-but-broken option is worse than an absent one: it
+// promises something the customer's connection cannot deliver.
+const VIEW_REQUIRES = { brief: 'brief', stack: 'stack' };
+
 const nav = el('viewNav');
-for (const [id, view] of Object.entries(FORGE_VIEWS)) {
-  const button = document.createElement('button');
-  button.className = 'item';
-  button.dataset.view = id;
-  button.innerHTML = `<span class="ic">${view.icon}</span>${esc(view.label)}`;
-  button.onclick = () => showView(id);
-  nav.appendChild(button);
+function drawNav(){
+  nav.innerHTML = '';
+  for (const [id, view] of Object.entries(FORGE_VIEWS)) {
+    const gate = VIEW_REQUIRES[id];
+    if (gate && !featureUnlocked(connectionSnapshot(), gate)) continue;
+    const button = document.createElement('button');
+    button.className = 'item';
+    button.dataset.view = id;
+    button.innerHTML = `<span class="ic">${view.icon}</span>${esc(view.label)}`;
+    button.onclick = () => showView(id);
+    nav.appendChild(button);
+  }
 }
 
 function bubble(role, html){
@@ -809,12 +823,22 @@ el('newBtn').onclick = el('newTop').onclick = () => {
 };
 
 function greet(){
-  thread.appendChild(say(`Hey, I'm Nex. Welcome to Forge.\n\nTell me what you want to create. I'll ask a few focused questions, save your answers into a Project Brief, and then build the first version from what you actually want.`));
-  thread.appendChild(chips([
-    { label: 'Start my Project Brief', run: () => showView('brief') },
-    { label: 'See my build plan', run: () => showView('stack') },
-    { label: 'What can you build', run: () => showView('help') },
-  ]));
+  // The greeting only promises what this customer's brain can actually do.
+  // Offering the Project Brief to someone on the free router sets up a long
+  // wait and a rate limit instead of a built page.
+  const briefReady = featureUnlocked(connectionSnapshot(), 'brief');
+  const stackReady = featureUnlocked(connectionSnapshot(), 'stack');
+
+  thread.appendChild(say(briefReady
+    ? `Hey, I'm Nex. Welcome to Forge.\n\nTell me what you want to create. I'll ask a few focused questions, save your answers into a Project Brief, and then build the first version from what you actually want.`
+    : `Hey, I'm Nex. Welcome to Forge.\n\nTell me what you want to build and I'll build it. Describe it like you'd describe it to a person — you don't need to know how any of it works.`));
+
+  const options = [];
+  if (briefReady) options.push({ label: 'Start my Project Brief', run: () => showView('brief') });
+  if (stackReady) options.push({ label: 'See my build plan', run: () => showView('stack') });
+  options.push({ label: 'What can you build', run: () => showView('help') });
+  options.push({ label: 'Features', run: () => showView('features') });
+  thread.appendChild(chips(options));
 }
 
 // Nex head — same behaviour as the operator shell.
@@ -941,6 +965,12 @@ if (startupParams.get('onboarding') === '1' || startupParams.get('view') === 'br
   rememberOnboardingReturn();
 }
 
+// Load the connection BEFORE the first render. The rail and the greeting both
+// decide what to offer from it, so rendering first would briefly show options
+// this customer cannot use — and then remove them, which reads as a glitch.
+await loadConnection();
+drawNav();
+
 if (!await handleBrainResult()) {
   const requestedView = startupParams.get('view');
   if (requestedView && FORGE_VIEWS[requestedView]) {
@@ -948,10 +978,7 @@ if (!await handleBrainResult()) {
   } else if (startupParams.get('onboarding') === '1') {
     await showView('brain');
   } else {
-    const brainStatus = await fetch('/api/forge-brain', {
-      credentials: 'include', headers: { Accept: 'application/json' }, cache: 'no-store',
-    }).then((response) => response.ok ? response.json() : null).catch(() => null);
-    await showView(brainStatus?.connected ? 'chat' : 'brain');
+    await showView(connectionSnapshot()?.connected ? 'chat' : 'brain');
   }
 }
 </script>
