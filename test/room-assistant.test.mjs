@@ -2,10 +2,29 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   createAssistantHandler,
+  buildFromCustomerWords,
   getDirectOpenProjectCommand,
   isConversationOnlyMessage,
   parseAssistantDecision,
 } from '../api/room-assistant.js';
+
+test('an empty free-router decision recovers an explicit build from the customer brief', async () => {
+  const prior = [{ role:'user', text:'Build a brainstorming board with Ideas, In Progress, and Done columns, draggable cards and saved state.' }];
+  assert.match(buildFromCustomerWords('Build it', prior).instruction, /draggable cards/);
+  assert.equal(buildFromCustomerWords('Build it', []), null);
+  assert.equal(buildFromCustomerWords('Should I build it?', prior), null);
+  const handler = createAssistantHandler({
+    resolveUser:async () => 'tester',
+    conversations:{ getConversation:async () => prior, appendTurns:async () => {} },
+    searchVaultFn:async () => [],
+    ask:async () => { const error = new Error('empty'); error.code = 'BRAIN_EMPTY'; throw error; },
+  });
+  const res = response();
+  await handler({ method:'POST', body:{ message:'Build it', projectId:'board' } }, res);
+  assert.equal(res.code, 200);
+  assert.equal(res.body.kind, 'build');
+  assert.match(res.body.instruction, /Ideas, In Progress, and Done/);
+});
 
 function response() {
   return {
