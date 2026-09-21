@@ -2,6 +2,8 @@
 // Authenticated Project Brief endpoint for the Forge interview experience.
 
 import { getRequestUser } from '../lib/roomAuth.js';
+import { getConnection } from '../lib/forge/brainStore.js';
+import { canUseFeature } from '../lib/forge/features.js';
 import {
   ensureProjectBrief,
   saveBriefAnswer,
@@ -13,8 +15,16 @@ function projectIdFrom(req) {
   return String((req.query || {}).projectId || (req.body || {}).projectId || 'default');
 }
 
+// A storage failure must not silently unlock a gated feature, so an
+// unreadable connection is treated as no connection.
+async function getConnectionSafely(connectionFor, username) {
+  const connection = await connectionFor(username);
+  return connection || null;
+}
+
 export function createForgeBriefHandler({
   resolveUser = getRequestUser,
+  connectionFor = getConnection,
   ensure = ensureProjectBrief,
   answer = saveBriefAnswer,
   reset = resetProjectBrief,
@@ -30,6 +40,24 @@ export function createForgeBriefHandler({
     try {
       const username = await resolveUser(req);
       if (!username) return res.status(401).json({ error: 'Sign in required.' });
+
+      // The real gate. The UI also hides this feature below the required tier,
+      // but hiding is presentation — a customer can still call the endpoint
+      // directly, and every brief question is a model call on a connection that
+      // may not be able to serve them.
+      let connection = null;
+      try { connection = await getConnectionSafely(connectionFor, username); }
+      catch { connection = null; }
+      const verdict = canUseFeature(connection, 'brief');
+      if (!verdict.allowed) {
+        return res.status(402).json({
+          error: verdict.reason,
+          code: verdict.needsConnection ? 'BRAIN_REQUIRED' : 'TIER_REQUIRED',
+          requires: verdict.requires,
+          feature: 'brief',
+        });
+      }
+
       const projectId = projectIdFrom(req);
       let brief;
 
