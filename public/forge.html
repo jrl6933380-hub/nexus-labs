@@ -264,6 +264,8 @@ function openBrainSetup(returnPath = '/forge.html'){
 
 const ctx = {
   projectId: () => currentProjectId,
+  signedIn: () => signedIn,
+  signIn: () => goSignIn(),
   ask: (text) => { el('input').value = text; submit(); },
   go: (id) => showView(id),
   startProject: () => {
