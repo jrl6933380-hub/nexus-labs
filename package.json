@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite public",
+    "test": "node --test",
     "test:a11y": "playwright test",
     "test:nex-trials": "node scripts/run-nex-trials.mjs"
   },

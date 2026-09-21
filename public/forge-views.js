@@ -109,21 +109,22 @@ export const FORGE_VIEWS = {
       let history = null;
       try { history = await getJSON('/api/room-history'); } catch {}
       const builds = pick(history, 'builds', 'history', 'items');
+      const projects = pick(history, 'projects');
 
       nodes.push(say(builds.length
         ? `Here's what you've built so far. Pick one up, or tell me something new and I'll start it.`
         : `Nothing built yet. I'll ask a few focused questions first, then build the first version from your real answers instead of guessing.`));
 
-      if (builds.length) {
-        nodes.push(group(null, builds.slice(0, 12).map((build) => row({
-          title: String(field(build, 'title', 'name', 'prompt', 'id')).slice(0, 90),
-          meta: relative(field(build, 'updated_at', 'created_at', 'ts')),
-          onClick: () => ctx.ask(`Open "${String(field(build, 'title', 'name', 'prompt', 'id')).slice(0, 60)}" and tell me where it stands.`),
+      if (projects.length || builds.length) {
+        nodes.push(group(null, (projects.length ? projects : builds).slice(0, 12).map((build) => row({
+          title: String(field(build, 'label', 'title', 'name', 'prompt', 'id')).slice(0, 90),
+          meta: relative(field(build, 'updatedAt', 'updated_at', 'created_at', 'ts')),
+          onClick: () => ctx.openBuild(field(build, 'latestBuildId', 'id')),
         }))));
       }
 
       nodes.push(chips([
-        { label: 'Start something new', run: () => ctx.go('brief') },
+        { label: 'Start something new', run: () => ctx.startProject() },
         { label: 'What can you build', run: () => ctx.ask('What kinds of things can you build for me?') },
       ]));
       return nodes;
@@ -137,7 +138,7 @@ export const FORGE_VIEWS = {
     async render(ctx) {
       const nodes = [];
       let brief = null;
-      try { brief = await getJSON('/api/forge-brief?projectId=default'); } catch {}
+      try { brief = await getJSON('/api/forge-brief?projectId=' + encodeURIComponent(ctx.projectId())); } catch {}
       if (!brief?.progress) {
         return [
           say(`I couldn't load your Project Brief just now. None of your answers were changed.`),
@@ -220,7 +221,7 @@ export const FORGE_VIEWS = {
     async render(ctx) {
       const nodes = [];
       let manifest = null;
-      try { manifest = await getJSON('/api/forge-stack?projectId=default'); } catch {}
+      try { manifest = await getJSON('/api/forge-stack?projectId=' + encodeURIComponent(ctx.projectId())); } catch {}
 
       if (!manifest?.slots) {
         nodes.push(say(`I couldn't load your stack checklist just now. Nothing was marked connected.`));

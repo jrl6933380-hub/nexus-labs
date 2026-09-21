@@ -225,11 +225,43 @@ let threadId = null;
 // The page built so far. Sent back as currentHtml so a follow-up becomes a
 // small patch instead of a full rebuild.
 let currentBuild = '';
+const newProjectId = () => `forge-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+let currentProjectId = newProjectId();
+let latestBuildId = null;
 const history = [];
+const startupParams = new URLSearchParams(location.search);
+const allowedReturnPaths = new Set(['/forge.html', '/room.html', '/story-studio.html']);
+const requestedReturnPath = startupParams.get('return');
+const onboardingReturnPath = allowedReturnPaths.has(requestedReturnPath) ? requestedReturnPath : '/forge.html';
+
+function rememberOnboardingReturn(){
+  try { localStorage.setItem('forge:onboarding:return', onboardingReturnPath); } catch {}
+}
+
+function takeOnboardingReturn(){
+  try {
+    const value = localStorage.getItem('forge:onboarding:return');
+    localStorage.removeItem('forge:onboarding:return');
+    return allowedReturnPaths.has(value) ? value : null;
+  } catch { return null; }
+}
+
+function openBrainSetup(returnPath = '/forge.html'){
+  if (allowedReturnPaths.has(returnPath)) {
+    try { localStorage.setItem('forge:onboarding:return', returnPath); } catch {}
+  }
+  showView('brain');
+}
 
 const ctx = {
+  projectId: () => currentProjectId,
   ask: (text) => { el('input').value = text; submit(); },
   go: (id) => showView(id),
+  startProject: () => {
+    history.length = 0; threadId = null; currentBuild = ''; latestBuildId = null;
+    currentProjectId = newProjectId();
+    showView('brief');
+  },
   answerBrief: async (questionId, values, comment) => {
     await briefAction('answer', { questionId, values, comment });
     await showView('brief');
@@ -237,11 +269,46 @@ const ctx = {
   resetBrief: async () => {
     await briefAction('reset');
     currentBuild = '';
+    latestBuildId = null;
     await showView('brief');
   },
   buildFromBrief: async () => {
     await showView('chat');
     await runBuild('Build the first working version from my approved Project Brief.', 'Project Brief approved');
+  },
+  openBuild: async (id) => {
+    const notice = bubble('sys', 'Opening that project…');
+    let opened = false;
+    try {
+      const response = await fetch('/api/room-history?id=' + encodeURIComponent(id), {
+        credentials: 'include', headers: { Accept: 'application/json' }, cache: 'no-store',
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data?.build?.html) throw new Error(data.error || 'That project could not be opened.');
+      currentBuild = data.build.html;
+      currentProjectId = data.build.projectId || data.build.id;
+      latestBuildId = data.build.id;
+      threadId = `project-${currentProjectId}`;
+      history.length = 0;
+      try {
+        const conversation = await fetch('/api/room-conversation?projectId=' + encodeURIComponent(currentProjectId), {
+          credentials: 'include', headers: { Accept: 'application/json' }, cache: 'no-store',
+        }).then((res) => res.ok ? res.json() : null);
+        for (const turn of conversation?.turns || []) {
+          if (turn.role === 'user' || turn.role === 'assistant') {
+            history.push({ role: turn.role, content: turn.text });
+          }
+        }
+      } catch { /* Saved HTML remains available when conversation history is down. */ }
+      await showView('chat');
+      bubble('a', paragraphs(`Opened “${data.build.label || 'Saved project'}”. Tell me what you want to inspect or change.`));
+      opened = true;
+    } catch (error) {
+      notice.textContent = error.message;
+      return;
+    } finally {
+      if (opened) notice.closest('.msg')?.remove();
+    }
   },
   runStackAction: async (slotId, operation) => {
     const notice = bubble('sys', 'Checking the safest next step…');
@@ -286,6 +353,7 @@ const ctx = {
   connectBrain: async (tier) => {
     const notice = bubble('sys', 'Setting that up…');
     try {
+      rememberOnboardingReturn();
       const data = await brainAction('authorize', { tier });
       if (!data?.redirectUrl) throw new Error('Could not start that just now.');
       notice.textContent = 'Taking you over to authorize…';
@@ -304,7 +372,14 @@ const ctx = {
         : (data.recovery || data.message || "That check didn't pass.");
       if (data.ok) {
         await stackAction('brain', 'verify').catch(() => null);
-        showView('brain');
+        const returnPath = takeOnboardingReturn();
+        if (returnPath && returnPath !== '/forge.html') {
+          location.replace(returnPath);
+        } else if (returnPath === '/forge.html') {
+          showView('brief');
+        } else {
+          showView('brain');
+        }
       }
     } catch (error) {
       notice.textContent = error.message;
@@ -349,7 +424,7 @@ async function briefAction(action, extra = {}) {
   const response = await fetch('/api/forge-brief', {
     method: 'POST', credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action, projectId: 'default', ...extra }),
+    body: JSON.stringify({ action, projectId: currentProjectId, ...extra }),
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data?.error || 'That answer could not be saved.');
@@ -360,7 +435,7 @@ async function stackAction(slotId, operation) {
   const response = await fetch('/api/forge-stack', {
     method: 'POST', credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'run', projectId: 'default', slotId, operation }),
+    body: JSON.stringify({ action: 'run', projectId: currentProjectId, slotId, operation }),
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data?.error || 'That setup step did not go through.');
@@ -371,7 +446,7 @@ async function stackSetupAction() {
   const response = await fetch('/api/forge-stack', {
     method: 'POST', credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'setup', projectId: 'default' }),
+    body: JSON.stringify({ action: 'setup', projectId: currentProjectId }),
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data?.error || 'Project setup did not go through.');
@@ -468,11 +543,18 @@ async function showView(id){
 
 function replay(){
   thread.innerHTML = '';
-  if (!history.length) { greet(); return; }
+  if (!history.length) {
+    if (currentBuild) {
+      bubble('a', '<p>Your project is open. Tell me what you want to inspect or change.</p>');
+      renderVisual(currentBuild, 'Your site');
+    } else greet();
+    return;
+  }
   for (const message of history) {
     if (message.role === 'user') bubble('u', esc(message.content));
     else bubble('a', paragraphs(message.content));
   }
+  if (currentBuild) renderVisual(currentBuild, 'Your site');
 }
 
 const KEY = 'forge:threads:v1';
@@ -483,7 +565,7 @@ function readStore(){
 function saveThread(){
   if (!history.length) return;
   const all = readStore();
-  const record = { id: threadId, title: String(history[0].content).slice(0,48), messages: history.slice(-40) };
+  const record = { id: threadId, title: String(history[0].content).slice(0,48), projectId: currentProjectId, latestBuildId, messages: history.slice(-40) };
   try { localStorage.setItem(KEY, JSON.stringify([record, ...all.filter((t) => t && t.id !== threadId)].slice(0,20))); } catch {}
   drawRecents();
 }
@@ -495,10 +577,14 @@ function drawRecents(){
     const button = document.createElement('button');
     button.className = 'item';
     button.innerHTML = `<span class="dot"></span><span class="tr">${esc(record.title)}</span>`;
-    button.onclick = () => {
+    button.onclick = async () => {
       threadId = record.id; history.length = 0;
       for (const m of record.messages || []) history.push(m);
-      showView('chat');
+      currentBuild = '';
+      currentProjectId = record.projectId || newProjectId();
+      latestBuildId = null;
+      if (record.latestBuildId) await ctx.openBuild(record.latestBuildId);
+      else await showView('chat');
     };
     host.appendChild(button);
   }
@@ -511,30 +597,87 @@ async function submit(){
   el('input').value = '';
   const target = matchForgeView(raw);
   if (target) { showView(target); return; }
-  if (!currentBuild) {
-    try {
-      const brief = await fetch('/api/forge-brief?projectId=default', {
-        credentials: 'include', headers: { Accept: 'application/json' }, cache: 'no-store',
-      }).then((response) => response.ok ? response.json() : null);
-      if (!brief?.progress?.ready) {
-        if (brief?.next_question?.id === 'idea') {
-          await briefAction('answer', { questionId: 'idea', values: raw });
-        }
-        await showView('brief');
-        return;
-      }
-    } catch {
-      await showView('brief');
-      return;
-    }
-  }
-  await runBuild(raw);
+  await askNex(raw);
 }
 
-async function runBuild(raw, displayMessage = raw){
+async function ensureBriefForBuild(raw){
+  if (currentBuild) return true;
+  try {
+    const brief = await fetch('/api/forge-brief?projectId=' + encodeURIComponent(currentProjectId), {
+      credentials: 'include', headers: { Accept: 'application/json' }, cache: 'no-store',
+    }).then((response) => response.ok ? response.json() : null);
+    if (brief?.progress?.ready) return true;
+    if (brief?.next_question?.id === 'idea') {
+      await briefAction('answer', { questionId: 'idea', values: raw });
+    }
+    await showView('brief');
+    return false;
+  } catch {
+    await showView('brief');
+    return false;
+  }
+}
+
+async function askNex(raw){
+  if (!raw || busy) return;
+  if (currentView !== 'chat') await showView('chat');
+  bubble('u', esc(raw));
+  const pending = bubble('a', '<p style="color:#61656f">Thinking through that…</p>');
+  busy = true; el('send').disabled = true;
+  try {
+    const response = await fetch('/api/room-assistant', {
+      method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: raw,
+        projectId: currentProjectId,
+        projectLabel: 'Forge project',
+        currentHtml: currentBuild || '',
+        viewport: 'responsive',
+      }),
+    });
+    const decision = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(decision.error || 'Nex could not answer that right now.');
+
+    if (decision.kind === 'reply' || decision.kind === 'pitch_agent') {
+      pending.innerHTML = paragraphs(decision.message || 'What would you like to work through?');
+      history.push({ role:'user', content:raw }, { role:'assistant', content:decision.message });
+      if (!threadId) threadId = `f${Date.now().toString(36)}`;
+      saveThread();
+      return;
+    }
+
+    if (decision.kind === 'command') {
+      pending.innerHTML = paragraphs(decision.message || 'Opening that now.');
+      const commandViews = { open_projects:'project', open_preview:'preview', preview_phone:'preview', preview_tablet:'preview', preview_fit:'preview' };
+      if (decision.command === 'open_project' && decision.target) {
+        pending.closest('.msg')?.remove();
+        await ctx.openBuild(decision.target);
+      } else if (commandViews[decision.command]) {
+        await showView(commandViews[decision.command]);
+      }
+      return;
+    }
+
+    if (decision.kind !== 'build' || !decision.instruction) {
+      pending.innerHTML = '<p>I need a little more detail before I can help with that.</p>';
+      return;
+    }
+
+    pending.closest('.msg')?.remove();
+    busy = false; el('send').disabled = false;
+    if (!await ensureBriefForBuild(raw)) return;
+    await runBuild(decision.instruction, raw, false);
+  } catch (error) {
+    pending.innerHTML = `<p style="color:#d09a82">${esc(error.message)}</p>`;
+  } finally {
+    busy = false; el('send').disabled = false;
+  }
+}
+
+async function runBuild(raw, displayMessage = raw, showUser = true){
   if (!raw || busy) return;
   if (currentView !== 'chat') showView('chat');
-  bubble('u', esc(displayMessage));
+  if (showUser) bubble('u', esc(displayMessage));
   if (!threadId) threadId = `f${Date.now().toString(36)}`;
   busy = true; el('send').disabled = true;
   const pending = bubble('a', '<p style="color:#61656f">Working on it…</p>');
@@ -546,7 +689,7 @@ async function runBuild(raw, displayMessage = raw){
   try {
     const response = await fetch('/api/room-chat', {
       method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ message: raw, displayMessage, projectId: 'default', currentHtml: currentBuild || undefined }),
+      body: JSON.stringify({ message: raw, displayMessage, projectId: currentProjectId, currentHtml: currentBuild || undefined }),
     });
 
     // Refusals (no Builder Brain, bad request) come back as JSON before the
@@ -554,6 +697,14 @@ async function runBuild(raw, displayMessage = raw){
     const type = response.headers.get('content-type') || '';
     if (!type.includes('text/event-stream')) {
       const data = await response.json().catch(() => ({}));
+      if (response.status === 402 && data?.code === 'BRAIN_REQUIRED') {
+        pending.innerHTML = `<p style="color:#d09a82">${esc(data.error || 'Connect your Builder Brain before the first build.')}</p>`;
+        pending.appendChild(chips([{
+          label: 'Connect Builder Brain',
+          run: () => openBrainSetup('/forge.html'),
+        }]));
+        return;
+      }
       throw new Error(data?.error || 'That did not go through.');
     }
 
@@ -583,6 +734,10 @@ async function runBuild(raw, displayMessage = raw){
           renderVisual(currentBuild, 'Your site');
           history.push({ role:'user', content:displayMessage }, { role:'assistant', content:'Built it.' });
           saveThread();
+        } else if (data.action === 'saved') {
+          currentProjectId = data.projectId || currentProjectId;
+          latestBuildId = data.id || latestBuildId;
+          saveThread();
         } else if (data.action === 'build_error' || data.action === 'error') {
           finished = true;
           pending.innerHTML = `<p style="color:#d09a82">${esc(data.message || 'That build did not finish.')}</p>`;
@@ -604,7 +759,7 @@ el('input').addEventListener('keydown', (e) => { if (e.key === 'Enter') submit()
 el('helpBtn').onclick = () => showView('help');
 el('previewBtn').onclick = () => showView('preview');
 el('newBtn').onclick = el('newTop').onclick = () => {
-  history.length = 0; threadId = null; railOpen(false); showView('chat');
+  railOpen(false); ctx.startProject();
 };
 
 function greet(){
@@ -680,13 +835,27 @@ async function dockAsk(text){
   const body = el('dockBody');
   body.textContent = 'Working on it…';
   try {
-    const response = await fetch('/api/room-chat', {
+    const response = await fetch('/api/room-assistant', {
       method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ message: text, history }),
+      body: JSON.stringify({
+        message: text,
+        projectId: currentProjectId,
+        projectLabel: 'Forge project',
+        currentHtml: currentBuild || '',
+        viewport: 'responsive',
+      }),
     });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error('That did not go through.');
-    body.textContent = data.reply || data.message || 'Done.';
+    if (!response.ok) throw new Error(data.error || 'That did not go through.');
+    body.textContent = data.message || 'Done.';
+    if (data.kind === 'build' && data.instruction) {
+      dock.classList.remove('show');
+      if (await ensureBriefForBuild(text)) await runBuild(data.instruction, text);
+    } else if (data.kind === 'command') {
+      const commandViews = { open_projects:'project', open_preview:'preview', preview_phone:'preview', preview_tablet:'preview', preview_fit:'preview' };
+      if (data.command === 'open_project' && data.target) await ctx.openBuild(data.target);
+      else if (commandViews[data.command]) await showView(commandViews[data.command]);
+    }
   } catch (error) { body.textContent = error.message; }
 }
 el('dockSend').onclick = () => {
@@ -722,7 +891,23 @@ async function handleBrainResult(){
   return true;
 }
 
-if (!await handleBrainResult()) showView('chat');
+if (startupParams.get('onboarding') === '1' || startupParams.get('view') === 'brain') {
+  rememberOnboardingReturn();
+}
+
+if (!await handleBrainResult()) {
+  const requestedView = startupParams.get('view');
+  if (requestedView && FORGE_VIEWS[requestedView]) {
+    await showView(requestedView);
+  } else if (startupParams.get('onboarding') === '1') {
+    await showView('brain');
+  } else {
+    const brainStatus = await fetch('/api/forge-brain', {
+      credentials: 'include', headers: { Accept: 'application/json' }, cache: 'no-store',
+    }).then((response) => response.ok ? response.json() : null).catch(() => null);
+    await showView(brainStatus?.connected ? 'chat' : 'brain');
+  }
+}
 </script>
 </body>
 </html>

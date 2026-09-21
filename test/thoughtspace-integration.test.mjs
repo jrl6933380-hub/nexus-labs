@@ -4,16 +4,13 @@ import fs from 'node:fs';
 
 const read = (path) => fs.readFileSync(new URL(path, import.meta.url), 'utf8');
 
-test('owner dashboard is one visual workspace instead of a stack of static room panels', () => {
-  const index = read('../public/index.html');
-  const workspace = read('../public/nexus-workspace.js');
-  assert.match(index, /id="nexus-visual-stage"/u);
-  assert.match(index, /nexus-workspace\.js/u);
+test('owner dashboard is one chat-first workspace instead of a stack of static room panels', () => {
+  const index = read('../public/workspace.html');
+  assert.match(index, /id="thread"/u);
+  assert.match(index, /workspace-views\.js/u);
+  assert.match(index, /fetch\('\/api\/nexus-auth'/u);
+  assert.match(index, /async function showView/u);
   assert.doesNotMatch(index, /mountCanvas|canvas\.addPanel|portalHref/u);
-  assert.match(workspace, /Nexus Forge/u);
-  assert.match(workspace, /Blank Canvas/u);
-  assert.match(workspace, /window\.addEventListener\('nexus:navigate'/u);
-  assert.match(workspace, /do not navigate to a legacy page/u);
 });
 
 test('the static engines are hidden behind a developer fallback instead of driving the workspace', () => {

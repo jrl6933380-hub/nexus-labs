@@ -202,9 +202,9 @@
   <h1 id="forge-title">Your idea.<br>A working site or app.</h1>
   <p class="lead">Tell Nex what you want. He asks a few focused questions, saves the answers into a clear Project Brief, and builds the first version from what you actually need.</p>
   <div class="steps" aria-label="How Nexus Forge works">
-    <div class="step"><span class="step-number">1</span><span>Answer quick, clickable questions.</span></div>
-    <div class="step"><span class="step-number">2</span><span>Review the brief and first version.</span></div>
-    <div class="step"><span class="step-number">3</span><span>Connect what it needs and launch.</span></div>
+    <div class="step"><span class="step-number">1</span><span>Connect your Builder Brain with guided setup.</span></div>
+    <div class="step"><span class="step-number">2</span><span>Answer quick questions for your Project Brief.</span></div>
+    <div class="step"><span class="step-number">3</span><span>Build the first version, then add what it needs to launch.</span></div>
   </div>
 </section>
 
@@ -256,13 +256,13 @@
       <article class="tier-card">
         <div class="tier-name">Free</div>
         <div class="tier-status">Included with your new account</div>
-        <ul class="tier-features"><li>Build with Nex</li><li>Save private projects</li><li>15 credits per new build · 2 per edit</li></ul>
+        <ul class="tier-features"><li>Build with your connected Brain</li><li>Save private projects</li><li>Free credits for Nex conversations</li></ul>
         <button class="tier-action primary" id="continue-free" type="button">Continue with Free</button>
       </article>
       <article class="tier-card featured">
         <div class="tier-name">Hosted</div>
         <div class="tier-status">$12/mo · live hosting + custom domain</div>
-        <ul class="tier-features"><li>More build credits</li><li>Nexus-managed hosting</li><li>Simple publishing flow</li></ul>
+        <ul class="tier-features"><li>More Nex conversation credits</li><li>Nexus-managed hosting</li><li>Simple publishing flow</li></ul>
         <button class="tier-action primary" type="button" data-checkout="price_1UEjnpDh5Di7LYi3L6SfmKOu">Go Hosted — $12/mo</button>
         <button class="tier-action-annual" type="button" data-checkout="price_1UEjnvDh5Di7LYi3Mk6MpnmX">or $120/yr — 2 months free</button>
       </article>
@@ -281,7 +281,7 @@
         <button class="tier-action-annual" type="button" data-checkout="price_1UEjoBDh5Di7LYi3O69yUjQS">or $590/yr — 2 months free</button>
       </article>
     </div>
-    <p class="tier-note">Need more later? Usage packs add <span data-pricing="packCredits">30</span> build credits for $<span data-pricing="packPrice">6</span>, available anytime inside the builder.</p>
+    <p class="tier-note">Need more Nex conversations later? Usage packs add <span data-pricing="packCredits">30</span> Nex credits for $<span data-pricing="packPrice">6</span>. Builds use your connected Brain.</p>
     <p class="tier-note"><button class="tier-action-annual" type="button" data-checkout="price_1UEjoFDh5Di7LYi3DGorrLRb" style="display:inline;width:auto;">Buy <span data-pricing="packCredits">30</span> credits now — $<span data-pricing="packPrice">6</span></button></p>
   </div>
 </section>
@@ -359,8 +359,15 @@
   tabSignup.addEventListener('click', showSignup);
 
   const requested = new URLSearchParams(window.location.search).get('next');
-  const customerWorkspaces = new Set(['/room.html', '/story-studio.html']);
-  const nextPath = customerWorkspaces.has(requested) ? requested : '/room.html';
+  const customerWorkspaces = new Set(['/forge.html', '/room.html', '/story-studio.html']);
+  const nextPath = (() => {
+    try {
+      const candidate = new URL(requested || '/forge.html', window.location.origin);
+      if (candidate.origin !== window.location.origin || !customerWorkspaces.has(candidate.pathname)) return '/forge.html';
+      return `${candidate.pathname}${candidate.search}${candidate.hash}`;
+    } catch { return '/forge.html'; }
+  })();
+  const onboardingPath = `/forge.html?onboarding=1&return=${encodeURIComponent(nextPath)}`;
   const operatorNextPath = (() => {
     try {
       const candidate = new URL(requested || '/', window.location.origin);
@@ -415,7 +422,7 @@
   });
 
   continueFree.addEventListener('click', () => {
-    window.location.href = nextPath;
+    window.location.href = onboardingPath;
   });
 
   signupForm.addEventListener('submit', (e) => {
