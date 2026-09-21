@@ -15,12 +15,14 @@
 <body>
   <main>
     <p id="status">Opening Nexus…</p>
-    <a href="/room.html">Open Nexus Forge</a>
+    <a href="/forge.html">Open Nexus Forge</a>
     <a href="/nexus-login.html?next=%2Fworkspace.html">Owner access</a>
   </main>
 <script>
-  // The owner keeps the launch-station workflow. Customers and guests share
-  // the Room Builder, which handles its own customer session and signup links.
+  // The owner keeps the launch-station workflow. Everyone else — guest or
+  // signed-in customer — lands in the Forge shell, which now admits guests and
+  // asks for the account at the moment a build is requested. Routing guests to
+  // the old builder was only ever a workaround for this page's old hard gate.
   (async () => {
     try {
       const owner = await fetch('/api/nexus-auth', {
@@ -31,9 +33,9 @@
         return;
       }
     } catch {
-      // The guest-capable builder remains usable if the owner lookup is down.
+      // The guest-capable Forge shell remains usable if the owner lookup is down.
     }
-    location.replace('/room.html');
+    location.replace('/forge.html');
   })();
 </script>
 </body>
