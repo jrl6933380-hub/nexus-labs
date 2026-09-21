@@ -169,7 +169,7 @@ export const VIEWS = {
             if (state === 'in_progress' || state === 'working') return { label: 'working', kind: 'f' };
             return null;
           })(),
-          onClick: () => ctx.ask(`Open board task "${field(task, 'title', 'name', 'id')}" — full detail and what it needs next.`),
+          onClick: () => ctx.openTask(field(task, 'id')),
         }))));
       } else if (tasks.length === 0) {
         nodes.push(empty('Nothing on the board.'));
@@ -186,6 +186,9 @@ export const VIEWS = {
       }
 
       nodes.push(chips([
+        { label: 'New task', run: () => ctx.newTask() },
+        { label: 'Refresh', run: () => ctx.go('deck') },
+        { label: 'Approvals', run: () => ctx.go('approvals') },
         { label: 'What needs me', run: () => ctx.ask('What on the board actually needs me right now, and what can wait?') },
         { label: 'Deployments', run: () => ctx.ask('Show the latest production deployment state and anything failing.') },
         { label: 'What broke today', run: () => ctx.ask('Any crashes, failing checks, or collisions today?') },
@@ -213,13 +216,14 @@ export const VIEWS = {
           title: String(field(item, 'title', 'summary', 'action', 'id')),
           meta: [field(item, 'agent', 'requested_by'), relative(field(item, 'created_at', 'ts'))].filter(Boolean).join(' · '),
           tone: { label: 'waiting', kind: 'g' },
-          onClick: () => ctx.ask(`Walk me through pending approval "${field(item, 'title', 'summary', 'id')}" — what exactly runs if I approve it?`),
+          onClick: () => ctx.openApproval(item),
         }))));
       } else {
         nodes.push(empty('Queue is empty.'));
       }
 
       nodes.push(chips([
+        { label: 'Refresh', run: () => ctx.go('approvals') },
         { label: 'Explain the risky one', run: () => ctx.ask('Which pending approval carries the most risk, and why?') },
         { label: 'Anything stale', run: () => ctx.ask('Is anything sitting in the approval queue that should have been handled already?') },
       ]));
@@ -235,9 +239,12 @@ export const VIEWS = {
       const nodes = [];
       let metrics = null;
       let customers = null;
+      let developers = null;
       try { metrics = await getJSON('/api/forge-metrics'); } catch {}
       try { customers = await getJSON('/api/forge-customers'); } catch {}
+      try { developers = await getJSON('/api/forge-admin'); } catch {}
       const accounts = pick(customers, 'customers', 'accounts', 'items');
+      const developerAccounts = pick(developers, 'accounts');
 
       nodes.push(say(accounts.length
         ? `${accounts.length} on Forge. Build, leads, and billing all sit behind this.`
@@ -261,7 +268,20 @@ export const VIEWS = {
         }))));
       }
 
+      if (developerAccounts.length) {
+        nodes.push(group('Developer accounts · track your testers', developerAccounts.map((account) => row({
+          title: account.username,
+          meta: `${account.plan || 'free'} · ${account.brainConnected ? 'Brain connected' : 'Brain not connected'}${account.tracked ? ' · tracked' : ''}`,
+          tone: account.brainConnected ? { label:'ready', kind:'f' } : null,
+          onClick: () => ctx.openDeveloper(account),
+        }))));
+      }
+
       nodes.push(chips([
+        { label: 'Refresh', run: () => ctx.go('forge') },
+        { label: 'Create test account', run: () => ctx.createDeveloper() },
+        { label: 'Open Forge', run: () => location.assign('/forge.html') },
+        { label: 'Return to owner', run: () => ctx.returnToOwner() },
         { label: 'Build something', run: () => ctx.ask('I want to build a new site. Ask me what you need to start.') },
         { label: 'Lead queue', run: () => ctx.ask('What leads are queued in Forge Field right now?') },
         { label: 'Billing health', run: () => ctx.ask('Any Forge accounts with billing problems or near their limit?') },
