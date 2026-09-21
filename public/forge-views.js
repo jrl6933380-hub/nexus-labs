@@ -172,7 +172,28 @@ export const FORGE_VIEWS = {
     async render(ctx) {
       const nodes = [];
       let brief = null;
-      try { brief = await getJSON('/api/forge-brief?projectId=' + encodeURIComponent(ctx.projectId())); } catch {}
+      let unavailable = null;
+      try {
+        const response = await fetch('/api/forge-brief?projectId=' + encodeURIComponent(ctx.projectId()), {
+          credentials: 'include', headers: { Accept:'application/json' }, cache:'no-store',
+        });
+        const data = await response.json().catch(() => ({}));
+        if (response.ok) brief = data;
+        else unavailable = { status:response.status, code:data.code, reason:data.error };
+      } catch {}
+      if (unavailable?.code === 'TIER_REQUIRED') {
+        return [
+          say('Project Brief needs a Fast Builder Brain because it asks several planning questions. You can build a first version directly with your Free Brain now.'),
+          chips([
+            { label:'Build with Free', run:() => ctx.go('chat') },
+            { label:'Change Brain option', run:() => ctx.go('brain') },
+          ]),
+        ];
+      }
+      if (unavailable?.status === 401) {
+        return [say('Sign in to save a Project Brief to your Forge account.'),
+          chips([{ label:'Sign in', run:() => ctx.signIn() }])];
+      }
       if (!brief?.progress) {
         return [
           say(`I couldn't load your Project Brief just now. None of your answers were changed.`),
