@@ -17,6 +17,7 @@ const ALLOWED_COMMANDS = new Set([
   'preview_tablet',
   'preview_fit',
   'open_projects',
+  'open_project',
   'open_preview',
   'export_project',
 ]);
@@ -28,13 +29,15 @@ Decide what the customer needs next and return ONLY one JSON object with no mark
 Allowed shapes:
 {"kind":"reply","message":"your helpful response or one focused question","suggestions":["optional short reply", "optional short reply"]}
 {"kind":"build","message":"brief plain-language confirmation of what you will change","instruction":"a complete precise instruction for the page generator"}
-{"kind":"command","command":"preview_phone|preview_tablet|preview_fit|open_projects|open_preview|export_project","message":"brief confirmation"}
+{"kind":"command","command":"preview_phone|preview_tablet|preview_fit|open_projects|open_project|open_preview|export_project","target":"required saved build ID only for open_project","message":"brief confirmation"}
 {"kind":"pitch_agent","message":"one casual, specific sentence pitching the Site Agent add-on for THIS project"}
 
 Rules:
 - Use reply when the customer is asking a question, wants advice, is brainstorming, or an essential detail is missing. Ask at most one focused question at a time. Do not force questions when the request is already buildable.
 - Use build whenever the customer clearly asks to create or change the project. Preserve their intent and compile relevant details from the recent conversation into instruction so they do not have to repeat themselves. If the full request is ambitious, instruct the builder to produce the strongest complete working version now and leave a clear foundation for follow-up improvements. Complexity is never a reason to stop, defer, open a ticket, or ask the customer to supervise internal model coordination. If a RELEVANT VAULT PATTERNS section below lists a fitting proven pattern, adapt it instead of generating fully from scratch, and mention it briefly in your instruction.
 - Use command only for the exact safe workspace controls listed above. Never invent a command.
+- When the customer asks to open, load, resume, show, or inspect a specific saved project/build ID, use command open_project and copy that exact ID into target. This is navigation, never a build or edit.
+- Questions, advice, brainstorming, explanations, status checks, and "tell me" requests must stay reply unless the customer clearly and directly asks you to change code. Never treat the word "project", an existing ID, or a discussion about a possible change as permission to build.
 - Use pitch_agent at most ONCE per project, only right after a genuinely working first version exists (never on the very first message, never mid-build), and only when it fits naturally — e.g. the customer just saw their site come together, or asked something an embedded assistant would solve ("how do people ask questions", "can visitors chat with this"). Tie the pitch to something specific about their actual site ("since this is a landing page for your bakery, visitors could ask about hours or custom orders right on the page"), never a generic line. If workspace state shows a pitch was already made for this project, do not pitch again — answer normally instead.
 - Attached images are real customer-provided visual context. Inspect them before answering. If the customer wants an image used in the site, reference its exact NEXUS_IMAGE_N token in the build instruction so the generator can place it. Never invent an image token.
 - A question about whether a change would be good is advice, not permission to change the project.
@@ -45,6 +48,30 @@ Rules:
 
 function textFromResponse(data) {
   return (data?.content || []).filter((part) => part?.type === 'text').map((part) => part.text || '').join('').trim();
+}
+
+export function getDirectOpenProjectCommand(message) {
+  const value = String(message || '').trim();
+  if (!/\b(?:open|load|resume|continue|show|inspect)\b/i.test(value)) return null;
+  const match = value.match(/\b(\d{10,}-[a-zA-Z0-9_-]{3,})\b/);
+  if (!match) return null;
+  return {
+    kind: 'command',
+    command: 'open_project',
+    target: match[1],
+    message: `Opening saved project "${match[1]}".`,
+  };
+}
+
+export function isConversationOnlyMessage(message) {
+  const value = String(message || '').trim();
+  if (!value) return false;
+  const directBuild = /^(?:please\s+)?(?:build|create|make|generate|design|redesign|implement|add|change|edit|update|fix|remove|replace|wire|connect)\b/i.test(value)
+    || /\b(?:can|could|would|will)\s+you\s+(?:please\s+)?(?:build|create|make|generate|design|redesign|implement|add|change|edit|update|fix|remove|replace|wire|connect)\b/i.test(value)
+    || /\b(?:go ahead|do it|ship it)\b/i.test(value);
+  if (directBuild) return false;
+  return /^(?:what|why|how|when|where|who|should|would|could|can|do|does|did|is|are|will|tell me|explain|help me understand)\b/i.test(value)
+    || /\?\s*$/.test(value);
 }
 
 export function parseAssistantDecision(raw) {
@@ -75,6 +102,11 @@ export function parseAssistantDecision(raw) {
     return { kind: 'build', message, instruction };
   }
   if (!ALLOWED_COMMANDS.has(parsed.command)) throw new Error('Unsupported workspace command');
+  if (parsed.command === 'open_project') {
+    const target = String(parsed.target || '').trim();
+    if (!/^\d{10,}-[a-zA-Z0-9_-]{3,}$/.test(target)) throw new Error('Saved project id is required');
+    return { kind: 'command', command: parsed.command, target, message };
+  }
   return { kind: 'command', command: parsed.command, message };
 }
 
@@ -133,6 +165,12 @@ export function createAssistantHandler({
     if (!message || message.length > 4_000) return res.status(400).json({ error: 'Enter a shorter message' });
     if (!/^[a-zA-Z0-9_-]{1,120}$/.test(projectId)) return res.status(400).json({ error: 'Invalid project id' });
 
+    // Resolve exact saved-build navigation deterministically. This avoids
+    // spending a model turn on a safe local action and, more importantly,
+    // makes it impossible for "open <id>" to be mistaken for a fresh build.
+    const openProjectCommand = getDirectOpenProjectCommand(message);
+    if (openProjectCommand) return res.status(200).json(openProjectCommand);
+
     let reservation;
     let chargeAssistantTurn = false;
     try {
@@ -170,7 +208,17 @@ export function createAssistantHandler({
           messages: [{ role: 'user', content: attachmentMessageContent(prompt, attachments) }],
         },
       });
-      const decision = parseAssistantDecision(textFromResponse(data));
+      let decision = parseAssistantDecision(textFromResponse(data));
+      // A classifier mistake must not turn a question or advice request into a
+      // code mutation. Explicit build/edit requests still flow straight
+      // through, including polite forms such as "can you build...".
+      if (decision.kind === 'build' && isConversationOnlyMessage(message)) {
+        decision = {
+          kind: 'reply',
+          message: 'I’ll keep this conversational and won’t change the project until you clearly ask me to build or edit it. What would you like to work through?',
+          suggestions: ['Review the current project', 'Plan the next change'],
+        };
+      }
       chargeAssistantTurn = decision.kind !== 'build';
       const responseDecision = decision;
       if (decision.kind === 'pitch_agent') {

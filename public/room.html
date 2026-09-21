@@ -1613,7 +1613,7 @@
     })));
   }
 
-  function executeWorkspaceCommand(command) {
+  async function executeWorkspaceCommand(command, target) {
     if (command === 'preview_phone') {
       setPreviewViewport('phone');
       return null;
@@ -1630,6 +1630,11 @@
       historyPanel.classList.add('open');
       historyBtn.classList.add('active');
       loadHistoryList();
+      return null;
+    }
+    if (command === 'open_project') {
+      if (!target) return 'Tell me which saved project ID to open.';
+      await loadBuild(target);
       return null;
     }
     if (command === 'open_preview') {
@@ -2060,7 +2065,7 @@
       }
       if (decision.kind === 'command') {
         refocusAfterTurn = false;
-        const commandError = executeWorkspaceCommand(decision.command);
+        const commandError = await executeWorkspaceCommand(decision.command, decision.target);
         if (commandError) nexBubble.innerText = commandError;
         return;
       }
