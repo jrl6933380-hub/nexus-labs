@@ -201,7 +201,7 @@
 </div>
 
 <script type="module">
-import { FORGE_VIEWS, matchForgeView } from '/forge-views.js';
+import { FORGE_VIEWS, matchForgeView, featureUnlocked, loadConnection, connectionSnapshot } from '/forge-views.js';
 import { say, chips, esc } from '/workspace-views.js';
 
 // Guest-first entry. A visitor can walk in, look around, and talk to Nex
@@ -809,12 +809,22 @@ el('newBtn').onclick = el('newTop').onclick = () => {
 };
 
 function greet(){
-  thread.appendChild(say(`Hey, I'm Nex. Welcome to Forge.\n\nTell me what you want to create. I'll ask a few focused questions, save your answers into a Project Brief, and then build the first version from what you actually want.`));
-  thread.appendChild(chips([
-    { label: 'Start my Project Brief', run: () => showView('brief') },
-    { label: 'See my build plan', run: () => showView('stack') },
-    { label: 'What can you build', run: () => showView('help') },
-  ]));
+  // The greeting only promises what this customer's brain can actually do.
+  // Offering the Project Brief to someone on the free router sets up a long
+  // wait and a rate limit instead of a built page.
+  const briefReady = featureUnlocked(connectionSnapshot(), 'brief');
+  const stackReady = featureUnlocked(connectionSnapshot(), 'stack');
+
+  thread.appendChild(say(briefReady
+    ? `Hey, I'm Nex. Welcome to Forge.\n\nTell me what you want to create. I'll ask a few focused questions, save your answers into a Project Brief, and then build the first version from what you actually want.`
+    : `Hey, I'm Nex. Welcome to Forge.\n\nTell me what you want to build and I'll build it. Describe it like you'd describe it to a person — you don't need to know how any of it works.`));
+
+  const options = [];
+  if (briefReady) options.push({ label: 'Start my Project Brief', run: () => showView('brief') });
+  if (stackReady) options.push({ label: 'See my build plan', run: () => showView('stack') });
+  options.push({ label: 'What can you build', run: () => showView('help') });
+  options.push({ label: 'Features', run: () => showView('features') });
+  thread.appendChild(chips(options));
 }
 
 // Nex head — same behaviour as the operator shell.
