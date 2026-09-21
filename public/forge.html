@@ -162,6 +162,7 @@
   <div id="viewNav"></div>
   <div class="grp">Recent</div>
   <div class="scrollpart" id="recents"></div>
+  <div id="acctSlot"></div>
   <button class="new" id="newBtn">+&nbsp; Build something</button>
 </nav>
 
@@ -203,17 +204,26 @@
 import { FORGE_VIEWS, matchForgeView } from '/forge-views.js';
 import { say, chips, esc } from '/workspace-views.js';
 
-// Customer gate. roomAuth, not the owner session — a customer must never be
-// admitted by an owner cookie, and an owner must not land here by accident.
-// Runs before any view renders or any endpoint is read; the redirect never
-// resolves, so nothing past it executes.
+// Guest-first entry. A visitor can walk in, look around, and talk to Nex
+// without an account — the account is asked for at the moment it is actually
+// needed (a build), not at the door. This page used to bounce anyone without
+// a session straight to login, which is why guests had to be routed to the
+// old builder instead; that split is what this removes.
+//
+// This is presentation only. The real boundary is server-side and unchanged:
+// api/room-chat.js refuses a build with 402 BRAIN_REQUIRED unless the caller
+// is a signed-in account with a connected Builder Brain, and every per-account
+// endpoint still answers 401 to a guest. Softening the front door does not
+// widen what a guest can actually do.
 const session = await fetch('/api/room-auth', {
   credentials: 'include', headers: { Accept: 'application/json' }, cache: 'no-store',
 }).catch(() => null);
-if (!session?.ok) {
+const me = session?.ok ? await session.json().catch(() => null) : null;
+const signedIn = Boolean(me?.username);
+
+function goSignIn() {
   const next = encodeURIComponent(`${location.pathname}${location.search}`);
-  location.replace(`/room-login.html?next=${next}`);
-  await new Promise(() => {});
+  location.href = `/room-login.html?next=${next}`;
 }
 
 const el = (id) => document.getElementById(id);
@@ -255,6 +265,8 @@ function openBrainSetup(returnPath = '/forge.html'){
 
 const ctx = {
   projectId: () => currentProjectId,
+  signedIn: () => signedIn,
+  signIn: () => goSignIn(),
   ask: (text) => { el('input').value = text; submit(); },
   go: (id) => showView(id),
   startProject: () => {
@@ -591,6 +603,25 @@ function drawRecents(){
 }
 drawRecents();
 
+// A guest needs a visible, permanent way to create an account — not only the
+// one that appears after a refused build. A signed-in customer sees their
+// username instead, so it is obvious which account the work is saving to.
+(function drawAccount(){
+  const host = el('acctSlot');
+  if (!host) return;
+  host.innerHTML = '<div class="grp">Account</div>';
+  const row = document.createElement('button');
+  row.className = 'item';
+  if (signedIn) {
+    row.innerHTML = `<span class="ic">◈</span><span class="tr">${esc(me.username)}</span>`;
+    row.onclick = () => showView('billing');
+  } else {
+    row.innerHTML = '<span class="ic">○</span><span class="tr">Sign in / sign up</span>';
+    row.onclick = () => goSignIn();
+  }
+  host.appendChild(row);
+})();
+
 async function submit(){
   const raw = el('input').value.trim();
   if (!raw || busy) return;
@@ -699,10 +730,16 @@ async function runBuild(raw, displayMessage = raw, showUser = true){
       const data = await response.json().catch(() => ({}));
       if (response.status === 402 && data?.code === 'BRAIN_REQUIRED') {
         pending.innerHTML = `<p style="color:#d09a82">${esc(data.error || 'Connect your Builder Brain before the first build.')}</p>`;
-        pending.appendChild(chips([{
-          label: 'Connect Builder Brain',
-          run: () => openBrainSetup('/forge.html'),
-        }]));
+        // A guest and a signed-in customer hit the same refusal for different
+        // reasons, so they need different next steps. Sending a guest to the
+        // Builder Brain view would dead-end them: that view is per-account and
+        // has nothing to show without a session.
+        pending.appendChild(chips(signedIn
+          ? [{ label: 'Connect Builder Brain', run: () => openBrainSetup('/forge.html') }]
+          : [
+              { label: 'Create an account', run: () => goSignIn() },
+              { label: 'What am I connecting', run: () => ctx.ask('Explain the Builder Brain in plain terms — what am I connecting and what does it cost me?') },
+            ]));
         return;
       }
       throw new Error(data?.error || 'That did not go through.');
