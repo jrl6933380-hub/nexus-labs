@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { adaptOpenAIStream, toOpenAIMessages } from '../lib/forge/brainStream.js';
+import { adaptOpenAIStream, continuedStream, toOpenAIMessages } from '../lib/forge/brainStream.js';
+import { budgetForTier } from '../lib/forge/brainProviders.js';
 
 function upstreamFrom(chunks) {
   const encoder = new TextEncoder();
@@ -142,4 +143,20 @@ test('an unknown block type is dropped rather than breaking the whole request', 
     messages: [{ role: 'user', content: [{ type: 'text', text: 'keep' }, { type: 'weird', x: 1 }] }],
   });
   assert.equal(out[0].content, 'keep');
+});
+
+test('free build finishes within its two-round cap when a model keeps truncating', async () => {
+  let requests = 0;
+  const round = (text) => upstreamFrom([
+    delta(text),
+    sse({ choices: [{ delta: {}, finish_reason: 'length' }] }),
+  ]);
+  const { raw, stopReason } = await readLikeRoomChat(continuedStream(round('<!doctype html><html>'), {
+    baseMessages: [{ role: 'user', content: 'build a page' }],
+    maxRounds: budgetForTier('free').maxRounds,
+    openRound: async () => { requests++; return { body: round('<body>unfinished') }; },
+  }));
+  assert.equal(requests, 1);
+  assert.equal(stopReason, 'max_tokens', 'incomplete HTML is never saved as a finished build');
+  assert.equal(raw, '<!doctype html><html><body>unfinished');
 });
