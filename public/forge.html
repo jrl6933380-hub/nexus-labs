@@ -363,6 +363,7 @@ const ctx = {
   // popups get blocked on mobile, and the provider has to be able to redirect
   // back onto /forge.html with its result either way.
   connectBrain: async (tier) => {
+    if (!signedIn) { goSignIn(); return; }
     const notice = bubble('sys', 'Setting that up…');
     try {
       rememberOnboardingReturn();
