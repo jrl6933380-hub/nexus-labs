@@ -370,6 +370,19 @@ export const FORGE_VIEWS = {
     say: ['plan', 'billing', 'account', 'subscription'],
     async render(ctx) {
       const nodes = [];
+
+      // A guest has no account to describe. Say what an account is FOR rather
+      // than showing an empty plan panel — this is the one view where a signed
+      // out visitor most plausibly landed looking for exactly that answer.
+      if (ctx.signedIn && !ctx.signedIn()) {
+        nodes.push(say(`You're browsing as a guest — look around as much as you like.\n\nAn account saves your projects, connects the brain that does the building, and keeps your work here when you come back. Free to make.`));
+        nodes.push(chips([
+          { label: 'Create an account', run: () => ctx.signIn() },
+          { label: 'What can you build', run: () => ctx.go('help') },
+        ]));
+        return nodes;
+      }
+
       let me = null;
       try { me = await getJSON('/api/room-auth'); } catch {}
 
