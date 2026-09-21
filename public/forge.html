@@ -710,10 +710,16 @@ async function runBuild(raw, displayMessage = raw, showUser = true){
       const data = await response.json().catch(() => ({}));
       if (response.status === 402 && data?.code === 'BRAIN_REQUIRED') {
         pending.innerHTML = `<p style="color:#d09a82">${esc(data.error || 'Connect your Builder Brain before the first build.')}</p>`;
-        pending.appendChild(chips([{
-          label: 'Connect Builder Brain',
-          run: () => openBrainSetup('/forge.html'),
-        }]));
+        // A guest and a signed-in customer hit the same refusal for different
+        // reasons, so they need different next steps. Sending a guest to the
+        // Builder Brain view would dead-end them: that view is per-account and
+        // has nothing to show without a session.
+        pending.appendChild(chips(signedIn
+          ? [{ label: 'Connect Builder Brain', run: () => openBrainSetup('/forge.html') }]
+          : [
+              { label: 'Create an account', run: () => goSignIn() },
+              { label: 'What am I connecting', run: () => ctx.ask('Explain the Builder Brain in plain terms — what am I connecting and what does it cost me?') },
+            ]));
         return;
       }
       throw new Error(data?.error || 'That did not go through.');
