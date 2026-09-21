@@ -43,10 +43,12 @@ test('usage API publishes pricing beside the signed-in account balance', async (
   assert.deepEqual(body.pricing, publicForgePricing());
 });
 
-test('new-account tier screen explains build costs and usage-pack value', async () => {
+test('new-account tier screen explains Builder Brain and Nex usage-pack value', async () => {
   const source = await readFile(new URL('../public/room-login.html', import.meta.url), 'utf8');
   const pricing = publicForgePricing();
-  assert.match(source, /15 credits per new build · 2 per edit/);
+  assert.match(source, /Build with your connected Brain/);
+  assert.match(source, /Builds use your connected Brain/);
+  assert.doesNotMatch(source, /credits per new build/);
 
   // The page renders these from /api/room-usage at load, but the figures in
   // the markup are the offline fallback — so they still have to be right.

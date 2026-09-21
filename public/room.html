@@ -684,9 +684,9 @@
             <button class="voice-btn" id="voice-btn" type="button" aria-label="Toggle spoken build updates" aria-pressed="false">Audio</button>
           </div>
         </div>
-        <div class="build-credit-meter" id="build-credit-meter" aria-label="Build credits remaining">
-          <span class="build-credit-copy" id="build-credit-copy">Build credits —</span>
-          <span class="build-credit-track" id="build-credit-track" role="progressbar" aria-label="Build credits remaining" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div class="build-credit-meter" id="build-credit-meter" aria-label="Nex credits remaining">
+          <span class="build-credit-copy" id="build-credit-copy">Nex credits —</span>
+          <span class="build-credit-track" id="build-credit-track" role="progressbar" aria-label="Nex credits remaining" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
             <span class="build-credit-fill" id="build-credit-fill"></span>
           </span>
         </div>
@@ -1036,12 +1036,12 @@
     let text;
     if (usage.reason === 'daily_budget_exhausted') {
       const wait = formatResetCountdown(usage.daily?.resetAt);
-      text = `You're out of today's free build credits.${wait ? ` They reset in ${wait}.` : ''} Don't want to wait?`;
+      text = `You're out of today's free Nex credits.${wait ? ` They reset in ${wait}.` : ''} Don't want to wait?`;
     } else if (usage.reason === 'global_ceiling_exceeded') {
-      text = 'Nexus Forge is at capacity for free builds right now — a lot of people are building today. Try again shortly, or';
+      text = 'Nexus Forge is at capacity for free Nex conversations right now. Try again shortly, or';
     } else {
       const wait = formatResetCountdown(usage.resetAt);
-      text = `You've used all your build credits for this billing period.${wait ? ` They reset in ${wait}.` : ''} Don't want to wait?`;
+      text = `You've used all your Nex credits for this billing period.${wait ? ` They reset in ${wait}.` : ''} Don't want to wait?`;
     }
     bubble.innerText = '';
     bubble.appendChild(document.createTextNode(text + ' '));
@@ -1071,11 +1071,11 @@
       if (usage.unlimited) {
         usagePill.innerText = 'Owner · unlimited';
         usagePill.title = 'Owner account is exempt from creative credit limits';
-        buildCreditCopy.innerText = 'Build credits · unlimited';
+        buildCreditCopy.innerText = 'Nex credits · unlimited';
         buildCreditMeter.classList.add('is-unlimited');
         buildCreditFill.style.width = '100%';
         buildCreditTrack.setAttribute('aria-valuenow', '100');
-        buildCreditTrack.setAttribute('aria-valuetext', 'Unlimited build credits');
+        buildCreditTrack.setAttribute('aria-valuetext', 'Unlimited Nex credits');
         return;
       }
       const percentRemaining = usage.limit > 0
@@ -1083,12 +1083,12 @@
         : 0;
       usagePill.innerText = `${usage.remaining} credits left`;
       usagePill.title = `${usage.consumed} used of ${usage.limit} this period`;
-      buildCreditCopy.innerText = `${usage.remaining} build credits left`;
+      buildCreditCopy.innerText = `${usage.remaining} Nex credits left`;
       buildCreditFill.style.width = `${percentRemaining}%`;
       const isLow = percentRemaining <= 20;
       buildCreditMeter.classList.toggle('is-low', isLow);
       buildCreditTrack.setAttribute('aria-valuenow', String(percentRemaining));
-      buildCreditTrack.setAttribute('aria-valuetext', `${usage.remaining} of ${usage.limit} build credits remaining`);
+      buildCreditTrack.setAttribute('aria-valuetext', `${usage.remaining} of ${usage.limit} Nex credits remaining`);
       let creditPackNudge = document.getElementById('credit-pack-nudge');
       if (isLow) {
         if (!creditPackNudge) {
@@ -1105,7 +1105,7 @@
       }
     } catch {
       usagePill.innerText = 'Usage unavailable';
-      buildCreditCopy.innerText = 'Build credits unavailable';
+      buildCreditCopy.innerText = 'Nex credits unavailable';
       buildCreditFill.style.width = '0%';
       buildCreditTrack.setAttribute('aria-valuenow', '0');
       buildCreditTrack.setAttribute('aria-valuetext', 'Build credit usage unavailable');
