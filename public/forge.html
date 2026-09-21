@@ -471,14 +471,24 @@ screenEl.addEventListener('click', (e) => {
   if (screenEl.classList.contains('open') && !e.target.closest('#burger')) railOpen(false);
 }, true);
 
+// Which rooms a locked feature owns, so a gated room never appears in the
+// rail at all. A visible-but-broken option is worse than an absent one: it
+// promises something the customer's connection cannot deliver.
+const VIEW_REQUIRES = { brief: 'brief', stack: 'stack' };
+
 const nav = el('viewNav');
-for (const [id, view] of Object.entries(FORGE_VIEWS)) {
-  const button = document.createElement('button');
-  button.className = 'item';
-  button.dataset.view = id;
-  button.innerHTML = `<span class="ic">${view.icon}</span>${esc(view.label)}`;
-  button.onclick = () => showView(id);
-  nav.appendChild(button);
+function drawNav(){
+  nav.innerHTML = '';
+  for (const [id, view] of Object.entries(FORGE_VIEWS)) {
+    const gate = VIEW_REQUIRES[id];
+    if (gate && !featureUnlocked(connectionSnapshot(), gate)) continue;
+    const button = document.createElement('button');
+    button.className = 'item';
+    button.dataset.view = id;
+    button.innerHTML = `<span class="ic">${view.icon}</span>${esc(view.label)}`;
+    button.onclick = () => showView(id);
+    nav.appendChild(button);
+  }
 }
 
 function bubble(role, html){
