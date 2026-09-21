@@ -398,6 +398,64 @@ export const FORGE_VIEWS = {
     },
   },
 
+  features: {
+    label: 'Features',
+    icon: '◇',
+    say: ['features', 'what do i get', 'unlock', 'upgrade'],
+    async render(ctx) {
+      const nodes = [];
+      const connection = await loadConnection();
+      const connected = Boolean(connection?.connected);
+      const tier = String(connection?.tier || '').toLowerCase();
+
+      nodes.push(say(connected
+        ? `You're on ${tier || 'free'}. Here's what that unlocks — and what the next step up adds.`
+        : `Everything here runs on a Builder Brain you connect yourself. It's one tap, the free option needs no card, and what you pick decides which features are available.`));
+
+      // Unlocked first: what they can actually do right now, before any upsell.
+      const unlocked = FEATURES.filter((f) => featureUnlocked(connection, f.id));
+      const locked = FEATURES.filter((f) => !featureUnlocked(connection, f.id));
+
+      if (unlocked.length) {
+        nodes.push(group('Available now', unlocked.map((feature) => row({
+          title: feature.name,
+          meta: feature.blurb,
+          tone: { label: 'on', kind: 'f' },
+        }))));
+      }
+
+      if (locked.length) {
+        nodes.push(group(connected ? 'Unlocks with more power' : 'Unlocks once connected', locked.map((feature) => row({
+          title: feature.name,
+          meta: feature.blurb,
+          tone: { label: feature.requires, kind: 'g' },
+          onClick: () => (connected ? ctx.go('brain') : ctx.go('brain')),
+        }))));
+      }
+
+      // Why, in the customer's terms. Stating the real constraint beats
+      // "upgrade for more power", which tells them nothing.
+      const gated = locked.filter((feature) => feature.reason && connected);
+      if (gated.length) {
+        nodes.push(group('Why these need more', gated.map((feature) => row({
+          title: feature.name,
+          meta: feature.reason,
+        }))));
+      }
+
+      nodes.push(chips(connected
+        ? [
+            { label: 'Change power', run: () => ctx.go('brain') },
+            { label: 'What can you build', run: () => ctx.go('help') },
+          ]
+        : [
+            { label: 'Connect a brain', run: () => ctx.go('brain') },
+            { label: 'What can you build', run: () => ctx.go('help') },
+          ]));
+      return nodes;
+    },
+  },
+
   billing: {
     label: 'Plan',
     icon: '◈',
