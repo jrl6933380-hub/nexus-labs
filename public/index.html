@@ -15,14 +15,11 @@
 <body>
   <main>
     <p id="status">Opening Nexus…</p>
+    <a href="/nexus-login.html?next=%2Fworkspace.html">Open Nexus</a>
     <a href="/forge.html">Open Nexus Forge</a>
-    <a href="/nexus-login.html?next=%2Fworkspace.html">Owner access</a>
   </main>
 <script>
-  // The owner keeps the launch-station workflow. Everyone else — guest or
-  // signed-in customer — lands in the Forge shell, which now admits guests and
-  // asks for the account at the moment a build is requested. Routing guests to
-  // the old builder was only ever a workaround for this page's old hard gate.
+  // This URL is the owner's Nexus launch station. Forge has its own entry URL.
   (async () => {
     try {
       const owner = await fetch('/api/nexus-auth', {
@@ -32,10 +29,8 @@
         location.replace('/workspace.html');
         return;
       }
-    } catch {
-      // The guest-capable Forge shell remains usable if the owner lookup is down.
-    }
-    location.replace('/forge.html');
+    } catch {}
+    location.replace('/nexus-login.html?next=%2Fworkspace.html');
   })();
 </script>
 </body>

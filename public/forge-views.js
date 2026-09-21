@@ -329,7 +329,18 @@ export const FORGE_VIEWS = {
       const nodes = [];
       let status = null;
       let failed = false;
-      try { status = await getJSON('/api/forge-brain'); } catch { failed = true; }
+      let needsSignIn = false;
+      try { status = await getJSON('/api/forge-brain'); }
+      catch (error) {
+        needsSignIn = /returned 401\b/.test(error.message || '');
+        failed = !needsSignIn;
+      }
+
+      if (needsSignIn) {
+        nodes.push(say('Sign in to your Forge account to connect your Builder Brain. Your connection stays with your account.'));
+        nodes.push(chips([{ label: 'Sign in or create an account', run: () => ctx.signIn() }]));
+        return nodes;
+      }
 
       // Only reached when the endpoint itself is unreachable or misconfigured.
       // Say that plainly rather than implying the user simply hasn't connected:
