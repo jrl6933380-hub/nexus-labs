@@ -356,7 +356,7 @@ const ctx = {
   startProject: () => {
     history.length = 0; threadId = null; currentBuild = ''; latestBuildId = null;
     currentProjectId = newProjectId();
-    showView('brief');
+    showView(featureUnlocked(connectionSnapshot(), 'brief') ? 'brief' : 'chat');
   },
   answerBrief: async (questionId, values, comment) => {
     await briefAction('answer', { questionId, values, comment });
@@ -473,7 +473,7 @@ const ctx = {
         if (returnPath && returnPath !== '/forge.html') {
           location.replace(returnPath);
         } else if (returnPath === '/forge.html') {
-          showView('brief');
+          showView(featureUnlocked(connectionSnapshot(), 'brief') ? 'brief' : 'chat');
         } else {
           showView('brain');
         }
@@ -730,24 +730,6 @@ async function submit(){
   await askNex(raw);
 }
 
-async function ensureBriefForBuild(raw){
-  if (currentBuild) return true;
-  try {
-    const brief = await fetch('/api/forge-brief?projectId=' + encodeURIComponent(currentProjectId), {
-      credentials: 'include', headers: { Accept: 'application/json' }, cache: 'no-store',
-    }).then((response) => response.ok ? response.json() : null);
-    if (brief?.progress?.ready) return true;
-    if (brief?.next_question?.id === 'idea') {
-      await briefAction('answer', { questionId: 'idea', values: raw });
-    }
-    await showView('brief');
-    return false;
-  } catch {
-    await showView('brief');
-    return false;
-  }
-}
-
 async function askNex(raw){
   if (!raw || busy) return;
   if (currentView !== 'chat') await showView('chat');
@@ -804,7 +786,6 @@ async function askNex(raw){
 
     pending.closest('.msg')?.remove();
     busy = false; el('send').disabled = false;
-    if (!await ensureBriefForBuild(raw)) return;
     await runBuild(decision.instruction, raw, false);
   } catch (error) {
     pending.innerHTML = `<p style="color:#d09a82">${esc(error.message)}</p>`;
@@ -1005,7 +986,7 @@ async function dockAsk(text){
     body.textContent = data.message || 'Done.';
     if (data.kind === 'build' && data.instruction) {
       dock.classList.remove('show');
-      if (await ensureBriefForBuild(text)) await runBuild(data.instruction, text);
+      await runBuild(data.instruction, text);
     } else if (data.kind === 'command') {
       const commandViews = { open_projects:'project', open_preview:'preview', preview_phone:'preview', preview_tablet:'preview', preview_fit:'preview' };
       if (data.command === 'open_project' && data.target) await ctx.openBuild(data.target);

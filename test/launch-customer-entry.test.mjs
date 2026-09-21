@@ -41,7 +41,11 @@ test('Forge conversation is classified before any build starts', () => {
   assert.match(forge, /fetch\('\/api\/room-assistant'/u);
   assert.match(forge, /decision\.kind === 'reply'/u);
   assert.match(forge, /decision\.kind !== 'build'/u);
-  assert.match(forge, /await ensureBriefForBuild\(raw\)/u);
+  assert.match(forge, /await runBuild\(decision\.instruction, raw, false\)/u);
+  assert.match(forge, /showView\(featureUnlocked\(connectionSnapshot\(\), 'brief'\) \? 'brief' : 'chat'\)/u);
+  assert.doesNotMatch(forge, /ensureBriefForBuild/u);
+  assert.match(forgeViews, /unavailable\?\.code === 'TIER_REQUIRED'/u);
+  assert.match(forgeViews, /Build with Free/u);
   assert.match(forge, /async function dockAsk[\s\S]*fetch\('\/api\/room-assistant'/u);
   assert.doesNotMatch(forge, /async function dockAsk[\s\S]*?fetch\('\/api\/room-chat'[\s\S]*?el\('dockSend'\)/u);
 });
