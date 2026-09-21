@@ -667,6 +667,15 @@ async function askNex(raw){
       }),
     });
     const decision = await response.json().catch(() => ({}));
+    if (response.status === 402 && decision?.code === 'BRAIN_REQUIRED') {
+      // Same refusal shape the build path uses, so a customer gets one
+      // consistent next step whether they were chatting or building.
+      pending.innerHTML = `<p style="color:#d09a82">${esc(decision.error || 'Connect your Builder Brain to start.')}</p>`;
+      pending.appendChild(chips(signedIn
+        ? [{ label: 'Connect Builder Brain', run: () => openBrainSetup('/forge.html') }]
+        : [{ label: 'Create an account', run: () => goSignIn() }]));
+      return;
+    }
     if (!response.ok) throw new Error(decision.error || 'Nex could not answer that right now.');
 
     if (decision.kind === 'reply' || decision.kind === 'pitch_agent') {

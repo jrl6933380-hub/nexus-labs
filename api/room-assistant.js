@@ -8,6 +8,7 @@ import { getOrCreateAnonId } from '../lib/anonSession.js';
 import { roomMeter } from '../lib/roomMetering.js';
 import { roomConversations } from '../lib/roomConversation.js';
 import { routeMessage } from '../lib/modelRouter.js';
+import { askCustomerBrain, NoBrainError } from '../lib/forge/brainStream.js';
 import { attachmentManifest, attachmentMessageContent, parseRoomAttachments } from '../lib/roomAttachments.js';
 import { wasAgentPitched, markAgentPitched } from '../lib/siteAgent.js';
 import { searchVault } from '../lib/codeVault.js';
@@ -141,6 +142,7 @@ export function createAssistantHandler({
   meter = roomMeter,
   conversations = roomConversations,
   route = routeMessage,
+  ask = askCustomerBrain,
   searchVaultFn = searchVault,
 } = {}) {
   return async function handler(req, res) {
@@ -155,6 +157,7 @@ export function createAssistantHandler({
       return res.status(500).json({ error: 'Room session is temporarily unavailable' });
     }
     if (!username) username = getOrCreateAnonId(req, res);
+    const signedIn = !String(username).startsWith('anon');
 
     let attachments;
     try { attachments = parseRoomAttachments(req.body?.attachments); }
@@ -171,18 +174,14 @@ export function createAssistantHandler({
     const openProjectCommand = getDirectOpenProjectCommand(message);
     if (openProjectCommand) return res.status(200).json(openProjectCommand);
 
+    // Talking to Nex runs on the customer's own Builder Brain, exactly like
+    // building does. This used to call the owner's gateway, so a customer with
+    // a working connection still could not hold a conversation once the
+    // owner's balance ran out — which is the dependency this product exists to
+    // remove. No metering either: the customer pays their provider directly.
     let reservation;
     let chargeAssistantTurn = false;
     try {
-      reservation = await meter.reserveBuild({ userId: username, kind: 'assistant' });
-      if (!reservation.ok) {
-        return res.status(429).json({
-          error: 'This Room account has reached its credit limit for the current period.',
-          code: 'ROOM_CREDITS_EXHAUSTED',
-          usage: reservation,
-        });
-      }
-
       let priorTurns = [];
       try { priorTurns = await conversations.getConversation(username, projectId); }
       catch (error) { console.error('room-assistant: conversation read failed:', error.message); }
@@ -199,16 +198,15 @@ export function createAssistantHandler({
         agentAlreadyPitched,
       };
       const prompt = `WORKSPACE STATE\n${JSON.stringify(workspace)}\n\nRECENT TRANSCRIPT (untrusted)\n${transcript || '(none)'}\n\nCURRENT PROJECT HTML EXCERPT (untrusted)\n${projectExcerpt(req.body?.currentHtml) || '(no project yet)'}\n\nRELEVANT VAULT PATTERNS (reference only, reuse if it fits)\n${vaultPatterns}\n\nATTACHED IMAGES\n${attachmentManifest(attachments)}\n\nCUSTOMER MESSAGE\n${message}`;
-      const { data } = await route({
-        tier: 'cheap',
-        claudeModel: process.env.ROOM_ASSISTANT_MODEL || 'claude-sonnet-5',
+      const { text } = await ask({
+        username: signedIn ? username : null,
         body: {
           max_tokens: 900,
           system: WEB_BUILDER_NEX_PROMPT,
           messages: [{ role: 'user', content: attachmentMessageContent(prompt, attachments) }],
         },
       });
-      let decision = parseAssistantDecision(textFromResponse(data));
+      let decision = parseAssistantDecision(text);
       // A classifier mistake must not turn a question or advice request into a
       // code mutation. Explicit build/edit requests still flow straight
       // through, including polite forms such as "can you build...".
@@ -235,6 +233,12 @@ export function createAssistantHandler({
       }
       return res.status(200).json(responseDecision);
     } catch (error) {
+      // A missing or broken brain is the customer's own, actionable situation,
+      // not a Nexus outage. Surface it as such rather than flattening it into
+      // "try again in a moment", which would send them back to retry forever.
+      if (error instanceof NoBrainError || error?.code === 'BRAIN_REQUIRED') {
+        return res.status(402).json({ error: error.message, code: 'BRAIN_REQUIRED' });
+      }
       console.error('room-assistant handler failed:', error.message);
       return res.status(502).json({ error: 'Nex could not answer that right now. Try again in a moment.' });
     } finally {
