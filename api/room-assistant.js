@@ -331,6 +331,18 @@ export function createAssistantHandler({
       if (error instanceof NoBrainError || error?.code === 'BRAIN_REQUIRED') {
         return res.status(402).json({ error: error.message, code: 'BRAIN_REQUIRED' });
       }
+      // Same reasoning for an empty answer: the customer's brain picked a
+      // model that returned nothing, several times over. That is their
+      // connection's situation and it has a real next step (try again for a
+      // fresh model pick, or move off the free router), so say so instead of
+      // flattening it into a generic "try again in a moment" that sounds like
+      // a Nexus outage and gives them nothing to act on.
+      if (error?.code === 'BRAIN_EMPTY') {
+        return res.status(502).json({
+          error: 'Your Builder Brain picked a model that returned nothing. Try again — it should pick a different one — or switch to a faster Brain option.',
+          code: 'BRAIN_EMPTY',
+        });
+      }
       console.error('room-assistant handler failed:', error.message);
       return res.status(502).json({ error: 'Nex could not answer that right now. Try again in a moment.' });
     } finally {
