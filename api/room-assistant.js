@@ -237,6 +237,41 @@ export function createAssistantHandler({
     const openProjectCommand = getDirectOpenProjectCommand(message);
     if (openProjectCommand) return res.status(200).json(openProjectCommand);
 
+    // Unmistakable build requests skip the classifier entirely.
+    //
+    // A build used to cost TWO calls against the customer's Builder Brain:
+    // one here purely to decide "is this a build?", then the real one in
+    // /api/room-chat. On OpenRouter's free tier, which limits requests per
+    // minute, that first call is what ran the customer out of budget — the
+    // classifier was failing before the builder ever got to start.
+    //
+    // "Can you build a page that does X" needs no model to interpret. The
+    // same deterministic reader already trusted as the post-failure recovery
+    // path (buildFromCustomerWords) handles it, so this is not a new or
+    // looser judgement about what counts as permission to build — it is the
+    // existing one, applied before spending a call instead of after wasting
+    // one. Anything ambiguous, conversational, or question-shaped still goes
+    // to the model, which is where the judgement is actually needed.
+    //
+    // It also skips assembling the large classifier prompt (vault patterns,
+    // up to 24k characters of project HTML, twelve turns of transcript) for
+    // a request that never needed it.
+    if (!req.body?.currentHtml) {
+      const directBuild = buildFromCustomerWords(message);
+      if (directBuild) {
+        try {
+          await conversations.appendTurns(username, projectId, [
+            { role: 'user', text: message },
+            { role: 'assistant', text: directBuild.message },
+          ]);
+        } catch (error) {
+          console.error('room-assistant: conversation write failed:', error.message);
+        }
+        console.log('room-assistant: direct build, classifier call skipped');
+        return res.status(200).json(directBuild);
+      }
+    }
+
     // Talking to Nex runs on the customer's own Builder Brain, exactly like
     // building does. This used to call the owner's gateway, so a customer with
     // a working connection still could not hold a conversation once the
@@ -273,10 +308,15 @@ export function createAssistantHandler({
           },
         }));
       } catch (error) {
-        if (error?.code !== 'BRAIN_EMPTY') throw error;
+        if (error?.code !== 'BRAIN_EMPTY' && error?.code !== 'BRAIN_RATE_LIMITED') throw error;
+        // A rate limit is as much a dead end as an empty answer, and the
+        // customer's own words may still be enough to build from without
+        // another call. Only reachable for an edit here (a fresh build took
+        // the fast path above), so this is the recovery for "change the
+        // header" style requests when the classifier could not run.
         recoveredBuild = buildFromCustomerWords(message, priorTurns);
         if (!recoveredBuild) throw error;
-        console.warn('room-assistant: recovering explicit build after empty brain answer');
+        console.warn(`room-assistant: recovering explicit build after ${error.code}`);
       }
       let decision;
       try {
