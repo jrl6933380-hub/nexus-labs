@@ -27,6 +27,7 @@ import { saveBuild } from '../lib/roomHistory.js';
 import { recordProjectSpend } from '../lib/roomProjectLedger.js';
 import { getRequestUser } from '../lib/roomAuth.js';
 import { openBuildStream, hasOwnBrain, NoBrainError } from '../lib/forge/brainStream.js';
+import { matchTemplate } from '../lib/forge/templates/index.js';
 import { getProjectBrief, compileBriefForModel } from '../lib/forge/projectBrief.js';
 import { getOrCreateAnonId } from '../lib/anonSession.js';
 import { roomMeter } from '../lib/roomMetering.js';
@@ -218,6 +219,11 @@ export default async function handler(req, res) {
   };
 
   const isEdit = Boolean(currentHtml);
+  // Only a fresh build (no existing page) is a candidate for a starter
+  // template — an edit has nothing to do with template selection, it's
+  // already working from a real page. See lib/forge/templates/index.js for
+  // why this isn't an LLM call.
+  const matchedTemplate = !isEdit ? matchTemplate(message) : null;
   const sendBuildError = (reason) => {
     console.error('room-chat: automatic build failed:', reason);
     send({
@@ -257,14 +263,17 @@ export default async function handler(req, res) {
             role: 'user',
             content: attachmentMessageContent(isEdit
               ? `Current HTML:\n${currentHtml}\n\nAttached images:\n${attachmentManifest(attachments)}\n\nRequested change: ${message}`
-              : `No existing page yet (build from scratch).\n\nApproved Project Brief:\n${projectBriefText || 'No completed brief was available.'}\n\nTreat the approved brief as the source of truth. Use the user request only as an additional instruction; do not contradict collected customer answers.\n\nAttached images:\n${attachmentManifest(attachments)}\n\nUser request: ${message}`,
+              : matchedTemplate
+                ? `Starter template: ${matchedTemplate.name}\n\nStarting HTML — use this as your real base. Keep its structure, layout, and styling approach; customize the copy, business name, colors, and specific details so it genuinely fits the request below rather than looking generic. Change anything that doesn't fit, but don't rebuild from scratch when this already covers what's being asked for:\n${matchedTemplate.html}\n\nApproved Project Brief:\n${projectBriefText || 'No completed brief was available.'}\n\nTreat the approved brief as the source of truth for factual details. Use the user request only as an additional instruction; do not contradict collected customer answers.\n\nAttached images:\n${attachmentManifest(attachments)}\n\nUser request: ${message}`
+                : `No existing page yet (build from scratch).\n\nApproved Project Brief:\n${projectBriefText || 'No completed brief was available.'}\n\nTreat the approved brief as the source of truth. Use the user request only as an additional instruction; do not contradict collected customer answers.\n\nAttached images:\n${attachmentManifest(attachments)}\n\nUser request: ${message}`,
             attachments),
           },
         ],
       },
       signal: controller.signal,
     });
-    console.log('room-chat: streaming build opened through', byo ? `customer brain (${provider})` : provider, model);
+    console.log('room-chat: streaming build opened through', byo ? `customer brain (${provider})` : provider, model,
+      matchedTemplate ? `template: ${matchedTemplate.id}` : 'template: none');
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
