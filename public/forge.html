@@ -408,6 +408,26 @@ const ctx = {
       if (opened) notice.closest('.msg')?.remove();
     }
   },
+  buyUsagePack: async () => {
+    const notice = bubble('sys', 'Opening checkout…');
+    try {
+      const response = await fetch('/api/checkout', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        // The canonical pack price lives in lib/billingPlans.js; the id is
+        // sent by the client only so checkout can resolve it, and an
+        // unrecognised one is rejected there rather than trusted.
+        body: JSON.stringify({ priceId: 'price_1UEjoFDh5Di7LYi3DGorrLRb' }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.url) throw new Error(data.error || 'Could not open checkout.');
+      notice.textContent = 'Taking you to checkout…';
+      window.location.href = data.url;
+    } catch (error) {
+      notice.textContent = error.message;
+    }
+  },
   deleteProject: async (projectId, label) => {
     if (!projectId) return;
     const confirmed = window.confirm(`Delete "${label || 'this project'}"? This removes every saved version and takes its live site down. This can't be undone.`);
