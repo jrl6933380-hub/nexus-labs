@@ -406,6 +406,27 @@ const ctx = {
       if (opened) notice.closest('.msg')?.remove();
     }
   },
+  deleteProject: async (projectId, label) => {
+    if (!projectId) return;
+    const confirmed = window.confirm(`Delete "${label || 'this project'}"? This removes every saved version and takes its live site down. This can't be undone.`);
+    if (!confirmed) return;
+    const notice = bubble('sys', 'Deleting…');
+    try {
+      const response = await fetch('/api/room-history?projectId=' + encodeURIComponent(projectId), {
+        method: 'DELETE', credentials: 'include',
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Could not delete that project.');
+      notice.textContent = 'Deleted.';
+      if (currentProjectId === projectId) {
+        currentBuild = '';
+        latestBuildId = null;
+      }
+      await showView(currentView === 'pages' ? 'pages' : 'project');
+    } catch (error) {
+      notice.textContent = error.message;
+    }
+  },
   runStackAction: async (slotId, operation) => {
     const notice = bubble('sys', 'Checking the safest next step…');
     try {
