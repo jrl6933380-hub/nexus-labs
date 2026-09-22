@@ -447,10 +447,14 @@
   const customerWorkspaces = new Set(['/forge.html', '/room.html', '/story-studio.html']);
   const nextPath = (() => {
     try {
-      const candidate = new URL(requested || '/room.html', window.location.origin);
-      if (candidate.origin !== window.location.origin || !customerWorkspaces.has(candidate.pathname)) return '/room.html';
+      const candidate = new URL(requested || '/forge.html?view=chat', window.location.origin);
+      if (candidate.origin !== window.location.origin || !customerWorkspaces.has(candidate.pathname)) return '/forge.html?view=chat';
+      // Older builder links still send /room.html as their return path.
+      // Bring those customers into the current Forge chat after sign-in.
+      if (candidate.pathname === '/room.html') return '/forge.html?view=chat';
+      if (candidate.pathname === '/forge.html' && !candidate.search && !candidate.hash) return '/forge.html?view=chat';
       return `${candidate.pathname}${candidate.search}${candidate.hash}`;
-    } catch { return '/room.html'; }
+    } catch { return '/forge.html?view=chat'; }
   })();
   const operatorNextPath = (() => {
     try {
@@ -539,6 +543,7 @@
   });
 
   continueFree.addEventListener('click', () => {
+    sessionStorage.removeItem('forge:login:return');
     window.location.href = nextPath;
   });
 

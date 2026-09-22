@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { runInNewContext } from 'node:vm';
 
 const [root, login, forge, forgeViews, room] = await Promise.all([
   readFile(new URL('../public/index.html', import.meta.url), 'utf8'),
@@ -35,6 +36,24 @@ test('customer account flow connects Builder Brain on sign-in before returning t
   assert.match(forge, /startupParams\.get\('onboarding'\) === '1'/u);
   assert.match(forge, /await showView\('brain'\)/u);
   assert.match(forge, /forge:onboarding:return/u);
+});
+
+test('Free plan returns to current Forge chat from direct and legacy sign-ins', () => {
+  const start = login.indexOf('  const requested = new URLSearchParams');
+  const end = login.indexOf('  const operatorNextPath =', start);
+  assert.ok(start > 0 && end > start);
+  const destination = (query) => runInNewContext(login.slice(start, end) + '\nnextPath', {
+    URL, URLSearchParams,
+    window: { location: { origin: 'https://nexus.test', search: query } },
+    location: { search: query },
+    sessionStorage: { getItem: () => null },
+  });
+  assert.equal(destination(''), '/forge.html?view=chat');
+  assert.equal(destination('?next=%2Froom.html'), '/forge.html?view=chat');
+  assert.equal(destination('?next=%2Froom.html%3Fbuilder%3D1'), '/forge.html?view=chat');
+  assert.equal(destination('?next=%2Fstory-studio.html'), '/story-studio.html');
+  assert.equal(destination('?next=https%3A%2F%2Fother.test'), '/forge.html?view=chat');
+  assert.match(login, /continueFree.addEventListener\('click',[\s\S]*window.location.href = nextPath/u);
 });
 
 test('Forge conversation is classified before any build starts', () => {
