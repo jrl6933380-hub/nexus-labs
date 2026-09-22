@@ -27,10 +27,11 @@ test('Builder Brain explains a 401 and offers Forge sign-in instead of an outage
   assert.match(forge, /connectBrain: async \(tier\) => \{\s*if \(!signedIn\) \{ goSignIn\(\); return; \}/u);
 });
 
-test('new customer signup enters Builder Brain onboarding before returning to work', () => {
+test('customer account flow connects Builder Brain on sign-in before returning to work', () => {
   assert.match(login, /new Set\(\['\/forge\.html', '\/room\.html', '\/story-studio\.html'\]\)/u);
-  assert.match(login, /const onboardingPath = `\/forge\.html\?onboarding=1&return=/u);
-  assert.match(login, /window\.location\.href = onboardingPath/u);
+  assert.match(login, /id="brain-step"/u);
+  assert.match(login, /returnTo:'login'/u);
+  assert.match(login, /location\.href = nextPath/u);
   assert.match(forge, /startupParams\.get\('onboarding'\) === '1'/u);
   assert.match(forge, /await showView\('brain'\)/u);
   assert.match(forge, /forge:onboarding:return/u);

@@ -222,7 +222,9 @@ const me = session?.ok ? await session.json().catch(() => null) : null;
 const signedIn = Boolean(me?.username);
 
 function goSignIn() {
-  showAuthCard('login');
+  const draft = document.getElementById('input')?.value || '';
+  if (draft) sessionStorage.setItem('forge:login:draft', draft);
+  location.href = '/room-login.html?next=' + encodeURIComponent('/forge.html');
 }
 
 const FORGE_ACCOUNT_CARD = 'forge:account-card:v1';
@@ -1124,12 +1126,16 @@ if (!await handleBrainResult()) {
   } else if (startupParams.get('onboarding') === '1') {
     await showView('brain');
   } else if (!signedIn && rememberedUsername()) {
-    showAuthCard('login');
+    await showView('chat');
   } else {
     await showView(connectionSnapshot()?.connected ? 'chat' : 'brain');
   }
 }
-if (signedIn) void recoverPendingBuild();
+if (signedIn) {
+  const draft = sessionStorage.getItem('forge:login:draft');
+  if (draft) { el('input').value = draft; sessionStorage.removeItem('forge:login:draft'); }
+  void recoverPendingBuild();
+}
 </script>
 </body>
 </html>

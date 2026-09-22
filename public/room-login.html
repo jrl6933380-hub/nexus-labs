@@ -193,55 +193,127 @@
     .tier-card { min-height: 0; }
   }
 </style>
+
+<style>
+  :root { --bg:#151615; --panel:#20221f; --border:#393b34; --blue:#edc46e; --cyan:#f3d88f; --ember:#edc46e; --text:#f6f4ec; --text-dim:#adafa5; }
+  body { display:block; padding:0; background:#151615; }
+  button, input, select { font:inherit; }
+  button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible { outline:2px solid #f1ce78; outline-offset:3px; }
+  .shell { width:100%; max-width:1480px; min-height:100vh; margin:auto; padding:30px clamp(20px,5vw,80px) 48px; grid-template-columns:minmax(0,1fr) minmax(320px,390px); gap:clamp(24px,4vw,72px); align-items:center; }
+  .intro { max-width:none; min-width:0; }
+  .brand { display:flex; gap:10px; align-items:center; font-weight:750; font-size:19px; letter-spacing:-.05em; margin-bottom:clamp(36px,8vh,90px); }
+  .brand-mark { display:grid; place-items:center; width:34px; height:34px; border-radius:11px; background:#edc46e; color:#171817; font-size:22px; }
+  .eyebrow { color:#edc46e; font-size:11px; letter-spacing:.2em; }
+  h1 { max-width:780px; margin-top:16px; font-size:clamp(48px,6vw,92px); font-weight:600; letter-spacing:-.075em; line-height:1.02; }
+  h1 em { font-style:normal; color:#edc46e; }
+  .lead { max-width:560px; margin-top:20px; font-size:clamp(16px,1.5vw,19px); line-height:1.55; }
+  .showcase-bar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:30px 0 12px; font-size:12px; color:var(--text-dim); }
+  .showcase-controls { display:flex; gap:7px; }
+  .showcase-controls button { width:36px; height:36px; border-radius:50%; background:#292b27; border:1px solid #404139; color:var(--text); cursor:pointer; font-size:19px; }
+  .showcase { display:flex; gap:15px; overflow-x:auto; scroll-snap-type:x mandatory; scroll-behavior:smooth; scrollbar-width:none; border-radius:22px; }
+  .showcase::-webkit-scrollbar { display:none; }
+  .sample { position:relative; display:flex; flex:0 0 min(74%,500px); height:clamp(270px,32vw,400px); flex-direction:column; justify-content:space-between; overflow:hidden; scroll-snap-align:start; border-radius:22px; padding:22px; color:#f8f7ef; background:#283b32; isolation:isolate; }
+  .sample::after { content:''; position:absolute; z-index:-1; inset:35% -20% -35%; border-radius:50%; filter:blur(42px); opacity:.45; background:#84ad86; }
+  .sample.s2 { background:#29263b; } .sample.s2::after { background:#bb9ef4; }
+  .sample.s3 { background:#3c2c25; } .sample.s3::after { background:#eac08c; }
+  .sample.s4 { background:#21373c; } .sample.s4::after { background:#80d7c6; }
+  .sample-kicker { font:600 10px var(--mono); text-transform:uppercase; letter-spacing:.12em; color:#e7e3d7; }
+  .sample h2 { font-size:clamp(27px,3vw,44px); line-height:1.05; letter-spacing:-.055em; margin:8px 0 4px; }
+  .sample p { font-size:12px; color:#e6e6de; }
+  .mock { align-self:center; width:82%; height:62%; margin-top:12px; padding:14px; border:1px solid rgba(255,255,255,.55); border-radius:15px; background:#f8f7ef; color:#1c2720; box-shadow:0 20px 40px #0005; transform:rotate(-2deg); }
+  .mock-top { display:flex; justify-content:space-between; font-size:10px; font-weight:700; border-bottom:1px solid #d9ddd4; padding-bottom:10px; }
+  .mock-hero { padding:18px 10px; font-size:clamp(22px,3vw,37px); font-weight:750; letter-spacing:-.06em; line-height:1; }
+  .mock-line { height:8px; margin:7px 10px; border-radius:8px; background:#d5dccf; width:70%; } .mock-line.short { width:46%; }
+  .s2 .mock { width:53%; max-width:230px; border:5px solid #171922; border-radius:28px; background:#f1ebff; color:#302452; transform:rotate(5deg); }
+  .s2 .mock-hero { font-size:23px; } .s2 .mock-line { background:#d9cbed; }
+  .s3 .mock { background:#f7e9d1; color:#443025; transform:rotate(2deg); } .s3 .mock-line { background:#dac7ac; }
+  .s4 .mock { background:#e4faf1; color:#1c3c37; transform:rotate(-3deg); } .s4 .mock-line { background:#b8dfd2; }
+  .showcase-progress { display:flex; gap:5px; margin-top:15px; }
+  .showcase-progress i { width:20px; height:3px; border-radius:4px; background:#55574f; } .showcase-progress i.active { background:#edc46e; }
+  .hero-actions { display:flex; align-items:center; gap:15px; margin-top:27px; }
+  .hero-actions button { border:0; border-radius:12px; padding:15px 24px; background:#edc46e; color:#151615; font-weight:750; cursor:pointer; }
+  .hero-actions a { color:var(--text-dim); font-size:13px; text-underline-offset:4px; }
+  .steps { display:none; }
+  .card { max-width:none; padding:28px; border-radius:23px; background:#222420; box-shadow:0 22px 80px #0005; }
+  .card .title { font:650 26px var(--sans); letter-spacing:-.045em; }
+  .card .subtitle { line-height:1.5; margin-top:8px; }
+  .tab { font:600 13px var(--sans); border-radius:10px; padding:11px; }
+  .tab.active { color:var(--text); border-color:#ba9e62; background:#34332a; }
+  form { gap:12px; } form input, form select { padding:14px; min-height:48px; border-radius:10px; background:#171917; }
+  button[type="submit"] { min-height:48px; margin-top:8px; border-radius:10px; font:700 14px var(--sans); }
+  .trust { line-height:1.5; }
+  .brain-step.hidden, .auth-entry.hidden { display:none; }
+  .brain-step h2 { font-size:26px; letter-spacing:-.05em; margin-bottom:8px; }
+  .brain-step p { color:var(--text-dim); font-size:14px; line-height:1.55; margin-bottom:14px; }
+  .brain-step .brain-note { font-size:12px; margin:13px 0; }
+  .brain-step select { width:100%; padding:14px; border:1px solid var(--border); border-radius:10px; background:#171917; color:var(--text); }
+  .brain-step button { width:100%; padding:14px; margin-top:10px; border-radius:10px; border:1px solid var(--border); background:#30322d; color:var(--text); cursor:pointer; font-weight:650; }
+  .brain-step button.primary { background:var(--blue); border-color:var(--blue); color:#171817; }
+  .brain-step button:disabled { opacity:.5; cursor:default; }
+  .brain-step .brain-status { min-height:18px; font-size:12px; color:#f3d88f; }
+  .tier-dialog { background:#20221f; }
+  @media(max-width:760px) {
+    body { padding:0; }
+    .shell { display:block; min-height:100svh; padding:22px 0 0; }
+    .intro { text-align:left; margin:0; }
+    .brand, .eyebrow, h1, .lead, .showcase-bar, .showcase-progress, .hero-actions { margin-left:22px; margin-right:22px; }
+    .brand { margin-bottom:clamp(34px,8vh,85px); }
+    h1 { font-size:clamp(48px,12vw,68px); }
+    .lead { font-size:16px; max-width:420px; }
+    .showcase-bar { margin-top:29px; }
+    .showcase { padding:0 22px; border-radius:0; scroll-padding-left:22px; }
+    .sample { flex-basis:min(76vw,360px); height:clamp(315px,48vh,430px); }
+    .sample .mock { height:62%; width:90%; }
+    .sample.s2 .mock { width:58%; }
+    .sample h2 { font-size:30px; }
+    .hero-actions { margin-top:24px; padding-bottom:calc(20px + env(safe-area-inset-bottom)); }
+    .card { display:none; position:fixed; inset:auto 0 0; z-index:10; max-height:92dvh; overflow:auto; margin:0; padding:24px 22px calc(25px + env(safe-area-inset-bottom)); border-radius:26px 26px 0 0; border-bottom:0; background:#252723; box-shadow:0 -18px 80px #000a; }
+    .card.open { display:block; }
+    .sheet-close { display:block !important; float:right; border:0; color:var(--text-dim); background:none; font-size:23px; cursor:pointer; }
+    .tier-grid { grid-template-columns:1fr; }
+  }
+  @media(prefers-reduced-motion:reduce) { .showcase { scroll-behavior:auto; } }
+</style>
 </head>
 <body>
 
 <main class="shell">
 <section class="intro" aria-labelledby="forge-title">
-  <div class="eyebrow">Nexus Forge</div>
-  <h1 id="forge-title">Your idea.<br>A working site or app.</h1>
-  <p class="lead">Tell Nex what you want. He asks a few focused questions, saves the answers into a clear Project Brief, and builds the first version from what you actually need.</p>
-  <div class="steps" aria-label="How Nexus Forge works">
-    <div class="step"><span class="step-number">1</span><span>Connect your Builder Brain with guided setup.</span></div>
-    <div class="step"><span class="step-number">2</span><span>Answer quick questions for your Project Brief.</span></div>
-    <div class="step"><span class="step-number">3</span><span>Build the first version, then add what it needs to launch.</span></div>
+  <div class="brand"><span class="brand-mark" aria-hidden="true">✦</span> NEXUS <span style="color:var(--text-dim);font-weight:450">/ Forge</span></div>
+  <div class="eyebrow">An idea is enough to begin</div>
+  <h1 id="forge-title">Imagine it.<br><em>Make it real.</em></h1>
+  <p class="lead">Tell Nex what you're dreaming up. Shape the idea together, then build a site or app that feels like yours.</p>
+  <div class="showcase-bar"><span>Made for the ideas you can't stop thinking about</span><div class="showcase-controls"><button type="button" id="showcase-prev" aria-label="Previous example">‹</button><button type="button" id="showcase-next" aria-label="Next example">›</button></div></div>
+  <div class="showcase" id="showcase" aria-label="Examples of things you can create">
+    <article class="sample s1"><div><span class="sample-kicker">01 / Websites</span><h2>Give your idea a home.</h2><p>Launch a beautiful place to call your own.</p></div><div class="mock" aria-hidden="true"><div class="mock-top"><span>FIELDNOTES</span><span>Explore ↗</span></div><div class="mock-hero">For the places<br>that stay with us.</div><div class="mock-line"></div><div class="mock-line short"></div></div></article>
+    <article class="sample s2"><div><span class="sample-kicker">02 / Apps</span><h2>A tiny idea. A real app.</h2><p>Make something people want to open again.</p></div><div class="mock" aria-hidden="true"><div class="mock-top"><span>MONDAY</span><span>● ● ●</span></div><div class="mock-hero">A little progress<br>every day ✦</div><div class="mock-line"></div><div class="mock-line short"></div></div></article>
+    <article class="sample s3"><div><span class="sample-kicker">03 / Small businesses</span><h2>Make your next move.</h2><p>A storefront, a booking page, a new beginning.</p></div><div class="mock" aria-hidden="true"><div class="mock-top"><span>SUNDAY STUDIO</span><span>Book now ↗</span></div><div class="mock-hero">Good things<br>take shape here.</div><div class="mock-line"></div><div class="mock-line short"></div></div></article>
+    <article class="sample s4"><div><span class="sample-kicker">04 / Your own thing</span><h2>What will you make?</h2><p>Start with a thought. See where it goes.</p></div><div class="mock" aria-hidden="true"><div class="mock-top"><span>YOUR IDEA</span><span>Made with Forge</span></div><div class="mock-hero">The first page<br>of something big.</div><div class="mock-line"></div><div class="mock-line short"></div></div></article>
   </div>
+  <div class="showcase-progress" id="showcase-progress" aria-hidden="true"><i class="active"></i><i></i><i></i><i></i></div>
+  <div class="hero-actions"><button type="button" id="open-signin">Continue →</button><a href="/forge.html">Explore Forge first</a></div>
 </section>
-
-<section class="card" aria-label="Nexus Forge account access">
-  <div class="title">AI Website &amp; App Builder</div>
-  <div class="subtitle">Sign in to build with Nex.</div>
-
-  <div class="tabs">
-    <button class="tab active" id="tab-login" type="button">Sign in</button>
-    <button class="tab" id="tab-signup" type="button">Create account</button>
+<section class="card" id="access-card" aria-label="Nexus Forge account access">
+  <button class="sheet-close" id="close-signin" type="button" aria-label="Close sign in" style="display:none">×</button>
+  <div class="auth-entry" id="auth-entry">
+    <div class="title">Welcome to Forge.</div>
+    <div class="subtitle">Sign in or create an account. Your Builder Brain is the very next step, right here.</div>
+    <div class="tabs"><button class="tab active" id="tab-login" type="button">Sign in</button><button class="tab" id="tab-signup" type="button">Create account</button></div>
+    <form id="login-form"><input type="text" id="login-username" placeholder="Username" autocomplete="username" required><input type="password" id="login-password" placeholder="Password" autocomplete="current-password" required><div class="error" id="login-error" role="status"></div><button type="submit" id="login-submit">Sign in &amp; connect Brain →</button><button type="button" id="forgot-password-link" style="background:none;border:none;color:var(--text-dim);font:600 11px var(--mono);text-decoration:underline;cursor:pointer;padding:2px 0;">Forgot password?</button></form>
+    <form id="signup-form" class="hidden"><input type="text" id="signup-username" placeholder="Choose a username" autocomplete="username" required><input type="email" id="signup-email" placeholder="Email for account recovery" autocomplete="email" required><select id="signup-security-question" required><option value="" disabled selected>Choose a security question</option><option>What was the name of your first pet?</option><option>What city were you born in?</option><option>What was your childhood best friend's first name?</option><option>What was the make of your first car?</option><option>What is your mother's maiden name?</option></select><input type="text" id="signup-security-answer" placeholder="Your answer" autocomplete="off" required><input type="password" id="signup-password" placeholder="Choose a password (8+ characters)" autocomplete="new-password" required><div class="error" id="signup-error" role="status"></div><button type="submit" id="signup-submit">Create account &amp; connect Brain →</button></form>
+    <p class="trust"><strong>Your ideas stay yours.</strong> Your Builder Brain connects securely. No API key goes into chat.</p>
   </div>
-
-  <form id="login-form">
-    <input type="text" id="login-username" placeholder="Username" autocomplete="username" required>
-    <input type="password" id="login-password" placeholder="Password" autocomplete="current-password" required>
-    <div class="error" id="login-error"></div>
-    <button type="submit" id="login-submit">Sign in</button>
-    <button type="button" id="forgot-password-link" style="background:none;border:none;color:var(--text-dim);font:600 11px var(--mono);text-decoration:underline;cursor:pointer;padding:2px 0;">Forgot password?</button>
-  </form>
-
-  <form id="signup-form" class="hidden">
-    <input type="text" id="signup-username" placeholder="Choose a username" autocomplete="username" required>
-    <input type="email" id="signup-email" placeholder="Email (for password resets)" autocomplete="email" required>
-    <select id="signup-security-question" required style="padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;font-family:var(--sans);">
-      <option value="" disabled selected>Choose a security question</option>
-      <option>What was the name of your first pet?</option>
-      <option>What city were you born in?</option>
-      <option>What was your childhood best friend's first name?</option>
-      <option>What was the make of your first car?</option>
-      <option>What is your mother's maiden name?</option>
-    </select>
-    <input type="text" id="signup-security-answer" placeholder="Your answer" autocomplete="off" required>
-    <input type="password" id="signup-password" placeholder="Choose a password (8+ characters)" autocomplete="new-password" required>
-    <div class="error" id="signup-error"></div>
-    <button type="submit" id="signup-submit">Create account</button>
-  </form>
-  <p class="trust"><strong>Your work stays private to your account.</strong> Your connected Builder Brain powers each build without copying API keys into chat.</p>
+  <div class="brain-step hidden" id="brain-step" aria-live="polite">
+    <div class="eyebrow">One more step</div><h2 id="brain-heading">Connect your Builder Brain</h2>
+    <p id="brain-description">Connect your OpenRouter account to power builds. You'll approve the connection on OpenRouter, then return here.</p>
+    <label for="brain-tier" class="hint">Choose how Nex builds</label>
+    <select id="brain-tier"><option value="free">Free models — availability can vary</option><option value="fast">Fast models</option><option value="strong">Strong models</option></select>
+    <p class="brain-note">Provider model usage and charges depend on your OpenRouter account. You can change this later in Forge.</p>
+    <div class="brain-status" id="brain-status" role="status"></div>
+    <button class="primary" id="connect-brain" type="button">Connect with OpenRouter ↗</button>
+    <button id="enter-forge" type="button">Continue to Forge</button>
+    <button id="view-plans" type="button">Explore Nexus plans</button>
+  </div>
 </section>
 </main>
 
@@ -336,6 +408,19 @@
     }
   })();
 
+  const showcase = document.getElementById('showcase');
+  const samples = [...showcase.querySelectorAll('.sample')];
+  const markers = [...document.querySelectorAll('#showcase-progress i')];
+  const activeSample = () => Math.min(samples.length - 1, Math.max(0, Math.round(showcase.scrollLeft / (samples[0].getBoundingClientRect().width + 15))));
+  function moveSample(delta) { samples[Math.max(0, Math.min(samples.length - 1, activeSample() + delta))].scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', inline: 'start', block: 'nearest' }); }
+  document.getElementById('showcase-prev').onclick = () => moveSample(-1);
+  document.getElementById('showcase-next').onclick = () => moveSample(1);
+  showcase.addEventListener('scroll', () => { const active = activeSample(); markers.forEach((dot, index) => dot.classList.toggle('active', index === active)); }, { passive: true });
+  const accessCard = document.getElementById('access-card');
+  function openSignin() { accessCard.classList.add('open'); document.getElementById('login-username').focus(); }
+  document.getElementById('open-signin').onclick = openSignin;
+  document.getElementById('close-signin').onclick = () => accessCard.classList.remove('open');
+
   const tabLogin = document.getElementById('tab-login');
   const tabSignup = document.getElementById('tab-signup');
   const loginForm = document.getElementById('login-form');
@@ -358,7 +443,7 @@
   tabLogin.addEventListener('click', showLogin);
   tabSignup.addEventListener('click', showSignup);
 
-  const requested = new URLSearchParams(window.location.search).get('next');
+  const requested = new URLSearchParams(window.location.search).get('next') || (new URLSearchParams(location.search).has('brain') ? sessionStorage.getItem('forge:login:return') : null);
   const customerWorkspaces = new Set(['/forge.html', '/room.html', '/story-studio.html']);
   const nextPath = (() => {
     try {
@@ -367,7 +452,6 @@
       return `${candidate.pathname}${candidate.search}${candidate.hash}`;
     } catch { return '/room.html'; }
   })();
-  const onboardingPath = `/forge.html?onboarding=1&return=${encodeURIComponent(nextPath)}`;
   const operatorNextPath = (() => {
     try {
       const candidate = new URL(requested || '/', window.location.origin);
@@ -378,34 +462,67 @@
     }
   })();
 
+  const brainStep = document.getElementById('brain-step');
+  const brainStatus = document.getElementById('brain-status');
+  const brainConnect = document.getElementById('connect-brain');
+  function showBrain() {
+    document.getElementById('auth-entry').classList.add('hidden');
+    brainStep.classList.remove('hidden');
+    accessCard.classList.add('open');
+  }
+  async function loadBrain() {
+    showBrain();
+    try {
+      const res = await fetch('/api/forge-brain', { credentials: 'include', cache: 'no-store' });
+      if (res.status === 401) { brainStatus.textContent = 'Session expired. Please sign in again.'; document.getElementById('auth-entry').classList.remove('hidden'); brainStep.classList.add('hidden'); return; }
+      if (!res.ok) throw new Error('Could not check your Builder Brain. You can retry or continue to Forge.');
+      const data = await res.json();
+      if (data.connected) {
+        document.getElementById('brain-heading').textContent = 'Your Builder Brain is connected.';
+        document.getElementById('brain-description').textContent = 'You are ready to continue creating with Nex.';
+        document.getElementById('brain-tier').value = data.tier || 'free';
+        brainConnect.textContent = 'Reconnect with OpenRouter ↗';
+        brainStatus.textContent = 'Connected' + (data.tested_at ? ' and tested.' : '. Checking connection…');
+        if (!data.tested_at) {
+          const check = await fetch('/api/forge-brain', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ action:'test' }) });
+          const result = await check.json().catch(() => ({}));
+          brainStatus.textContent = check.ok && result.ok ? 'Connected and tested.' : (result.message || 'Connected, but the test failed. Try reconnecting or continue to Forge.');
+        }
+      }
+    } catch (error) { brainStatus.textContent = error.message; }
+  }
   async function submitAuth(action, body, errorEl, submitBtn) {
     errorEl.innerText = '';
     submitBtn.disabled = true;
     try {
-      const res = await fetch('/api/room-auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ action, ...body }),
-      });
+      const res = await fetch('/api/room-auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ action, ...body }) });
       const data = await res.json();
-      if (!res.ok) {
-        errorEl.innerText = data.error || 'Something went wrong.';
-        submitBtn.disabled = false;
-        return;
-      }
-      if (action === 'signup') {
-        tierModal.classList.remove('hidden');
-        continueFree.focus();
-        return;
-      }
-      window.location.href = data.operator === true && operatorNextPath
-        ? operatorNextPath
-        : nextPath;
-    } catch (err) {
-      errorEl.innerText = 'Could not reach the server.';
+      if (!res.ok) { errorEl.innerText = data.error || 'Something went wrong.'; submitBtn.disabled = false; return; }
+      if (data.operator === true && operatorNextPath && !customerWorkspaces.has(new URL(operatorNextPath, location.origin).pathname)) { location.href = operatorNextPath; return; }
+      document.getElementById('login-password').value = '';
+      document.getElementById('signup-password').value = '';
+      document.getElementById('signup-security-answer').value = '';
+      await loadBrain();
       submitBtn.disabled = false;
-    }
+    } catch { errorEl.innerText = 'Could not reach the server.'; submitBtn.disabled = false; }
+  }
+  brainConnect.addEventListener('click', async () => {
+    brainConnect.disabled = true; brainStatus.textContent = 'Opening OpenRouter…';
+    try {
+      const res = await fetch('/api/forge-brain', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ action:'authorize', tier:document.getElementById('brain-tier').value, returnTo:'login' }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not start the connection.');
+      const url = new URL(data.redirectUrl);
+      if (url.protocol !== 'https:' || url.hostname !== 'openrouter.ai') throw new Error('The provider link was invalid.');
+      sessionStorage.setItem('forge:login:return', nextPath);
+      location.href = url.href;
+    } catch (error) { brainStatus.textContent = error.message; brainConnect.disabled = false; }
+  });
+  document.getElementById('enter-forge').onclick = () => { sessionStorage.removeItem('forge:login:return'); location.href = nextPath; };
+  document.getElementById('view-plans').onclick = () => { tierModal.classList.remove('hidden'); continueFree.focus(); };
+  const brainResult = new URLSearchParams(location.search).get('brain');
+  if (brainResult) {
+    loadBrain().then(() => { if (brainResult !== 'connected') brainStatus.textContent = 'Connection ' + ({ cancelled:'cancelled', expired:'expired', rejected:'rejected', test_failed:'failed', network:'unavailable' }[brainResult] || 'could not be completed') + '. You can try again.'; });
   }
 
   loginForm.addEventListener('submit', (e) => {
@@ -422,7 +539,7 @@
   });
 
   continueFree.addEventListener('click', () => {
-    window.location.href = onboardingPath;
+    window.location.href = nextPath;
   });
 
   signupForm.addEventListener('submit', (e) => {
