@@ -133,6 +133,54 @@ function briefQuestionCard(question, progress, ctx) {
   return card;
 }
 
+// Shared by the `project` (home) and `pages` views — both list saved
+// projects. Built manually rather than through row() because a delete
+// action needs its own separate click target, and row() only supports one
+// (nesting a <button> inside the <button> row() returns is invalid HTML and
+// behaves unpredictably in browsers).
+function projectRow(project, ctx) {
+  const projectId = field(project, 'projectId', 'key');
+  const buildId = field(project, 'latestBuildId', 'id');
+  const versions = field(project, 'versionCount');
+  const meta = [
+    versions ? `${versions} version${versions === 1 ? '' : 's'}` : '',
+    relative(field(project, 'updatedAt', 'updated_at', 'createdAt', 'created_at', 'ts')),
+  ].filter(Boolean).join(' · ');
+
+  const wrap = document.createElement('div');
+  wrap.className = 'lrow';
+
+  const open = document.createElement('button');
+  open.type = 'button';
+  open.style.cssText = 'flex:1;min-width:0;text-align:left;background:none;border:0;color:inherit;font:inherit;padding:0;cursor:pointer';
+  const title = document.createElement('div');
+  title.className = 'lt';
+  title.textContent = String(field(project, 'label', 'title', 'name', 'prompt', 'id')).slice(0, 90);
+  open.appendChild(title);
+  if (meta) {
+    const metaEl = document.createElement('div');
+    metaEl.className = 'lm';
+    metaEl.textContent = meta;
+    open.appendChild(metaEl);
+  }
+  if (buildId) open.onclick = () => ctx.openBuild(buildId);
+  wrap.appendChild(open);
+
+  if (projectId && ctx.deleteProject) {
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.textContent = 'Delete';
+    del.style.cssText = 'margin-left:10px;flex-shrink:0;font-size:11px;padding:4px 9px;border-radius:20px;background:#2b1818;color:#e39a9a;border:0;cursor:pointer';
+    del.onclick = (event) => {
+      event.stopPropagation();
+      ctx.deleteProject(projectId, field(project, 'label', 'title', 'name'));
+    };
+    wrap.appendChild(del);
+  }
+
+  return wrap;
+}
+
 export const FORGE_VIEWS = {
   project: {
     label: 'Your Project',
@@ -150,11 +198,7 @@ export const FORGE_VIEWS = {
         : `Nothing built yet. I'll ask a few focused questions first, then build the first version from your real answers instead of guessing.`));
 
       if (projects.length || builds.length) {
-        nodes.push(group(null, (projects.length ? projects : builds).slice(0, 12).map((build) => row({
-          title: String(field(build, 'label', 'title', 'name', 'prompt', 'id')).slice(0, 90),
-          meta: relative(field(build, 'updatedAt', 'updated_at', 'created_at', 'ts')),
-          onClick: () => ctx.openBuild(field(build, 'latestBuildId', 'id')),
-        }))));
+        nodes.push(group(null, (projects.length ? projects : builds).slice(0, 12).map((item) => projectRow(item, ctx))));
       }
 
       nodes.push(chips([
@@ -229,18 +273,14 @@ export const FORGE_VIEWS = {
       const nodes = [];
       let history = null;
       try { history = await getJSON('/api/room-history'); } catch {}
-      const builds = pick(history, 'builds', 'history', 'items');
+      const projects = pick(history, 'projects', 'builds', 'history', 'items');
 
-      nodes.push(say(builds.length
-        ? `The pages in your project. Tell me what to change on any of them and I'll do it.`
-        : `No pages yet. Once we build something, each page shows up here.`));
+      nodes.push(say(projects.length
+        ? `Your saved projects. Open one to change it, or delete it if you're done with it.`
+        : `No projects yet. Once we build something, it shows up here.`));
 
-      if (builds.length) {
-        nodes.push(group(null, builds.slice(0, 12).map((build) => row({
-          title: String(field(build, 'title', 'name', 'page', 'id')).slice(0, 90),
-          meta: relative(field(build, 'updated_at', 'created_at', 'ts')),
-          onClick: () => ctx.ask(`I want to change "${String(field(build, 'title', 'name', 'id')).slice(0, 60)}".`),
-        }))));
+      if (projects.length) {
+        nodes.push(group(null, projects.slice(0, 12).map((item) => projectRow(item, ctx))));
       } else {
         nodes.push(empty('Nothing here yet.'));
       }
