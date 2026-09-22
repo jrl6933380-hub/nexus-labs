@@ -25,25 +25,22 @@ import { getRequestUser } from '../lib/roomAuth.js';
 import { consumePendingAuthorization, saveConnection } from '../lib/forge/brainStore.js';
 import { getAdapter } from '../lib/forge/brainProviders.js';
 
-function back(res, params) {
+function back(res, params, pending) {
   // Every branch below logs its reason. An earlier version redirected silently
   // on the expired/rejected paths, so a broken connection looked identical to
   // a working one from the logs — the 302 was there, the error was not.
   // Reasons only, never the code, the state, or any provider payload.
   console.log('forge-brain-callback:', params.brain);
   const query = new URLSearchParams(params).toString();
-  res.setHeader('Location', `/forge.html?${query}`);
+  const destination = pending?.returnTo === 'login' ? '/room-login.html' : '/forge.html';
+  res.setHeader('Location', `${destination}?${query}`);
   return res.status(302).end();
 }
 
 export default async function handler(req, res) {
   const { code, state, error: providerError } = req.query || {};
 
-  if (providerError) {
-    // The user declined, or the provider refused. Both are normal outcomes.
-    return back(res, { brain: 'cancelled' });
-  }
-  if (!state) return back(res, { brain: 'unknown' });
+  if (!state) return back(res, { brain: providerError ? 'cancelled' : 'unknown' });
 
   let pending;
   try {
@@ -53,6 +50,7 @@ export default async function handler(req, res) {
   }
   // No pending record means expired, already used, or forged.
   if (!pending) return back(res, { brain: 'expired' });
+  if (providerError) return back(res, { brain: 'cancelled' }, pending);
 
   // Re-check the session and require it to be the same user who started this.
   let username;
@@ -63,10 +61,10 @@ export default async function handler(req, res) {
   }
   if (!username || username !== pending.username) {
     console.log('forge-brain-callback: session did not match the account that started this');
-    return back(res, { brain: 'rejected' });
+    return back(res, { brain: 'rejected' }, pending);
   }
 
-  if (!code) return back(res, { brain: 'rejected' });
+  if (!code) return back(res, { brain: 'rejected' }, pending);
 
   try {
     const adapter = getAdapter(pending.provider || 'openrouter');
@@ -75,11 +73,11 @@ export default async function handler(req, res) {
       codeVerifier: pending.codeVerifier,
     });
     await saveConnection(username, { provider: adapter.id, key, tier: pending.tier || 'free' });
-    return back(res, { brain: 'connected' });
+    return back(res, { brain: 'connected' }, pending);
   } catch (error) {
     // Log the shape of the failure, never the code or any response body that
     // might carry fragments of the exchange.
     console.error('forge-brain-callback: exchange failed:', error.message);
-    return back(res, { brain: 'test_failed' });
+    return back(res, { brain: 'test_failed' }, pending);
   }
 }

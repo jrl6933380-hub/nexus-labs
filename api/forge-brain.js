@@ -72,7 +72,7 @@ export default async function handler(req, res) {
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
-  const { action, tier } = req.body || {};
+  const { action, tier, returnTo } = req.body || {};
 
   try {
     if (action === 'authorize') {
@@ -80,7 +80,7 @@ export default async function handler(req, res) {
         callbackUrl: callbackUrl(req),
       });
       await savePendingAuthorization(username, {
-        state, codeVerifier, provider: adapter.id, tier: tier || 'free',
+        state, codeVerifier, provider: adapter.id, tier: tier || 'free', returnTo,
       });
       // Only the redirect URL crosses to the browser. The verifier stays here.
       return res.status(200).json({ redirectUrl });
