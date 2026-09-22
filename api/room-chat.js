@@ -415,7 +415,7 @@ export default async function handler(req, res) {
     console.error('room-chat handler crashed:', err.message);
     if (err.name === 'AbortError') {
       sendBuildError('Your Builder Brain took too long to finish. Your project was not changed. Try a smaller first version, or switch to a faster Brain option.');
-    } else if (err instanceof NoBrainError || err.code === 'BRAIN_REQUIRED') {
+    } else if (err instanceof NoBrainError || err.code === 'BRAIN_REQUIRED' || err.code === 'BRAIN_STALLED') {
       // Already phrased for a customer; don't wrap it in builder jargon.
       sendBuildError(err.message);
     } else {
