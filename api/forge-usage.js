@@ -45,7 +45,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const daily = await meter().getDailyUsage(username);
+    const daily = await meter().getDailyUsageSummary(username);
     const percentRemaining = daily?.unlimited
       ? 100
       : Math.max(0, Math.min(100, Number(daily?.percentRemaining ?? 100)));
