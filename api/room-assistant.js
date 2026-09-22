@@ -343,6 +343,15 @@ export function createAssistantHandler({
           code: 'BRAIN_EMPTY',
         });
       }
+      // Rate limits and spent credit are likewise the customer's own
+      // situation with their own provider, and each message already says
+      // exactly what to do about it. These used to be thrown with a good
+      // message and then flattened into the generic line below, so the
+      // server knew precisely what was wrong and the customer was told
+      // nothing — the worst of both. Pass them through.
+      if (error?.code === 'BRAIN_RATE_LIMITED' || error?.code === 'BRAIN_NO_CREDIT') {
+        return res.status(502).json({ error: error.message, code: error.code });
+      }
       console.error('room-assistant handler failed:', error.message);
       return res.status(502).json({ error: 'Nex could not answer that right now. Try again in a moment.' });
     } finally {
