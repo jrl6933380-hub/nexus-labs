@@ -181,7 +181,122 @@ function projectRow(project, ctx) {
   return wrap;
 }
 
+// A filling circle, not a number.
+//
+// The customer's real question is "can I keep going", and a ring answers it
+// at a glance without asking anyone to learn what a credit is or do
+// arithmetic in it. Rendered as SVG rather than a CSS conic-gradient so it
+// looks identical across the mobile browsers Forge is mostly used on.
+//
+// The ring is drawn from `percentRemaining` — it EMPTIES as usage is spent,
+// which matches the mental model of a tank draining rather than a bill
+// mounting up.
+function usageRing(percentRemaining, { size = 54 } = {}) {
+  const stroke = 5;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const clamped = Math.max(0, Math.min(100, Number(percentRemaining) || 0));
+  const filled = (clamped / 100) * circumference;
+  // Under a fifth left is worth flagging visually, but in a warm colour
+  // rather than an alarming one: running low on a free allowance is the
+  // expected shape of the product, not an error the customer made.
+  const colour = clamped <= 20 ? '#c9752a' : '#c9a227';
+
+  const svgNs = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNs, 'svg');
+  svg.setAttribute('width', String(size));
+  svg.setAttribute('height', String(size));
+  svg.setAttribute('viewBox', `0 0 ${size} ${size}`);
+  svg.setAttribute('aria-hidden', 'true');
+
+  const track = document.createElementNS(svgNs, 'circle');
+  track.setAttribute('cx', String(size / 2));
+  track.setAttribute('cy', String(size / 2));
+  track.setAttribute('r', String(radius));
+  track.setAttribute('fill', 'none');
+  track.setAttribute('stroke', 'rgba(255,255,255,0.12)');
+  track.setAttribute('stroke-width', String(stroke));
+  svg.appendChild(track);
+
+  const arc = document.createElementNS(svgNs, 'circle');
+  arc.setAttribute('cx', String(size / 2));
+  arc.setAttribute('cy', String(size / 2));
+  arc.setAttribute('r', String(radius));
+  arc.setAttribute('fill', 'none');
+  arc.setAttribute('stroke', colour);
+  arc.setAttribute('stroke-width', String(stroke));
+  arc.setAttribute('stroke-linecap', 'round');
+  arc.setAttribute('stroke-dasharray', `${circumference} ${circumference}`);
+  arc.setAttribute('stroke-dashoffset', String(circumference - filled));
+  arc.setAttribute('transform', `rotate(-90 ${size / 2} ${size / 2})`);
+  arc.style.transition = 'stroke-dashoffset 600ms ease';
+  svg.appendChild(arc);
+
+  return svg;
+}
+
+/** "refills in about 4 hours" — an empty ring should read as a wait, not a wall. */
+function refillCopy(resetAt) {
+  const ms = Number(resetAt) - Date.now();
+  if (!Number.isFinite(ms) || ms <= 0) return 'Refills shortly.';
+  const hours = Math.round(ms / 3_600_000);
+  if (hours >= 2) return `Refills in about ${hours} hours.`;
+  const minutes = Math.max(1, Math.round(ms / 60_000));
+  return `Refills in about ${minutes} minute${minutes === 1 ? '' : 's'}.`;
+}
+
 export const FORGE_VIEWS = {
+  usage: {
+    label: 'Usage',
+    icon: '\u25d4',
+    say: ['usage', 'credits', 'limit', 'how much'],
+    async render(ctx) {
+      const nodes = [];
+      let usage = null;
+      try { usage = await getJSON('/api/forge-usage'); } catch {}
+
+      if (usage?.unlimited) {
+        nodes.push(say('You have unlimited building.'));
+        return nodes;
+      }
+
+      // A failed read omits the ring rather than guessing: a wrongly full or
+      // wrongly empty circle is worse than no circle.
+      if (!usage || usage.unknown) {
+        nodes.push(say("Couldn't check your usage just now — try again in a moment."));
+        return nodes;
+      }
+
+      const percent = Number(usage.percentRemaining) || 0;
+      const panel = document.createElement('div');
+      panel.style.cssText = 'display:flex;align-items:center;gap:16px;background:rgba(255,255,255,0.04);border-radius:16px;padding:18px';
+      panel.appendChild(usageRing(percent));
+
+      const text = document.createElement('div');
+      const headline = document.createElement('div');
+      headline.style.cssText = 'font-weight:700;margin-bottom:3px';
+      headline.textContent = usage.empty
+        ? 'Out of building for today'
+        : percent <= 20 ? 'Running low' : 'Building available';
+      const sub = document.createElement('div');
+      sub.style.cssText = 'font-size:0.85rem;opacity:0.7';
+      sub.textContent = refillCopy(usage.resetAt);
+      text.appendChild(headline);
+      text.appendChild(sub);
+      panel.appendChild(text);
+      nodes.push(panel);
+
+      nodes.push(say(usage.empty
+        ? 'Grab a usage pack to keep building now, or come back when it refills.'
+        : 'Need more than the daily refill? A usage pack tops you up straight away.'));
+
+      nodes.push(chips([
+        { label: 'Get a usage pack', run: () => ctx.buyUsagePack?.() },
+      ]));
+      return nodes;
+    },
+  },
+
   project: {
     label: 'Your Project',
     icon: '◇',
