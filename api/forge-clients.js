@@ -6,6 +6,7 @@
 // GET  /api/forge-clients                 -> worker: my clients + what I'm owed
 // GET  /api/forge-clients?scope=all       -> manager: every client (+ ?status=)
 // GET  /api/forge-clients?scope=followups -> manager: day-14 calls due now
+// GET  /api/forge-clients?scope=callers   -> manager: callers + active clients, MRR, owed
 // POST /api/forge-clients { action, ... }
 //   convert     { leadId, tier }                 worker (their lead) / manager
 //   upgrade     { clientId, tier }               owner/assignee / manager
@@ -21,7 +22,7 @@ import { getLead } from '../lib/forgeLeads.js';
 import {
   ensureCaller, getCallerByUsername, getClient, upsertLeadFromRedis, convertLead,
   upgradeClient, requestCancel, churnClient, reactivateClient, assignFollowUp,
-  transferOwnership, listClients, dueFollowUps, commissionOwed,
+  transferOwnership, listClients, dueFollowUps, commissionOwed, callerSummaries,
 } from '../lib/forgeDb.js';
 
 const MANAGER_ONLY = new Set(['assign', 'transfer']);
@@ -40,6 +41,10 @@ export default async function handler(req, res) {
 
     if (req.method === 'GET') {
       const scope = req.query?.scope;
+      if (scope === 'callers') {
+        if (!manager) return res.status(403).json({ error: 'Manager access required.' });
+        return res.status(200).json({ callers: await callerSummaries() });
+      }
       if (scope === 'all' || scope === 'followups') {
         if (!manager) return res.status(403).json({ error: 'Manager access required.' });
         const clients = scope === 'followups' ? await dueFollowUps() : await listClients({ status: req.query?.status });

@@ -28,6 +28,12 @@
   .overdue { color:#e57373; font-weight:600; }
   .empty { color:#9aa0a6; font-size:13px; padding:8px 0; }
   #state { color:#9aa0a6; padding:20px 0; }
+  .cp-section { margin-top:34px; padding-top:18px; border-top:2px solid #262b36; }
+  .cp-wrap { overflow-x:auto; }
+  .cp-btn { background:#1d2230; color:#c7cad1; border:1px solid #333844; border-radius:6px; padding:4px 8px; font-size:11px; cursor:pointer; margin:2px 0; }
+  .cp-btn.danger { color:#e57373; border-color:#5c2b2b; }
+  .cp-assign { background:#0b0d12; color:#e8eaed; border:1px solid #333844; border-radius:6px; padding:4px; font-size:12px; }
+  #cp-status-filter { background:#0b0d12; color:#e8eaed; border:1px solid #333844; border-radius:8px; padding:6px; font-size:12px; margin-bottom:8px; }
 </style>
 </head>
 <body>
@@ -80,6 +86,43 @@
     </table>
     <div class="empty" id="customers-empty" hidden>No paid or Stripe-linked accounts yet.</div>
   </div>
+
+  <section class="cp-section" id="caller-program">
+    <h1 style="font-size:17px;">Caller Program</h1>
+    <div class="sub">Done-for-you sites sold by callers: clients, recurring revenue, and what each caller is owed.</div>
+    <div id="cp-state">Loading…</div>
+    <div id="cp-content" hidden>
+      <div class="cards" id="cp-cards"></div>
+
+      <h2>Day-14 follow-up calls due</h2>
+      <div class="cp-wrap"><table id="cp-followup-table">
+        <thead><tr><th>Business</th><th>Phone</th><th>Assigned</th><th>Outcome</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+      <div class="empty" id="cp-followup-empty" hidden>No follow-up calls due.</div>
+
+      <h2>Callers</h2>
+      <div class="cp-wrap"><table id="cp-caller-table">
+        <thead><tr><th>Caller</th><th>Active clients</th><th>MRR owned</th><th>Owed</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+      <div class="empty" id="cp-caller-empty" hidden>No callers yet. A Forge worker becomes a caller when they sign their first client.</div>
+
+      <h2>Clients</h2>
+      <select id="cp-status-filter">
+        <option value="">All statuses</option>
+        <option value="active">Active</option>
+        <option value="canceling">Canceling (grace)</option>
+        <option value="placeholder">Placeholder</option>
+        <option value="churned">Churned</option>
+      </select>
+      <div class="cp-wrap"><table id="cp-client-table">
+        <thead><tr><th>Business</th><th>Tier</th><th>Status</th><th>Landed by</th><th>Commission owner</th><th>Follow-up rep</th><th>Actions</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+      <div class="empty" id="cp-client-empty" hidden>No clients yet.</div>
+    </div>
+  </section>
 
 <script>
 const FUNNEL_LABELS = { assigned: 'Assigned', interested: 'Interested', demo_requested: 'Demo requested', appointment_booked: 'Appointment booked' };
@@ -323,6 +366,134 @@ document.getElementById('import-go').addEventListener('click', async function ()
     statusEl.style.color = '#e57373';
   }
 });
+</script>
+<script>
+// Caller Program (operator). Self-contained; talks only to /api/forge-clients.
+(function () {
+  const PRICE = { basic: 2900, standard: 4900, plus: 7900 };
+  const STATUS_LABEL = { active: 'Active', canceling: 'Canceling (grace)', placeholder: 'Placeholder', churned: 'Churned' };
+  let cpClients = [];
+  let cpCallers = [];
+  const cpName = function (id) { const c = cpCallers.find(function (x) { return x.id === id; }); return c ? c.display_name : '\u2014'; };
+  const cpMoney = function (cents) { return '\x24' + ((cents || 0) / 100).toFixed(2); };
+  const esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]; }); };
+
+  async function cpAction(body, confirmText) {
+    if (confirmText && !confirm(confirmText)) return;
+    const res = await fetch('/api/forge-clients', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(function () { return {}; });
+    if (!res.ok) { alert(data.error || 'Action failed.'); return; }
+    await cpLoad();
+  }
+
+  async function cpLoad() {
+    const statusEl = document.getElementById('cp-state');
+    try {
+      const filter = document.getElementById('cp-status-filter').value;
+      const [cRes, kRes, fRes] = await Promise.all([
+        fetch('/api/forge-clients?scope=all' + (filter ? '&status=' + encodeURIComponent(filter) : ''), { credentials: 'include' }),
+        fetch('/api/forge-clients?scope=callers', { credentials: 'include' }),
+        fetch('/api/forge-clients?scope=followups', { credentials: 'include' }),
+      ]);
+      if (!cRes.ok || !kRes.ok || !fRes.ok) throw new Error('load failed');
+      cpClients = (await cRes.json()).clients || [];
+      cpCallers = (await kRes.json()).callers || [];
+      const due = (await fRes.json()).clients || [];
+      statusEl.hidden = true;
+      document.getElementById('cp-content').hidden = false;
+      cpRenderCards(due);
+      cpRenderFollowups(due);
+      cpRenderCallers();
+      cpRenderClients();
+    } catch (err) {
+      statusEl.textContent = 'Could not load the caller program.';
+    }
+  }
+
+  function cpRenderCards(due) {
+    const mrr = cpCallers.reduce(function (s, c) { return s + (c.mrrCents || 0); }, 0);
+    const owed = cpCallers.reduce(function (s, c) { return s + (c.owedCents || 0); }, 0);
+    const active = cpCallers.reduce(function (s, c) { return s + (c.activeClients || 0); }, 0);
+    const cards = [[active, 'Active clients'], [cpMoney(mrr), 'Monthly recurring'], [cpMoney(owed), 'Owed to callers'], [due.length, 'Day-14 calls due']];
+    document.getElementById('cp-cards').innerHTML = cards.map(function (c) {
+      return '<div class="card"><div class="num">' + esc(c[0]) + '</div><div class="label">' + c[1] + '</div></div>';
+    }).join('');
+  }
+
+  function cpRenderFollowups(due) {
+    const body = document.querySelector('#cp-followup-table tbody');
+    document.getElementById('cp-followup-empty').hidden = due.length > 0;
+    body.innerHTML = due.map(function (c) {
+      return '<tr><td>' + esc(c.business_name) + '</td><td><a href="tel:' + esc(c.phone) + '" style="color:#8ab4f8">' + esc(c.phone) + '</a></td>' +
+        '<td>' + esc(cpName(c.assigned_to)) + '</td>' +
+        '<td><button class="cp-btn" data-act="reactivate" data-id="' + c.id + '">Won back</button> ' +
+        '<button class="cp-btn danger" data-act="churn" data-id="' + c.id + '">Take down</button></td></tr>';
+    }).join('');
+  }
+
+  function cpRenderCallers() {
+    const body = document.querySelector('#cp-caller-table tbody');
+    document.getElementById('cp-caller-empty').hidden = cpCallers.length > 0;
+    body.innerHTML = cpCallers.map(function (c) {
+      return '<tr><td>' + esc(c.display_name) + '</td><td>' + c.activeClients + '</td><td>' + cpMoney(c.mrrCents) + '</td><td>' + cpMoney(c.owedCents) + '</td></tr>';
+    }).join('');
+  }
+
+  function cpRenderClients() {
+    const body = document.querySelector('#cp-client-table tbody');
+    document.getElementById('cp-client-empty').hidden = cpClients.length > 0;
+    const options = function (selectedId) {
+      return '<option value="">\u2014</option>' + cpCallers.map(function (k) {
+        return '<option value="' + esc(k.forge_username) + '"' + (k.id === selectedId ? ' selected' : '') + '>' + esc(k.display_name) + '</option>';
+      }).join('');
+    };
+    body.innerHTML = cpClients.map(function (c) {
+      const canCancel = c.status === 'active';
+      const inWindow = c.status === 'canceling' || c.status === 'placeholder';
+      return '<tr>' +
+        '<td>' + esc(c.business_name) + '</td>' +
+        '<td>' + esc(c.tier) + ' <span style="color:#9aa0a6">' + cpMoney(PRICE[c.tier]) + '</span></td>' +
+        '<td>' + esc(STATUS_LABEL[c.status] || c.status) + '</td>' +
+        '<td>' + esc(cpName(c.landed_by)) + '</td>' +
+        '<td>' + esc(cpName(c.commission_owner)) + ' <button class="cp-btn" data-act="transfer" data-id="' + c.id + '" title="Permanently move recurring commission">Transfer</button></td>' +
+        '<td><select class="cp-assign" data-id="' + c.id + '">' + options(c.assigned_to) + '</select></td>' +
+        '<td>' + (canCancel ? '<button class="cp-btn danger" data-act="cancel" data-id="' + c.id + '">Cancel</button>' : '') +
+        (inWindow ? '<button class="cp-btn" data-act="reactivate" data-id="' + c.id + '">Reactivate</button>' : '') + '</td>' +
+      '</tr>';
+    }).join('');
+  }
+
+  document.addEventListener('click', function (e) {
+    const btn = e.target.closest && e.target.closest('.cp-btn');
+    if (!btn) return;
+    const id = btn.dataset.id;
+    const client = cpClients.find(function (c) { return c.id === id; }) || {};
+    const name = client.business_name || 'this client';
+    const act = btn.dataset.act;
+    if (act === 'cancel') return cpAction({ action: 'cancel', clientId: id }, 'Start the cancel flow for ' + name + '? Site stays live 3 days, then placeholder, then the day-14 call.');
+    if (act === 'churn') return cpAction({ action: 'churn', clientId: id }, 'Take ' + name + ' down for good?');
+    if (act === 'reactivate') return cpAction({ action: 'reactivate', clientId: id }, 'Bring ' + name + ' back on their current tier? (No new signup bonus.)');
+    if (act === 'transfer') {
+      const username = prompt('Transfer ' + name + ' to which caller? Enter their Forge username.\nThey get the recurring cut from now on; past earnings stay with the current owner.');
+      if (!username) return;
+      const reason = prompt('Reason (optional):') || null;
+      return cpAction({ action: 'transfer', clientId: id, username: username.trim(), reason: reason });
+    }
+  });
+
+  document.addEventListener('change', function (e) {
+    if (e.target.classList && e.target.classList.contains('cp-assign') && e.target.value) {
+      cpAction({ action: 'assign', clientId: e.target.dataset.id, username: e.target.value });
+    }
+    if (e.target.id === 'cp-status-filter') cpLoad();
+  });
+
+  cpLoad();
+})();
 </script>
 </body>
 </html>

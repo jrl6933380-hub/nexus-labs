@@ -44,6 +44,10 @@
     {
       "path": "/api/memory-curate",
       "schedule": "17 6 * * *"
+    },
+    {
+      "path": "/api/forge-sweep",
+      "schedule": "23 * * * *"
     }
   ]
 }
