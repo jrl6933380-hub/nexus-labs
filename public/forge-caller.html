@@ -127,6 +127,7 @@
     <div class="earnings" id="earnings" hidden>
       <div class="row"><span class="label">You're owed</span><span class="owed" id="owed-amount">&#36;0.00</span></div>
       <div class="clients" id="client-count"></div>
+      <button type="button" class="answered-btn" id="payouts-btn" style="margin:10px 0 0" hidden>Set up payouts</button>
     </div>
     <h2>Your leads</h2>
     <div id="queue-list"></div>
@@ -148,7 +149,7 @@ const DISPOSITIONS = [
 
 let leads = [];
 let selectedId = null;
-let signedLeadIds = new Set(); // Redis lead ids signed this session
+let signedLeads = {}; // Redis lead id -> Stripe payment link, this session
 
 // Mirrors lib/forgeProgram.js TIERS; the server is the source of truth for money.
 // (\x24 is a dollar sign.)
@@ -166,15 +167,52 @@ async function loadEarnings() {
     if (!res.ok) return;
     const data = await res.json();
     const active = (data.clients || []).filter(function (c) { return c.status === 'active'; }).length;
+    const waiting = (data.clients || []).filter(function (c) { return c.status === 'pending_payment'; }).length;
     document.getElementById('owed-amount').textContent = money(data.owedCents);
-    document.getElementById('client-count').textContent = active + (active === 1 ? ' active client' : ' active clients');
+    document.getElementById('client-count').textContent = active + (active === 1 ? ' active client' : ' active clients') +
+      (waiting ? ' \u00b7 ' + waiting + ' waiting to pay' : '');
     document.getElementById('earnings').hidden = false;
+    loadPayoutStatus();
   } catch (err) { /* earnings are a bonus; never block the calling flow */ }
 }
 
+async function loadPayoutStatus() {
+  const btn = document.getElementById('payouts-btn');
+  try {
+    const res = await fetch('/api/forge-connect', { credentials: 'include' });
+    if (!res.ok) return;
+    const s = await res.json();
+    if (s.payoutsEnabled) { btn.hidden = true; return; }
+    btn.textContent = s.connected ? 'Finish payout setup' : 'Set up payouts';
+    btn.hidden = false;
+  } catch (err) { /* optional */ }
+}
+
+async function startPayoutSetup() {
+  const btn = document.getElementById('payouts-btn');
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/forge-connect', { method: 'POST', credentials: 'include' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not start payout setup.');
+    window.location.href = data.url;
+  } catch (err) {
+    alert(err.message);
+    btn.disabled = false;
+  }
+}
+
 function closeDealHtml(lead) {
-  if (signedLeadIds.has(lead.id)) {
-    return '<div class="signed-banner">Signed. Nice work.</div>';
+  if (signedLeads[lead.id]) {
+    const url = signedLeads[lead.id];
+    if (url === 'pending') {
+      return '<div class="signed-banner">Signed. Payment link failed to generate; ask a manager to resend it from Forge Ops.</div>';
+    }
+    const smsBody = encodeURIComponent('Here is your secure link to get your new website started: ' + url);
+    return '<div class="signed-banner">Signed! Now send them the payment link while you are still on the phone.</div>' +
+      '<a class="call-btn" style="margin-top:10px" href="sms:' + escapeHtml(lead.phone) + '?&body=' + smsBody + '">Text them the payment link</a>' +
+      '<button type="button" class="answered-btn" id="copy-pay-link" data-url="' + escapeHtml(url) + '">Copy link</button>' +
+      '<div class="tier-note">Your bonus kicks in the moment they pay.</div>';
   }
   return '' +
     '<div class="tier-row">' + TIERS.map(function (t) {
@@ -291,7 +329,7 @@ function renderLead(id) {
     '<button type="button" class="answered-btn" id="answered-btn">They answered — build the site now</button>' +
     panelHtml('panel-script', 'Pitch script', scriptBodyHtml(lead.pitch), true) +
     panelHtml('panel-site', 'Site preview', siteBodyHtml(lead), lead.siteStatus !== 'none') +
-    panelHtml('panel-close', "They're in: sign them up", closeDealHtml(lead), signedLeadIds.has(lead.id)) +
+    panelHtml('panel-close', "They're in: sign them up", closeDealHtml(lead), Boolean(signedLeads[lead.id])) +
     panelHtml('panel-log', 'Log this call', '' +
       '<select id="disposition">' + options + '</select>' +
       '<textarea id="notes" placeholder="Notes from the call…">' + escapeHtml(lead.notes || '') + '</textarea>' +
@@ -333,7 +371,7 @@ function renderLead(id) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not sign them up.');
-      signedLeadIds.add(lead.id);
+      signedLeads[lead.id] = data.checkoutUrl || 'pending';
       renderLead(lead.id);
       loadEarnings();
     } catch (err) {
@@ -341,6 +379,12 @@ function renderLead(id) {
       signupBtn.disabled = false;
       signupBtn.textContent = 'Sign them up: ' + tier.name;
     }
+  });
+
+  const copyBtn = document.getElementById('copy-pay-link');
+  if (copyBtn) copyBtn.addEventListener('click', async function () {
+    try { await navigator.clipboard.writeText(copyBtn.dataset.url); copyBtn.textContent = 'Copied'; }
+    catch (err) { prompt('Copy this link:', copyBtn.dataset.url); }
   });
 
   const answeredBtn = document.getElementById('answered-btn');
@@ -409,6 +453,7 @@ function openDrawer() { document.getElementById('drawer').classList.add('open');
 function closeDrawer() { document.getElementById('drawer').classList.remove('open'); document.getElementById('drawer-backdrop').classList.remove('open'); }
 
 document.getElementById('menu-btn').addEventListener('click', openDrawer);
+document.getElementById('payouts-btn').addEventListener('click', startPayoutSetup);
 document.getElementById('drawer-backdrop').addEventListener('click', closeDrawer);
 
 loadLeads();
