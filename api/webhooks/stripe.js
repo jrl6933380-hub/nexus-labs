@@ -11,6 +11,11 @@ import crypto from 'crypto';
 import { setUserPlan, linkStripeCustomer, getUsernameByStripeCustomer, PLANS } from '../../lib/roomAuth.js';
 import { roomMeter } from '../../lib/roomMetering.js';
 import { enableAgent, grantBonusReplies, getProjectBySubscription, disableAgent } from '../../lib/siteAgent.js';
+import { readInvoice, getInvoiceChargeId } from '../../lib/forgeStripe.js';
+import { recordPaidInvoice, getClient, requestCancel } from '../../lib/forgeDb.js';
+import { payCommissionEvents } from '../../lib/forgePayouts.js';
+
+const FORGE_REVOKING = new Set(['past_due', 'unpaid', 'incomplete_expired', 'paused', 'canceled']);
 
 export const config = {
   api: { bodyParser: false },
@@ -66,6 +71,50 @@ export default async function handler(req, res) {
     event = JSON.parse(rawBody.toString('utf8'));
   } catch {
     return res.status(400).json({ error: 'Invalid payload.' });
+  }
+
+  // ---- Forge caller program (done-for-you client sites) ----
+  // Routed first and kept separate from Forge Builder billing. Unlike
+  // the handlers below, a failure here returns 500 so Stripe RETRIES:
+  // commission must never be silently dropped, and every write is
+  // idempotent (signup:<client>, invoice:<invoice>, transfer keys), so a
+  // retry can't double-pay.
+  const forgeObj = event.data?.object || {};
+  if (event.type === 'invoice.paid') {
+    const inv = readInvoice(forgeObj);
+    if (inv.forgeClientId) {
+      try {
+        const { client, events } = await recordPaidInvoice({
+          clientId: inv.forgeClientId, invoiceId: inv.invoiceId, customerId: inv.customerId,
+          subscriptionId: inv.subscriptionId, amountPaidCents: inv.amountPaidCents, isFirst: inv.isFirst,
+        });
+        if (!client) {
+          console.error('stripe webhook: forge invoice for unknown client', inv.forgeClientId);
+          return res.status(200).json({ received: true, warning: 'unknown forge client' });
+        }
+        const chargeId = events.length ? await getInvoiceChargeId(forgeObj) : null;
+        const payouts = await payCommissionEvents(events, { chargeId, clientId: client.id });
+        return res.status(200).json({ received: true, forge: { clientId: client.id, payouts } });
+      } catch (err) {
+        console.error('stripe webhook: forge invoice.paid failed, asking Stripe to retry:', err.message);
+        return res.status(500).json({ error: 'forge invoice processing failed' });
+      }
+    }
+  }
+  if (forgeObj.metadata?.kind === 'forge_client') {
+    try {
+      if (forgeObj.object === 'subscription' && (event.type === 'customer.subscription.deleted' || FORGE_REVOKING.has(forgeObj.status))) {
+        // Card failed or subscription ended in Stripe: start the same
+        // cancel flow a rep would (3-day grace, placeholder, day-14 call).
+        const client = await getClient(forgeObj.metadata.forge_client_id);
+        if (client?.status === 'active') await requestCancel({ clientId: client.id, changedBy: `stripe:${forgeObj.status || 'deleted'}` });
+      }
+      // Checkout completion needs nothing: invoice.paid activates the client.
+      return res.status(200).json({ received: true, forge: true });
+    } catch (err) {
+      console.error('stripe webhook: forge subscription handling failed, asking Stripe to retry:', err.message);
+      return res.status(500).json({ error: 'forge subscription processing failed' });
+    }
   }
 
   try {

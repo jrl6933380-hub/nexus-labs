@@ -111,6 +111,7 @@
       <h2>Clients</h2>
       <select id="cp-status-filter">
         <option value="">All statuses</option>
+        <option value="pending_payment">Waiting to pay</option>
         <option value="active">Active</option>
         <option value="canceling">Canceling (grace)</option>
         <option value="placeholder">Placeholder</option>
@@ -371,7 +372,7 @@ document.getElementById('import-go').addEventListener('click', async function ()
 // Caller Program (operator). Self-contained; talks only to /api/forge-clients.
 (function () {
   const PRICE = { basic: 2900, standard: 4900, plus: 7900 };
-  const STATUS_LABEL = { active: 'Active', canceling: 'Canceling (grace)', placeholder: 'Placeholder', churned: 'Churned' };
+  const STATUS_LABEL = { pending_payment: 'Waiting to pay', active: 'Active', canceling: 'Canceling (grace)', placeholder: 'Placeholder', churned: 'Churned' };
   let cpClients = [];
   let cpCallers = [];
   const cpName = function (id) { const c = cpCallers.find(function (x) { return x.id === id; }); return c ? c.display_name : '\u2014'; };
@@ -462,7 +463,8 @@ document.getElementById('import-go').addEventListener('click', async function ()
         '<td>' + esc(cpName(c.commission_owner)) + ' <button class="cp-btn" data-act="transfer" data-id="' + c.id + '" title="Permanently move recurring commission">Transfer</button></td>' +
         '<td><select class="cp-assign" data-id="' + c.id + '">' + options(c.assigned_to) + '</select></td>' +
         '<td>' + (canCancel ? '<button class="cp-btn danger" data-act="cancel" data-id="' + c.id + '">Cancel</button>' : '') +
-        (inWindow ? '<button class="cp-btn" data-act="reactivate" data-id="' + c.id + '">Reactivate</button>' : '') + '</td>' +
+        (inWindow ? '<button class="cp-btn" data-act="reactivate" data-id="' + c.id + '">Reactivate</button>' : '') +
+        (c.status === 'pending_payment' ? '<button class="cp-btn" data-act="link" data-id="' + c.id + '">Resend link</button>' : '') + '</td>' +
       '</tr>';
     }).join('');
   }
@@ -477,6 +479,19 @@ document.getElementById('import-go').addEventListener('click', async function ()
     if (act === 'cancel') return cpAction({ action: 'cancel', clientId: id }, 'Start the cancel flow for ' + name + '? Site stays live 3 days, then placeholder, then the day-14 call.');
     if (act === 'churn') return cpAction({ action: 'churn', clientId: id }, 'Take ' + name + ' down for good?');
     if (act === 'reactivate') return cpAction({ action: 'reactivate', clientId: id }, 'Bring ' + name + ' back on their current tier? (No new signup bonus.)');
+    if (act === 'link') {
+      fetch('/api/forge-clients', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'payment_link', clientId: id }),
+      }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+        .then(function (x) {
+          if (!x.ok) { alert(x.d.error || 'Could not create a link.'); return; }
+          prompt('Fresh payment link for ' + name + ' (good for 24 hours). Copy and text it to them:', x.d.checkoutUrl);
+        })
+        .catch(function () { alert('Network error.'); });
+      return;
+    }
     if (act === 'transfer') {
       const username = prompt('Transfer ' + name + ' to which caller? Enter their Forge username.\nThey get the recurring cut from now on; past earnings stay with the current owner.');
       if (!username) return;
