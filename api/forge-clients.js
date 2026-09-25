@@ -8,7 +8,8 @@
 // GET  /api/forge-clients?scope=followups -> manager: day-14 calls due now
 // GET  /api/forge-clients?scope=callers   -> manager: callers + active clients, MRR, owed
 // POST /api/forge-clients { action, ... }
-//   convert     { leadId, tier }                 worker (their lead) / manager
+//   convert     { leadId, tier }                 worker (their lead) / manager -> client + Stripe payment link
+//   payment_link { clientId }                    fresh payment link for an unpaid client
 //   upgrade     { clientId, tier }               owner/assignee / manager
 //   cancel      { clientId }                     owner/assignee / manager
 //   churn       { clientId }                     owner/assignee / manager
@@ -22,8 +23,9 @@ import { getLead } from '../lib/forgeLeads.js';
 import {
   ensureCaller, getCallerByUsername, getClient, upsertLeadFromRedis, convertLead,
   upgradeClient, requestCancel, churnClient, reactivateClient, assignFollowUp,
-  transferOwnership, listClients, dueFollowUps, commissionOwed, callerSummaries,
+  transferOwnership, listClients, dueFollowUps, commissionOwed, callerSummaries, setClientCheckout,
 } from '../lib/forgeDb.js';
+import { createClientCheckout } from '../lib/forgeStripe.js';
 
 const MANAGER_ONLY = new Set(['assign', 'transfer']);
 
@@ -71,7 +73,17 @@ export default async function handler(req, res) {
       if (!manager && redisLead.assignedTo !== username) return res.status(403).json({ error: 'That lead is not assigned to you.' });
       const pgLead = await upsertLeadFromRedis(redisLead, me.id);
       const client = await convertLead({ leadId: pgLead.id, callerId: me.id, tier });
-      return res.status(201).json({ client });
+      // The payment link is what the caller texts the owner. If Stripe is
+      // briefly unavailable the client still exists; 'payment_link'
+      // below can generate one afterwards.
+      let checkoutUrl = null;
+      try {
+        checkoutUrl = await createClientCheckout(client);
+        await setClientCheckout(client.id, checkoutUrl);
+      } catch (err) {
+        console.error('forge-clients: checkout link failed', err.message);
+      }
+      return res.status(201).json({ client, checkoutUrl });
     }
 
     const client = await getClient(clientId);
@@ -81,6 +93,12 @@ export default async function handler(req, res) {
 
     let result;
     switch (action) {
+      case 'payment_link': {
+        if (client.status !== 'pending_payment') return res.status(400).json({ error: 'This client has already paid.' });
+        const checkoutUrl = await createClientCheckout(client);
+        await setClientCheckout(client.id, checkoutUrl);
+        return res.status(200).json({ client, checkoutUrl });
+      }
       case 'upgrade':    result = await upgradeClient({ clientId, toTier: tier, closedByCallerId: me.id }); break;
       case 'cancel':     result = await requestCancel({ clientId, changedBy: username }); break;
       case 'churn':      result = await churnClient({ clientId, changedBy: username }); break;
