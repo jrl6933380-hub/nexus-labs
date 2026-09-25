@@ -1,0 +1,14 @@
+-- Forge caller program -- applied to Supabase project wocoqkifvqremlpuoobx
+-- on 2026-09-25 as migration `forge_caller_program`.
+-- Identity/login stays in Redis (roomAuth); callers link via forge_username.
+-- Server uses the service role; RLS is on with no policies, so the
+-- anon/public key can read nothing.
+--
+-- Tables: forge_callers, forge_state_clearances (IA seeded), forge_leads,
+-- forge_drafts, forge_clients (landed_by permanent, commission_owner moves
+-- only on transfer, assigned_to free), forge_ownership_transfers,
+-- forge_commission_events (unique on event_type+source_ref so a retried
+-- Stripe webhook can never double-pay), forge_maintenance_edits,
+-- forge_topup_credits, forge_client_status_log.
+--
+-- Full DDL lives in the Supabase migration history; see list_migrations.
