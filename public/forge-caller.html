@@ -91,6 +91,28 @@
   .save-btn { width: 100%; background: #3b5bfd; color: white; border: none; border-radius: 8px; padding: 10px; font-weight: 600; font-size: 14px; }
   .saved { color: #4caf50; font-size: 12px; margin-top: 6px; display: none; }
   #state { color: #a9977d; padding: 24px 14px; }
+
+  /* Earnings strip (drawer) */
+  .earnings { background: #241a10; border: 1px solid #3a2c1c; border-radius: 12px; padding: 12px; margin: 0 0 14px; }
+  .earnings .row { display: flex; justify-content: space-between; align-items: baseline; }
+  .earnings .owed { font-size: 22px; font-weight: 800; color: #4caf50; }
+  .earnings .label { font-size: 11px; color: #a9977d; text-transform: uppercase; letter-spacing: .05em; }
+  .earnings .clients { font-size: 13px; color: #f0dfc5; margin-top: 6px; }
+
+  /* Close-the-deal panel */
+  .tier-row { display: flex; gap: 8px; margin-bottom: 10px; }
+  .tier-opt {
+    flex: 1; background: #0b0806; border: 1px solid #3a2c1c; border-radius: 10px; padding: 10px 6px;
+    color: #f2e9dd; text-align: center; cursor: pointer;
+  }
+  .tier-opt .name { font-weight: 700; font-size: 13px; }
+  .tier-opt .price { font-size: 12px; color: #a9977d; margin-top: 2px; }
+  .tier-opt.selected { border-color: #4caf50; background: #13220f; }
+  .tier-opt.selected .price { color: #8fd18c; }
+  .tier-note { font-size: 12px; color: #a9977d; margin-bottom: 10px; min-height: 16px; }
+  .signup-btn { width: 100%; background: #2e7d32; color: white; border: none; border-radius: 10px; padding: 12px; font-weight: 800; font-size: 15px; cursor: pointer; }
+  .signup-btn:disabled { opacity: .5; cursor: default; }
+  .signed-banner { background: #13220f; border: 1px solid #4caf50; color: #8fd18c; border-radius: 10px; padding: 12px; font-weight: 700; text-align: center; }
 </style>
 </head>
 <body>
@@ -102,6 +124,10 @@
 
   <div class="drawer-backdrop" id="drawer-backdrop"></div>
   <div class="drawer" id="drawer">
+    <div class="earnings" id="earnings" hidden>
+      <div class="row"><span class="label">You're owed</span><span class="owed" id="owed-amount">&#36;0.00</span></div>
+      <div class="clients" id="client-count"></div>
+    </div>
     <h2>Your leads</h2>
     <div id="queue-list"></div>
   </div>
@@ -122,6 +148,42 @@ const DISPOSITIONS = [
 
 let leads = [];
 let selectedId = null;
+let signedLeadIds = new Set(); // Redis lead ids signed this session
+
+// Mirrors lib/forgeProgram.js TIERS; the server is the source of truth for money.
+// (\x24 is a dollar sign.)
+const TIERS = [
+  { key: 'basic', name: 'Basic', price: '\x2429/mo', note: 'Site + hosting, 1 edit a month.' },
+  { key: 'standard', name: 'Standard', price: '\x2449/mo', note: 'Most people pick this: 3 edits a month, contact/booking form, local SEO.' },
+  { key: 'plus', name: 'Plus', price: '\x2479/mo', note: 'Unlimited small edits, priority turnaround, AI assistant on their site.' },
+];
+
+function money(cents) { return '\x24' + ((cents || 0) / 100).toFixed(2); }
+
+async function loadEarnings() {
+  try {
+    const res = await fetch('/api/forge-clients', { credentials: 'include' });
+    if (!res.ok) return;
+    const data = await res.json();
+    const active = (data.clients || []).filter(function (c) { return c.status === 'active'; }).length;
+    document.getElementById('owed-amount').textContent = money(data.owedCents);
+    document.getElementById('client-count').textContent = active + (active === 1 ? ' active client' : ' active clients');
+    document.getElementById('earnings').hidden = false;
+  } catch (err) { /* earnings are a bonus; never block the calling flow */ }
+}
+
+function closeDealHtml(lead) {
+  if (signedLeadIds.has(lead.id)) {
+    return '<div class="signed-banner">Signed. Nice work.</div>';
+  }
+  return '' +
+    '<div class="tier-row">' + TIERS.map(function (t) {
+      return '<button type="button" class="tier-opt' + (t.key === 'standard' ? ' selected' : '') + '" data-tier="' + t.key + '">' +
+        '<div class="name">' + t.name + '</div><div class="price">' + t.price + '</div></button>';
+    }).join('') + '</div>' +
+    '<div class="tier-note" id="tier-note">' + TIERS[1].note + '</div>' +
+    '<button type="button" class="signup-btn" id="signup-btn">Sign them up: Standard</button>';
+}
 
 function escapeHtml(s) {
   const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -229,6 +291,7 @@ function renderLead(id) {
     '<button type="button" class="answered-btn" id="answered-btn">They answered — build the site now</button>' +
     panelHtml('panel-script', 'Pitch script', scriptBodyHtml(lead.pitch), true) +
     panelHtml('panel-site', 'Site preview', siteBodyHtml(lead), lead.siteStatus !== 'none') +
+    panelHtml('panel-close', "They're in: sign them up", closeDealHtml(lead), signedLeadIds.has(lead.id)) +
     panelHtml('panel-log', 'Log this call', '' +
       '<select id="disposition">' + options + '</select>' +
       '<textarea id="notes" placeholder="Notes from the call…">' + escapeHtml(lead.notes || '') + '</textarea>' +
@@ -244,6 +307,41 @@ function renderLead(id) {
 
   const siteFrame = document.getElementById('site-frame');
   if (siteFrame && lead.siteHtml) siteFrame.srcdoc = lead.siteHtml;
+
+  let chosenTier = 'standard';
+  view.querySelectorAll('.tier-opt').forEach(function (opt) {
+    opt.addEventListener('click', function () {
+      chosenTier = opt.dataset.tier;
+      view.querySelectorAll('.tier-opt').forEach(function (o) { o.classList.toggle('selected', o === opt); });
+      const tier = TIERS.find(function (t) { return t.key === chosenTier; });
+      document.getElementById('tier-note').textContent = tier.note;
+      document.getElementById('signup-btn').textContent = 'Sign them up: ' + tier.name;
+    });
+  });
+
+  const signupBtn = document.getElementById('signup-btn');
+  if (signupBtn) signupBtn.addEventListener('click', async function () {
+    const tier = TIERS.find(function (t) { return t.key === chosenTier; });
+    if (!confirm('Sign ' + lead.businessName + ' up for ' + tier.name + ' (' + tier.price + ')?')) return;
+    signupBtn.disabled = true;
+    signupBtn.textContent = 'Signing...';
+    try {
+      const res = await fetch('/api/forge-clients', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'convert', leadId: lead.id, tier: chosenTier }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not sign them up.');
+      signedLeadIds.add(lead.id);
+      renderLead(lead.id);
+      loadEarnings();
+    } catch (err) {
+      alert(err.message);
+      signupBtn.disabled = false;
+      signupBtn.textContent = 'Sign them up: ' + tier.name;
+    }
+  });
 
   const answeredBtn = document.getElementById('answered-btn');
   if (answeredBtn) {
@@ -314,6 +412,7 @@ document.getElementById('menu-btn').addEventListener('click', openDrawer);
 document.getElementById('drawer-backdrop').addEventListener('click', closeDrawer);
 
 loadLeads();
+loadEarnings();
 </script>
 </body>
 </html>
