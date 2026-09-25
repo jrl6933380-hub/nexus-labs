@@ -233,7 +233,7 @@ async function loadLeads() {
   const main = document.getElementById('main');
   try {
     const res = await fetch('/api/forge-leads', { credentials: 'include' });
-    if (res.status === 401) { stateEl.textContent = 'Please sign in first.'; setTimeout(function () { window.location.href = '/room.html'; }, 1200); return; }
+    if (res.status === 401) { stateEl.textContent = 'Please sign in first.'; setTimeout(function () { window.location.href = '/room-login.html?next=' + encodeURIComponent('/forge-caller.html'); }, 800); return; }
     if (res.status === 403) { stateEl.textContent = "This account doesn't have Forge field access yet. Ask a manager to grant it."; return; }
     if (!res.ok) throw new Error('load failed');
     const data = await res.json();
