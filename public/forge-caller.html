@@ -229,6 +229,7 @@ function renderLead(id) {
     '<button type="button" class="answered-btn" id="answered-btn">They answered — build the site now</button>' +
     panelHtml('panel-script', 'Pitch script', scriptBodyHtml(lead.pitch), true) +
     panelHtml('panel-site', 'Site preview', siteBodyHtml(lead), lead.siteStatus !== 'none') +
+    panelHtml('panel-close', "They're in: sign them up", closeDealHtml(lead), signedLeadIds.has(lead.id)) +
     panelHtml('panel-log', 'Log this call', '' +
       '<select id="disposition">' + options + '</select>' +
       '<textarea id="notes" placeholder="Notes from the call…">' + escapeHtml(lead.notes || '') + '</textarea>' +
