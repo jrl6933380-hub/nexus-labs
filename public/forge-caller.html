@@ -91,6 +91,28 @@
   .save-btn { width: 100%; background: #3b5bfd; color: white; border: none; border-radius: 8px; padding: 10px; font-weight: 600; font-size: 14px; }
   .saved { color: #4caf50; font-size: 12px; margin-top: 6px; display: none; }
   #state { color: #a9977d; padding: 24px 14px; }
+
+  /* Earnings strip (drawer) */
+  .earnings { background: #241a10; border: 1px solid #3a2c1c; border-radius: 12px; padding: 12px; margin: 0 0 14px; }
+  .earnings .row { display: flex; justify-content: space-between; align-items: baseline; }
+  .earnings .owed { font-size: 22px; font-weight: 800; color: #4caf50; }
+  .earnings .label { font-size: 11px; color: #a9977d; text-transform: uppercase; letter-spacing: .05em; }
+  .earnings .clients { font-size: 13px; color: #f0dfc5; margin-top: 6px; }
+
+  /* Close-the-deal panel */
+  .tier-row { display: flex; gap: 8px; margin-bottom: 10px; }
+  .tier-opt {
+    flex: 1; background: #0b0806; border: 1px solid #3a2c1c; border-radius: 10px; padding: 10px 6px;
+    color: #f2e9dd; text-align: center; cursor: pointer;
+  }
+  .tier-opt .name { font-weight: 700; font-size: 13px; }
+  .tier-opt .price { font-size: 12px; color: #a9977d; margin-top: 2px; }
+  .tier-opt.selected { border-color: #4caf50; background: #13220f; }
+  .tier-opt.selected .price { color: #8fd18c; }
+  .tier-note { font-size: 12px; color: #a9977d; margin-bottom: 10px; min-height: 16px; }
+  .signup-btn { width: 100%; background: #2e7d32; color: white; border: none; border-radius: 10px; padding: 12px; font-weight: 800; font-size: 15px; cursor: pointer; }
+  .signup-btn:disabled { opacity: .5; cursor: default; }
+  .signed-banner { background: #13220f; border: 1px solid #4caf50; color: #8fd18c; border-radius: 10px; padding: 12px; font-weight: 700; text-align: center; }
 </style>
 </head>
 <body>
@@ -102,6 +124,10 @@
 
   <div class="drawer-backdrop" id="drawer-backdrop"></div>
   <div class="drawer" id="drawer">
+    <div class="earnings" id="earnings" hidden>
+      <div class="row"><span class="label">You're owed</span><span class="owed" id="owed-amount">$0.00</span></div>
+      <div class="clients" id="client-count"></div>
+    </div>
     <h2>Your leads</h2>
     <div id="queue-list"></div>
   </div>
@@ -315,6 +341,7 @@ document.getElementById('menu-btn').addEventListener('click', openDrawer);
 document.getElementById('drawer-backdrop').addEventListener('click', closeDrawer);
 
 loadLeads();
+loadEarnings();
 </script>
 </body>
 </html>
