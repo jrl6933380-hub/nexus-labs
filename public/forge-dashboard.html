@@ -32,6 +32,14 @@
   .cp-wrap { overflow-x:auto; }
   .cp-btn { background:#1d2230; color:#c7cad1; border:1px solid #333844; border-radius:6px; padding:4px 8px; font-size:11px; cursor:pointer; margin:2px 0; }
   .cp-btn.danger { color:#e57373; border-color:#5c2b2b; }
+  .ac-box { background:#14171f; border:1px solid #262b36; border-radius:12px; padding:12px; margin:0 0 12px; max-width:520px; }
+  .ac-box label { display:block; color:#9aa0a6; font-size:11px; margin:8px 0 3px; }
+  .ac-box input { width:100%; box-sizing:border-box; background:#0f1218; color:#e8eaed; border:1px solid #333844; border-radius:8px; padding:10px; font-size:16px; }
+  .ac-row { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+  .ac-go { background:#2b5bd7; color:#fff; border:0; border-radius:8px; padding:10px 14px; font-size:14px; cursor:pointer; }
+  .ac-go.alt { background:#1d2230; color:#c7cad1; border:1px solid #333844; }
+  .ac-msg { white-space:pre-wrap; background:#0f1218; border:1px solid #2e7d32; border-radius:8px; padding:10px; margin-top:10px; font-size:13px; }
+  .ac-err { color:#e57373; font-size:13px; margin-top:8px; }
   .cp-assign { background:#0b0d12; color:#e8eaed; border:1px solid #333844; border-radius:6px; padding:4px; font-size:12px; }
   #cp-status-filter { background:#0b0d12; color:#e8eaed; border:1px solid #333844; border-radius:8px; padding:6px; font-size:12px; margin-bottom:8px; }
 </style>
@@ -102,11 +110,34 @@
       <div class="empty" id="cp-followup-empty" hidden>No follow-up calls due.</div>
 
       <h2>Callers</h2>
+      <button type="button" class="ac-go" id="ac-open" style="margin-bottom:10px">+ Add caller</button>
+      <div class="ac-box" id="ac-box" hidden>
+        <label for="ac-name">Their name</label>
+        <input id="ac-name" placeholder="e.g. James Ross" autocomplete="off" />
+        <label for="ac-user">Username they log in with</label>
+        <input id="ac-user" placeholder="e.g. jamesross" autocomplete="off" autocapitalize="none" />
+        <label for="ac-pass">Password (leave blank and one is made for you)</label>
+        <input id="ac-pass" type="text" placeholder="optional, 8+ characters" autocomplete="off" autocapitalize="none" />
+        <div class="ac-row">
+          <button type="button" class="ac-go" id="ac-create">Create caller</button>
+          <button type="button" class="ac-go alt" id="ac-existing" hidden>Use their existing account instead</button>
+          <button type="button" class="ac-go alt" id="ac-cancel">Close</button>
+        </div>
+        <div class="ac-err" id="ac-err" hidden></div>
+        <div id="ac-done" hidden>
+          <div class="ac-msg" id="ac-msg"></div>
+          <div class="ac-row">
+            <button type="button" class="ac-go" id="ac-copy">Copy login</button>
+            <a class="ac-go alt" id="ac-text" href="#" style="text-decoration:none">Text it</a>
+          </div>
+          <div class="hint" style="color:#9aa0a6;font-size:11px;margin-top:6px">The password is shown only this once. Send it now.</div>
+        </div>
+      </div>
       <div class="cp-wrap"><table id="cp-caller-table">
         <thead><tr><th>Caller</th><th>Active clients</th><th>MRR owned</th><th>Owed</th></tr></thead>
         <tbody></tbody>
       </table></div>
-      <div class="empty" id="cp-caller-empty" hidden>No callers yet. A Forge worker becomes a caller when they sign their first client.</div>
+      <div class="empty" id="cp-caller-empty" hidden>No callers yet. Tap + Add caller to make one.</div>
 
       <h2>Clients</h2>
       <select id="cp-status-filter">
