@@ -465,6 +465,18 @@
       return null;
     }
   })();
+  // Forge Field is a work tool for callers, not a builder workspace:
+  // send anyone who came from it straight back after sign-in, skipping
+  // the Builder Brain step. The page itself enforces Forge roles.
+  const workerNextPath = (() => {
+    try {
+      const candidate = new URL(requested || '/', window.location.origin);
+      if (candidate.origin !== window.location.origin || candidate.pathname !== '/forge-caller.html') return null;
+      return candidate.pathname + candidate.search + candidate.hash;
+    } catch {
+      return null;
+    }
+  })();
 
   const brainStep = document.getElementById('brain-step');
   const brainStatus = document.getElementById('brain-status');
@@ -503,6 +515,7 @@
       const data = await res.json();
       if (!res.ok) { errorEl.innerText = data.error || 'Something went wrong.'; submitBtn.disabled = false; return; }
       if (data.operator === true && operatorNextPath && !customerWorkspaces.has(new URL(operatorNextPath, location.origin).pathname)) { location.href = operatorNextPath; return; }
+      if (workerNextPath) { location.href = workerNextPath; return; }
       document.getElementById('login-password').value = '';
       document.getElementById('signup-password').value = '';
       document.getElementById('signup-security-answer').value = '';
