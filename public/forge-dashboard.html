@@ -32,6 +32,14 @@
   .cp-wrap { overflow-x:auto; }
   .cp-btn { background:#1d2230; color:#c7cad1; border:1px solid #333844; border-radius:6px; padding:4px 8px; font-size:11px; cursor:pointer; margin:2px 0; }
   .cp-btn.danger { color:#e57373; border-color:#5c2b2b; }
+  .ac-box { background:#14171f; border:1px solid #262b36; border-radius:12px; padding:12px; margin:0 0 12px; max-width:520px; }
+  .ac-box label { display:block; color:#9aa0a6; font-size:11px; margin:8px 0 3px; }
+  .ac-box input { width:100%; box-sizing:border-box; background:#0f1218; color:#e8eaed; border:1px solid #333844; border-radius:8px; padding:10px; font-size:16px; }
+  .ac-row { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+  .ac-go { background:#2b5bd7; color:#fff; border:0; border-radius:8px; padding:10px 14px; font-size:14px; cursor:pointer; }
+  .ac-go.alt { background:#1d2230; color:#c7cad1; border:1px solid #333844; }
+  .ac-msg { white-space:pre-wrap; background:#0f1218; border:1px solid #2e7d32; border-radius:8px; padding:10px; margin-top:10px; font-size:13px; }
+  .ac-err { color:#e57373; font-size:13px; margin-top:8px; }
   .cp-assign { background:#0b0d12; color:#e8eaed; border:1px solid #333844; border-radius:6px; padding:4px; font-size:12px; }
   #cp-status-filter { background:#0b0d12; color:#e8eaed; border:1px solid #333844; border-radius:8px; padding:6px; font-size:12px; margin-bottom:8px; }
 </style>
@@ -102,11 +110,34 @@
       <div class="empty" id="cp-followup-empty" hidden>No follow-up calls due.</div>
 
       <h2>Callers</h2>
+      <button type="button" class="ac-go" id="ac-open" style="margin-bottom:10px">+ Add caller</button>
+      <div class="ac-box" id="ac-box" hidden>
+        <label for="ac-name">Their name</label>
+        <input id="ac-name" placeholder="e.g. James Ross" autocomplete="off" />
+        <label for="ac-user">Username they log in with</label>
+        <input id="ac-user" placeholder="e.g. jamesross" autocomplete="off" autocapitalize="none" />
+        <label for="ac-pass">Password (leave blank and one is made for you)</label>
+        <input id="ac-pass" type="text" placeholder="optional, 8+ characters" autocomplete="off" autocapitalize="none" />
+        <div class="ac-row">
+          <button type="button" class="ac-go" id="ac-create">Create caller</button>
+          <button type="button" class="ac-go alt" id="ac-existing" hidden>Use their existing account instead</button>
+          <button type="button" class="ac-go alt" id="ac-cancel">Close</button>
+        </div>
+        <div class="ac-err" id="ac-err" hidden></div>
+        <div id="ac-done" hidden>
+          <div class="ac-msg" id="ac-msg"></div>
+          <div class="ac-row">
+            <button type="button" class="ac-go" id="ac-copy">Copy login</button>
+            <a class="ac-go alt" id="ac-text" href="#" style="text-decoration:none">Text it</a>
+          </div>
+          <div class="hint" style="color:#9aa0a6;font-size:11px;margin-top:6px">The password is shown only this once. Send it now.</div>
+        </div>
+      </div>
       <div class="cp-wrap"><table id="cp-caller-table">
         <thead><tr><th>Caller</th><th>Active clients</th><th>MRR owned</th><th>Owed</th></tr></thead>
         <tbody></tbody>
       </table></div>
-      <div class="empty" id="cp-caller-empty" hidden>No callers yet. A Forge worker becomes a caller when they sign their first client.</div>
+      <div class="empty" id="cp-caller-empty" hidden>No callers yet. Tap + Add caller to make one.</div>
 
       <h2>Clients</h2>
       <select id="cp-status-filter">
@@ -443,7 +474,12 @@ document.getElementById('import-go').addEventListener('click', async function ()
       const payBtn = c.owedCents > 0
         ? ' <button class="cp-btn" data-act="paid" data-user="' + esc(c.forge_username) + '" data-cents="' + c.owedCents + '" data-name="' + esc(c.display_name) + '">Mark paid</button>'
         : '';
-      return '<tr><td>' + esc(c.display_name) + '</td><td>' + c.activeClients + '</td><td>' + cpMoney(c.mrrCents) + '</td><td>' + cpMoney(c.owedCents) + payBtn + '</td></tr>';
+      const removed = c.status === 'removed';
+      const accessBtn = removed
+        ? ' <button class="cp-btn" data-act="restore" data-user="' + esc(c.forge_username) + '" data-name="' + esc(c.display_name) + '">Restore</button>'
+        : ' <button class="cp-btn danger" data-act="remove" data-user="' + esc(c.forge_username) + '" data-name="' + esc(c.display_name) + '">Remove</button>';
+      const who = esc(c.display_name) + ' <span style="color:#9aa0a6;font-size:11px">@' + esc(c.forge_username) + (removed ? ' \u00b7 removed' : '') + '</span>' + accessBtn;
+      return '<tr' + (removed ? ' style="opacity:.55"' : '') + '><td>' + who + '</td><td>' + c.activeClients + '</td><td>' + cpMoney(c.mrrCents) + '</td><td>' + cpMoney(c.owedCents) + payBtn + '</td></tr>';
     }).join('');
   }
 
@@ -479,6 +515,13 @@ document.getElementById('import-go').addEventListener('click', async function ()
     const client = cpClients.find(function (c) { return c.id === id; }) || {};
     const name = client.business_name || 'this client';
     const act = btn.dataset.act;
+    if (act === 'remove') {
+      return cpAdmin({ action: 'remove_caller', targetUsername: btn.dataset.user },
+        'Remove ' + btn.dataset.name + '\'s caller access? They can no longer log in to Forge Field. Their clients and what they are owed stay on the books.');
+    }
+    if (act === 'restore') {
+      return cpAdmin({ action: 'restore_caller', targetUsername: btn.dataset.user }, 'Give ' + btn.dataset.name + ' caller access again?');
+    }
     if (act === 'paid') {
       const cents = Number(btn.dataset.cents);
       return cpAction({ action: 'mark_paid', username: btn.dataset.user, expectedCents: cents },
@@ -513,6 +556,76 @@ document.getElementById('import-go').addEventListener('click', async function ()
       cpAction({ action: 'assign', clientId: e.target.dataset.id, username: e.target.value });
     }
     if (e.target.id === 'cp-status-filter') cpLoad();
+  });
+
+  async function cpAdmin(body, confirmText) {
+    if (confirmText && !confirm(confirmText)) return;
+    const res = await fetch('/api/forge-admin', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(function () { return {}; });
+    if (!res.ok) { alert(data.error || 'Action failed.'); return null; }
+    await cpLoad();
+    return data;
+  }
+
+  // ---- Add caller ----
+  const ac = function (id) { return document.getElementById(id); };
+  function acReset() {
+    ['ac-name', 'ac-user', 'ac-pass'].forEach(function (id) { ac(id).value = ''; });
+    ac('ac-err').hidden = true; ac('ac-done').hidden = true; ac('ac-existing').hidden = true;
+    ac('ac-create').disabled = false;
+  }
+  function acError(msg) { ac('ac-err').textContent = msg; ac('ac-err').hidden = false; }
+  function acShowLogin(name, user, pass) {
+    const link = window.location.origin + '/forge-caller.html';
+    const msg = 'Hey ' + (name || user) + ', here is your Nexus Forge caller login:\n' +
+      link + '\nUsername: ' + user + (pass ? '\nPassword: ' + pass : '\n(Use your existing password.)');
+    ac('ac-msg').textContent = msg;
+    ac('ac-text').href = 'sms:?&body=' + encodeURIComponent(msg);
+    ac('ac-done').hidden = false;
+  }
+  async function acSubmit(useExisting) {
+    const name = ac('ac-name').value.trim();
+    const user = ac('ac-user').value.trim();
+    const pass = ac('ac-pass').value;
+    ac('ac-err').hidden = true;
+    if (!user) return acError('Pick a username for them.');
+    if (!useExisting && pass && pass.length < 8) return acError('Password needs at least 8 characters, or leave it blank.');
+    ac('ac-create').disabled = true;
+    try {
+      const res = await fetch('/api/forge-admin', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create_caller', targetUsername: user, displayName: name, password: pass || undefined, useExisting: Boolean(useExisting) }),
+      });
+      const data = await res.json().catch(function () { return {}; });
+      if (res.status === 409 && data.taken) {
+        ac('ac-existing').hidden = false;
+        return acError('That username already has an account. If it is theirs, tap "Use their existing account instead." Otherwise pick a different username.');
+      }
+      if (!res.ok) return acError(data.error || 'Could not create the caller.');
+      ac('ac-existing').hidden = true;
+      acShowLogin(data.displayName || name, data.username, data.password || null);
+      if (data.warning) acError(data.warning);
+      cpLoad();
+    } catch (err) {
+      acError('Network error. Try again.');
+    } finally {
+      ac('ac-create').disabled = false;
+    }
+  }
+  ac('ac-open').addEventListener('click', function () { acReset(); ac('ac-box').hidden = false; ac('ac-name').focus(); });
+  ac('ac-cancel').addEventListener('click', function () { ac('ac-box').hidden = true; acReset(); });
+  ac('ac-create').addEventListener('click', function () { acSubmit(false); });
+  ac('ac-existing').addEventListener('click', function () { acSubmit(true); });
+  ac('ac-copy').addEventListener('click', function () {
+    const text = ac('ac-msg').textContent;
+    (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject())
+      .then(function () { ac('ac-copy').textContent = 'Copied'; setTimeout(function () { ac('ac-copy').textContent = 'Copy login'; }, 1500); })
+      .catch(function () { prompt('Copy this:', text); });
   });
 
   cpLoad();

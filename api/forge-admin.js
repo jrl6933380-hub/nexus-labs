@@ -13,6 +13,7 @@ import { getNexusOwner } from '../lib/nexusOwnerAuth.js';
 import { getConnection } from '../lib/forge/brainStore.js';
 import { setForgeRole, FORGE_ROLES } from '../lib/forgeRoles.js';
 import { provisionForgeAccount } from '../lib/forgeAccounts.js';
+import { upsertCallerProfile, setCallerStatus } from '../lib/forgeDb.js';
 const TRACKED_KEY = 'nexus:forge:tracked-developers';
 async function trackedCommand(command) {
   const response = await fetch(process.env.KV_REST_API_URL, { method:'POST',
@@ -98,6 +99,64 @@ export default async function handler(req, res) {
   const username = await getRequestUser(req);
   if (!username || !isOperatorUser(username)) {
     return res.status(403).json({ error: 'Operator access required.' });
+  }
+
+  // ---- Caller program: one-step add / remove / restore (Ops dashboard) ----
+  // create_caller  { targetUsername, displayName, password?, useExisting? }
+  //   new login (worker role) + caller row. Password is generated when
+  //   omitted and returned ONCE so the operator can send it.
+  //   useExisting: seat an existing account as a caller instead (no password).
+  // remove_caller  { targetUsername }  revoke Forge access; ledger untouched.
+  // restore_caller { targetUsername }  give access back.
+  if (action === 'create_caller' || action === 'remove_caller' || action === 'restore_caller') {
+    const target = String(targetUsername || '').trim();
+    if (!target) return res.status(400).json({ error: 'Username is required.' });
+    if (isOperatorUser(target)) return res.status(400).json({ error: 'That is an operator account; it already has full access.' });
+    try {
+      if (action === 'remove_caller') {
+        await setForgeRole(target, null);
+        await setCallerStatus(target, 'removed');
+        return res.status(200).json({ username: target, status: 'removed' });
+      }
+      if (action === 'restore_caller') {
+        await setForgeRole(target, FORGE_ROLES.WORKER);
+        await setCallerStatus(target, 'active');
+        return res.status(200).json({ username: target, status: 'active' });
+      }
+      const { displayName, useExisting } = req.body || {};
+      if (useExisting) {
+        await setForgeRole(target, FORGE_ROLES.WORKER);
+        const caller = await upsertCallerProfile({ username: target, displayName });
+        return res.status(200).json({ username: target, displayName: caller?.display_name, existing: true });
+      }
+      let account;
+      try {
+        account = await provisionForgeAccount({
+          username: target, kind: 'worker', password: password ? String(password) : undefined,
+        });
+      } catch (err) {
+        if (/already taken/i.test(err.message)) {
+          return res.status(409).json({ error: 'That username already has an account.', taken: true });
+        }
+        throw err;
+      }
+      // The login exists at this point. If the caller row fails, it is
+      // still created automatically on their first sale, so report, don't fail.
+      let displayNameSaved = null;
+      let warning = null;
+      try {
+        displayNameSaved = (await upsertCallerProfile({ username: account.username, displayName }))?.display_name;
+      } catch (err) {
+        warning = 'Login created, but the caller profile could not be saved yet: ' + err.message;
+      }
+      return res.status(200).json({
+        username: account.username, password: account.password, generatedPassword: account.generatedPassword,
+        displayName: displayNameSaved, warning,
+      });
+    } catch (err) {
+      console.error('forge-admin caller action failed:', err.message);
+      return res.status(400).json({ error: err.message || 'Caller action failed.' });
+    }
   }
 
   if (!targetUsername) return res.status(400).json({ error: 'targetUsername is required.' });
