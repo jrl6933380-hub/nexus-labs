@@ -1,7 +1,8 @@
 // api/forge-metrics.js
 // Operator-only reporting endpoint for the Nexus Forge owner dashboard.
 
-import { getRequestUser, isOperatorUser } from '../lib/roomAuth.js';
+import { getRequestUser } from '../lib/roomAuth.js';
+import { isForgeManager } from '../lib/forgeRoles.js';
 import { getForgeMetrics } from '../lib/forgeMetrics.js';
 
 export default async function handler(req, res) {
@@ -14,8 +15,9 @@ export default async function handler(req, res) {
   }
 
   const username = await getRequestUser(req);
-  if (!username || !isOperatorUser(username)) {
-    return res.status(403).json({ error: 'Operator access required.' });
+  // Owner (operator) and Forge Admin accounts both run Ops.
+  if (!username || !(await isForgeManager(username))) {
+    return res.status(403).json({ error: 'Forge admin access required.' });
   }
 
   try {
