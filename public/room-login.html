@@ -444,7 +444,9 @@
   tabSignup.addEventListener('click', showSignup);
 
   const requested = new URLSearchParams(window.location.search).get('next') || (new URLSearchParams(location.search).has('brain') ? sessionStorage.getItem('forge:login:return') : null);
-  const customerWorkspaces = new Set(['/forge.html', '/room.html', '/story-studio.html']);
+  // Callers land on Forge Field, admins on Ops / Accounts. Each page checks
+  // its own permissions server-side; this list only decides where to go.
+  const customerWorkspaces = new Set(['/forge.html', '/room.html', '/story-studio.html', '/forge-caller.html', '/forge-dashboard.html', '/forge-accounts.html']);
   const nextPath = (() => {
     try {
       const candidate = new URL(requested || '/forge.html?view=chat', window.location.origin);
