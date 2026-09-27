@@ -440,7 +440,10 @@ document.getElementById('import-go').addEventListener('click', async function ()
     const body = document.querySelector('#cp-caller-table tbody');
     document.getElementById('cp-caller-empty').hidden = cpCallers.length > 0;
     body.innerHTML = cpCallers.map(function (c) {
-      return '<tr><td>' + esc(c.display_name) + '</td><td>' + c.activeClients + '</td><td>' + cpMoney(c.mrrCents) + '</td><td>' + cpMoney(c.owedCents) + '</td></tr>';
+      const payBtn = c.owedCents > 0
+        ? ' <button class="cp-btn" data-act="paid" data-user="' + esc(c.forge_username) + '" data-cents="' + c.owedCents + '" data-name="' + esc(c.display_name) + '">Mark paid</button>'
+        : '';
+      return '<tr><td>' + esc(c.display_name) + '</td><td>' + c.activeClients + '</td><td>' + cpMoney(c.mrrCents) + '</td><td>' + cpMoney(c.owedCents) + payBtn + '</td></tr>';
     }).join('');
   }
 
@@ -476,6 +479,11 @@ document.getElementById('import-go').addEventListener('click', async function ()
     const client = cpClients.find(function (c) { return c.id === id; }) || {};
     const name = client.business_name || 'this client';
     const act = btn.dataset.act;
+    if (act === 'paid') {
+      const cents = Number(btn.dataset.cents);
+      return cpAction({ action: 'mark_paid', username: btn.dataset.user, expectedCents: cents },
+        'Mark ' + cpMoney(cents) + ' as paid to ' + btn.dataset.name + '? Only do this after you have actually paid them.');
+    }
     if (act === 'cancel') return cpAction({ action: 'cancel', clientId: id }, 'Start the cancel flow for ' + name + '? Site stays live 3 days, then placeholder, then the day-14 call.');
     if (act === 'churn') return cpAction({ action: 'churn', clientId: id }, 'Take ' + name + ' down for good?');
     if (act === 'reactivate') return cpAction({ action: 'reactivate', clientId: id }, 'Bring ' + name + ' back on their current tier? (No new signup bonus.)');

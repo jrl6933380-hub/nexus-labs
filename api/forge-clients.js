@@ -16,6 +16,7 @@
 //   reactivate  { clientId, tier? }              owner/assignee / manager
 //   assign      { clientId, username }           manager (follow-up only, no money moves)
 //   transfer    { clientId, username, reason }   manager (moves recurring going forward)
+//   mark_paid   { username, expectedCents }      manager (paid the caller by hand, outside Stripe)
 
 import { getRequestUser } from '../lib/roomAuth.js';
 import { isForgeWorker, isForgeManager } from '../lib/forgeRoles.js';
@@ -24,10 +25,11 @@ import {
   ensureCaller, getCallerByUsername, getClient, upsertLeadFromRedis, convertLead,
   upgradeClient, requestCancel, churnClient, reactivateClient, assignFollowUp,
   transferOwnership, listClients, dueFollowUps, commissionOwed, callerSummaries, setClientCheckout,
+  commissionPaid, markCallerPaid,
 } from '../lib/forgeDb.js';
 import { createClientCheckout } from '../lib/forgeStripe.js';
 
-const MANAGER_ONLY = new Set(['assign', 'transfer']);
+const MANAGER_ONLY = new Set(['assign', 'transfer', 'mark_paid']);
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'private, no-store');
@@ -52,11 +54,11 @@ export default async function handler(req, res) {
         const clients = scope === 'followups' ? await dueFollowUps() : await listClients({ status: req.query?.status });
         return res.status(200).json({ clients });
       }
-      const [owned, assigned, owedCents] = await Promise.all([
-        listClients({ ownerId: me.id }), listClients({ assignedTo: me.id }), commissionOwed(me.id),
+      const [owned, assigned, owedCents, paidCents] = await Promise.all([
+        listClients({ ownerId: me.id }), listClients({ assignedTo: me.id }), commissionOwed(me.id), commissionPaid(me.id),
       ]);
       const clients = [...new Map([...owned, ...assigned].map((c) => [c.id, c])).values()];
-      return res.status(200).json({ clients, owedCents });
+      return res.status(200).json({ clients, owedCents, paidCents });
     }
 
     if (req.method !== 'POST') {
@@ -64,8 +66,15 @@ export default async function handler(req, res) {
       return res.status(405).json({ error: 'Method Not Allowed' });
     }
 
-    const { action, leadId, clientId, tier, username: targetUsername, reason } = req.body || {};
+    const { action, leadId, clientId, tier, username: targetUsername, reason, expectedCents } = req.body || {};
     if (MANAGER_ONLY.has(action) && !manager) return res.status(403).json({ error: 'Manager access required.' });
+
+    if (action === 'mark_paid') {
+      const caller = targetUsername ? await getCallerByUsername(targetUsername) : null;
+      if (!caller) return res.status(404).json({ error: 'Caller not found.' });
+      const result = await markCallerPaid(caller.id, expectedCents);
+      return res.status(200).json(result);
+    }
 
     if (action === 'convert') {
       const redisLead = await getLead(leadId);
