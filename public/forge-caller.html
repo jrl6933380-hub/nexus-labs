@@ -126,6 +126,7 @@
   <div class="drawer" id="drawer">
     <div class="earnings" id="earnings" hidden>
       <div class="row"><span class="label">You're owed</span><span class="owed" id="owed-amount">&#36;0.00</span></div>
+      <div class="row"><span class="label">Paid so far</span><span id="paid-amount">&#36;0.00</span></div>
       <div class="clients" id="client-count"></div>
       <button type="button" class="answered-btn" id="payouts-btn" style="margin:10px 0 0" hidden>Set up payouts</button>
     </div>
@@ -169,10 +170,13 @@ async function loadEarnings() {
     const active = (data.clients || []).filter(function (c) { return c.status === 'active'; }).length;
     const waiting = (data.clients || []).filter(function (c) { return c.status === 'pending_payment'; }).length;
     document.getElementById('owed-amount').textContent = money(data.owedCents);
+    document.getElementById('paid-amount').textContent = money(data.paidCents);
     document.getElementById('client-count').textContent = active + (active === 1 ? ' active client' : ' active clients') +
       (waiting ? ' \u00b7 ' + waiting + ' waiting to pay' : '');
     document.getElementById('earnings').hidden = false;
-    loadPayoutStatus();
+    // Payouts are handled by hand for now (no Stripe Connect yet), so the
+    // "Set up payouts" button stays hidden. Re-enable once Connect is on:
+    if (window.FORGE_CONNECT_PAYOUTS) loadPayoutStatus();
   } catch (err) { /* earnings are a bonus; never block the calling flow */ }
 }
 
