@@ -6,7 +6,8 @@
 // thin, operator-authenticated HTTP wrapper around what already
 // existed for Nex's approved actions.
 
-import { getRequestUser, isOperatorUser } from '../lib/roomAuth.js';
+import { getRequestUser } from '../lib/roomAuth.js';
+import { isForgeManager } from '../lib/forgeRoles.js';
 import { listForgeCustomers } from '../lib/forgeCustomers.js';
 import { executeBillingAction, validateBillingAction } from '../lib/stripeAdmin.js';
 
@@ -17,8 +18,10 @@ export default async function handler(req, res) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
 
   const username = await getRequestUser(req);
-  if (!username || !isOperatorUser(username)) {
-    return res.status(403).json({ error: 'Operator access required.' });
+  // Owner (operator) and Forge Admin accounts both run Ops, including
+  // these billing actions.
+  if (!username || !(await isForgeManager(username))) {
+    return res.status(403).json({ error: 'Forge admin access required.' });
   }
 
   try {
