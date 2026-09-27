@@ -11,9 +11,9 @@
 import { getRequestUser, isOperatorUser, listUsers, createSession, destroySession, parseCookies, serializeSessionCookie, SESSION_COOKIE } from '../lib/roomAuth.js';
 import { getNexusOwner } from '../lib/nexusOwnerAuth.js';
 import { getConnection } from '../lib/forge/brainStore.js';
-import { setForgeRole, FORGE_ROLES } from '../lib/forgeRoles.js';
-import { provisionForgeAccount } from '../lib/forgeAccounts.js';
-import { upsertCallerProfile, setCallerStatus } from '../lib/forgeDb.js';
+import { setForgeRole, FORGE_ROLES, isForgeManager } from '../lib/forgeRoles.js';
+import { provisionForgeAccount, deleteForgeAccount } from '../lib/forgeAccounts.js';
+import { upsertCallerProfile, setCallerStatus, listCallers } from '../lib/forgeDb.js';
 const TRACKED_KEY = 'nexus:forge:tracked-developers';
 async function trackedCommand(command) {
   const response = await fetch(process.env.KV_REST_API_URL, { method:'POST',
@@ -33,6 +33,110 @@ const ROLE_TO_KIND = {
   [FORGE_ROLES.WORKER]: 'worker',
   [FORGE_ROLES.MANAGER]: 'manager',
 };
+
+// ---- Accounts manager (public/forge-accounts.html) ----
+// Levels: 'owner' = Nexus owner session or an operator username (full
+// control, including admins). 'admin' = forge_manager (can create/delete
+// callers and customers, never admins or owners). Anyone else: nothing.
+const ACCOUNT_TYPES = Object.freeze({ customer: 'customer', caller: 'worker', admin: 'manager' });
+const LOGIN_PATH = Object.freeze({
+  customer: '/room-login.html',
+  caller: '/room-login.html?next=/forge-caller.html',
+  admin: '/room-login.html?next=/forge-dashboard.html',
+});
+const INTERNAL_EMAIL = /@nexus-forge\.internal$/iu;
+
+async function accountActor(req, ownerSession) {
+  if (ownerSession) return { who: null, level: 'owner' };
+  const who = await getRequestUser(req);
+  if (!who) return null;
+  if (isOperatorUser(who)) return { who, level: 'owner' };
+  if (await isForgeManager(who)) return { who, level: 'admin' };
+  return null;
+}
+
+function typeOf(user) {
+  if (isOperatorUser(user.username)) return 'owner';
+  if (user.forgeRole === FORGE_ROLES.MANAGER) return 'admin';
+  if (user.forgeRole === FORGE_ROLES.WORKER) return 'caller';
+  return 'customer';
+}
+
+async function handleAccounts(req, res, actor) {
+  const body = req.body || {};
+  if (body.action === 'list_accounts') {
+    const [users, callers] = await Promise.all([listUsers(), listCallers().catch(() => [])]);
+    const byUser = new Map((callers || []).map((c) => [c.forge_username, c]));
+    const accounts = users.map((u) => ({
+      username: u.username,
+      type: typeOf(u),
+      plan: u.plan,
+      billing: Boolean(u.stripeCustomerId),
+      createdAt: u.createdAt || null,
+      internal: INTERNAL_EMAIL.test(u.email || ''),
+      displayName: byUser.get(u.username)?.display_name || null,
+      you: Boolean(actor.who) && actor.who === u.username,
+    })).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    return res.status(200).json({ accounts, level: actor.level });
+  }
+
+  if (body.action === 'create_account') {
+    const type = String(body.accountType || '');
+    if (!Object.prototype.hasOwnProperty.call(ACCOUNT_TYPES, type)) {
+      return res.status(400).json({ error: 'Pick an account type: customer, caller, or admin.' });
+    }
+    if (type === 'admin' && actor.level !== 'owner') {
+      return res.status(403).json({ error: 'Only the owner can create admin accounts.' });
+    }
+    const target = String(body.targetUsername || '').trim();
+    if (!target) return res.status(400).json({ error: 'Username is required.' });
+    if (isOperatorUser(target)) return res.status(400).json({ error: 'That username is reserved for the owner.' });
+    let account;
+    try {
+      account = await provisionForgeAccount({
+        username: target, kind: ACCOUNT_TYPES[type], password: body.password ? String(body.password) : undefined,
+      });
+    } catch (err) {
+      if (/already taken/i.test(err.message)) return res.status(409).json({ error: 'That username already has an account.', taken: true });
+      return res.status(400).json({ error: err.message });
+    }
+    let warning = null;
+    if (type === 'caller') {
+      try { await upsertCallerProfile({ username: account.username, displayName: body.displayName }); }
+      catch (err) { warning = 'Login created, but the caller profile could not be saved yet: ' + err.message; }
+    }
+    return res.status(200).json({
+      username: account.username, password: account.password, accountType: type,
+      displayName: body.displayName || null, loginPath: LOGIN_PATH[type], warning,
+    });
+  }
+
+  if (body.action === 'delete_accounts') {
+    const names = Array.isArray(body.usernames) ? [...new Set(body.usernames.map((n) => String(n).trim()).filter(Boolean))] : [];
+    if (!names.length) return res.status(400).json({ error: 'Pick at least one account.' });
+    if (names.length > 50) return res.status(400).json({ error: 'Delete at most 50 at a time.' });
+    const users = new Map((await listUsers()).map((u) => [u.username, u]));
+    const results = [];
+    for (const name of names) {
+      const user = users.get(name);
+      if (!user) { results.push({ username: name, deleted: false, reason: 'No such account.' }); continue; }
+      const type = typeOf(user);
+      if (actor.who && actor.who === name) { results.push({ username: name, deleted: false, reason: 'You cannot delete the account you are signed in with.' }); continue; }
+      if (type === 'admin' && actor.level !== 'owner') { results.push({ username: name, deleted: false, reason: 'Only the owner can delete admin accounts.' }); continue; }
+      try {
+        // deleteForgeAccount refuses operators and accounts with billing on
+        // record (their Stripe subscription would keep charging).
+        await deleteForgeAccount({ username: name });
+        if (type === 'caller') await setCallerStatus(name, 'removed').catch(() => null);
+        results.push({ username: name, deleted: true });
+      } catch (err) {
+        results.push({ username: name, deleted: false, reason: err.message });
+      }
+    }
+    return res.status(200).json({ results });
+  }
+  return null;
+}
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'private, no-store');
@@ -60,6 +164,16 @@ export default async function handler(req, res) {
   }
 
   const { action, targetUsername, password, role } = req.body || {};
+  if (['list_accounts', 'create_account', 'delete_accounts'].includes(action)) {
+    const actor = await accountActor(req, owner);
+    if (!actor) return res.status(401).json({ error: 'Sign in as the owner or a Forge admin.' });
+    try {
+      return await handleAccounts(req, res, actor);
+    } catch (err) {
+      console.error('forge-admin accounts action failed:', err.message);
+      return res.status(400).json({ error: err.message || 'Account action failed.' });
+    }
+  }
   if (['create_developer', 'track_developer', 'untrack_developer', 'switch_developer', 'return_to_owner'].includes(action)) {
     if (!owner) return res.status(401).json({ error: 'Nexus owner access required.' });
     try {
@@ -97,7 +211,9 @@ export default async function handler(req, res) {
   }
 
   const username = await getRequestUser(req);
-  if (!username || !isOperatorUser(username)) {
+  const callerAction = ['create_caller', 'remove_caller', 'restore_caller'].includes(action);
+  const allowed = Boolean(username) && (isOperatorUser(username) || (callerAction && await isForgeManager(username)));
+  if (!allowed) {
     return res.status(403).json({ error: 'Operator access required.' });
   }
 
