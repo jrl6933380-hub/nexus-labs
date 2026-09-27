@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const authApi = await readFile(new URL('../api/room-auth.js', import.meta.url), 'utf8');
-const room = await readFile(new URL('../public/room.html', import.meta.url), 'utf8');
 
 process.env.NEXUS_OPERATOR_USERNAMES = 'Mrlopez, BackupAdmin';
 const { isOperatorUser } = await import('../lib/roomAuth.js?test=operator-role');
@@ -22,9 +21,5 @@ test('room auth returns only its server-derived operator capability', () => {
   assert.doesNotMatch(authApi, /req\.body[^\n]*operator/);
 });
 
-test('Room Builder mounts the portable Nex dock only for an operator session', () => {
-  assert.match(room, /if \(data\.operator === true\) mountOperatorNexDock\(\)/);
-  assert.match(room, /script\.src = '\/nex-chat-bar\.js\?v=20260919-1'/);
-  assert.match(room, /script\.dataset\.operatorNexDock = 'true'/);
-  assert.doesNotMatch(room, /data\.username\s*===\s*['"]Mrlopez['"]/i);
-});
+// The Room Builder operator-dock test was removed with public/room.html, which
+// now only forwards to /forge.html.

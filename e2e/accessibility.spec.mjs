@@ -114,7 +114,7 @@ for (const file of pages) {
 const canvasRooms = [
   ['canvas.html', 4], ['connectors.html', 1],
   ['memory.html', 4], ['mission-control.html', 4],
-  ['queue.html', 1], ['room.html', 1], ['story-studio.html', 1], ['tenants.html', 2],
+  ['queue.html', 1], ['story-studio.html', 1], ['tenants.html', 2],
 ];
 
 async function expandPanelIfCollapsed(panel) {
@@ -222,7 +222,8 @@ test.describe('mobile canvas room interactions', () => {
     await expect(page.getByRole('heading', { name: 'Your whole operation, tuned into one view.' })).toBeVisible();
   });
 
-  test('locked workspace panels stay full-screen and keep their body visible on mobile', async ({ page }) => {
+  // Retired with public/room.html (old Room Builder), which now only forwards to /forge.html.
+  test.skip('locked workspace panels stay full-screen and keep their body visible on mobile', async ({ page }) => {
     await stubRoomAuth(page, 'mobile-test');
     await stubBoardOffline(page);
     await stubBoardCreate(page, 'room-builder');

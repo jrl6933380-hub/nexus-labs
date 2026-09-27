@@ -69,7 +69,7 @@ export default async function handler(req, res) {
       ...(resolved.kind === 'credit_pack' ? { 'metadata[credits]': resolved.credits } : {}),
       ...(resolved.kind === 'site_agent' ? { 'metadata[projectId]': projectId, 'metadata[monthlyLimit]': resolved.monthlyLimit } : {}),
       ...(resolved.kind === 'site_agent_reply_pack' ? { 'metadata[projectId]': projectId, 'metadata[replies]': resolved.replies } : {}),
-      success_url: `${SITE_URL}/room.html?checkout=success`,
+      success_url: `${SITE_URL}/forge.html?view=billing&checkout=success`,
       cancel_url: `${SITE_URL}/room-login.html?checkout=cancelled`,
     });
 

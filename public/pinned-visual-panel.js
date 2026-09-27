@@ -4,6 +4,7 @@ const ROOM_BY_PATH = Object.freeze({
   '/mission-control.html': 'command-center',
   '/conference-room.html': 'conference-room',
   '/room.html': 'room-builder',
+  '/forge.html': 'room-builder',
   '/canvas.html': 'room-builder',
   '/nexus-canvas.html': 'room-builder',
   '/memory.html': 'memory-archive',

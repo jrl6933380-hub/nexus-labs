@@ -3,7 +3,7 @@ const viewTitle = document.getElementById('workspaceViewTitle');
 const latestVisualButton = document.getElementById('workspaceLatestVisual');
 
 const SYSTEMS = [
-  { id: 'forge', title: 'Nexus Forge', icon: 'FG', hue: 205, featured: true, status: 'BUILD ENGINE', href: '/room.html', description: 'Site creation, visual editing, assets, previews, publishing, and customer AI in one pipeline.', sections: [
+  { id: 'forge', title: 'Nexus Forge', icon: 'FG', hue: 205, featured: true, status: 'BUILD ENGINE', href: '/forge.html?view=chat', description: 'Site creation, visual editing, assets, previews, publishing, and customer AI in one pipeline.', sections: [
     ['Intent & Scope', 'Turns a conversation into a build brief, requirements, and a safe execution plan.'],
     ['Visual Builder', 'Creates and edits the live site surface while proven structure stays reusable underneath.'],
     ['Assets & Context', 'Accepts images and project context so Nex and the builder can see what the customer means.'],

@@ -70,13 +70,12 @@ test('Forge conversation is classified before any build starts', () => {
   assert.doesNotMatch(forge, /async function dockAsk[\s\S]*?fetch\('\/api\/room-chat'[\s\S]*?el\('dockSend'\)/u);
 });
 
-test('missing Builder Brain responses provide a real setup action in both customer shells', () => {
-  for (const source of [forge, room]) {
-    assert.match(source, /BRAIN_REQUIRED/u);
-    assert.match(source, /Connect Builder Brain/u);
-  }
-  assert.match(room, /id="brain-setup-btn"/u);
-  assert.doesNotMatch(room, /Building as a guest — free daily credits/u);
+test('missing Builder Brain responses provide a real setup action in the customer shell', () => {
+  // public/room.html was retired (it now forwards to /forge.html), so only the
+  // Forge shell is checked.
+  assert.match(forge, /BRAIN_REQUIRED/u);
+  assert.match(forge, /Connect Builder Brain/u);
+  assert.doesNotMatch(room, /Building as a guest/u);
 });
 
 test('saved projects open directly instead of becoming a new build prompt', () => {
