@@ -8,7 +8,7 @@ const [ownerApi, ownerLibrary, dashboard, mission, ventures, forgeRoom, forgeCha
   readFile(new URL('../public/index.html', import.meta.url), 'utf8'),
   readFile(new URL('../public/mission-control.html', import.meta.url), 'utf8'),
   readFile(new URL('../api/ventures.js', import.meta.url), 'utf8'),
-  readFile(new URL('../public/room.html', import.meta.url), 'utf8'),
+  readFile(new URL('../public/forge.html', import.meta.url), 'utf8'),
   readFile(new URL('../api/room-chat.js', import.meta.url), 'utf8'),
 ]);
 
@@ -30,7 +30,8 @@ test('the launch station and owner surfaces use Nexus auth', () => {
 });
 
 test('Forge customer behavior remains independent from owner auth', () => {
-  assert.match(forgeRoom, /Exploring as a guest/u);
+  // forgeRoom is now the Forge shell (public/forge.html); the old Room Builder
+  // was retired.
   assert.match(forgeChat, /getOrCreateAnonId/u);
   assert.match(forgeChat, /hasOwnBrain/u);
   assert.match(forgeChat, /BRAIN_REQUIRED/u);
