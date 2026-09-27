@@ -166,6 +166,74 @@ function projectRow(project, ctx) {
   if (buildId) open.onclick = () => ctx.openBuild(buildId);
   wrap.appendChild(open);
 
+  // Go live / take offline -- carried over from the retired Room Builder so
+  // hosting a finished site is still one tap. Same /api/room-publish
+  // contract: POST {id} to deploy, DELETE ?projectId= to take it down.
+  if (buildId) {
+    const pill = 'margin-left:10px;flex-shrink:0;font-size:11px;padding:4px 9px;border-radius:20px;border:0;cursor:pointer;';
+    const liveBtn = document.createElement('button');
+    liveBtn.type = 'button';
+    const offBtn = document.createElement('button');
+    offBtn.type = 'button';
+    offBtn.textContent = 'Take offline';
+    offBtn.style.cssText = pill + 'background:#2b2418;color:#e6c07b';
+    let liveUrl = project && project.liveUrl ? String(project.liveUrl) : '';
+    const paint = () => {
+      liveBtn.disabled = false;
+      liveBtn.textContent = liveUrl ? 'Live \u2197' : 'Go live';
+      liveBtn.title = liveUrl ? liveUrl : 'Put this project on a real, live web address.';
+      liveBtn.style.cssText = pill + (liveUrl ? 'background:#16372a;color:#8fe0b0' : 'background:#1d2a44;color:#9cc0ff');
+      offBtn.hidden = !liveUrl || !projectId;
+      offBtn.disabled = false;
+    };
+    liveBtn.onclick = async (event) => {
+      event.stopPropagation();
+      if (liveUrl) { window.open(liveUrl, '_blank', 'noopener'); return; }
+      liveBtn.disabled = true;
+      liveBtn.textContent = 'Going live\u2026';
+      try {
+        const res = await fetch('/api/room-publish', {
+          method: 'POST', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: buildId }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 402) {
+          paint();
+          if (window.confirm(data.error || 'Going live is part of a paid plan. See plans?')) window.location.href = '/forge.html?view=billing';
+          return;
+        }
+        if (!res.ok || !data.url) throw new Error(data.error || 'Could not put this site live.');
+        liveUrl = data.url;
+        paint();
+        window.open(liveUrl, '_blank', 'noopener');
+      } catch (err) {
+        paint();
+        window.alert(err.message || 'Could not put this site live.');
+      }
+    };
+    offBtn.onclick = async (event) => {
+      event.stopPropagation();
+      if (!window.confirm('Take this site offline? ' + liveUrl + ' will stop working.')) return;
+      offBtn.disabled = true;
+      offBtn.textContent = 'Taking down\u2026';
+      try {
+        const res = await fetch('/api/room-publish?projectId=' + encodeURIComponent(projectId), { method: 'DELETE', credentials: 'include' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Could not take this site offline.');
+        liveUrl = '';
+        offBtn.textContent = 'Take offline';
+        paint();
+      } catch (err) {
+        offBtn.textContent = 'Take offline';
+        paint();
+        window.alert(err.message || 'Could not take this site offline.');
+      }
+    };
+    paint();
+    wrap.append(liveBtn, offBtn);
+  }
+
   if (projectId && ctx.deleteProject) {
     const del = document.createElement('button');
     del.type = 'button';
