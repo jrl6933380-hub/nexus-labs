@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Forge Accounts</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:#0b0d12; color:#e8eaed; font:15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: calc(14px + env(safe-area-inset-top, 0px)) 14px calc(24px + env(safe-area-inset-bottom, 0px)); }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 2px; }
+  .sub { color:#9aa0a6; font-size:13px; margin-bottom:14px; }
+  .nav a { color:#8ab4f8; font-size:13px; margin-right:14px; text-decoration:none; }
+  h2 { font-size: 15px; margin: 22px 0 8px; }
+  .box { background:#14171f; border:1px solid #262b36; border-radius:12px; padding:14px; }
+  .seg { display:flex; gap:6px; flex-wrap:wrap; }
+  .seg button { flex:1; min-width:90px; background:#1d2230; color:#c7cad1; border:1px solid #333844; border-radius:10px; padding:10px 8px; font-size:14px; cursor:pointer; }
+  .seg button[aria-pressed="true"] { background:#2b5bd7; color:#fff; border-color:#2b5bd7; }
+  .seg button:disabled { opacity:.4; cursor:not-allowed; }
+  .desc { color:#9aa0a6; font-size:12px; margin:8px 0 2px; min-height:16px; }
+  label { display:block; color:#9aa0a6; font-size:12px; margin:10px 0 4px; }
+  input { width:100%; background:#0f1218; color:#e8eaed; border:1px solid #333844; border-radius:10px; padding:11px; font-size:16px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+  .go { background:#2b5bd7; color:#fff; border:0; border-radius:10px; padding:11px 16px; font-size:15px; cursor:pointer; text-decoration:none; display:inline-block; }
+  .go.alt { background:#1d2230; color:#c7cad1; border:1px solid #333844; }
+  .go.danger { background:#7a2323; }
+  .go:disabled { opacity:.5; cursor:not-allowed; }
+  .msg { white-space:pre-wrap; background:#0f1218; border:1px solid #2e7d32; border-radius:10px; padding:11px; margin-top:12px; font-size:14px; word-break:break-word; }
+  .err { color:#e57373; font-size:13px; margin-top:10px; }
+  .note { color:#9aa0a6; font-size:12px; margin-top:6px; }
+  .filters { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+  .chip { background:#1d2230; color:#c7cad1; border:1px solid #333844; border-radius:999px; padding:6px 12px; font-size:13px; cursor:pointer; }
+  .chip[aria-pressed="true"] { background:#e8eaed; color:#0b0d12; }
+  .acct { display:flex; align-items:center; gap:10px; padding:11px 4px; border-bottom:1px solid #1f2430; }
+  .acct:last-child { border-bottom:0; }
+  .acct input[type="checkbox"] { width:22px; height:22px; flex:0 0 auto; }
+  .acct .main { flex:1; min-width:0; }
+  .acct .name { font-weight:600; overflow:hidden; text-overflow:ellipsis; }
+  .acct .meta { color:#9aa0a6; font-size:12px; }
+  .badge { display:inline-block; font-size:11px; border-radius:6px; padding:1px 6px; margin-left:4px; vertical-align:1px; }
+  .b-owner { background:#4a3b00; color:#ffd54f; }
+  .b-admin { background:#1a3a6b; color:#8ab4f8; }
+  .b-caller { background:#1b4d2a; color:#81c784; }
+  .b-customer { background:#2a2f3b; color:#c7cad1; }
+  .b-flag { background:#3b2a2a; color:#e57373; }
+  .bar { position:sticky; bottom:0; background:#0b0d12; padding:10px 0 calc(6px + env(safe-area-inset-bottom, 0px)); margin-top:10px; }
+  .empty { color:#9aa0a6; font-size:13px; padding:10px 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"><a href="/forge-dashboard.html">&larr; Ops</a><a href="/forge-caller.html">Forge Field</a></div>
+  <h1>Accounts</h1>
+  <div class="sub" id="who">Make any kind of Forge account, and clear out old ones.</div>
+
+  <div id="gate" class="box" hidden>
+    <div>You need to be signed in as the owner or a Forge admin.</div>
+    <div class="row">
+      <a class="go" href="/nexus-login.html">Owner sign-in</a>
+      <a class="go alt" href="/room-login.html?next=/forge-accounts.html">Forge admin sign-in</a>
+    </div>
+  </div>
+
+  <div id="app" hidden>
+    <h2>New account</h2>
+    <div class="box">
+      <div class="seg" id="type-seg" role="group" aria-label="Account type">
+        <button type="button" data-type="customer" aria-pressed="false">Customer</button>
+        <button type="button" data-type="caller" aria-pressed="true">Caller</button>
+        <button type="button" data-type="admin" aria-pressed="false">Admin</button>
+      </div>
+      <div class="desc" id="type-desc"></div>
+      <div id="name-wrap">
+        <label for="n-name">Their name</label>
+        <input id="n-name" autocomplete="off" placeholder="e.g. James Ross" />
+      </div>
+      <label for="n-user">Username they sign in with</label>
+      <input id="n-user" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="letters, numbers, - or _" />
+      <label for="n-pass">Password (leave blank and a strong one is made)</label>
+      <input id="n-pass" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="optional, 8+ characters" />
+      <div class="row"><button type="button" class="go" id="n-go">Create account</button></div>
+      <div class="err" id="n-err" hidden></div>
+      <div id="n-done" hidden>
+        <div class="msg" id="n-msg"></div>
+        <div class="row">
+          <button type="button" class="go" id="n-copy">Copy login</button>
+          <a class="go alt" id="n-text" href="#">Text it</a>
+          <button type="button" class="go alt" id="n-another">Make another</button>
+        </div>
+        <div class="note">The password is shown only this once. Save or send it now.</div>
+      </div>
+    </div>
+
+    <h2>All accounts</h2>
+    <div class="filters" id="filters">
+      <button class="chip" data-f="all" aria-pressed="true">All</button>
+      <button class="chip" data-f="admin" aria-pressed="false">Admins</button>
+      <button class="chip" data-f="caller" aria-pressed="false">Callers</button>
+      <button class="chip" data-f="customer" aria-pressed="false">Customers</button>
+      <button class="chip" data-f="internal" aria-pressed="false">Test / internal</button>
+    </div>
+    <div class="box" id="list"><div class="empty">Loading&hellip;</div></div>
+    <div class="bar">
+      <button type="button" class="go danger" id="del-go" disabled>Delete selected</button>
+      <div class="note" id="del-note">Owner accounts and accounts with active billing can't be deleted here.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const $ = function (id) { return document.getElementById(id); };
+  const esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]; }); };
+  const DESC = {
+    customer: 'Uses the Forge builder for their own site. No Ops or calling access.',
+    caller: 'Makes calls from Forge Field, signs clients, and earns commission. Shows in Ops.',
+    admin: 'Full Ops: all clients, callers, payouts, billing, and can make callers and customers. Only the owner can make admins.',
+  };
+  let level = null;
+  let type = 'caller';
+  let accounts = [];
+  let filter = 'all';
+  const selected = new Set();
+
+  async function api(body) {
+    const res = await fetch('/api/forge-admin', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(function () { return {}; });
+    return { ok: res.ok, status: res.status, data: data };
+  }
+
+  function setType(next) {
+    type = next;
+    document.querySelectorAll('#type-seg button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.type === type)); });
+    $('type-desc').textContent = DESC[type];
+    $('name-wrap').hidden = type === 'customer';
+  }
+
+  function badge(a) {
+    const label = { owner: 'Owner', admin: 'Admin', caller: 'Caller', customer: 'Customer' }[a.type];
+    let out = '<span class="badge b-' + a.type + '">' + label + '</span>';
+    if (a.internal) out += '<span class="badge b-flag">test/internal</span>';
+    if (a.billing) out += '<span class="badge b-flag">billing</span>';
+    if (a.you) out += '<span class="badge b-customer">you</span>';
+    return out;
+  }
+
+  function deletable(a) {
+    if (a.type === 'owner' || a.billing || a.you) return false;
+    if (a.type === 'admin' && level !== 'owner') return false;
+    return true;
+  }
+
+  function render() {
+    const rows = accounts.filter(function (a) {
+      if (filter === 'all') return true;
+      if (filter === 'internal') return a.internal;
+      return a.type === filter;
+    });
+    if (!rows.length) { $('list').innerHTML = '<div class="empty">Nothing here.</div>'; updateBar(); return; }
+    $('list').innerHTML = rows.map(function (a) {
+      const can = deletable(a);
+      const date = a.createdAt ? new Date(a.createdAt).toLocaleDateString() : 'unknown date';
+      return '<div class="acct">' +
+        '<input type="checkbox" aria-label="Select ' + esc(a.username) + '" data-u="' + esc(a.username) + '"' + (can ? '' : ' disabled') + (selected.has(a.username) ? ' checked' : '') + ' />' +
+        '<div class="main"><div class="name">' + esc(a.displayName || a.username) + badge(a) + '</div>' +
+        '<div class="meta">@' + esc(a.username) + ' &middot; ' + esc(a.plan) + ' &middot; made ' + esc(date) + '</div></div>' +
+        '</div>';
+    }).join('');
+    updateBar();
+  }
+
+  function updateBar() {
+    $('del-go').disabled = selected.size === 0;
+    $('del-go').textContent = selected.size ? 'Delete selected (' + selected.size + ')' : 'Delete selected';
+  }
+
+  async function load() {
+    const r = await api({ action: 'list_accounts' });
+    if (r.status === 401 || r.status === 403) { $('gate').hidden = false; $('app').hidden = true; return; }
+    if (!r.ok) { $('list').innerHTML = '<div class="err">' + esc(r.data.error || 'Could not load accounts.') + '</div>'; $('app').hidden = false; return; }
+    level = r.data.level;
+    accounts = r.data.accounts || [];
+    for (const u of Array.from(selected)) if (!accounts.some(function (a) { return a.username === u; })) selected.delete(u);
+    $('who').textContent = level === 'owner' ? 'Signed in as owner. You can make any kind of account.' : 'Signed in as a Forge admin. You can make callers and customers.';
+    const adminBtn = document.querySelector('#type-seg button[data-type="admin"]');
+    adminBtn.disabled = level !== 'owner';
+    if (level !== 'owner' && type === 'admin') setType('caller');
+    $('gate').hidden = true; $('app').hidden = false;
+    render();
+  }
+
+  async function create() {
+    const user = $('n-user').value.trim();
+    const pass = $('n-pass').value;
+    const name = $('n-name').value.trim();
+    $('n-err').hidden = true;
+    if (!user) return showErr('Pick a username.');
+    if (pass && pass.length < 8) return showErr('Password needs 8+ characters, or leave it blank.');
+    $('n-go').disabled = true;
+    try {
+      const r = await api({ action: 'create_account', accountType: type, targetUsername: user, displayName: name || undefined, password: pass || undefined });
+      if (!r.ok) return showErr(r.data.error || 'Could not create the account.');
+      const link = window.location.origin + r.data.loginPath;
+      const kind = { customer: 'Nexus Forge', caller: 'Nexus Forge caller', admin: 'Nexus Forge admin' }[type];
+      const msg = 'Hey ' + (name || r.data.username) + ', here is your ' + kind + ' login:\n' + link +
+        '\nUsername: ' + r.data.username + '\nPassword: ' + r.data.password;
+      $('n-msg').textContent = msg;
+      $('n-text').href = 'sms:?&body=' + encodeURIComponent(msg);
+      $('n-done').hidden = false;
+      if (r.data.warning) showErr(r.data.warning);
+      load();
+    } catch (err) {
+      showErr('Network error. Try again.');
+    } finally {
+      $('n-go').disabled = false;
+    }
+  }
+  function showErr(m) { $('n-err').textContent = m; $('n-err').hidden = false; }
+
+  async function del() {
+    const names = Array.from(selected);
+    if (!names.length) return;
+    const preview = names.slice(0, 12).join(', ') + (names.length > 12 ? ' and ' + (names.length - 12) + ' more' : '');
+    if (!confirm('Permanently delete ' + names.length + ' account' + (names.length === 1 ? '' : 's') + '?\n\n' + preview + '\n\nThis cannot be undone. Callers keep their commission history on the books.')) return;
+    $('del-go').disabled = true;
+    const r = await api({ action: 'delete_accounts', usernames: names });
+    if (!r.ok) { alert(r.data.error || 'Delete failed.'); updateBar(); return; }
+    const failed = (r.data.results || []).filter(function (x) { return !x.deleted; });
+    const done = (r.data.results || []).length - failed.length;
+    selected.clear();
+    await load();
+    alert('Deleted ' + done + '.' + (failed.length ? '\n\nNot deleted:\n' + failed.map(function (x) { return x.username + ': ' + x.reason; }).join('\n') : ''));
+  }
+
+  document.getElementById('type-seg').addEventListener('click', function (e) {
+    const b = e.target.closest('button');
+    if (b && !b.disabled) setType(b.dataset.type);
+  });
+  $('filters').addEventListener('click', function (e) {
+    const b = e.target.closest('.chip');
+    if (!b) return;
+    filter = b.dataset.f;
+    document.querySelectorAll('#filters .chip').forEach(function (c) { c.setAttribute('aria-pressed', String(c === b)); });
+    render();
+  });
+  $('list').addEventListener('change', function (e) {
+    const box = e.target;
+    if (box.type !== 'checkbox') return;
+    if (box.checked) selected.add(box.dataset.u); else selected.delete(box.dataset.u);
+    updateBar();
+  });
+  $('n-go').addEventListener('click', create);
+  $('n-another').addEventListener('click', function () {
+    ['n-name', 'n-user', 'n-pass'].forEach(function (id) { $(id).value = ''; });
+    $('n-done').hidden = true; $('n-err').hidden = true; $('n-user').focus();
+  });
+  $('n-copy').addEventListener('click', function () {
+    const text = $('n-msg').textContent;
+    (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject())
+      .then(function () { $('n-copy').textContent = 'Copied'; setTimeout(function () { $('n-copy').textContent = 'Copy login'; }, 1500); })
+      .catch(function () { prompt('Copy this:', text); });
+  });
+  $('del-go').addEventListener('click', del);
+
+  setType('caller');
+  load();
+})();
+</script>
+</body>
+</html>
