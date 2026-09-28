@@ -12,6 +12,13 @@ test('only listed users are pod users (case-insensitive)', () => {
   assert.equal(isPodUser('james', {}), false);
 });
 
+test('"*" lets every signed-in account use the pod', () => {
+  const all = { NEX_POD_USERS: '*' };
+  assert.equal(isPodUser('anyone', all), true);
+  assert.equal(isPodUser('James', all), true);
+  assert.equal(isPodUser('', all), false);
+});
+
 test('live pod: running nex-pod that passes health check returns its /v1 url', async () => {
   _resetPodCacheForTests();
   const calls = [];
