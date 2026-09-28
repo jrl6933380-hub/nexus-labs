@@ -16,15 +16,20 @@ Routing is a per-account flag the owner sets in the operator panel. Default is o
 
 ## Routing rule (every model call)
 
-```
-if account.podEnabled AND pod.status == READY AND pod.healthy:
-    send to pod (nex-base / nex)
-else:
-    send to OpenRouter (current behavior)
+Fallback stack, in order:
 
-if the pod call errors or times out:
-    retry once on OpenRouter — the user never sees the failure
+1. **Pod** — when on, healthy, and the account is flagged for it.
+2. **RunPod Serverless** — same model as the pod, scale-to-zero. Covers pod-off hours, overload, and pod failures. Bills from the same RunPod balance as the pod.
+3. **OpenRouter** — emergency only (RunPod-wide outage). Disabled until Justin funds it; a tier that isn't configured is simply skipped.
+
 ```
+for tier in [pod, serverless, openrouter]:
+    if tier.enabled AND tier.healthy (and, for pod, account.podEnabled):
+        try tier; on error or timeout -> next tier
+if every tier fails: friendly "Nex is resting, try again in a minute" message
+```
+
+Each tier has its own on/off switch in the Pod Room. Rollout: pod only (now) → add Serverless (next session) → add OpenRouter when funded.
 
 ## Controls
 
@@ -106,5 +111,5 @@ Swap `nex-base` for the fine-tuned Nex on the same endpoint. No routing changes 
 ## Open questions for Justin
 
 1. ~~Calling hours~~ → answered: set from the Pod Room, editable anytime; manual on/off always wins.
-2. Daily spend cap — is $25 right?
+2. ~~Daily spend cap~~ → answered: default $30/day as a runaway guard (not a budget), editable in the Pod Room. Revenue side: meter all usage and push usage packs.
 3. Which accounts get the pod first (callers + who else)?
