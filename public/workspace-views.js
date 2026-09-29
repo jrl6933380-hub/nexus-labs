@@ -147,7 +147,8 @@ export function deleteTaskButton({ id, title, post, onDeleted }) {
     event.stopPropagation();
     button.disabled = true;
     try {
-      await requestDelete({ title, id, post, confirm: window.confirm, onDeleted });
+      const ok = await requestDelete({ title, id, post, confirm: window.confirm, onDeleted });
+      if (ok === false) button.disabled = false;
     } catch (err) {
       button.disabled = false;
       window.alert(`Delete failed: ${err.message}`);
