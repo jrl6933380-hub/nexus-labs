@@ -73,6 +73,8 @@ test('a clickable row keeps the ✕ a sibling, never a nested button', () => {
       tagName: tag,
       className: '',
       children: [],
+      attrs: {},
+      setAttribute(name, value) { this.attrs[name] = value; },
       appendChild(child) { this.children.push(child); },
     };
     created.push(el);
