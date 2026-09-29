@@ -7,6 +7,7 @@ import {
   routeMessageStream,
   routeToModel,
 } from '../lib/modelRouter.js';
+import { _resetPodCacheForTests } from '../lib/forge/podBrain.js';
 
 function response({ ok = true, status = 200, json = {}, text = '' } = {}) {
   return {
@@ -115,6 +116,40 @@ test('uses direct Anthropic first when it is healthy', async () => {
   assert.equal(calls.length, 1);
   assert.equal(calls[0].url, 'https://api.anthropic.com/v1/messages');
   assert.equal(result.provider, 'anthropic');
+});
+
+test('private Nex chat uses the healthy pod first and keeps tool calls intact', async () => {
+  _resetPodCacheForTests();
+  const calls = [];
+  const result = await routeMessage({
+    claudeModel: 'claude-fallback',
+    preferPod: true,
+    body: {
+      system: 'You are Nex.',
+      messages: [{ role: 'user', content: 'Read the board' }],
+      tools: [{ name: 'read_board', description: 'Read it', input_schema: { type: 'object', properties: {} } }],
+    },
+    env: { RUNPOD_API_KEY: 'rp', NEX_POD_KEY: 'pk', AI_GATEWAY_API_KEY: 'gateway' },
+    fetchFn: async (url, options = {}) => {
+      calls.push(url);
+      if (url === 'https://rest.runpod.io/v1/pods') {
+        return response({ json: [{ id: 'pod-1', name: 'nex-pod', desiredStatus: 'RUNNING' }] });
+      }
+      if (url.endsWith('/v1/models')) return response();
+      if (url.endsWith('/v1/chat/completions')) {
+        const body = JSON.parse(options.body);
+        assert.equal(body.tools[0].function.name, 'read_board');
+        return response({ json: { model: 'nex-base', choices: [{ message: {
+          content: null,
+          tool_calls: [{ id: 'call-1', function: { name: 'read_board', arguments: '{}' } }],
+        } }] } });
+      }
+      throw new Error(`unexpected ${url}`);
+    },
+  });
+  assert.equal(result.provider, 'nex-pod');
+  assert.equal(result.data.content[0].type, 'tool_use');
+  assert.equal(calls.some((url) => url.includes('ai-gateway')), false);
 });
 
 test('direct Anthropic prefers native server tools without duplicate names', async () => {

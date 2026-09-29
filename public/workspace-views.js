@@ -44,6 +44,17 @@ export async function getJSON(url) {
   return response.json();
 }
 
+export async function postJSON(url, body) {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || `${url} returned ${response.status}`);
+  return payload;
+}
+
 /** First present field from a list of candidate names. */
 export function field(object, ...names) {
   for (const name of names) {
@@ -410,6 +421,70 @@ export const VIEWS = {
 
       nodes.push(chips([
         { label: 'Scope a new one', run: () => ctx.ask('I want to scope a new venture. Break it into sections and ask me what you need for each.') },
+      ]));
+      return nodes;
+    },
+  },
+
+  pod: {
+    label: 'Pod Room',
+    icon: '◉',
+    say: ['pod room', 'pod', 'gpu', 'nex pod'],
+    async render(ctx) {
+      const status = await getJSON('/api/pod-controller');
+      const pod = status.pod;
+      const ready = Boolean(status.health?.ready);
+      const nodes = [];
+
+      if (!status.configured) {
+        nodes.push(say('The Pod Room is connected to Nexus, but its RunPod credentials are not configured in Vercel yet.'));
+        return nodes;
+      }
+
+      if (!pod) {
+        nodes.push(say('No existing nex-pod is attached right now. The model volume is safe, but a fresh pod must be deployed in RunPod and named “nex-pod” before Nexus can control it. Pod creation and GPU changes stay behind your approval.'));
+        nodes.push(chips([
+          { label: 'Refresh', run: () => ctx.go('pod') },
+          { label: 'Ask Nex for the runbook', run: () => ctx.ask('Walk me through deploying a fresh nex-pod with the existing persistent volume.') },
+        ]));
+        return nodes;
+      }
+
+      const state = ready ? 'ready' : String(pod.state || 'unknown').toLowerCase();
+      nodes.push(say(ready
+        ? `Nex is live on your GPU. The model answered its health check${status.health.latencyMs ? ` in ${status.health.latencyMs}ms` : ''}.`
+        : `The pod is ${state}. Forge and the private Nex chat will use their hosted fallback until the model is ready.`));
+
+      nodes.push(group('Live status', [
+        row({ title: 'State', meta: state, tone: { label: ready ? 'ready' : state, kind: ready ? 'f' : 'g' } }),
+        row({ title: 'Model', meta: status.health?.model || 'nex-base' }),
+        row({ title: 'GPU', meta: pod.gpu || 'reported by RunPod after start' }),
+        row({ title: 'Last started', meta: relative(pod.lastStartedAt) || 'not reported' }),
+        ...(pod.costPerHr != null ? [row({ title: 'Hourly rate', meta: `$${pod.costPerHr.toFixed(2)}/hr` })] : []),
+      ]));
+
+      const act = async (action) => {
+        if (['stop', 'restart'].includes(action) && !window.confirm(`${action === 'stop' ? 'Turn off' : 'Restart'} the Nex pod now?`)) return;
+        try {
+          await postJSON('/api/pod-controller', { action });
+          window.setTimeout(() => ctx.go('pod'), action === 'start' ? 1200 : 500);
+        } catch (error) { window.alert(error.message); }
+      };
+      const test = async () => {
+        const message = window.prompt('Talk directly to the pod model:', 'Say hello as Nex in one sentence.');
+        if (!message) return;
+        try {
+          const result = await postJSON('/api/pod-controller', { action: 'test', message });
+          window.alert(result.reply || 'The pod returned no visible text.');
+        } catch (error) { window.alert(error.message); }
+      };
+
+      nodes.push(chips([
+        ...(pod.state === 'RUNNING' ? [] : [{ label: 'Turn on', run: () => act('start') }]),
+        ...(pod.state === 'RUNNING' ? [{ label: 'Turn off', run: () => act('stop') }] : []),
+        ...(pod.state === 'RUNNING' ? [{ label: 'Restart', run: () => act('restart') }] : []),
+        ...(ready ? [{ label: 'Test Nex', run: test }] : []),
+        { label: 'Refresh', run: () => ctx.go('pod') },
       ]));
       return nodes;
     },

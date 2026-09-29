@@ -672,7 +672,8 @@ el('dockSend').onclick = () => {
 };
 el('dockInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') el('dockSend').click(); });
 
-showView('chat');
+const requestedView = new URLSearchParams(location.search).get('view');
+showView(requestedView && VIEWS[requestedView] ? requestedView : 'chat');
 </script>
 </body>
 </html>

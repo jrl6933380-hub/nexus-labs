@@ -29,6 +29,12 @@ const SYSTEMS = [
     ['Review & Clean', 'Checks collisions, tests the merged result, and packages one clean handoff.'],
     ['Conference View', 'Shows team reasoning and progress without exposing internal static control pages.'],
   ] },
+  { id: 'pod', title: 'Pod Room', icon: 'GPU', hue: 18, status: 'SELF-HOSTED NEX', href: '/workspace.html?view=pod', description: 'Power, health, model, and direct testing for the private GPU brain that serves Nex and Forge.', sections: [
+    ['Power', 'Start, stop, or restart the existing pod without opening the RunPod console.'],
+    ['Health', 'See whether the OpenAI-compatible model endpoint is live and answering securely.'],
+    ['Routing', 'Private Nex chat and selected Forge users use the pod first, with hosted fallback.'],
+    ['Guardrails', 'Creating pods, changing GPU types, scaling, and deletion remain approval-only.'],
+  ] },
   { id: 'memory', title: 'Memory & Vault', icon: 'MV', hue: 42, status: 'PERSISTENT', href: '/memory.html', description: 'Long-term memory, snapshots, reusable code, proven blueprints, and continuity across agents.', sections: [
     ['Long-Term Memory', 'Preserves durable preferences, decisions, systems, and project context.'],
     ['Code Vault', 'Versions reusable blueprints, modules, and blocks instead of regenerating known patterns.'],
