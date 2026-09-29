@@ -84,6 +84,10 @@
   .tag.f{background:#16281f;color:#68d9a4}
   .tag.g{background:#2b2318;color:#e3b467}
   .lempty{font-size:14px;color:#5f5b56;padding:10px 2px 18px}
+  .rdel{position:absolute;right:9px;top:50%;transform:translateY(-50%);width:24px;height:24px;
+    border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;
+    color:#7a766f;background:transparent;transition:.13s;z-index:1}
+  .rdel:hover{background:#2a1c1c;color:#e08b8b}
   .actionform{display:grid;gap:10px;margin:14px 0;padding:18px;border:1px solid var(--ln);border-radius:14px;background:var(--card)}
   .actionform input{width:100%;padding:12px;border:1px solid #414141;border-radius:9px;background:#171717;color:var(--tx);font:inherit}
   .actionform button{padding:11px 15px;border-radius:9px;background:#eee;color:#111;text-align:center}
@@ -245,6 +249,7 @@ const ctx = {
   ask: (text) => askFromView(text),
   go: (id) => showView(id),
   openTask, openApproval, newTask, openDeveloper, createDeveloper, returnToOwner,
+  deleteTask,
 };
 
 async function postAction(verb, payload = {}) {
@@ -291,6 +296,7 @@ async function openTask(id) {
       { label:'Mark working', run:() => updateTask(id, 'in_progress') },
       { label:'Mark blocked', run:() => taskNote(id, 'blocked') },
       { label:'Complete', run:() => taskNote(id, 'complete') },
+      { label:'Delete task', run:() => ctx.deleteTask(id, task.title || id) },
     ], 'deck');
   } catch (error) { actionError(error); }
 }
@@ -301,6 +307,15 @@ function taskNote(id, status) {
 async function updateTask(id, status, note = '') {
   try { await postAction('update_task', { id, status, note }); await showView('deck'); }
   catch (error) { actionError(error); }
+}
+async function deleteTask(id, title = '') {
+  if (!id) return;
+  if (!confirm(`Delete ${title || 'this task'}? This can't be undone.`)) return;
+  try {
+    const data = await postJSON('/api/board', { action:'delete_task', id });
+    if (data.error) throw new Error(data.error);
+    await showView('deck');
+  } catch (error) { actionError(error); }
 }
 function newTask() {
   detail('New board task', 'Give this task a clear title. You can ask Nex to add details after it is created.', [], 'deck');
