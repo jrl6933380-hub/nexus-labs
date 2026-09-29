@@ -77,12 +77,18 @@
   .lhead{font-size:12.5px;color:var(--dm);margin-bottom:8px}
   .lrow{display:flex;align-items:center;gap:12px;width:100%;padding:13px 14px;border-radius:12px;
     background:var(--card);border:1px solid var(--ln);margin-bottom:7px;transition:border-color .13s}
-  button.lrow:hover{border-color:#3a3a3a}
+  .lmain{flex:1;display:flex;align-items:center;gap:12px;min-width:0}
+  .lrow:hover{border-color:#3a3a3a}
   .lt{font-size:15px;line-height:1.35}
   .lm{font-size:12.5px;color:var(--dm);margin-top:4px;line-height:1.4}
   .tag{margin-left:auto;font-size:11px;padding:4px 9px;border-radius:20px;flex-shrink:0;white-space:nowrap}
   .tag.f{background:#16281f;color:#68d9a4}
   .tag.g{background:#2b2318;color:#e3b467}
+  .rowdel{flex-shrink:0;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;
+    justify-content:center;font-size:11px;color:var(--dm);margin-left:2px;opacity:.55;transition:.13s}
+  .lrow:hover .rowdel{opacity:1}
+  .rowdel:hover{background:#2a1d1d;color:#e39a8f}
+  .rowdel[disabled]{opacity:.25;cursor:default}
   .lempty{font-size:14px;color:#5f5b56;padding:10px 2px 18px}
   .actionform{display:grid;gap:10px;margin:14px 0;padding:18px;border:1px solid var(--ln);border-radius:14px;background:var(--card)}
   .actionform input{width:100%;padding:12px;border:1px solid #414141;border-radius:9px;background:#171717;color:var(--tx);font:inherit}
