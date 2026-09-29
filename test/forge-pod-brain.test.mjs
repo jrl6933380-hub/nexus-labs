@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isPodUser, livePodBaseUrl, podRequestBody, _resetPodCacheForTests, POD_MODEL } from '../lib/forge/podBrain.js';
+import { isNexPod, isPodUser, livePodBaseUrl, podRequestBody, _resetPodCacheForTests, NEX_POD_VOLUME_ID, POD_MODEL } from '../lib/forge/podBrain.js';
 
 const env = { NEX_POD_USERS: 'Nexus-forge-owner, james', RUNPOD_API_KEY: 'rp', NEX_POD_KEY: 'pk' };
 
@@ -31,6 +31,19 @@ test('live pod: running nex-pod that passes health check returns its /v1 url', a
   assert.equal(url, 'https://abc-8000.proxy.runpod.net/v1');
   assert.equal(calls[0].auth, 'Bearer rp');
   assert.equal(calls[1].auth, 'Bearer pk');
+});
+
+test('random RunPod names are accepted only when the Nex model volume is attached', async () => {
+  assert.equal(isNexPod({ name: 'misleading_aquamarine_capybara', networkVolumeId: NEX_POD_VOLUME_ID }), true);
+  assert.equal(isNexPod({ name: 'another-pod', networkVolume: { id: NEX_POD_VOLUME_ID } }), true);
+  assert.equal(isNexPod({ name: 'another-pod', networkVolumeId: 'some-other-volume' }), false);
+
+  _resetPodCacheForTests();
+  const fetchImpl = async (url) => {
+    if (url.endsWith('/pods')) return { ok: true, json: async () => [{ id: 'random', name: 'misleading_aquamarine_capybara', networkVolumeId: NEX_POD_VOLUME_ID, desiredStatus: 'RUNNING' }] };
+    return { ok: true };
+  };
+  assert.equal(await livePodBaseUrl({ fetchImpl, env, now: 2_000_000 }), 'https://random-8000.proxy.runpod.net/v1');
 });
 
 test('no pod when stopped, missing, unhealthy, or keys unset', async () => {
