@@ -39,6 +39,17 @@ test('controller only acts on the existing named pod', async () => {
   await assert.rejects(controlPod('delete', { env, fetchImpl }), /Unsupported pod action/);
 });
 
+test('controller recognizes a randomly named pod by the attached Nex volume', async () => {
+  const calls = [];
+  const fetchImpl = async (url, options = {}) => {
+    calls.push({ url, method: options.method || 'GET' });
+    if (url.endsWith('/pods')) return reply([{ id: 'pod-volume', name: 'random-name', networkVolumeId: '1o0z6btbch', desiredStatus: 'EXITED' }]);
+    return reply(null);
+  };
+  await controlPod('start', { env, fetchImpl });
+  assert.equal(calls[1].url, 'https://rest.runpod.io/v1/pods/pod-volume/start');
+});
+
 test('controller refuses to invent or create a missing pod', async () => {
   const fetchImpl = async () => reply([]);
   await assert.rejects(controlPod('start', { env, fetchImpl }), /Deploy a fresh pod/);
