@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { deleteTaskButton } from '../public/workspace-views.js';
+import { deleteTaskButton, row } from '../public/workspace-views.js';
 
 function makeButton({ post = async () => ({}), onDeleted = null, confirmAnswer = true } = {}) {
   if (!global.document) global.document = {};
@@ -63,4 +63,28 @@ test('a failed delete re-enables the button and surfaces the error', async () =>
   await button.onclick({ stopPropagation: () => {} });
   assert.equal(button.disabled, false);
   assert.match(alerted, /Delete failed: nope/);
+});
+
+test('a clickable row keeps the ✕ a sibling, never a nested button', () => {
+  const created = [];
+  global.document.createElement = (tag) => {
+    const el = {
+      tagName: tag,
+      className: '',
+      children: [],
+      appendChild(child) { this.children.push(child); },
+    };
+    created.push(el);
+    return el;
+  };
+  const action = deleteTaskButton({ id: 't-2', title: 'Row task', post: async () => ({}) });
+  const node = row({ title: 'Row task', meta: 'nex', onClick: () => {}, action });
+  assert.equal(node.tagName, 'div');
+  const all = [node, ...created];
+  for (const el of all) {
+    for (const child of el.children) {
+      if (child.tagName === 'button') assert.notEqual(el.tagName, 'button');
+    }
+  }
+  assert.equal(node.children[1], action);
 });
