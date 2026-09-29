@@ -108,10 +108,39 @@ export function row({ title, meta, tone, onClick }) {
   node.appendChild(left);
   if (tone) node.appendChild(pill(tone.label, tone.kind || ''));
   if (onClick) node.onclick = onClick;
+  if (action) node.appendChild(action);
   return node;
 }
 
-export function group(label, children) {
+/**
+ * ✕ for a Command Deck task row. Confirms in place, then deletes via the
+ * existing /api/board delete_task route and re-renders the view. The click
+ * handler stops propagation so tapping it never also fires the row's own
+ * onClick. `post` is injectable so tests can run without network access.
+ */
+export function deleteTaskButton({ id, title, post, onDeleted }) {
+  const button = document.createElement('button');
+  button.className = 'rowdel';
+  button.type = 'button';
+  button.title = 'Delete this task';
+  button.setAttribute('aria-label', `Delete task: ${title}`);
+  button.textContent = '✕';
+  button.onclick = async (event) => {
+    event.stopPropagation();
+    if (!window.confirm(`Delete “${title}”? This can't be undone.`)) return;
+    button.disabled = true;
+    try {
+      await post('/api/board', { action: 'delete_task', id });
+      if (onDeleted) await onDeleted();
+    } catch (err) {
+      button.disabled = false;
+      window.alert(`Delete failed: ${err.message}`);
+    }
+  };
+  return button;
+}
+
+export function row({ title, meta, tone, onClick, action }) {
   const wrap = document.createElement('div');
   wrap.className = 'lgroup';
   if (label) {
@@ -171,17 +200,26 @@ export const VIEWS = {
       ));
 
       if (open.length) {
-        nodes.push(group('Open', open.slice(0, 12).map((task) => row({
-          title: String(field(task, 'title', 'name', 'id')),
-          meta: [field(task, 'owner'), relative(field(task, 'updated_at', 'created_at'))].filter(Boolean).join(' · '),
-          tone: (() => {
-            const state = String(field(task, 'status')).toLowerCase();
-            if (state === 'blocked') return { label: 'blocked', kind: 'g' };
-            if (state === 'in_progress' || state === 'working') return { label: 'working', kind: 'f' };
-            return null;
-          })(),
-          onClick: () => ctx.openTask(field(task, 'id')),
-        }))));
+        nodes.push(group('Open', open.slice(0, 12).map((task) => {
+          const title = String(field(task, 'title', 'name', 'id'));
+          return row({
+            title,
+            meta: [field(task, 'owner'), relative(field(task, 'updated_at', 'created_at'))].filter(Boolean).join(' · '),
+            tone: (() => {
+              const state = String(field(task, 'status')).toLowerCase();
+              if (state === 'blocked') return { label: 'blocked', kind: 'g' };
+              if (state === 'in_progress' || state === 'working') return { label: 'working', kind: 'f' };
+              return null;
+            })(),
+            onClick: () => ctx.openTask(field(task, 'id')),
+            action: deleteTaskButton({
+              id: field(task, 'id'),
+              title,
+              post: postJSON,
+              onDeleted: () => ctx.go('deck'),
+            }),
+          });
+        })));
       } else if (tasks.length === 0) {
         nodes.push(empty('Nothing on the board.'));
       }
