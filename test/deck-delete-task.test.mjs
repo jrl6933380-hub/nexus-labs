@@ -28,10 +28,10 @@ test('api/board.js still routes delete_task to deleteTask', async () => {
 
 test('deck shows a delete button on task rows', async () => {
   const views = await read('../public/workspace-views.js');
-  assert.ok(views.includes('deleteTask'), 'deck view is missing a deleteTask handler');
-  assert.ok(views.includes('aria-label'), 'delete button needs an accessible label');
-  const rowBlock = views.slice(views.indexOf('Open', views.indexOf('deck:')));
-  assert.ok(rowBlock.includes('aria-label="Delete task"'), 'delete button is missing from open-task rows');
+  assert.ok(views.includes('function taskRow('), 'taskRow helper is missing from workspace-views.js');
+  assert.ok(views.includes("setAttribute('aria-label', 'Delete task')"), 'delete button needs an accessible label');
+  const deckBlock = views.slice(views.indexOf('deck:'), views.indexOf('approvals:'));
+  assert.ok(deckBlock.includes('taskRow(task, ctx)'), 'deck open-task rows are not rendered through taskRow');
 });
 
 test('deleteTask requires a confirm before deleting', async () => {
@@ -40,7 +40,7 @@ test('deleteTask requires a confirm before deleting', async () => {
   assert.ok(fnStart > -1, 'deleteTask function is missing from workspace.html');
   const fn = shell.slice(fnStart, shell.indexOf('\nfunction ', fnStart + 10) + 10);
   assert.ok(fn.includes("confirm(`"), 'deleteTask must ask for confirmation before deleting');
-  assert.ok(fn.includes("action: 'delete_task'"), 'deleteTask must POST action=delete_task');
+  assert.ok(fn.includes("action:'delete_task'"), 'deleteTask must POST action=delete_task');
   assert.ok(fn.includes('/api/board'), 'deleteTask must hit /api/board');
   assert.ok(fn.includes("showView('deck')"), 'deleteTask must refresh the deck after deleting');
 });
