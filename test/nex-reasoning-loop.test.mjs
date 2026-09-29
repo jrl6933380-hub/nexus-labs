@@ -85,16 +85,17 @@ test('repeating the exact same tool call with no new result trips stall detectio
   assert.equal(state.blocker, 'no_progress_stall_detected');
 });
 
-test('a large number of distinct, useful steps is never stopped by an arbitrary count', () => {
+test('long useful work checkpoints before the serverless request times out', () => {
   const state = createReasoningState({ message: 'Do a long real task.' });
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 24; i++) {
     const call = { name: 'read_repo_file', input: { path: `lib/file-${i}.js` } };
     assert.equal(registerModelStep(state).allowed, true);
     assert.equal(registerReasoningToolCall(state, call).allowed, true);
     recordReasoningToolResult(state, call, { is_error: false, content: 'ok' });
   }
-  assert.notEqual(state.status, 'blocked');
-  assert.notEqual(state.status, 'waiting');
+  assert.equal(registerModelStep(state).allowed, false);
+  assert.equal(state.status, 'waiting');
+  assert.equal(state.blocker, 'runaway_safety_ceiling_hit');
 });
 
 test('completion is terminal only when required evidence is satisfied', () => {
