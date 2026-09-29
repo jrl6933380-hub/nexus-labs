@@ -144,6 +144,32 @@ export function empty(text) {
   return node;
 }
 
+// A deck task row. Same shape as row(), plus a small ✕ that deletes the task
+// after an explicit confirm — one tap must never take a card off the board.
+function taskRow(task, ctx) {
+  const id = field(task, 'id');
+  const state = String(field(task, 'status')).toLowerCase();
+  const node = row({
+    title: String(field(task, 'title', 'name', 'id')),
+    meta: [field(task, 'owner'), relative(field(task, 'updated_at', 'created_at'))].filter(Boolean).join(' · '),
+    tone:
+      state === 'blocked' ? { label: 'blocked', kind: 'g' }
+      : state === 'in_progress' || state === 'working' ? { label: 'working', kind: 'f' }
+      : null,
+    onClick: () => ctx.openTask(id),
+  });
+  const del = document.createElement('button');
+  del.className = 'rdel';
+  del.textContent = '✕';
+  del.setAttribute('aria-label', 'Delete task');
+  del.onclick = (event) => {
+    event.stopPropagation();
+    ctx.deleteTask(id, String(field(task, 'title', 'name', 'id')));
+  };
+  node.appendChild(del);
+  return node;
+}
+
 // --- the rooms -------------------------------------------------------------
 // Each returns nodes. `ctx` gives a view access to the shell: ctx.ask(text)
 // sends Nex a message in the thread, ctx.go(id) switches view.
@@ -171,17 +197,7 @@ export const VIEWS = {
       ));
 
       if (open.length) {
-        nodes.push(group('Open', open.slice(0, 12).map((task) => row({
-          title: String(field(task, 'title', 'name', 'id')),
-          meta: [field(task, 'owner'), relative(field(task, 'updated_at', 'created_at'))].filter(Boolean).join(' · '),
-          tone: (() => {
-            const state = String(field(task, 'status')).toLowerCase();
-            if (state === 'blocked') return { label: 'blocked', kind: 'g' };
-            if (state === 'in_progress' || state === 'working') return { label: 'working', kind: 'f' };
-            return null;
-          })(),
-          onClick: () => ctx.openTask(field(task, 'id')),
-        }))));
+        nodes.push(group('Open', open.slice(0, 12).map((task) => taskRow(task, ctx))));
       } else if (tasks.length === 0) {
         nodes.push(empty('Nothing on the board.'));
       }
