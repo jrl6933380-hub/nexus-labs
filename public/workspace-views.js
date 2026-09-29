@@ -91,8 +91,14 @@ export function say(text) {
 }
 
 export function row({ title, meta, tone, onClick, action }) {
-  const node = document.createElement(onClick ? 'button' : 'div');
+  // The row is always a plain div: an action (the deck ✕) is a real <button>,
+  // and nesting a button inside a button is invalid HTML that browsers hoist
+  // unpredictably. When the row is clickable, the inner .lmain element is the
+  // button that carries the row click, leaving the ✕ a valid sibling.
+  const node = document.createElement('div');
   node.className = 'lrow';
+  const interactive = document.createElement(onClick ? 'button' : 'div');
+  interactive.className = 'lmain';
   const left = document.createElement('div');
   left.style.minWidth = '0';
   const t = document.createElement('div');
@@ -105,9 +111,10 @@ export function row({ title, meta, tone, onClick, action }) {
     m.textContent = meta;
     left.appendChild(m);
   }
-  node.appendChild(left);
-  if (tone) node.appendChild(pill(tone.label, tone.kind || ''));
-  if (onClick) node.onclick = onClick;
+  interactive.appendChild(left);
+  if (tone) interactive.appendChild(pill(tone.label, tone.kind || ''));
+  if (onClick) interactive.onclick = onClick;
+  node.appendChild(interactive);
   if (action) node.appendChild(action);
   return node;
 }
