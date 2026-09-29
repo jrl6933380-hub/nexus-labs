@@ -7,6 +7,7 @@ process.env.FORGE_ENCRYPTION_KEY = 'a'.repeat(64);
 process.env.NEX_QWEN_ONLY = 'true';
 process.env.RUNPOD_API_KEY = 'rp';
 process.env.NEX_POD_KEY = 'pk';
+process.env.ROOM_EXEMPT_USER_IDS = 'tester,not-on-any-allowlist';
 
 const records = new Map();
 const calls = [];
