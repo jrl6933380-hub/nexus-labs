@@ -90,7 +90,7 @@ export function say(text) {
   return wrap;
 }
 
-export function row({ title, meta, tone, onClick }) {
+export function row({ title, meta, tone, onClick, action }) {
   const node = document.createElement(onClick ? 'button' : 'div');
   node.className = 'lrow';
   const left = document.createElement('div');
@@ -140,7 +140,7 @@ export function deleteTaskButton({ id, title, post, onDeleted }) {
   return button;
 }
 
-export function row({ title, meta, tone, onClick, action }) {
+export function group(label, children) {
   const wrap = document.createElement('div');
   wrap.className = 'lgroup';
   if (label) {
