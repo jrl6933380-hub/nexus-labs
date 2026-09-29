@@ -4,7 +4,6 @@ import assert from 'node:assert/strict';
 process.env.KV_REST_API_URL = 'https://forge-brain-empty-test.invalid';
 process.env.KV_REST_API_TOKEN = 'test';
 process.env.FORGE_ENCRYPTION_KEY = 'a'.repeat(64);
-process.env.ROOM_EXEMPT_USER_IDS = 'tester';
 
 const records = new Map();
 const calls = [];
