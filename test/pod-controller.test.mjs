@@ -12,12 +12,13 @@ test('status exposes safe pod facts and authenticated model health', async () =>
   const calls = [];
   const fetchImpl = async (url, options = {}) => {
     calls.push({ url, options });
-    if (url.endsWith('/pods')) return reply([{ id: 'pod-1', name: 'nex-pod', desiredStatus: 'RUNNING', costPerHr: 1.59 }]);
+    if (url.endsWith('/pods')) return reply([{ id: 'pod-1', name: 'nex-pod', desiredStatus: 'RUNNING', gpu: { displayName: 'NVIDIA A100 80GB PCIe' }, costPerHr: 1.59 }]);
     return reply({ data: [{ id: 'nex-base' }] });
   };
   const status = await podStatus({ env, fetchImpl });
   assert.equal(status.pod.id, 'pod-1');
   assert.equal(status.pod.costPerHr, 1.59);
+  assert.equal(status.pod.gpu, 'NVIDIA A100 80GB PCIe');
   assert.equal(status.health.ready, true);
   assert.equal(calls[1].options.headers.Authorization, 'Bearer pod-secret');
   assert.doesNotMatch(JSON.stringify(status), /runpod-secret|pod-secret/);
@@ -41,4 +42,15 @@ test('controller only acts on the existing named pod', async () => {
 test('controller refuses to invent or create a missing pod', async () => {
   const fetchImpl = async () => reply([]);
   await assert.rejects(controlPod('start', { env, fetchImpl }), /Deploy a fresh pod/);
+});
+
+test('controller preserves the useful RunPod error detail', async () => {
+  const fetchImpl = async (url) => {
+    if (url.endsWith('/pods')) return reply([{ id: 'pod-9', name: 'nex-pod', desiredStatus: 'EXITED' }]);
+    return reply({ error: 'No available machines match this GPU request.' }, false, 500);
+  };
+  await assert.rejects(
+    controlPod('start', { env, fetchImpl }),
+    (error) => error.status === 500 && /No available machines match this GPU request/.test(error.message),
+  );
 });

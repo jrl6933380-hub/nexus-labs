@@ -458,9 +458,9 @@ export const VIEWS = {
       nodes.push(group('Live status', [
         row({ title: 'State', meta: state, tone: { label: ready ? 'ready' : state, kind: ready ? 'f' : 'g' } }),
         row({ title: 'Model', meta: status.health?.model || 'nex-base' }),
-        row({ title: 'GPU', meta: pod.gpu || 'reported by RunPod after start' }),
+        row({ title: 'GPU type', meta: pod.gpu || 'RunPod did not report the GPU name while exited' }),
         row({ title: 'Last started', meta: relative(pod.lastStartedAt) || 'not reported' }),
-        ...(pod.costPerHr != null ? [row({ title: 'Hourly rate', meta: `$${pod.costPerHr.toFixed(2)}/hr` })] : []),
+        ...(pod.costPerHr != null ? [row({ title: 'RunPod rate when running', meta: `$${pod.costPerHr.toFixed(2)}/hr` })] : []),
       ]));
 
       const act = async (action) => {
