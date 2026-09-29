@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite public",
     "test": "node --test",
+    "test:deck": "node --test test/workspace-views-delete.test.mjs",
     "test:a11y": "playwright test",
     "test:nex-trials": "node scripts/run-nex-trials.mjs"
   },
