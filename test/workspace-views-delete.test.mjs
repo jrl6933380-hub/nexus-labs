@@ -54,6 +54,7 @@ test('a cancelled delete posts nothing', async () => {
   const button = makeButton({ confirmAnswer: false, post: async (url, body) => { posted = { url, body }; } });
   await button.onclick({ stopPropagation: () => {} });
   assert.equal(posted, null);
+  assert.equal(button.disabled, false);
 });
 
 test('a failed delete re-enables the button and surfaces the error', async () => {
