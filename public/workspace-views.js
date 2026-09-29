@@ -113,10 +113,21 @@ export function row({ title, meta, tone, onClick, action }) {
 }
 
 /**
- * ✕ for a Command Deck task row. Confirms in place, then deletes via the
- * existing /api/board delete_task route and re-renders the view. The click
- * handler stops propagation so tapping it never also fires the row's own
- * onClick. `post` is injectable so tests can run without network access.
+ * Pure delete flow behind the ✕ on a Command Deck task row: confirm, post
+ * the existing /api/board delete_task route, then re-render. Returns false
+ * when the user cancels, throws when the delete fails. Every dependency is
+ * injected so the flow is testable without a DOM or network.
+ */
+export async function requestDelete({ title, id, post, confirm, onDeleted }) {
+  if (!confirm(`Delete “${title}”? This can't be undone.`)) return false;
+  await post('/api/board', { action: 'delete_task', id });
+  if (onDeleted) await onDeleted();
+  return true;
+}
+
+/**
+ * ✕ for a Command Deck task row. The click handler stops propagation so
+ * tapping it never also fires the row's own onClick.
  */
 export function deleteTaskButton({ id, title, post, onDeleted }) {
   const button = document.createElement('button');
@@ -127,11 +138,9 @@ export function deleteTaskButton({ id, title, post, onDeleted }) {
   button.textContent = '✕';
   button.onclick = async (event) => {
     event.stopPropagation();
-    if (!window.confirm(`Delete “${title}”? This can't be undone.`)) return;
     button.disabled = true;
     try {
-      await post('/api/board', { action: 'delete_task', id });
-      if (onDeleted) await onDeleted();
+      await requestDelete({ title, id, post, confirm: window.confirm, onDeleted });
     } catch (err) {
       button.disabled = false;
       window.alert(`Delete failed: ${err.message}`);
