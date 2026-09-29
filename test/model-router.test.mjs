@@ -100,6 +100,57 @@ test('customer streaming never retries after its caller-owned signal aborts', as
   assert.equal(calls.length, 1);
 });
 
+test('Qwen-only mode fails closed without calling hosted providers', async () => {
+  _resetPodCacheForTests();
+  const calls = [];
+  await assert.rejects(
+    routeMessage({
+      body: { messages: [{ role: 'user', content: 'hi' }] },
+      env: {
+        NEX_QWEN_ONLY: 'true',
+        RUNPOD_API_KEY: 'rp',
+        NEX_POD_KEY: 'pk',
+        ANTHROPIC_API_KEY: 'anthropic-key',
+        AI_GATEWAY_API_KEY: 'gateway-key',
+      },
+      fetchFn: async (url) => {
+        calls.push(url);
+        if (url === 'https://rest.runpod.io/v1/pods') return response({ json: [] });
+        throw new Error(`hosted provider must not be called: ${url}`);
+      },
+    }),
+    (error) => error instanceof AllProvidersUnavailableError
+      && error.attempts.length === 1
+      && error.attempts[0].provider === 'nex-pod'
+  );
+  assert.equal(calls.some((url) => url.includes('api.anthropic.com')), false);
+  assert.equal(calls.some((url) => url.includes('ai-gateway.vercel.sh')), false);
+});
+
+test('Qwen-only named delegation stays on the pod', async () => {
+  _resetPodCacheForTests();
+  const calls = [];
+  const result = await routeToModel({
+    model: 'openai/gpt-5.6-sol',
+    body: { messages: [{ role: 'user', content: 'review this' }] },
+    env: { NEX_QWEN_ONLY: 'true', RUNPOD_API_KEY: 'rp', NEX_POD_KEY: 'pk' },
+    fetchFn: async (url) => {
+      calls.push(url);
+      if (url === 'https://rest.runpod.io/v1/pods') {
+        return response({ json: [{ id: 'pod-1', name: 'nex-pod', desiredStatus: 'RUNNING' }] });
+      }
+      if (url.endsWith('/v1/models')) return response();
+      if (url.endsWith('/v1/chat/completions')) {
+        return response({ json: { model: 'nex-base', choices: [{ message: { content: 'Qwen review' } }] } });
+      }
+      throw new Error(`unexpected ${url}`);
+    },
+  });
+  assert.equal(result.provider, 'nex-pod');
+  assert.equal(result.model, 'nex-base');
+  assert.equal(calls.some((url) => url.includes('ai-gateway.vercel.sh')), false);
+});
+
 test('uses direct Anthropic first when it is healthy', async () => {
   const calls = [];
   const result = await routeMessage({
