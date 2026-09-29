@@ -1,4 +1,7 @@
 {
+  "env": {
+    "NEX_QWEN_ONLY": "true"
+  },
   "functions": {
     "api/room-chat.js": { "maxDuration": 300 }
   },
