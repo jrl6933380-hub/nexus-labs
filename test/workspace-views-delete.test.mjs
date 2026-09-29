@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { deleteTaskButton } from '../public/workspace-views.js';
 
 function makeButton({ post = async () => ({}), onDeleted = null, confirmAnswer = true } = {}) {
+  if (!global.document) global.document = {};
   global.document.createElement = (tag) => ({
     tagName: tag,
     className: '',
@@ -57,8 +58,8 @@ test('a cancelled delete posts nothing', async () => {
 
 test('a failed delete re-enables the button and surfaces the error', async () => {
   let alerted = null;
-  global.window.alert = (message) => { alerted = message; };
   const button = makeButton({ post: async () => { throw new Error('nope'); } });
+  global.window.alert = (message) => { alerted = message; };
   await button.onclick({ stopPropagation: () => {} });
   assert.equal(button.disabled, false);
   assert.match(alerted, /Delete failed: nope/);
