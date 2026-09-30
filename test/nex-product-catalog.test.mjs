@@ -29,8 +29,14 @@ test('the owner shell leads with Nex Chat and separates products from operations
   assert.match(workspace, /<title>Nex Chat<\/title>/u);
   assert.match(workspace, /id="productNav"/u);
   assert.match(workspace, /Founder operations/u);
-  assert.match(workspace, /What can we make happen\?/u);
+  assert.match(workspace, /What are we thinking about, Justin\?/u);
   assert.match(workspace, /Ask Nex anything/u);
+});
+
+test('the mobile welcome keeps all four starters in a compact two-column grid', () => {
+  assert.match(workspace, /grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/u);
+  assert.doesNotMatch(workspace, /startergrid\{grid-template-columns:1fr/u);
+  assert.doesNotMatch(workspace, /When you are ready to build/u);
 });
 
 test('fixed Workbench and Capabilities controls use the workspace router', () => {
