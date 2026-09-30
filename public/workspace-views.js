@@ -15,6 +15,8 @@
 // instead of throwing. A room that quietly shows nothing is bad; a room that
 // blanks the whole shell because a field moved is worse.
 
+import { NEXUS_PRODUCTS, NEX_CHAT_PLANS } from './nexus-product-catalog.js';
+
 export const pill = (text, tone = '') => {
   const span = document.createElement('span');
   span.className = `tag ${tone}`;
@@ -195,6 +197,73 @@ export function empty(text) {
 // sends Nex a message in the thread, ctx.go(id) switches view.
 
 export const VIEWS = {
+  workbench: {
+    label: 'Workbench',
+    icon: '▦',
+    say: ['workbench', 'nex workbench', 'panels', 'build mode'],
+    async render(ctx) {
+      return [
+        say('Workbench is where ideas become working products. Each panel can hold a complete website, app, business, or intelligence — with its own full stack and a path to go live.'),
+        group('Plans', Object.values(NEX_CHAT_PLANS).map((plan) => row({
+          title: `${plan.name}${plan.price ? ` · $${plan.price}/month` : ''}`,
+          meta: plan.description,
+          tone: plan.name === 'Plus' ? { label: '10 panels', kind: 'f' }
+            : plan.name === 'Pro' ? { label: '3 panels' } : { label: 'chat' },
+        }))),
+        chips([
+          { label: 'Map a build', run: () => ctx.ask('Help me map a new build before we open a Workbench panel.') },
+          { label: 'Open Forge', run: () => ctx.go('forge') },
+          { label: 'Plan my panels', run: () => ctx.ask('Help me decide how to organize my interconnected Workbench panels.') },
+        ]),
+      ];
+    },
+  },
+
+  life: {
+    label: 'Nexus Life',
+    icon: NEXUS_PRODUCTS.life.icon,
+    say: ['nexus life', 'life'],
+    async render(ctx) {
+      return [
+        say(`${NEXUS_PRODUCTS.life.promise} Nex connects the plans you talk through here with the routines, health, time, and relationships you want to protect.`),
+        chips([
+          { label: 'Plan my day', run: () => ctx.ask('Help me plan today around what matters most in Nexus Life.') },
+          { label: 'Check my balance', run: () => ctx.ask('Look across my priorities and tell me what part of life I am neglecting.') },
+        ]),
+      ];
+    },
+  },
+
+  legacy: {
+    label: 'Nexus Legacy',
+    icon: NEXUS_PRODUCTS.legacy.icon,
+    say: ['nexus legacy', 'legacy'],
+    async render(ctx) {
+      return [
+        say(`${NEXUS_PRODUCTS.legacy.promise} This is the bridge from everyday conversation into the people, memories, lessons, and moments you never want to lose.`),
+        chips([
+          { label: 'Save a memory', run: () => ctx.ask('I want to preserve a memory in Nexus Legacy. Walk me through it.') },
+          { label: 'Who should I reach out to', run: () => ctx.ask('Who in my life might appreciate hearing from me right now?') },
+        ]),
+      ];
+    },
+  },
+
+  teams: {
+    label: 'Nexus Teams',
+    icon: NEXUS_PRODUCTS.teams.icon,
+    say: ['nexus teams', 'teams'],
+    async render(ctx) {
+      return [
+        say(`${NEXUS_PRODUCTS.teams.promise} Bring people and agents into one shared canvas, hand off work clearly, and keep a human in control of the decisions that matter.`),
+        chips([
+          { label: 'Plan a team workspace', run: () => ctx.ask('Help me design a Nexus Teams workspace for a new project.') },
+          { label: 'See my AI team', run: () => ctx.go('agents') },
+        ]),
+      ];
+    },
+  },
+
   deck: {
     label: 'Command Deck',
     icon: '◈',
