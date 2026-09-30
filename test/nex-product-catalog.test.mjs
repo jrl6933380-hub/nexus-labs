@@ -29,7 +29,7 @@ test('the owner shell leads with Nex Chat and separates products from operations
   assert.match(workspace, /<title>Nex Chat<\/title>/u);
   assert.match(workspace, /id="productNav"/u);
   assert.match(workspace, /Founder operations/u);
-  assert.match(workspace, /What are we thinking about, Justin\?/u);
+  assert.match(workspace, /What's on your mind, Justin\?/u);
   assert.match(workspace, /Ask Nex anything/u);
 });
 
