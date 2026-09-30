@@ -83,6 +83,10 @@
   .startergrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:22px;max-width:620px;width:100%;text-align:left}
   .starter{min-height:78px;border:1px solid var(--ln);border-radius:15px;padding:13px 14px;background:#131313;color:#d7d3ce;font-size:13.5px;line-height:1.3}
   .starter:hover{border-color:#3b4f70;background:#161a21}.starter span{display:block;color:#73706a;font-size:11px;margin-top:5px}
+  .plannerweek{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(88px,1fr);gap:8px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:none}
+  .plannerweek::-webkit-scrollbar{display:none}.plannerday{min-height:104px;border:1px solid var(--ln);border-radius:16px;background:#131313;padding:12px;text-align:center}
+  .plannerday:hover{border-color:#3b4f70}.plannerday.today{border-color:#4f75ad;background:#151b25}.plannerday span,.plannerday small{display:block;color:#817d77;font-size:11px}
+  .plannerday strong{display:block;font:400 28px/1.35 ui-serif,Georgia,serif}.plannerday small{color:#9fbcf3}
   .msg{margin-bottom:24px}
   .msg.u{display:flex;justify-content:flex-end}
   .msg.u .body{background:#1f1f1f;padding:12px 17px;border-radius:20px;max-width:82%;font-size:16px;line-height:1.5}
@@ -130,6 +134,9 @@
   .comp:focus-within{border-color:#4e6f9f;box-shadow:0 12px 42px rgba(0,0,0,.3),0 0 0 1px rgba(116,167,255,.12)}
   .comp input{width:100%;background:none;border:0;outline:none;color:var(--tx);font-size:16px}
   .comp input::placeholder{color:#7a766f}
+  .plannerform{display:grid;grid-template-columns:1fr 1fr;gap:12px}.plannerform label:first-child,.plannerform label:last-of-type,.plannerform button,.plannerform [role=status]{grid-column:1/-1}
+  .plannerform label{display:grid;gap:7px;color:#aaa59e;font-size:12px}.plannerform input,.plannerform textarea{width:100%;background:#111;border:1px solid #303030;border-radius:11px;color:var(--tx);padding:11px;font:inherit}
+  .plannerform textarea{min-height:92px;resize:vertical}.plannerform button{background:#f2f0ed;color:#111;border-radius:20px;padding:11px;text-align:center}
   .crow{display:flex;align-items:center;gap:9px;margin-top:13px}
   .round{width:31px;height:31px;border-radius:50%;background:var(--chip);display:flex;
     align-items:center;justify-content:center;font-size:17px;color:#cfcbc5;flex-shrink:0}
@@ -188,6 +195,7 @@
   <div class="brand"><span class="brandmark">N</span><span class="brandcopy"><span class="brandname">Nex Chat</span><span class="brandmeta">Founder workspace</span></span></div>
   <button class="new" id="newBtn">＋&nbsp; New chat</button>
   <button class="item on" data-view="chat"><span class="ic">✦</span>Chat</button>
+  <button class="item" data-view="planner"><span class="ic">▤</span>Planner</button>
   <button class="item" data-view="workbench"><span class="ic">▦</span>Workbench<span class="badgeplan">10 panels</span></button>
   <div class="grp">Connected Nexus</div>
   <div id="productNav"></div>
@@ -195,6 +203,7 @@
   <div class="scrollpart" id="recents"></div>
   <details class="ops">
     <summary class="grp">Founder operations</summary>
+    <button class="item" id="ownerBriefBtn"><span class="ic">◉</span>What needs me?</button>
     <div id="opsNav"></div>
     <div class="grp">Pinned visuals</div>
     <div id="pinned"></div>
@@ -287,6 +296,7 @@ const ctx = {
   ask: (text) => askFromView(text),
   go: (id) => showView(id),
   openTask, openApproval, newTask, openDeveloper, createDeveloper, returnToOwner,
+  newPlannerItem, openPlannerItem,
 };
 
 async function postAction(verb, payload = {}) {
@@ -301,6 +311,13 @@ async function postForge(action, extra = {}) {
     headers:{'Content-Type':'application/json'}, body:JSON.stringify({ action, ...extra }) });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || `Forge action failed (${response.status})`);
+  return data;
+}
+async function postPlanner(action, extra = {}) {
+  const response = await fetch('/api/planner', { method:'POST', credentials:'include',
+    headers:{'Content-Type':'application/json'}, body:JSON.stringify({ action, ...extra }) });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || `Planner action failed (${response.status})`);
   return data;
 }
 function detail(title, description, actions, back = currentView) {
@@ -321,6 +338,47 @@ function formCard(title, placeholder, submitLabel, onSubmit, { secret = false } 
   form.onsubmit = async (event) => { event.preventDefault(); button.disabled = true; error.textContent = '';
     try { await onSubmit(input.value.trim()); } catch (failure) { error.textContent = failure.message; button.disabled = false; } };
   thread.appendChild(form); input.focus();
+}
+function localDateTime(date) {
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+function plannerForm(item = null, preferredDate = '') {
+  const base = item ? new Date(item.starts_at) : new Date();
+  if (!item) {
+    if (preferredDate) {
+      const [year, month, day] = preferredDate.split('-').map(Number);
+      base.setFullYear(year, month - 1, day);
+    }
+    base.setHours(base.getHours() + 1, 0, 0, 0);
+  }
+  detail(item ? 'Edit plan' : 'Add to your planner', 'Nex can read and update anything saved here. Connected Nexus products can later sync into this same view without replacing their own planners.', [], 'planner');
+  const form = document.createElement('form'); form.className = 'actionform plannerform';
+  const field = (labelText, input) => { const label = document.createElement('label'); label.textContent = labelText; label.appendChild(input); return label; };
+  const title = document.createElement('input'); title.required = true; title.placeholder = 'What is happening?'; title.value = item?.title || '';
+  const start = document.createElement('input'); start.type = 'datetime-local'; start.required = true; start.value = localDateTime(base);
+  const end = document.createElement('input'); end.type = 'datetime-local'; end.value = item?.ends_at ? localDateTime(new Date(item.ends_at)) : '';
+  const notes = document.createElement('textarea'); notes.placeholder = 'Notes, location, or what to remember'; notes.value = item?.notes || '';
+  const save = document.createElement('button'); save.type = 'submit'; save.textContent = item ? 'Save changes' : 'Add to planner';
+  const error = document.createElement('span'); error.setAttribute('role', 'status');
+  form.append(field('Title', title), field('Starts', start), field('Ends (optional)', end), field('Notes (optional)', notes), save, error);
+  form.onsubmit = async (event) => { event.preventDefault(); save.disabled = true; error.textContent = '';
+    try {
+      const payload = { title:title.value.trim(), starts_at:new Date(start.value).toISOString(), ends_at:end.value ? new Date(end.value).toISOString() : null, notes:notes.value.trim() };
+      await postPlanner(item ? 'update' : 'create', item ? { id:item.id, ...payload } : payload);
+      await showView('planner');
+    } catch (failure) { error.textContent = failure.message; save.disabled = false; }
+  };
+  thread.appendChild(form); title.focus();
+}
+function newPlannerItem(preferredDate = '') { plannerForm(null, preferredDate); }
+function openPlannerItem(item) {
+  const when = new Date(item.starts_at).toLocaleString([], { dateStyle:'full', timeStyle:item.all_day ? undefined : 'short' });
+  detail(item.title, [when, item.notes, `Status: ${item.status || 'planned'}${item.source && item.source !== 'nex_chat' ? ` · From ${item.source}` : ''}`].filter(Boolean).join('\n\n'), [
+    { label:'Edit', run:() => plannerForm(item) },
+    { label:item.status === 'done' ? 'Mark planned' : 'Mark done', run:async () => { await postPlanner('update', { id:item.id, status:item.status === 'done' ? 'planned' : 'done' }); await showView('planner'); } },
+    { label:'Delete', run:async () => { if (!confirm(`Delete “${item.title}”? This can't be undone.`)) return; await postPlanner('delete', { id:item.id }); await showView('planner'); } },
+  ], 'planner');
 }
 async function openTask(id) {
   if (!id) return;
@@ -410,7 +468,7 @@ screenEl.addEventListener('click', (e) => {
 // Rail entries are generated from the view table, so the menu can never offer
 // somewhere that doesn't exist or miss somewhere that does.
 const productViews = new Set(['life', 'legacy', 'teams']);
-const hiddenViews = new Set(['workbench', 'skills']);
+const hiddenViews = new Set(['workbench', 'planner', 'skills']);
 const makeNav = (id, view, host) => {
   const button = document.createElement('button');
   button.className = 'item';
@@ -453,7 +511,7 @@ function paragraphs(text){
 async function showView(id){
   currentView = id;
   railOpen(false);
-  if (!['chat', 'workbench', 'life', 'legacy', 'teams', 'skills'].includes(id)) {
+  if (!['chat', 'workbench', 'planner', 'life', 'legacy', 'teams', 'skills'].includes(id)) {
     document.querySelector('.ops').open = true;
   }
   for (const button of document.querySelectorAll('[data-view]')) {
@@ -631,6 +689,12 @@ el('pinBtn').onclick = () => ctx.ask(`Draw me a visual of ${currentView === 'cha
 el('newBtn').onclick = el('newTop').onclick = () => {
   history.length = 0; threadId = null; railOpen(false); showView('chat');
 };
+el('ownerBriefBtn').onclick = () => {
+  document.querySelector('.ops').open = true;
+  showView('chat');
+  el('input').value = 'What actually needs me right now across the whole system?';
+  submit();
+};
 
 function greet(){
   const welcome = document.createElement('section');
@@ -638,7 +702,7 @@ function greet(){
   welcome.innerHTML = `<div class="welcome-mark">N</div><h1>What's on your mind, Justin?</h1><p>Talk through anything. I can help you think, plan, decide, and run what matters across Nexus.</p>`;
   const starters = document.createElement('div'); starters.className = 'startergrid';
   const items = [
-    ['What needs me?', 'Check the whole system', 'What actually needs me right now across Nexus?'],
+    ['Plan my time', 'Days, events, and schedules', null, 'planner'],
     ['Think something through', 'Ideas, decisions, anything', 'Help me think something through. Start by asking what is on my mind.'],
     ['Open Workbench', 'Build when I choose', null, 'workbench'],
     ['Connected life', 'Life, Legacy & Teams', 'Show me how my connected Nexus products can help today.'],

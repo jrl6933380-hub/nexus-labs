@@ -4,7 +4,7 @@
 // the whole board (tasks + recent messages + live agent presence);
 // POST takes an `action` field to route to the right operation.
 //
-// Also serves /api/hyperfocus, /api/agentlog, /api/vault,
+// Also serves /api/hyperfocus, /api/agentlog, /api/vault, /api/planner,
 // /api/tenants, and /api/oauth/:provider/callback (see vercel.json
 // rewrites) — folded in here rather than as their own serverless
 // functions to stay under the Vercel Hobby plan's 12-function-per-
@@ -72,6 +72,7 @@ import { maybeCheckSystemStatus } from '../lib/systemMonitor.js';
 import { getNexusOwner } from '../lib/nexusOwnerAuth.js';
 import { getPinnedVisual, renderPinnedVisual, restorePinnedVisual, setPinnedVisualLocked } from '../lib/pinnedVisuals.js';
 import { listQueue, approveQueueItem, rejectQueueItem, notifyQueue } from '../lib/queue.js';
+import { listPlannerItems, createPlannerItem, updatePlannerItem, deletePlannerItem } from '../lib/planner.js';
 
 // This must exactly match the Authorization Callback URL / Redirect
 // URL registered with GitHub and Vercel — deriving it from the
@@ -92,6 +93,29 @@ function internalAgentAuthorized(req) {
 function developerSource(value) {
   const source = String(value || 'developer').trim().toLowerCase();
   return `developer:${/^[a-z0-9_-]{1,32}$/u.test(source) ? source : 'developer'}`;
+}
+
+async function handlePlanner(req, res) {
+  res.setHeader('Cache-Control', 'private, no-store');
+  const owner = await getNexusOwner(req).catch(() => null);
+  if (!owner) return res.status(401).json({ error: 'Nexus owner authentication required.' });
+
+  try {
+    if (req.method === 'GET') {
+      const { from, to, status } = req.query || {};
+      return res.status(200).json({ items: await listPlannerItems({ from, to, status }) });
+    }
+    if (req.method === 'POST') {
+      const { action, ...params } = req.body || {};
+      if (action === 'create') return res.status(200).json({ item: await createPlannerItem(params) });
+      if (action === 'update') return res.status(200).json({ item: await updatePlannerItem(params) });
+      if (action === 'delete') return res.status(200).json({ deleted: await deletePlannerItem(params.id) });
+      return res.status(400).json({ error: `Unknown planner action: ${action || '(none)'}` });
+    }
+    return res.status(405).json({ error: 'Method Not Allowed' });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
 }
 
 async function handlePinnedVisuals(req, res) {
@@ -610,7 +634,7 @@ export default async function handler(req, res) {
   try {
     // req.url still reflects the ORIGINAL request path even when a
     // vercel.json rewrite sent /api/hyperfocus, /api/agentlog,
-    // /api/vault, /api/pinned-visuals, /api/tenants, or /api/oauth/:provider/callback
+    // /api/vault, /api/planner, /api/pinned-visuals, /api/tenants, or /api/oauth/:provider/callback
     // traffic to this same function — rewrites change which function
     // runs, not what req.url reports. That's what makes routing on it
     // safe here.
@@ -618,6 +642,7 @@ export default async function handler(req, res) {
     if (path.startsWith('/api/hyperfocus')) return await handleHyperfocus(req, res);
     if (path.startsWith('/api/agentlog')) return await handleAgentLog(req, res);
     if (path.startsWith('/api/vault')) return await handleVault(req, res);
+    if (path.startsWith('/api/planner')) return await handlePlanner(req, res);
     if (path.startsWith('/api/pinned-visuals')) return await handlePinnedVisuals(req, res);
     if (path.startsWith('/api/nex/action')) return await handleNexAction(req, res);
     if (path.startsWith('/api/sentry-webhook')) return await handleSentryWebhook(req, res);
@@ -628,7 +653,7 @@ export default async function handler(req, res) {
     }
     return await handleBoard(req, res);
   } catch (err) {
-    console.error('board/hyperfocus/agentlog/vault/pinned-visuals/tenants/oauth handler crashed:', err.message);
+    console.error('board/hyperfocus/agentlog/vault/planner/pinned-visuals/tenants/oauth handler crashed:', err.message);
     return res.status(500).json({ error: err.message });
   }
 }
