@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#0e0e0e" />
-<title>Nexus // Workspace</title>
+<title>Nex Chat</title>
 <!--
   /workspace.html — the whole system as one conversation.
 
@@ -27,7 +27,7 @@
 <style>
   :root{
     --bg:#0e0e0e; --rail:#141414; --tx:#f2f0ed; --dm:#8f8b85; --ln:#262626;
-    --card:#131313; --chip:#1f1f1f; --rw:214px;
+    --card:#151515; --chip:#202020; --rw:252px; --blue:#74a7ff;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%}
@@ -36,19 +36,28 @@
   button{cursor:pointer;border:0;background:none;color:inherit;font:inherit;text-align:left}
 
   .rail{position:fixed;inset:0 auto 0 0;width:var(--rw);display:flex;flex-direction:column;
-    padding:calc(env(safe-area-inset-top) + 20px) 12px 14px}
-  .brand{font:400 26px ui-serif,Georgia,"Times New Roman",serif;padding:0 10px 18px}
+    padding:calc(env(safe-area-inset-top) + 16px) 12px 14px;background:linear-gradient(180deg,#151515,#111)}
+  .brand{display:flex;align-items:center;gap:11px;padding:0 9px 18px}
+  .brandmark{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;color:#081322;
+    background:linear-gradient(145deg,#94bbff,#5488e8);font:700 18px ui-serif,Georgia,serif;box-shadow:0 8px 24px rgba(64,116,204,.22)}
+  .brandcopy{min-width:0}.brandname{display:block;font:500 18px/1.1 ui-serif,Georgia,"Times New Roman",serif;color:var(--tx)}
+  .brandmeta{display:block;font-size:11px;color:var(--dm);margin-top:4px;letter-spacing:.02em}
   .item{display:flex;align-items:center;gap:13px;width:100%;padding:10px;border-radius:10px;
     font-size:15px;color:#e4e1dd;transition:background .13s}
   .item:hover{background:#1e1e1e}
   .item.on{background:#2a2a2a}
   .ic{width:17px;text-align:center;font-size:14px;color:#a5a09a;flex-shrink:0}
-  .grp{font-size:12.5px;color:var(--dm);padding:0 10px;margin:16px 0 6px}
+  .grp{font-size:11px;color:#77736d;padding:0 10px;margin:17px 0 6px;text-transform:uppercase;letter-spacing:.08em}
+  .badgeplan{margin-left:auto;font-size:10px;color:#9fbcf3;background:#1c2a42;border:1px solid #293b59;
+    border-radius:12px;padding:3px 7px;text-transform:uppercase;letter-spacing:.05em}
+  .ops summary{list-style:none;cursor:pointer}.ops summary::-webkit-details-marker{display:none}
+  .ops summary::after{content:'›';float:right;font-size:17px;line-height:11px;transition:transform .15s}
+  .ops[open] summary::after{transform:rotate(90deg)}
   .scrollpart{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0}
   .scrollpart .item{font-size:14.5px;color:#cfcbc5;padding:9px 10px}
   .dot{width:6px;height:6px;border-radius:50%;background:#4a4a4a;flex-shrink:0;margin-left:5px}
   .tr{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .new{margin-top:10px;display:flex;align-items:center;justify-content:center;gap:8px;
+  .new{margin:0 0 10px;display:flex;align-items:center;justify-content:center;gap:8px;
     background:#f2f0ed;color:#0e0e0e;border-radius:24px;padding:12px;font-size:15px;font-weight:500}
 
   .screen{position:fixed;inset:0;background:var(--bg);z-index:5;display:flex;flex-direction:column;
@@ -56,15 +65,24 @@
     box-shadow:-16px 0 44px rgba(0,0,0,.65)}
   .screen.open{transform:translateX(var(--rw))}
 
-  .top{display:flex;align-items:center;gap:16px;padding:calc(env(safe-area-inset-top) + 14px) 16px 10px}
+  .top{display:flex;align-items:center;gap:14px;padding:calc(env(safe-area-inset-top) + 14px) 16px 10px}
   .burger{width:21px;display:flex;flex-direction:column;gap:4.5px;flex-shrink:0;padding:6px 0}
   .burger i{display:block;height:1.8px;background:#d8d4cf;border-radius:2px}
   .burger i:nth-child(2){width:14px}.burger i:nth-child(3){width:17px}
-  .vt{font-size:15px;color:#c4c0ba}
+  .viewcopy{min-width:0}.vt{font-size:15px;color:#e4e1dd}.vsub{font-size:11px;color:#77736d;margin-top:2px}
   .grow{flex:1}
   .ticon{font-size:17px;color:#d8d4cf;opacity:.85;padding:4px}
 
   .thread{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 18px 4px}
+  .welcome{min-height:100%;display:flex;flex-direction:column;justify-content:center;padding:42px 0 12vh}
+  .welcome-mark{width:46px;height:46px;border-radius:15px;display:grid;place-items:center;margin-bottom:23px;
+    background:linear-gradient(145deg,#94bbff,#5488e8);color:#081322;font:700 23px ui-serif,Georgia,serif;
+    box-shadow:0 12px 34px rgba(63,112,196,.24)}
+  .welcome h1{font:400 clamp(30px,7vw,48px)/1.08 ui-serif,Georgia,"Times New Roman",serif;letter-spacing:-.025em;max-width:620px}
+  .welcome p{font:400 16px/1.65 ui-serif,Georgia,"Times New Roman",serif;color:#aaa59e;max-width:600px;margin-top:14px}
+  .startergrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:27px;max-width:600px}
+  .starter{border:1px solid var(--ln);border-radius:15px;padding:14px;background:#131313;color:#d7d3ce;font-size:13px;line-height:1.35}
+  .starter:hover{border-color:#3b4f70;background:#161a21}.starter span{display:block;color:#73706a;font-size:11px;margin-top:5px}
   .msg{margin-bottom:24px}
   .msg.u{display:flex;justify-content:flex-end}
   .msg.u .body{background:#1f1f1f;padding:12px 17px;border-radius:20px;max-width:82%;font-size:16px;line-height:1.5}
@@ -108,7 +126,8 @@
 
   .disc{font-size:12.5px;color:#6e6a64;padding:6px 18px 10px}
   .foot{padding:0 14px calc(env(safe-area-inset-bottom) + 14px)}
-  .comp{border:1px solid #2e2e2e;border-radius:24px;padding:14px 15px 11px;background:var(--card)}
+  .comp{border:1px solid #303030;border-radius:24px;padding:14px 15px 11px;background:var(--card);box-shadow:0 12px 42px rgba(0,0,0,.25)}
+  .comp:focus-within{border-color:#4e6f9f;box-shadow:0 12px 42px rgba(0,0,0,.3),0 0 0 1px rgba(116,167,255,.12)}
   .comp input{width:100%;background:none;border:0;outline:none;color:var(--tx);font-size:16px}
   .comp input::placeholder{color:#7a766f}
   .crow{display:flex;align-items:center;gap:9px;margin-top:13px}
@@ -152,27 +171,35 @@
     .burger{display:none}
     .thread,.foot,.disc{max-width:780px;margin-left:auto;margin-right:auto;width:100%}
   }
+  @media (max-width:520px){.startergrid{grid-template-columns:1fr}.welcome{justify-content:flex-start;padding-top:15vh}.vsub{display:none}}
 </style>
 </head>
 <body>
 
 <nav class="rail" id="rail">
-  <div class="brand">Nexus</div>
-  <button class="item on" data-view="chat"><span class="ic">◇</span>Workspace</button>
-  <div id="viewNav"></div>
+  <div class="brand"><span class="brandmark">N</span><span class="brandcopy"><span class="brandname">Nex Chat</span><span class="brandmeta">Founder workspace</span></span></div>
+  <button class="new" id="newBtn">＋&nbsp; New chat</button>
+  <button class="item on" data-view="chat"><span class="ic">✦</span>Chat</button>
+  <button class="item" data-view="workbench"><span class="ic">▦</span>Workbench<span class="badgeplan">10 panels</span></button>
+  <div class="grp">Connected Nexus</div>
+  <div id="productNav"></div>
   <div class="grp">Recents</div>
   <div class="scrollpart" id="recents"></div>
-  <div class="grp">Pinned</div>
-  <div id="pinned"></div>
-  <button class="item" id="pinSetupBtn"><span class="ic">◈</span>Set Nexus code</button>
-  <button class="item" id="lockBtn"><span class="ic">◇</span>Lock Nexus</button>
-  <button class="new" id="newBtn">+&nbsp; New</button>
+  <details class="ops">
+    <summary class="grp">Founder operations</summary>
+    <div id="opsNav"></div>
+    <div class="grp">Pinned visuals</div>
+    <div id="pinned"></div>
+  </details>
+  <button class="item" data-view="skills"><span class="ic">◫</span>Capabilities</button>
+  <button class="item" id="pinSetupBtn"><span class="ic">⌁</span>Security</button>
+  <button class="item" id="lockBtn"><span class="ic">◇</span>Lock Nex</button>
 </nav>
 
 <div class="screen" id="screen">
   <div class="top">
     <button class="burger" id="burger" aria-label="Menu"><i></i><i></i><i></i></button>
-    <div class="vt" id="viewTitle">Workspace</div>
+    <div class="viewcopy"><div class="vt" id="viewTitle">Nex Chat</div><div class="vsub" id="viewSubtitle">Your connected AI</div></div>
     <div class="grow"></div>
     <button class="ticon" id="headBtn" aria-label="Nex">◉</button>
     <button class="ticon" id="newTop" aria-label="New">＋</button>
@@ -183,7 +210,7 @@
 
   <div class="foot">
     <div class="comp">
-      <input id="input" placeholder="Command or question…" autocomplete="off" />
+      <input id="input" placeholder="Ask Nex anything…" autocomplete="off" />
       <div class="crow">
         <button class="round" id="capBtn" title="What I can do">◫</button>
         <button class="round" id="pinBtn" title="Pin this view">▣</button>
@@ -211,6 +238,7 @@
 
 <script type="module">
 import { VIEWS, matchView, say, chips, esc } from '/workspace-views.js';
+import { NEX_CHAT_MODES } from '/nexus-product-catalog.js';
 
 // Owner gate. The previous root page checked this before rendering anything, and
 // this shell now sits at the root, so it has to hold the same line — without it,
@@ -373,14 +401,19 @@ screenEl.addEventListener('click', (e) => {
 
 // Rail entries are generated from the view table, so the menu can never offer
 // somewhere that doesn't exist or miss somewhere that does.
-const nav = el('viewNav');
-for (const [id, view] of Object.entries(VIEWS)) {
+const productViews = new Set(['life', 'legacy', 'teams']);
+const hiddenViews = new Set(['workbench', 'skills']);
+const makeNav = (id, view, host) => {
   const button = document.createElement('button');
   button.className = 'item';
   button.dataset.view = id;
   button.innerHTML = `<span class="ic">${view.icon}</span>${esc(view.label)}`;
   button.onclick = () => showView(id);
-  nav.appendChild(button);
+  host.appendChild(button);
+};
+for (const [id, view] of Object.entries(VIEWS)) {
+  if (hiddenViews.has(id)) continue;
+  makeNav(id, view, productViews.has(id) ? el('productNav') : el('opsNav'));
 }
 
 function bubble(role, html){
@@ -406,10 +439,14 @@ function paragraphs(text){
 async function showView(id){
   currentView = id;
   railOpen(false);
+  if (!['chat', 'workbench', 'life', 'legacy', 'teams', 'skills'].includes(id)) {
+    document.querySelector('.ops').open = true;
+  }
   for (const button of document.querySelectorAll('[data-view]')) {
     button.classList.toggle('on', button.dataset.view === id);
   }
-  el('viewTitle').textContent = id === 'chat' ? 'Workspace' : VIEWS[id].label;
+  el('viewTitle').textContent = id === 'chat' ? 'Nex Chat' : VIEWS[id].label;
+  el('viewSubtitle').textContent = id === 'workbench' ? 'Build mode' : id === 'chat' ? 'Your connected AI' : 'Connected through Nex';
 
   if (id === 'chat') { replayThread(); return; }
 
@@ -560,8 +597,9 @@ el('input').addEventListener('keydown', (e) => { if (e.key === 'Enter') submit()
 function workspaceContext() {
   const visible = [...thread.querySelectorAll('.msg, .lrow, .lhead')]
     .filter((node) => !node.closest('.secret-card'));
-  return { active_view: `${location.pathname}#${currentView}`,
-    screen: { title: currentView === 'chat' ? 'Workspace' : VIEWS[currentView].label,
+  const mode = currentView === 'workbench' ? 'workbench' : 'chat';
+  return { active_view: `${location.pathname}#${currentView}`, mode, build_tools: NEX_CHAT_MODES[mode].buildTools,
+    screen: { title: currentView === 'chat' ? 'Nex Chat' : VIEWS[currentView].label,
       viewport_text: visible.map((node) => node.innerText).filter(Boolean).slice(0, 30),
       controls: [...thread.querySelectorAll('button')].filter((node) => !node.closest('.secret-card'))
         .map((node) => node.textContent).filter(Boolean).slice(0, 40),
@@ -581,10 +619,23 @@ el('newBtn').onclick = el('newTop').onclick = () => {
 };
 
 function greet(){
-  thread.appendChild(say('Everything lives here now. Say a room name and I switch to it — “forge”, “approvals”, “memory”. Anything else is a question for me.'));
-  thread.appendChild(chips(
-    Object.entries(VIEWS).slice(0,4).map(([id,view]) => ({ label: view.label, run: () => showView(id) }))
-  ));
+  const welcome = document.createElement('section');
+  welcome.className = 'welcome';
+  welcome.innerHTML = `<div class="welcome-mark">N</div><h1>What can we make happen?</h1><p>Talk through anything. I can help you think, plan, and run what is connected across Nexus. When you are ready to build, open Workbench.</p>`;
+  const starters = document.createElement('div'); starters.className = 'startergrid';
+  const items = [
+    ['What needs me?', 'Check the whole system', 'What actually needs me right now across Nexus?'],
+    ['Map an idea', 'Think it through first', 'Help me turn an idea into a clear plan.'],
+    ['Open Workbench', 'Build and ship', null, 'workbench'],
+    ['Connected life', 'Life, Legacy, and Teams', 'Show me how my connected Nexus products can help today.'],
+  ];
+  for (const [label, meta, prompt, view] of items) {
+    const button = document.createElement('button'); button.className = 'starter';
+    button.innerHTML = `${esc(label)}<span>${esc(meta)}</span>`;
+    button.onclick = () => view ? showView(view) : askFromView(prompt);
+    starters.appendChild(button);
+  }
+  welcome.appendChild(starters); thread.appendChild(welcome);
 }
 
 // --- Nex head --------------------------------------------------------------
