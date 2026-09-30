@@ -32,3 +32,10 @@ test('the owner shell leads with Nex Chat and separates products from operations
   assert.match(workspace, /What can we make happen\?/u);
   assert.match(workspace, /Ask Nex anything/u);
 });
+
+test('fixed Workbench and Capabilities controls use the workspace router', () => {
+  assert.match(workspace, /data-view="workbench"/u);
+  assert.match(workspace, /data-view="skills"/u);
+  assert.match(workspace, /document\.querySelectorAll\('\[data-view\]'\)/u);
+  assert.match(workspace, /showView\(button\.dataset\.view\)/u);
+});

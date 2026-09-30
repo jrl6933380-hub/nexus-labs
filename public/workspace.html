@@ -415,6 +415,12 @@ for (const [id, view] of Object.entries(VIEWS)) {
   if (hiddenViews.has(id)) continue;
   makeNav(id, view, productViews.has(id) ? el('productNav') : el('opsNav'));
 }
+// Workbench and Capabilities are fixed shell controls rather than generated
+// navigation entries. Bind any fixed data-view button through the same router
+// so it cannot silently become a dead control when the menu is reorganized.
+for (const button of document.querySelectorAll('[data-view]')) {
+  button.onclick ||= () => showView(button.dataset.view);
+}
 
 function bubble(role, html){
   const wrap = document.createElement('div');
