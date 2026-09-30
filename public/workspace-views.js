@@ -192,6 +192,29 @@ export function empty(text) {
   return node;
 }
 
+function dayKey(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (!Number.isFinite(date.getTime())) return '';
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function plannerWeek(items, ctx) {
+  const wrap = document.createElement('div');
+  wrap.className = 'plannerweek';
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  for (let offset = 0; offset < 7; offset += 1) {
+    const date = new Date(today); date.setDate(today.getDate() + offset);
+    const key = dayKey(date);
+    const events = items.filter((item) => item.status !== 'cancelled' && dayKey(item.starts_at) === key);
+    const button = document.createElement('button');
+    button.className = `plannerday${offset === 0 ? ' today' : ''}`;
+    button.innerHTML = `<span>${date.toLocaleDateString(undefined, { weekday: 'short' })}</span><strong>${date.getDate()}</strong><small>${events.length ? `${events.length} plan${events.length === 1 ? '' : 's'}` : 'Open'}</small>`;
+    button.onclick = () => events[0] ? ctx.openPlannerItem(events[0]) : ctx.newPlannerItem(key);
+    wrap.appendChild(button);
+  }
+  return wrap;
+}
+
 // --- the rooms -------------------------------------------------------------
 // Each returns nodes. `ctx` gives a view access to the shell: ctx.ask(text)
 // sends Nex a message in the thread, ctx.go(id) switches view.
@@ -215,6 +238,35 @@ export const VIEWS = {
           { label: 'Open Forge', run: () => ctx.go('forge') },
           { label: 'Plan my panels', run: () => ctx.ask('Help me decide how to organize my interconnected Workbench panels.') },
         ]),
+      ];
+    },
+  },
+
+  planner: {
+    label: 'Planner',
+    icon: '▤',
+    say: ['planner', 'calendar', 'schedule', 'my day', 'my week'],
+    async render(ctx) {
+      const payload = await getJSON('/api/planner');
+      const items = pick(payload, 'items').filter((item) => item.status !== 'cancelled');
+      const upcoming = items.filter((item) => Date.parse(item.starts_at) >= Date.now() - 86400000);
+      const agenda = upcoming.length
+        ? upcoming.slice(0, 30).map((item) => row({
+          title: item.status === 'done' ? `✓ ${item.title}` : item.title,
+          meta: `${new Date(item.starts_at).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: item.all_day ? undefined : 'numeric', minute: item.all_day ? undefined : '2-digit' })}${item.source && item.source !== 'nex_chat' ? ` · ${item.source}` : ''}`,
+          tone: item.status === 'done' ? { label: 'done' } : null,
+          onClick: () => ctx.openPlannerItem(item),
+        }))
+        : [empty('Nothing planned yet. Add an event or ask Nex to shape the week with you.')];
+      return [
+        say('Your time, in one place. Plan days, events, appointments, and reminders here—or tell Nex what needs to happen and let him organize it with you.'),
+        plannerWeek(items, ctx),
+        chips([
+          { label: 'Add event', run: () => ctx.newPlannerItem() },
+          { label: 'Plan with Nex', run: () => ctx.ask('Help me plan my upcoming days. Read my planner first, then ask what I need to make room for.') },
+          { label: 'Refresh', run: () => ctx.go('planner') },
+        ]),
+        group('Upcoming', agenda),
       ];
     },
   },

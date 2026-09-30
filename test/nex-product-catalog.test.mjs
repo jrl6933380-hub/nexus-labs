@@ -45,3 +45,10 @@ test('fixed Workbench and Capabilities controls use the workspace router', () =>
   assert.match(workspace, /document\.querySelectorAll\('\[data-view\]'\)/u);
   assert.match(workspace, /showView\(button\.dataset\.view\)/u);
 });
+
+test('the public home card introduces Planner while the system briefing stays private', () => {
+  assert.match(workspace, /Plan my time/u);
+  assert.match(workspace, /Days, events, and schedules/u);
+  assert.match(workspace, /id="ownerBriefBtn"/u);
+  assert.match(workspace, /Founder operations/u);
+});
