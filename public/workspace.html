@@ -152,6 +152,11 @@
   .plannerform label{display:grid;gap:7px;color:#aaa59e;font-size:12px}.plannerform input,.plannerform textarea{width:100%;background:#111;border:1px solid #303030;border-radius:11px;color:var(--tx);padding:11px;font:inherit}
   .plannerform textarea{min-height:92px;resize:vertical}.plannerform button{background:#f2f0ed;color:#111;border-radius:20px;padding:11px;text-align:center}
   .crow{display:flex;align-items:center;gap:9px;margin-top:13px}
+  .composer-actions{display:flex;align-items:center;gap:7px;min-width:0;overflow-x:auto;scrollbar-width:none}
+  .composer-actions::-webkit-scrollbar{display:none}
+  .quickaction{flex-shrink:0;padding:8px 12px;border-radius:17px;background:var(--chip);border:1px solid var(--ln);
+    color:#cfcac4;font-size:12.5px;line-height:1;white-space:nowrap}
+  .quickaction:hover{border-color:#3b4f70;color:var(--tx)}
   .round{width:31px;height:31px;border-radius:50%;background:var(--chip);display:flex;
     align-items:center;justify-content:center;font-size:17px;color:#cfcbc5;flex-shrink:0}
   .round:hover{color:var(--tx)}
@@ -244,9 +249,11 @@
     <div class="comp">
       <input id="input" placeholder="Ask Nex anything…" autocomplete="off" />
       <div class="crow">
-        <button class="round" id="capBtn" title="What I can do">◫</button>
-        <button class="round" id="pinBtn" title="Pin this view">▣</button>
-        <button class="round" id="snapBtn" title="Read the screen">⌖</button>
+        <div class="composer-actions" aria-label="Nex Chat actions">
+          <button class="quickaction" id="plannerQuickBtn">Plan</button>
+          <button class="quickaction" id="projectsQuickBtn">Projects</button>
+          <button class="quickaction" id="connectedQuickBtn">Connected</button>
+        </div>
         <div class="grow"></div>
         <button class="send" id="send" aria-label="Send">↑</button>
       </div>
@@ -743,9 +750,24 @@ function askFromView(text) {
   head.classList.add('show'); dock.classList.add('show'); place();
   dockAsk(text);
 }
-el('capBtn').onclick = () => showView('skills');
-el('snapBtn').onclick = () => ctx.ask('Here is what I am looking at — read the current view and tell me what stands out.');
-el('pinBtn').onclick = () => ctx.ask(`Draw me a visual of ${currentView === 'chat' ? 'this conversation' : VIEWS[currentView].label} that I can pin.`);
+function showConnectedActions(){
+  currentView = 'chat';
+  railOpen(false);
+  for (const button of document.querySelectorAll('[data-view]')) button.classList.toggle('on', button.dataset.view === 'chat');
+  el('viewTitle').textContent = 'Nex Chat';
+  el('viewSubtitle').textContent = 'Connected through Nex';
+  thread.innerHTML = '';
+  thread.appendChild(say('Choose the part of Nexus you want to work with. Nex stays your main conversation and carries the context between them.'));
+  thread.appendChild(chips([
+    { label:'Nexus Life', run:() => showView('life') },
+    { label:'Nexus Legacy', run:() => showView('legacy') },
+    { label:'Nexus Teams', run:() => showView('teams') },
+    { label:'Back to chat', run:() => showView('chat') },
+  ]));
+}
+el('plannerQuickBtn').onclick = () => showView('planner');
+el('projectsQuickBtn').onclick = () => showView('workbench');
+el('connectedQuickBtn').onclick = showConnectedActions;
 el('newBtn').onclick = el('newTop').onclick = () => {
   history.length = 0; threadId = null; railOpen(false); showView('chat');
 };

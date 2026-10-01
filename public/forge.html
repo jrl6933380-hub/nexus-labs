@@ -139,6 +139,11 @@
   .comp input{width:100%;background:none;border:0;outline:none;color:var(--tx);font-size:16px}
   .comp input::placeholder{color:#767b87}
   .crow{display:flex;align-items:center;gap:9px;margin-top:13px}
+  .composer-actions{display:flex;align-items:center;gap:7px;min-width:0;overflow-x:auto;scrollbar-width:none;flex:1}
+  .composer-actions::-webkit-scrollbar{display:none}
+  .toolaction{flex-shrink:0;padding:8px 11px;border-radius:17px;background:var(--chip);border:1px solid var(--ln);
+    color:#c8ccd4;font-size:12px;line-height:1;white-space:nowrap}
+  .toolaction:hover{border-color:#566072;color:var(--tx)}
   .round{width:31px;height:31px;border-radius:50%;background:var(--chip);display:flex;
     align-items:center;justify-content:center;font-size:17px;color:#c8ccd4;flex-shrink:0}
   .send{width:33px;height:33px;border-radius:50%;background:var(--accent);color:#17130a;display:flex;
@@ -215,9 +220,13 @@
         <div class="comp">
           <input id="input" placeholder="Tell me what you want to build…" autocomplete="off" />
           <div class="crow">
-            <button class="round" id="helpBtn" title="What I can do">?</button>
-            <button class="round" id="previewBtn" title="Preview">◱</button>
-            <div class="grow"></div>
+            <div class="composer-actions" aria-label="Project actions">
+              <button class="toolaction" id="helpBtn">Help</button>
+              <button class="toolaction" id="previewBtn">Preview</button>
+              <button class="toolaction" id="addProjectBtn" hidden>Add</button>
+              <button class="toolaction" id="planProjectBtn" hidden>Plan</button>
+              <button class="toolaction" id="connectionsProjectBtn" hidden>Connections</button>
+            </div>
             <button class="send" id="send" aria-label="Send">↑</button>
           </div>
         </div>
@@ -1195,6 +1204,9 @@ el('send').onclick = submit;
 el('input').addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
 el('helpBtn').onclick = () => showView('help');
 el('previewBtn').onclick = () => showView('preview');
+el('addProjectBtn').onclick = () => showView('pages');
+el('planProjectBtn').onclick = () => showView('brief');
+el('connectionsProjectBtn').onclick = () => showView('stack');
 el('editorFullPreview').onclick = () => showView('preview');
 el('newBtn').onclick = el('newTop').onclick = () => {
   railOpen(false); ctx.startProject();
@@ -1359,6 +1371,7 @@ if (startupParams.get('onboarding') === '1' || startupParams.get('view') === 'br
 // decide what to offer from it, so rendering first would briefly show options
 // this customer cannot use — and then remove them, which reads as a glitch.
 await loadConnection();
+for (const id of ['addProjectBtn', 'planProjectBtn', 'connectionsProjectBtn']) el(id).hidden = !isWorkbench;
 drawNav();
 
 if (!await handleBrainResult()) {
