@@ -249,6 +249,40 @@ function projectRow(project, ctx) {
   return wrap;
 }
 
+function workbenchProjectTiles(ctx) {
+  const grid = document.createElement('div');
+  grid.className = 'workbench-project-grid';
+  grid.setAttribute('aria-label', 'Workbench panels');
+
+  if (ctx.hasCurrentBuild?.()) {
+    const current = document.createElement('button');
+    current.type = 'button';
+    current.className = 'workbench-project-tile';
+    current.setAttribute('aria-label', 'Open the current panel in Full Preview');
+    const frame = document.createElement('iframe');
+    frame.title = 'Current panel preview';
+    frame.tabIndex = -1;
+    frame.setAttribute('sandbox', 'allow-scripts allow-forms');
+    frame.setAttribute('referrerpolicy', 'no-referrer');
+    frame.srcdoc = ctx.currentBuild?.() || '';
+    const label = document.createElement('span');
+    label.className = 'tile-label';
+    label.textContent = ctx.currentProjectLabel?.() || 'Current panel';
+    current.append(frame, label);
+    current.onclick = () => ctx.go('preview');
+    grid.appendChild(current);
+  }
+
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.className = 'workbench-project-tile add-panel';
+  add.setAttribute('aria-label', 'Start a new Workbench panel');
+  add.innerHTML = '<span class="plus">+</span><strong>New panel</strong><small>Add to your Workbench</small>';
+  add.onclick = () => ctx.startProject();
+  grid.appendChild(add);
+  return grid;
+}
+
 // A filling circle, not a number.
 //
 // The customer's real question is "can I keep going", and a ring answers it
@@ -375,6 +409,7 @@ export const FORGE_VIEWS = {
           say(ctx.hasCurrentBuild?.()
             ? 'Your project is open. It can be a complete website, app, business system, or intelligence—not just one screen. Preview the whole experience, add supporting pieces, connect what it needs, and publish when it is ready.'
             : 'Start with the main project: a website, app, business system, or intelligence. Nex will build the first working version, then you can add supporting pieces into the same stack.'),
+          workbenchProjectTiles(ctx),
           chips([
             { label: ctx.hasCurrentBuild?.() ? 'Edit with Nex' : 'Start building', run: () => ctx.go('chat') },
             { label: 'Full Preview', run: () => ctx.go('preview') },
