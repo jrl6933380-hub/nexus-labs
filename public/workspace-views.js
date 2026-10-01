@@ -225,19 +225,40 @@ export const VIEWS = {
     icon: '▦',
     say: ['workbench', 'nex workbench', 'panels', 'build mode'],
     async render(ctx) {
+      const payload = await getJSON('/api/room-history');
+      const projects = pick(payload, 'projects', 'builds');
+      const panels = projects.length
+        ? projects.slice(0, 10).map((project) => {
+          const buildId = field(project, 'latestBuildId', 'id');
+          const versions = Number(field(project, 'versionCount')) || 0;
+          const liveUrl = field(project, 'liveUrl');
+          return row({
+            title: String(field(project, 'label', 'title', 'name', 'requestMessage', 'id') || 'Untitled panel').slice(0, 90),
+            meta: [
+              versions ? `${versions} version${versions === 1 ? '' : 's'}` : '',
+              relative(field(project, 'updatedAt', 'createdAt', 'ts')),
+            ].filter(Boolean).join(' · '),
+            tone: liveUrl ? { label: 'live', kind: 'f' } : { label: 'saved' },
+            onClick: buildId ? () => ctx.openWorkbenchPanel(buildId) : null,
+          });
+        })
+        : [empty('No panels yet. Start one here and it will be saved in your Forge project system.')];
       return [
-        say('Workbench is where ideas become working products. Each panel can hold a complete website, app, business, or intelligence — with its own full stack and a path to go live.'),
+        say(projects.length
+          ? `Your Workbench has ${projects.length} saved panel${projects.length === 1 ? '' : 's'}. Each one opens the real Forge project behind it, with its versions, full stack, and path to go live.`
+          : 'Workbench is where ideas become working products. Each panel can hold a complete website, app, business, or intelligence—with its own full stack and a path to go live.'),
+        chips([
+          { label: 'New panel', run: () => ctx.newWorkbenchPanel() },
+          { label: 'Map a build', run: () => ctx.ask('Help me map a new build before we open a Workbench panel.') },
+          { label: 'Refresh', run: () => ctx.go('workbench') },
+        ]),
+        group('Your panels', panels),
         group('Plans', Object.values(NEX_CHAT_PLANS).map((plan) => row({
           title: `${plan.name}${plan.price ? ` · $${plan.price}/month` : ''}`,
           meta: plan.description,
           tone: plan.name === 'Plus' ? { label: '10 panels', kind: 'f' }
             : plan.name === 'Pro' ? { label: '3 panels' } : { label: 'chat' },
         }))),
-        chips([
-          { label: 'Map a build', run: () => ctx.ask('Help me map a new build before we open a Workbench panel.') },
-          { label: 'Open Forge', run: () => ctx.go('forge') },
-          { label: 'Plan my panels', run: () => ctx.ask('Help me decide how to organize my interconnected Workbench panels.') },
-        ]),
       ];
     },
   },

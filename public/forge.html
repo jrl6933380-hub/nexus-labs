@@ -1141,7 +1141,13 @@ drawNav();
 
 if (!await handleBrainResult()) {
   const requestedView = startupParams.get('view');
-  if (requestedView && FORGE_VIEWS[requestedView]) {
+  const requestedBuild = startupParams.get('build');
+  const wantsNewProject = startupParams.get('new') === '1';
+  if (signedIn && requestedBuild && /^[a-zA-Z0-9_-]{1,160}$/u.test(requestedBuild)) {
+    await ctx.openBuild(requestedBuild);
+  } else if (signedIn && wantsNewProject) {
+    ctx.startProject();
+  } else if (requestedView && FORGE_VIEWS[requestedView]) {
     await showView(requestedView);
   } else if (startupParams.get('onboarding') === '1') {
     await showView('brain');
