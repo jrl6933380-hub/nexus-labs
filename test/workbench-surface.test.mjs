@@ -2,14 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const [workspace, forge, views] = await Promise.all([
+const [workspace, forge, views, workspaceViews] = await Promise.all([
   readFile(new URL('../public/workspace.html', import.meta.url), 'utf8'),
   readFile(new URL('../public/forge.html', import.meta.url), 'utf8'),
   readFile(new URL('../public/forge-views.js', import.meta.url), 'utf8'),
+  readFile(new URL('../public/workspace-views.js', import.meta.url), 'utf8'),
 ]);
 
 test('Nex Chat opens panels through the tailored Workbench surface', () => {
-  assert.match(workspace, /forge\.html\?surface=workbench&view=chat&build=/u);
+  assert.match(workspace, /mode === 'edit' \? 'chat' : 'preview'/u);
   assert.match(workspace, /forge\.html\?surface=workbench&view=chat&new=1/u);
 });
 
@@ -36,5 +37,21 @@ test('Full Preview renders the current build across the viewport with a simple e
   assert.match(forge, /frame\.srcdoc = currentBuild/u);
   assert.match(forge, /id === 'preview' && isWorkbench && renderWorkbenchPreview\(\)/u);
   assert.match(forge, /edit\.textContent = 'Edit with Nex'/u);
-  assert.match(forge, /back\.textContent = '← Back'/u);
+  assert.match(forge, /back\.textContent = '← Projects'/u);
+});
+
+test('Workbench editing pins the live project while only the Nex conversation scrolls', () => {
+  assert.match(forge, /class="project-editor-preview"/u);
+  assert.match(forge, /classList\.toggle\('workbench-editing', editing\)/u);
+  assert.match(forge, /frame\.srcdoc = currentBuild/u);
+  assert.match(forge, /if \(isWorkbench\) syncWorkbenchEditor\(\)/u);
+  assert.match(forge, /grid-template-columns:minmax\(0,1\.45fr\) minmax\(360px,\.75fr\)/u);
+});
+
+test('Projects view shows plan usage and the backend receives the Workbench surface for limit enforcement', () => {
+  assert.match(workspace, />Projects<span class="badgeplan"/u);
+  assert.match(workspaceViews, /projectUsage\(projects\.length, limit, workbench\.planName\)/u);
+  assert.match(workspaceViews, /Upgrade for more projects/u);
+  assert.match(forge, /surface: surfaceMode/u);
+  assert.match(forge, /WORKBENCH_PROJECT_LIMIT/u);
 });

@@ -16,10 +16,12 @@ test('Nex Chat sends a stable thread id and loads cloud thread summaries', () =>
   assert.match(chat, /loadConversation\(operatorUser, threadId\)/u);
 });
 
-test('Workbench renders real Forge projects and deep-links the selected build', () => {
+test('Projects gallery renders real builds and defaults selected cards to full preview', () => {
   assert.match(views, /getJSON\('\/api\/room-history'\)/u);
-  assert.match(views, /ctx\.openWorkbenchPanel\(buildId\)/u);
-  assert.match(workspace, /forge\.html\?surface=workbench&view=chat&build=/u);
+  assert.match(views, /className = 'projectgrid'/u);
+  assert.match(views, /ctx\.openWorkbenchPanel\(buildId, 'preview'\)/u);
+  assert.match(views, /ctx\.openWorkbenchPanel\(buildId, 'edit'\)/u);
+  assert.match(workspace, /view=\$\{mode === 'edit' \? 'chat' : 'preview'\}/u);
   assert.match(forge, /startupParams\.get\('build'\)/u);
-  assert.match(forge, /await ctx\.openBuild\(requestedBuild\)/u);
+  assert.match(forge, /await ctx\.openBuild\(requestedBuild, requestedView === 'preview' \? 'preview' : 'chat'\)/u);
 });
