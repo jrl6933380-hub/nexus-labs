@@ -92,6 +92,22 @@ test('paid accounts publish successfully and get back a real url', async () => {
   assert.equal(res.body.deployment_id, 'dpl_1');
 });
 
+test('the public deployment receives only project HTML, never Workbench editing chrome', async () => {
+  let publishedHtml = '';
+  const cleanProject = '<!doctype html><html><body><main>Customer site</main></body></html>';
+  const res = response();
+  await make({
+    readBuild: async () => ({ html: cleanProject, projectId: 'p1' }),
+    publish: async ({ html }) => {
+      publishedHtml = html;
+      return { deployed: true, url: 'https://room-alice-p1.vercel.app', deployment_id: 'dpl_1' };
+    },
+  })(request(), res);
+  assert.equal(res.code, 200);
+  assert.equal(publishedHtml, cleanProject);
+  assert.doesNotMatch(publishedHtml, /Edit with Nex|workbench-preview-bar|project-editor-preview/u);
+});
+
 test('a failed publish returns 502 with the reason', async () => {
   const res = response();
   await make({ publish: async () => ({ deployed: false, reason: 'No Vercel token configured' }) })(request(), res);
