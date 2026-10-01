@@ -89,6 +89,14 @@
   .visual iframe{display:block;width:100%;border:0;background:var(--card)}
   .vbar{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--ln)}
   .vname{font-size:12.5px;color:#c8ccd4}
+  .workbench-full-preview{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;background:#fff;color:#17130a}
+  .workbench-preview-bar{height:54px;display:flex;align-items:center;gap:10px;padding:8px 12px;
+    background:#111318;color:#f2f0ed;border-bottom:1px solid #2b3040;flex-shrink:0}
+  .workbench-preview-bar strong{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .workbench-preview-bar button{padding:8px 12px;border:1px solid #343a48;border-radius:18px;background:#1b2029;
+    color:#e7e9ed;font-size:12.5px;white-space:nowrap}
+  .workbench-preview-bar .preview-edit{margin-left:auto;background:var(--accent);border-color:var(--accent);color:#17130a;font-weight:650}
+  .workbench-full-preview iframe{display:block;width:100%;height:calc(100vh - 54px);border:0;background:#fff;flex:1}
 
   .chips{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 6px}
   .chip{font-size:13.5px;padding:9px 15px;border-radius:20px;background:#191d25;
@@ -332,11 +340,11 @@ const history = [];
 const startupParams = new URLSearchParams(location.search);
 const surfaceMode = startupParams.get('surface') === 'workbench' ? 'workbench' : 'forge';
 const isWorkbench = surfaceMode === 'workbench';
-const WORKBENCH_VIEW_ORDER = ['project', 'brief', 'pages', 'preview', 'stack', 'help'];
-const WORKBENCH_VIEWS = new Set(WORKBENCH_VIEW_ORDER);
+const WORKBENCH_VIEW_ORDER = ['project', 'preview', 'pages', 'stack', 'brief'];
+const WORKBENCH_VIEWS = new Set([...WORKBENCH_VIEW_ORDER, 'help']);
 const WORKBENCH_LABELS = {
-  project: 'Panel Home', brief: 'Project Brief', pages: 'Pages',
-  preview: 'Preview', stack: 'Full Stack', help: 'Workbench Help',
+  project: 'Your Project', preview: 'Full Preview', pages: 'Add to Project',
+  stack: 'Connections', brief: 'Project Plan', help: 'How It Works',
 };
 if (isWorkbench) {
   document.title = 'Nex Workbench';
@@ -344,8 +352,8 @@ if (isWorkbench) {
   el('surfaceProduct').textContent = 'Workbench';
   el('viewTitle').textContent = 'Nex Workbench';
   el('input').placeholder = 'Tell Nex what to build or change…';
-  el('newBtn').innerHTML = '+&nbsp; New panel';
-  el('newTop').setAttribute('aria-label', 'New panel');
+  el('newBtn').innerHTML = '+&nbsp; New project';
+  el('newTop').setAttribute('aria-label', 'New project');
 }
 const allowedReturnPaths = new Set(['/forge.html', '/room.html', '/story-studio.html']);
 const requestedReturnPath = startupParams.get('return');
@@ -691,6 +699,7 @@ function renderVisual(html, title){
   card.appendChild(frame);
 
   card.querySelector('.vb').onclick = () => {
+    if (isWorkbench) { showView('preview'); return; }
     // Blob URL rather than document.write so the preview opens in its own
     // origin instead of inheriting this one.
     const blob = new Blob([html], { type: 'text/html' });
@@ -704,7 +713,47 @@ function renderVisual(html, title){
   return card;
 }
 
+function openPreviewInNewTab(html) {
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank', 'noopener');
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+function renderWorkbenchPreview(){
+  if (!currentBuild) return false;
+  const shell = document.createElement('section');
+  shell.id = 'workbenchFullPreview';
+  shell.className = 'workbench-full-preview';
+  shell.setAttribute('aria-label', 'Full project preview');
+
+  const bar = document.createElement('div');
+  bar.className = 'workbench-preview-bar';
+  const back = document.createElement('button');
+  back.type = 'button'; back.textContent = '← Back';
+  back.onclick = () => showView('project');
+  const title = document.createElement('strong');
+  title.textContent = 'Full project preview';
+  const edit = document.createElement('button');
+  edit.type = 'button'; edit.className = 'preview-edit'; edit.textContent = 'Edit with Nex';
+  edit.onclick = () => { showView('chat'); el('input').focus(); };
+  const external = document.createElement('button');
+  external.type = 'button'; external.textContent = 'Open separately ↗';
+  external.onclick = () => openPreviewInNewTab(currentBuild);
+  bar.append(back, title, edit, external);
+
+  const frame = document.createElement('iframe');
+  frame.title = 'Project preview';
+  frame.setAttribute('sandbox', 'allow-scripts allow-forms');
+  frame.setAttribute('referrerpolicy', 'no-referrer');
+  frame.srcdoc = currentBuild;
+  shell.append(bar, frame);
+  document.body.appendChild(shell);
+  return true;
+}
+
 async function showView(id){
+  document.getElementById('workbenchFullPreview')?.remove();
   if (!viewAllowed(id)) id = 'project';
   currentView = id;
   railOpen(false);
@@ -715,6 +764,7 @@ async function showView(id){
     ? (isWorkbench ? 'Nex Workbench' : 'Nexus Forge')
     : (isWorkbench ? WORKBENCH_LABELS[id] : FORGE_VIEWS[id].label);
   if (id === 'chat') { replay(); return; }
+  if (id === 'preview' && isWorkbench && renderWorkbenchPreview()) return;
   thread.innerHTML = '';
   bubble('sys', 'One second…');
   try {
@@ -788,7 +838,7 @@ drawRecents();
     host.innerHTML = '<div class="grp">Nex Chat</div>';
     const back = document.createElement('button');
     back.className = 'item';
-    back.innerHTML = '<span class="ic">←</span><span class="tr">All panels</span>';
+    back.innerHTML = '<span class="ic">←</span><span class="tr">All projects</span>';
     back.onclick = () => location.assign('/workspace.html?view=workbench');
     host.appendChild(back);
     return;
@@ -1034,13 +1084,14 @@ el('newBtn').onclick = el('newTop').onclick = () => {
 
 function greet(){
   if (isWorkbench) {
-    thread.appendChild(say(`This is your Workbench panel. Build the product here, open its pages and preview, connect the full stack, and take it live when it's ready. Your other panels stay separate in Nex Chat.`));
+    thread.appendChild(say(`This Workbench project can become a complete website, app, business system, or intelligence. Build the main experience here, then add supporting pages, tools, automations, and connections into the same stack.`));
     const workbenchOptions = [
       { label: 'Describe what to build', run: () => { el('input').focus(); } },
-      { label: 'Open Preview', run: () => showView('preview') },
+      { label: 'Full Preview', run: () => showView('preview') },
+      { label: 'Add to Project', run: () => showView('pages') },
     ];
-    if (featureUnlocked(connectionSnapshot(), 'brief')) workbenchOptions.splice(1, 0, { label: 'Project Brief', run: () => showView('brief') });
-    if (featureUnlocked(connectionSnapshot(), 'stack')) workbenchOptions.push({ label: 'Full Stack', run: () => showView('stack') });
+    if (featureUnlocked(connectionSnapshot(), 'brief')) workbenchOptions.push({ label: 'Project Plan', run: () => showView('brief') });
+    if (featureUnlocked(connectionSnapshot(), 'stack')) workbenchOptions.push({ label: 'Connections', run: () => showView('stack') });
     thread.appendChild(chips(workbenchOptions));
     return;
   }

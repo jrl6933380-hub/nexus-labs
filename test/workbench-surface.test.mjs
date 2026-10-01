@@ -14,7 +14,7 @@ test('Nex Chat opens panels through the tailored Workbench surface', () => {
 });
 
 test('Workbench exposes only its ordered panel rooms while ordinary Forge keeps its full navigation', () => {
-  assert.match(forge, /WORKBENCH_VIEW_ORDER = \['project', 'brief', 'pages', 'preview', 'stack', 'help'\]/u);
+  assert.match(forge, /WORKBENCH_VIEW_ORDER = \['project', 'preview', 'pages', 'stack', 'brief'\]/u);
   assert.match(forge, /return id === 'chat' \|\| !isWorkbench \|\| WORKBENCH_VIEWS\.has\(id\)/u);
   assert.match(forge, /if \(!viewAllowed\(id\)\) id = 'project'/u);
   assert.match(forge, /target && viewAllowed\(target\)/u);
@@ -24,8 +24,17 @@ test('Workbench exposes only its ordered panel rooms while ordinary Forge keeps 
 
 test('Workbench copy and rooms stay scoped to the current panel', () => {
   assert.match(forge, /surfaceProduct'\)\.textContent = 'Workbench'/u);
-  assert.match(forge, />All panels</u);
+  assert.match(forge, />All projects</u);
   assert.match(views, /ctx\.surface\?\.\(\) === 'workbench'/u);
-  assert.match(views, /Your other panels stay separate|without touching your other panels/u);
-  assert.match(views, /Full Stack/u);
+  assert.match(views, /website, app, business system, or intelligence/u);
+  assert.match(views, /Supporting pages, tools, workflows, and intelligences/u);
+  assert.match(views, /Connections/u);
+});
+
+test('Full Preview renders the current build across the viewport with a simple exit and edit path', () => {
+  assert.match(forge, /className = 'workbench-full-preview'/u);
+  assert.match(forge, /frame\.srcdoc = currentBuild/u);
+  assert.match(forge, /id === 'preview' && isWorkbench && renderWorkbenchPreview\(\)/u);
+  assert.match(forge, /edit\.textContent = 'Edit with Nex'/u);
+  assert.match(forge, /back\.textContent = '← Back'/u);
 });

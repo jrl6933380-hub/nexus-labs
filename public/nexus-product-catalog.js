@@ -10,8 +10,8 @@ export const NEXUS_PRODUCTS = Object.freeze({
 
 export const NEX_CHAT_PLANS = Object.freeze({
   free: Object.freeze({ name: 'Free', price: 0, panels: 0, description: 'Nex Chat' }),
-  pro: Object.freeze({ name: 'Pro', price: 10, panels: 3, description: 'Nex Chat + 3 Workbench panels' }),
-  plus: Object.freeze({ name: 'Plus', price: 20, panels: 10, description: 'Nex Chat + 10 interconnected Workbench panels' }),
+  pro: Object.freeze({ name: 'Pro', price: 10, panels: 3, description: 'Nex Chat + 3 complete Workbench projects' }),
+  plus: Object.freeze({ name: 'Plus', price: 20, panels: 10, description: 'Nex Chat + 10 interconnected Workbench projects' }),
 });
 
 export const NEX_CHAT_MODES = Object.freeze({

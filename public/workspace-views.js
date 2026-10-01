@@ -242,22 +242,22 @@ export const VIEWS = {
             onClick: buildId ? () => ctx.openWorkbenchPanel(buildId) : null,
           });
         })
-        : [empty('No panels yet. Start one here and it will be saved in your Forge project system.')];
+        : [empty('No projects yet. Start one here and it will become its own complete Workbench space.')];
       return [
         say(projects.length
-          ? `Your Workbench has ${projects.length} saved panel${projects.length === 1 ? '' : 's'}. Each one opens the real Forge project behind it, with its versions, full stack, and path to go live.`
-          : 'Workbench is where ideas become working products. Each panel can hold a complete website, app, business, or intelligence—with its own full stack and a path to go live.'),
+          ? `Your Workbench has ${projects.length} saved project${projects.length === 1 ? '' : 's'}. A Workbench panel means one complete project—such as a website, app, business system, or intelligence—with its own supporting pieces, full stack, and path to go live.`
+          : 'A Workbench panel means one complete project: a website, app, business system, or intelligence. Everything you add inside it becomes part of that project and its full stack.'),
         chips([
-          { label: 'New panel', run: () => ctx.newWorkbenchPanel() },
-          { label: 'Map a build', run: () => ctx.ask('Help me map a new build before we open a Workbench panel.') },
+          { label: 'New project', run: () => ctx.newWorkbenchPanel() },
+          { label: 'Map a project', run: () => ctx.ask('Help me map a new website, app, business system, or intelligence before we open its Workbench project.') },
           { label: 'Refresh', run: () => ctx.go('workbench') },
         ]),
-        group('Your panels', panels),
+        group('Your projects', panels),
         group('Plans', Object.values(NEX_CHAT_PLANS).map((plan) => row({
           title: `${plan.name}${plan.price ? ` · $${plan.price}/month` : ''}`,
           meta: plan.description,
-          tone: plan.name === 'Plus' ? { label: '10 panels', kind: 'f' }
-            : plan.name === 'Pro' ? { label: '3 panels' } : { label: 'chat' },
+          tone: plan.name === 'Plus' ? { label: '10 projects', kind: 'f' }
+            : plan.name === 'Pro' ? { label: '3 projects' } : { label: 'chat' },
         }))),
       ];
     },
