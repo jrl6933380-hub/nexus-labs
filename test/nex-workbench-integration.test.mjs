@@ -19,7 +19,7 @@ test('Nex Chat sends a stable thread id and loads cloud thread summaries', () =>
 test('Workbench renders real Forge projects and deep-links the selected build', () => {
   assert.match(views, /getJSON\('\/api\/room-history'\)/u);
   assert.match(views, /ctx\.openWorkbenchPanel\(buildId\)/u);
-  assert.match(workspace, /forge\.html\?view=chat&build=/u);
+  assert.match(workspace, /forge\.html\?surface=workbench&view=chat&build=/u);
   assert.match(forge, /startupParams\.get\('build'\)/u);
   assert.match(forge, /await ctx\.openBuild\(requestedBuild\)/u);
 });

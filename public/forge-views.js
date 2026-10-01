@@ -370,6 +370,19 @@ export const FORGE_VIEWS = {
     icon: '◇',
     say: ['project', 'my project', 'home'],
     async render(ctx) {
+      if (ctx.surface?.() === 'workbench') {
+        return [
+          say(ctx.hasCurrentBuild?.()
+            ? 'This panel is open and ready. Work with Nex here, inspect its pages and preview, connect what the full stack needs, then publish when it is ready.'
+            : 'This is a new Workbench panel. Describe the website, app, business, or intelligence you want here and Nex will shape the first working version with you.'),
+          chips([
+            { label: ctx.hasCurrentBuild?.() ? 'Change this panel' : 'Start building', run: () => ctx.go('chat') },
+            { label: 'Pages', run: () => ctx.go('pages') },
+            { label: 'Preview', run: () => ctx.go('preview') },
+            { label: 'Full Stack', run: () => ctx.go('stack') },
+          ]),
+        ];
+      }
       const nodes = [];
       let history = null;
       try { history = await getJSON('/api/room-history'); } catch {}
@@ -453,6 +466,16 @@ export const FORGE_VIEWS = {
     icon: '▤',
     say: ['pages', 'page'],
     async render(ctx) {
+      if (ctx.surface?.() === 'workbench') {
+        return [
+          say('Pages inside this panel stay together as one project. Tell Nex what each page should do and he will build or revise it without touching your other panels.'),
+          chips([
+            { label: 'Add a page', run: () => ctx.ask('Add a page to this panel. Ask me what it should do and where it belongs in the navigation.') },
+            { label: 'Review my pages', run: () => ctx.ask('Review every page in this panel for missing content, broken navigation, and inconsistent design.') },
+            { label: 'Change navigation', run: () => ctx.ask('Help me reorganize the navigation for this panel.') },
+          ]),
+        ];
+      }
       const nodes = [];
       let history = null;
       try { history = await getJSON('/api/room-history'); } catch {}
@@ -751,6 +774,23 @@ export const FORGE_VIEWS = {
     icon: '?',
     say: ['help', 'what can you do', 'options'],
     async render(ctx) {
+      if (ctx.surface?.() === 'workbench') {
+        return [
+          say(`This panel can hold a complete website, app, business, or intelligence. Talk to Nex normally and use the panel rooms when you want to inspect or control a specific part.`),
+          group('Inside this panel', [
+            row({ title: 'Panel Home', meta: 'The current build only', onClick: () => ctx.go('project') }),
+            row({ title: 'Project Brief', meta: 'Shape the idea before building', onClick: () => ctx.go('brief') }),
+            row({ title: 'Pages', meta: 'Create and change project pages', onClick: () => ctx.go('pages') }),
+            row({ title: 'Preview', meta: 'See, test, and publish the result', onClick: () => ctx.go('preview') }),
+            row({ title: 'Full Stack', meta: 'Connect the services the project needs', onClick: () => ctx.go('stack') }),
+          ]),
+          group('Try asking Nex', [
+            row({ title: 'Build the first working version', onClick: () => ctx.ask('Build the first working version of this panel. Ask what you need before starting.') }),
+            row({ title: 'Make this feel more professional', onClick: () => ctx.ask('Review this panel and make it feel more professional.') }),
+            row({ title: 'Get this ready to go live', onClick: () => ctx.ask('Check this whole panel and tell me what is left before it can go live.') }),
+          ]),
+        ];
+      }
       return [
         say(`Tell me what you want and I build it. You don't need to know how any of it works.`),
         group('Say any of these', [
