@@ -182,6 +182,17 @@ async function projectPreviewHtml(buildId) {
   }
 }
 
+async function copyProjectLink(url, button) {
+  try {
+    await navigator.clipboard.writeText(url);
+    const previous = button.textContent;
+    button.textContent = 'Copied ✓';
+    setTimeout(() => { if (button.isConnected) button.textContent = previous; }, 1600);
+  } catch {
+    window.prompt('Copy this clean live-site link:', url);
+  }
+}
+
 function projectUsage(count, limit, planName) {
   const wrap = document.createElement('div');
   wrap.className = 'projectusage';
@@ -257,6 +268,12 @@ async function projectGallery(projects, ctx) {
     edit.type = 'button'; edit.textContent = 'Edit';
     edit.onclick = buildId ? () => ctx.openWorkbenchPanel(buildId, 'edit') : null;
     actions.append(preview, edit);
+    if (liveUrl) {
+      const copy = document.createElement('button');
+      copy.type = 'button'; copy.textContent = 'Copy link';
+      copy.onclick = () => copyProjectLink(liveUrl, copy);
+      actions.appendChild(copy);
+    }
     body.append(titleButton, meta, actions);
     card.append(thumb, body);
     gallery.appendChild(card);

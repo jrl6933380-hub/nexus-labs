@@ -104,7 +104,10 @@
   .workbench-preview-bar strong{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .workbench-preview-bar button{padding:8px 12px;border:1px solid #343a48;border-radius:18px;background:#1b2029;
     color:#e7e9ed;font-size:12.5px;white-space:nowrap}
-  .workbench-preview-bar .preview-edit{margin-left:auto;background:var(--accent);border-color:var(--accent);color:#17130a;font-weight:650}
+  .workbench-preview-bar .preview-edit{margin-left:auto}
+  .workbench-preview-bar .preview-share{background:var(--accent);border-color:var(--accent);color:#17130a;font-weight:650}
+  .workbench-preview-bar button[disabled]{opacity:.55;cursor:wait}
+  .preview-status{font-size:12px;color:#aeb4c0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
   .workbench-full-preview iframe{display:block;width:100%;height:calc(100vh - 54px);border:0;background:#fff;flex:1}
 
   .chips{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 6px}
@@ -175,7 +178,10 @@
     .screen.workbench-editing .workarea{flex-direction:column}
     .screen.workbench-editing .project-editor-preview{height:40vh;min-height:245px;border-right:0;border-bottom:1px solid var(--ln);flex-shrink:0}
   }
-  @media (max-width:520px){.qoptions{grid-template-columns:1fr}.qcard{padding:15px}.screen.workbench-editing .project-editor-preview{height:36vh;min-height:220px}}
+  @media (max-width:520px){
+    .qoptions{grid-template-columns:1fr}.qcard{padding:15px}.screen.workbench-editing .project-editor-preview{height:36vh;min-height:220px}
+    .workbench-preview-bar{gap:7px}.workbench-preview-bar strong,.preview-status,.preview-open{display:none}.workbench-preview-bar button{padding:8px 10px;font-size:12px}
+  }
 </style>
 </head>
 <body>
@@ -359,6 +365,9 @@ let currentBuild = '';
 const newProjectId = () => `forge-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 let currentProjectId = newProjectId();
 let latestBuildId = null;
+let currentProjectLabel = 'Your project';
+let currentLiveUrl = '';
+let currentLiveNeedsUpdate = false;
 const history = [];
 const startupParams = new URLSearchParams(location.search);
 const surfaceMode = startupParams.get('surface') === 'workbench' ? 'workbench' : 'forge';
@@ -411,6 +420,7 @@ const ctx = {
   go: (id) => showView(id),
   startProject: () => {
     history.length = 0; threadId = null; currentBuild = ''; latestBuildId = null;
+    currentProjectLabel = 'New project'; currentLiveUrl = ''; currentLiveNeedsUpdate = false;
     currentProjectId = newProjectId();
     showView(featureUnlocked(connectionSnapshot(), 'brief') ? 'brief' : 'chat');
   },
@@ -440,6 +450,9 @@ const ctx = {
       currentBuild = data.build.html;
       currentProjectId = data.build.projectId || data.build.id;
       latestBuildId = data.build.id;
+      currentProjectLabel = data.build.label || 'Your project';
+      currentLiveUrl = data.build.liveUrl || '';
+      currentLiveNeedsUpdate = Boolean(currentLiveUrl && Number(data.build.createdAt) > Number(data.build.livePublishedAt || 0));
       threadId = `project-${currentProjectId}`;
       history.length = 0;
       try {
@@ -499,6 +512,9 @@ const ctx = {
       if (currentProjectId === projectId) {
         currentBuild = '';
         latestBuildId = null;
+        currentProjectLabel = 'Your project';
+        currentLiveUrl = '';
+        currentLiveNeedsUpdate = false;
       }
       await showView(currentView === 'pages' ? 'pages' : 'project');
     } catch (error) {
@@ -740,11 +756,33 @@ function renderVisual(html, title){
   return card;
 }
 
-function openPreviewInNewTab(html) {
-  const blob = new Blob([html], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
-  window.open(url, '_blank', 'noopener');
-  setTimeout(() => URL.revokeObjectURL(url), 60000);
+async function copyText(value) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+  const input = document.createElement('textarea');
+  input.value = value;
+  input.style.cssText = 'position:fixed;left:-9999px;top:-9999px';
+  document.body.appendChild(input);
+  input.select();
+  const copied = document.execCommand('copy');
+  input.remove();
+  if (!copied) throw new Error('Copy did not work. Open the live site and copy its address instead.');
+}
+
+async function publishCurrentProject() {
+  if (!latestBuildId) throw new Error('This project is still saving. Try Share again in a moment.');
+  const response = await fetch('/api/room-publish', {
+    method: 'POST', credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: latestBuildId }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.url) throw new Error(data.error || 'Could not publish this project.');
+  currentLiveUrl = data.url;
+  currentLiveNeedsUpdate = false;
+  return currentLiveUrl;
 }
 
 function syncWorkbenchEditor(){
@@ -771,14 +809,43 @@ function renderWorkbenchPreview(){
   back.type = 'button'; back.textContent = '← Projects';
   back.onclick = () => location.assign('/workspace.html?view=workbench');
   const title = document.createElement('strong');
-  title.textContent = 'Full project preview';
+  title.textContent = currentProjectLabel || 'Full project preview';
+  const status = document.createElement('span');
+  status.className = 'preview-status';
+  status.textContent = currentLiveUrl
+    ? (currentLiveNeedsUpdate ? 'Live version needs this update' : 'Live and ready to share')
+    : 'Private preview';
   const edit = document.createElement('button');
   edit.type = 'button'; edit.className = 'preview-edit'; edit.textContent = 'Edit with Nex';
   edit.onclick = () => { showView('chat'); el('input').focus(); };
-  const external = document.createElement('button');
-  external.type = 'button'; external.textContent = 'Open separately ↗';
-  external.onclick = () => openPreviewInNewTab(currentBuild);
-  bar.append(back, title, edit, external);
+  const share = document.createElement('button');
+  share.type = 'button'; share.className = 'preview-share';
+  share.textContent = !currentLiveUrl ? 'Publish & copy link' : currentLiveNeedsUpdate ? 'Update & copy link' : 'Copy live link';
+  const openLive = document.createElement('button');
+  openLive.type = 'button'; openLive.className = 'preview-open'; openLive.textContent = 'Open live ↗';
+  openLive.hidden = !currentLiveUrl;
+  openLive.onclick = () => { if (currentLiveUrl) window.open(currentLiveUrl, '_blank', 'noopener'); };
+  share.onclick = async () => {
+    share.disabled = true;
+    status.textContent = (!currentLiveUrl || currentLiveNeedsUpdate) ? 'Publishing clean live site…' : 'Copying link…';
+    try {
+      const url = (!currentLiveUrl || currentLiveNeedsUpdate) ? await publishCurrentProject() : currentLiveUrl;
+      await copyText(url);
+      share.textContent = 'Copied ✓';
+      status.textContent = 'Clean live link copied';
+      openLive.hidden = false;
+      setTimeout(() => {
+        if (!share.isConnected) return;
+        share.textContent = 'Copy live link';
+        share.disabled = false;
+        status.textContent = 'Live and ready to share';
+      }, 1800);
+    } catch (error) {
+      share.disabled = false;
+      status.textContent = error.message;
+    }
+  };
+  bar.append(back, title, status, edit, share, openLive);
 
   const frame = document.createElement('iframe');
   frame.title = 'Project preview';
@@ -1094,6 +1161,7 @@ async function runBuild(raw, displayMessage = raw, showUser = true){
         } else if (data.action === 'html') {
           finished = true;
           currentBuild = data.html || '';
+          if (currentLiveUrl) currentLiveNeedsUpdate = true;
           pending.innerHTML = '<p>Here it is.</p>';
           if (isWorkbench) syncWorkbenchEditor();
           else renderVisual(currentBuild, 'Your site');

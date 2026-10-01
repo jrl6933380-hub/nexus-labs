@@ -12,12 +12,12 @@
 import { listBuilds, getBuild, listProjects, deleteProject } from '../lib/roomHistory.js';
 import { getRequestUser, getUserPlan, isOperatorUser, isPaidPlan, PLANS } from '../lib/roomAuth.js';
 import { workbenchProjectAllowance } from '../lib/workbenchPlans.js';
-import { removeLiveSite, takeSiteOffline, listLiveSites } from '../lib/roomLiveSites.js';
+import { getLiveSite, removeLiveSite, takeSiteOffline, listLiveSites } from '../lib/roomLiveSites.js';
 import { deleteStaticSite } from '../lib/vercel.js';
 import { getOrCreateAnonId } from '../lib/anonSession.js';
 
 // Dependencies are injectable so ownership is exercised through the real handler.
-export function createHistoryHandler({ resolveUser = getRequestUser, readBuild = getBuild, readList = listBuilds, readProjects = listProjects, removeProject = deleteProject, freeLiveSite = takeSiteOffline, readLiveSites = listLiveSites, deleteSite = deleteStaticSite, resolvePlan = getUserPlan } = {}) {
+export function createHistoryHandler({ resolveUser = getRequestUser, readBuild = getBuild, readList = listBuilds, readProjects = listProjects, removeProject = deleteProject, freeLiveSite = takeSiteOffline, readLiveSites = listLiveSites, readLiveSite = getLiveSite, deleteSite = deleteStaticSite, resolvePlan = getUserPlan } = {}) {
 return async function handler(req, res) {
   res.setHeader('Cache-Control', 'private, no-store');
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -76,7 +76,18 @@ return async function handler(req, res) {
         res.setHeader('Content-Security-Policy', "sandbox; default-src 'none'");
         return res.status(200).send(build.html);
       }
-      return res.status(200).json({ build });
+      let liveSite = null;
+      if (build.projectId) {
+        try { liveSite = await readLiveSite(username, build.projectId); }
+        catch (liveError) { console.error('room-history: live-site lookup failed:', liveError.message); }
+      }
+      return res.status(200).json({
+        build: {
+          ...build,
+          liveUrl: liveSite?.url || null,
+          livePublishedAt: liveSite?.publishedAt || null,
+        },
+      });
     }
     const builds = await readList(username);
     const projects = await readProjects(username);

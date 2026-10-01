@@ -32,12 +32,18 @@ test('Workbench copy and rooms stay scoped to the current panel', () => {
   assert.match(views, /Connections/u);
 });
 
-test('Full Preview renders the current build across the viewport with a simple exit and edit path', () => {
+test('Full Preview renders the current build with owner controls and clean live-site sharing', () => {
   assert.match(forge, /className = 'workbench-full-preview'/u);
   assert.match(forge, /frame\.srcdoc = currentBuild/u);
   assert.match(forge, /id === 'preview' && isWorkbench && renderWorkbenchPreview\(\)/u);
   assert.match(forge, /edit\.textContent = 'Edit with Nex'/u);
   assert.match(forge, /back\.textContent = '← Projects'/u);
+  assert.match(forge, /Publish & copy link/u);
+  assert.match(forge, /Update & copy link/u);
+  assert.match(forge, /Copy live link/u);
+  assert.match(forge, /fetch\('\/api\/room-publish'/u);
+  assert.match(forge, /navigator\.clipboard\?\.writeText/u);
+  assert.doesNotMatch(forge, /Open separately/u);
 });
 
 test('Workbench editing pins the live project while only the Nex conversation scrolls', () => {
@@ -54,4 +60,10 @@ test('Projects view shows plan usage and the backend receives the Workbench surf
   assert.match(workspaceViews, /Upgrade for more projects/u);
   assert.match(forge, /surface: surfaceMode/u);
   assert.match(forge, /WORKBENCH_PROJECT_LIMIT/u);
+});
+
+test('Live project cards expose the clean public link without opening editor chrome', () => {
+  assert.match(workspaceViews, /copy\.textContent = 'Copy link'/u);
+  assert.match(workspaceViews, /copyProjectLink\(liveUrl, copy\)/u);
+  assert.match(workspaceViews, /navigator\.clipboard\.writeText\(url\)/u);
 });
