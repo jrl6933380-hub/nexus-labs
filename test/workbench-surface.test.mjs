@@ -54,6 +54,18 @@ test('Workbench editing pins the live project while only the Nex conversation sc
   assert.match(forge, /grid-template-columns:minmax\(0,1\.45fr\) minmax\(360px,\.75fr\)/u);
 });
 
+test('Workbench composer keeps the full project tool set beside the send button', () => {
+  assert.match(forge, /id="helpBtn">Help</u);
+  assert.match(forge, /id="previewBtn">Preview</u);
+  assert.match(forge, /id="addProjectBtn" hidden>Add</u);
+  assert.match(forge, /id="planProjectBtn" hidden>Plan</u);
+  assert.match(forge, /id="connectionsProjectBtn" hidden>Connections</u);
+  assert.match(forge, /addProjectBtn'\)\.onclick = \(\) => showView\('pages'\)/u);
+  assert.match(forge, /planProjectBtn'\)\.onclick = \(\) => showView\('brief'\)/u);
+  assert.match(forge, /connectionsProjectBtn'\)\.onclick = \(\) => showView\('stack'\)/u);
+  assert.match(forge, /el\(id\)\.hidden = !isWorkbench/u);
+});
+
 test('Projects view shows plan usage and the backend receives the Workbench surface for limit enforcement', () => {
   assert.match(workspace, />Projects<span class="badgeplan"/u);
   assert.match(workspaceViews, /projectUsage\(projects\.length, limit, workbench\.planName\)/u);
