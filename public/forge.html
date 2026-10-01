@@ -114,6 +114,18 @@
   .chip{font-size:13.5px;padding:9px 15px;border-radius:20px;background:#191d25;
     border:1px solid var(--ln);color:#c0c4cc;transition:.13s}
   .chip:hover{border-color:#3b4354;color:var(--tx)}
+  .workbench-project-grid{display:grid;grid-template-columns:repeat(2,minmax(0,180px));gap:12px;margin:18px 0 20px}
+  .workbench-project-tile{position:relative;aspect-ratio:1;border:1px solid #303748;border-radius:18px;overflow:hidden;
+    background:#0a0c10;color:var(--tx);text-align:left;box-shadow:0 14px 34px rgba(0,0,0,.24)}
+  .workbench-project-tile:hover{border-color:#566072}
+  .workbench-project-tile iframe{display:block;width:100%;height:100%;border:0;background:#fff;pointer-events:none}
+  .workbench-project-tile .tile-label{position:absolute;inset:auto 0 0;padding:24px 12px 11px;
+    background:linear-gradient(transparent,rgba(5,6,9,.94));font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .workbench-project-tile.add-panel{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;
+    background:#050609;border-color:#242831;text-align:center}
+  .workbench-project-tile.add-panel .plus{font-size:38px;font-weight:200;line-height:1;color:#f2f0ed}
+  .workbench-project-tile.add-panel strong{font-size:14px;font-weight:550}
+  .workbench-project-tile.add-panel small{font-size:11.5px;color:#777d89}
 
   .qcard{margin:4px 0 22px;padding:18px;border:1px solid #303748;border-radius:18px;
     background:linear-gradient(155deg,#171b24,#11141a);box-shadow:0 16px 40px rgba(0,0,0,.22)}
@@ -186,6 +198,7 @@
   @media (max-width:520px){
     .qoptions{grid-template-columns:1fr}.qcard{padding:15px}.screen.workbench-editing .project-editor-preview{height:36vh;min-height:220px}
     .workbench-preview-bar{gap:7px}.workbench-preview-bar strong,.preview-status,.preview-open{display:none}.workbench-preview-bar button{padding:8px 10px;font-size:12px}
+    .workbench-project-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
   }
 </style>
 </head>
@@ -422,6 +435,8 @@ function openBrainSetup(returnPath = '/forge.html'){
 const ctx = {
   surface: () => surfaceMode,
   hasCurrentBuild: () => Boolean(currentBuild),
+  currentBuild: () => currentBuild,
+  currentProjectLabel: () => currentProjectLabel,
   projectId: () => currentProjectId,
   signedIn: () => signedIn,
   signIn: () => goSignIn(),

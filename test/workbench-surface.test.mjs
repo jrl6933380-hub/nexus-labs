@@ -66,6 +66,17 @@ test('Workbench composer keeps the full project tool set beside the send button'
   assert.match(forge, /el\(id\)\.hidden = !isWorkbench/u);
 });
 
+test('Projects view pairs the current panel preview with a one-tap new-panel tile', () => {
+  assert.match(forge, /currentBuild: \(\) => currentBuild/u);
+  assert.match(forge, /currentProjectLabel: \(\) => currentProjectLabel/u);
+  assert.match(forge, /\.workbench-project-grid\{display:grid/u);
+  assert.match(views, /function workbenchProjectTiles\(ctx\)/u);
+  assert.match(views, /frame\.srcdoc = ctx\.currentBuild\?\.\(\) \|\| ''/u);
+  assert.match(views, /current\.onclick = \(\) => ctx\.go\('preview'\)/u);
+  assert.match(views, />New panel<\/strong><small>Add to your Workbench</u);
+  assert.match(views, /add\.onclick = \(\) => ctx\.startProject\(\)/u);
+});
+
 test('Projects view shows plan usage and the backend receives the Workbench surface for limit enforcement', () => {
   assert.match(workspace, />Projects<span class="badgeplan"/u);
   assert.match(workspaceViews, /projectUsage\(projects\.length, limit, workbench\.planName\)/u);
