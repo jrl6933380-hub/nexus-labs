@@ -295,8 +295,8 @@ const history = [];
 const ctx = {
   ask: (text) => askFromView(text),
   go: (id) => showView(id),
-  openWorkbenchPanel: (buildId) => location.assign(`/forge.html?view=chat&build=${encodeURIComponent(buildId)}`),
-  newWorkbenchPanel: () => location.assign('/forge.html?view=chat&new=1'),
+  openWorkbenchPanel: (buildId) => location.assign(`/forge.html?surface=workbench&view=chat&build=${encodeURIComponent(buildId)}`),
+  newWorkbenchPanel: () => location.assign('/forge.html?surface=workbench&view=chat&new=1'),
   openTask, openApproval, newTask, openDeveloper, createDeveloper, returnToOwner,
   newPlannerItem, openPlannerItem,
 };

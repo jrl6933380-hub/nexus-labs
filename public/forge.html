@@ -158,7 +158,7 @@
 <body>
 
 <nav class="rail" id="rail">
-  <div class="brand"><b>Nexus</b><small>Forge</small></div>
+  <div class="brand"><b id="surfaceBrand">Nexus</b><small id="surfaceProduct">Forge</small></div>
   <div id="viewNav"></div>
   <div class="grp">Recent</div>
   <div class="scrollpart" id="recents"></div>
@@ -224,7 +224,7 @@ const signedIn = Boolean(me?.username);
 function goSignIn() {
   const draft = document.getElementById('input')?.value || '';
   if (draft) sessionStorage.setItem('forge:login:draft', draft);
-  location.href = '/room-login.html?next=' + encodeURIComponent('/forge.html');
+  location.href = '/room-login.html?next=' + encodeURIComponent(`${location.pathname}${location.search}`);
 }
 
 const FORGE_ACCOUNT_CARD = 'forge:account-card:v1';
@@ -236,16 +236,20 @@ function rememberUsername(username) {
 }
 function showAuthCard(mode = 'login') {
   currentView = 'chat';
-  el('viewTitle').textContent = 'Nexus Forge';
+  el('viewTitle').textContent = isWorkbench ? 'Nex Workbench' : 'Nexus Forge';
   railOpen(false);
   thread.replaceChildren();
-  thread.appendChild(say(mode === 'signup'
-    ? 'Let’s make your Forge account here. Fill in the card, check the summary, and confirm. Then I’ll walk you through connecting your Builder Brain.'
-    : 'Welcome back. Choose your saved account card, or enter your username and password here. Your password goes straight to sign-in.'));
+  thread.appendChild(say(isWorkbench
+    ? (mode === 'signup'
+        ? 'Create your Nexus account to save this panel and keep working across devices.'
+        : 'Sign in to continue working in your saved Workbench panels.')
+    : (mode === 'signup'
+        ? 'Let’s make your Forge account here. Fill in the card, check the summary, and confirm. Then I’ll walk you through connecting your Builder Brain.'
+        : 'Welcome back. Choose your saved account card, or enter your username and password here. Your password goes straight to sign-in.')));
   const card = document.createElement('form'); card.className = 'qcard';
   card.setAttribute('autocomplete', 'on');
   const heading = document.createElement('div'); heading.className = 'qhead';
-  heading.textContent = mode === 'signup' ? 'Create your account' : 'Sign in to Forge';
+  heading.textContent = mode === 'signup' ? 'Create your account' : (isWorkbench ? 'Sign in to Workbench' : 'Sign in to Forge');
   card.appendChild(heading);
   const add = (labelText, type, name, required = true) => {
     const label = document.createElement('label'); label.textContent = labelText;
@@ -304,7 +308,7 @@ async function submitAuth(action, info, card) {
     if (!response.ok) throw new Error(data.error || 'Account request failed.');
     rememberUsername(data.username);
     info.password = ''; info.securityAnswer = '';
-    location.replace('/forge.html?view=brain');
+    location.replace(isWorkbench ? '/forge.html?surface=workbench&view=chat' : '/forge.html?view=brain');
   } catch (error) {
     info.password = ''; info.securityAnswer = '';
     status.textContent = error.message;
@@ -326,6 +330,23 @@ let currentProjectId = newProjectId();
 let latestBuildId = null;
 const history = [];
 const startupParams = new URLSearchParams(location.search);
+const surfaceMode = startupParams.get('surface') === 'workbench' ? 'workbench' : 'forge';
+const isWorkbench = surfaceMode === 'workbench';
+const WORKBENCH_VIEW_ORDER = ['project', 'brief', 'pages', 'preview', 'stack', 'help'];
+const WORKBENCH_VIEWS = new Set(WORKBENCH_VIEW_ORDER);
+const WORKBENCH_LABELS = {
+  project: 'Panel Home', brief: 'Project Brief', pages: 'Pages',
+  preview: 'Preview', stack: 'Full Stack', help: 'Workbench Help',
+};
+if (isWorkbench) {
+  document.title = 'Nex Workbench';
+  el('surfaceBrand').textContent = 'Nex';
+  el('surfaceProduct').textContent = 'Workbench';
+  el('viewTitle').textContent = 'Nex Workbench';
+  el('input').placeholder = 'Tell Nex what to build or change…';
+  el('newBtn').innerHTML = '+&nbsp; New panel';
+  el('newTop').setAttribute('aria-label', 'New panel');
+}
 const allowedReturnPaths = new Set(['/forge.html', '/room.html', '/story-studio.html']);
 const requestedReturnPath = startupParams.get('return');
 const onboardingReturnPath = allowedReturnPaths.has(requestedReturnPath) ? requestedReturnPath : '/forge.html';
@@ -350,6 +371,8 @@ function openBrainSetup(returnPath = '/forge.html'){
 }
 
 const ctx = {
+  surface: () => surfaceMode,
+  hasCurrentBuild: () => Boolean(currentBuild),
   projectId: () => currentProjectId,
   signedIn: () => signedIn,
   signIn: () => goSignIn(),
@@ -482,7 +505,7 @@ const ctx = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'logout' }),
     }).catch(() => {});
-    location.replace('/forge.html');
+    location.replace(isWorkbench ? '/workspace.html' : '/forge.html');
   },
 
   // --- Builder Brain ------------------------------------------------------
@@ -608,16 +631,23 @@ screenEl.addEventListener('click', (e) => {
 // promises something the customer's connection cannot deliver.
 const VIEW_REQUIRES = { brief: 'brief', stack: 'stack' };
 
+function viewAllowed(id) {
+  return id === 'chat' || !isWorkbench || WORKBENCH_VIEWS.has(id);
+}
+
 const nav = el('viewNav');
 function drawNav(){
   nav.innerHTML = '';
-  for (const [id, view] of Object.entries(FORGE_VIEWS)) {
+  const entries = isWorkbench
+    ? WORKBENCH_VIEW_ORDER.map((id) => [id, FORGE_VIEWS[id]]).filter(([, view]) => view)
+    : Object.entries(FORGE_VIEWS);
+  for (const [id, view] of entries) {
     const gate = VIEW_REQUIRES[id];
     if (gate && !featureUnlocked(connectionSnapshot(), gate)) continue;
     const button = document.createElement('button');
     button.className = 'item';
     button.dataset.view = id;
-    button.innerHTML = `<span class="ic">${view.icon}</span>${esc(view.label)}`;
+    button.innerHTML = `<span class="ic">${view.icon}</span>${esc(isWorkbench ? WORKBENCH_LABELS[id] : view.label)}`;
     button.onclick = () => showView(id);
     nav.appendChild(button);
   }
@@ -675,12 +705,15 @@ function renderVisual(html, title){
 }
 
 async function showView(id){
+  if (!viewAllowed(id)) id = 'project';
   currentView = id;
   railOpen(false);
   for (const button of document.querySelectorAll('[data-view]')) {
     button.classList.toggle('on', button.dataset.view === id);
   }
-  el('viewTitle').textContent = id === 'chat' ? 'Nexus Forge' : FORGE_VIEWS[id].label;
+  el('viewTitle').textContent = id === 'chat'
+    ? (isWorkbench ? 'Nex Workbench' : 'Nexus Forge')
+    : (isWorkbench ? WORKBENCH_LABELS[id] : FORGE_VIEWS[id].label);
   if (id === 'chat') { replay(); return; }
   thread.innerHTML = '';
   bubble('sys', 'One second…');
@@ -751,6 +784,15 @@ drawRecents();
 (function drawAccount(){
   const host = el('acctSlot');
   if (!host) return;
+  if (isWorkbench) {
+    host.innerHTML = '<div class="grp">Nex Chat</div>';
+    const back = document.createElement('button');
+    back.className = 'item';
+    back.innerHTML = '<span class="ic">←</span><span class="tr">All panels</span>';
+    back.onclick = () => location.assign('/workspace.html?view=workbench');
+    host.appendChild(back);
+    return;
+  }
   host.innerHTML = '<div class="grp">Account</div>';
   const row = document.createElement('button');
   row.className = 'item';
@@ -769,7 +811,7 @@ async function submit(){
   if (!raw || busy) return;
   el('input').value = '';
   const target = matchForgeView(raw);
-  if (target) { showView(target); return; }
+  if (target && viewAllowed(target)) { showView(target); return; }
   await askNex(raw);
 }
 
@@ -785,7 +827,7 @@ async function askNex(raw){
       body: JSON.stringify({
         message: raw,
         projectId: currentProjectId,
-        projectLabel: 'Forge project',
+        projectLabel: isWorkbench ? 'Workbench panel' : 'Forge project',
         currentHtml: currentBuild || '',
         viewport: 'responsive',
       }),
@@ -991,6 +1033,17 @@ el('newBtn').onclick = el('newTop').onclick = () => {
 };
 
 function greet(){
+  if (isWorkbench) {
+    thread.appendChild(say(`This is your Workbench panel. Build the product here, open its pages and preview, connect the full stack, and take it live when it's ready. Your other panels stay separate in Nex Chat.`));
+    const workbenchOptions = [
+      { label: 'Describe what to build', run: () => { el('input').focus(); } },
+      { label: 'Open Preview', run: () => showView('preview') },
+    ];
+    if (featureUnlocked(connectionSnapshot(), 'brief')) workbenchOptions.splice(1, 0, { label: 'Project Brief', run: () => showView('brief') });
+    if (featureUnlocked(connectionSnapshot(), 'stack')) workbenchOptions.push({ label: 'Full Stack', run: () => showView('stack') });
+    thread.appendChild(chips(workbenchOptions));
+    return;
+  }
   // The greeting only promises what this customer's brain can actually do.
   // Offering the Project Brief to someone on the free router sets up a long
   // wait and a rate limit instead of a built page.
@@ -1078,7 +1131,7 @@ async function dockAsk(text){
       body: JSON.stringify({
         message: text,
         projectId: currentProjectId,
-        projectLabel: 'Forge project',
+        projectLabel: isWorkbench ? 'Workbench panel' : 'Forge project',
         currentHtml: currentBuild || '',
         viewport: 'responsive',
       }),
