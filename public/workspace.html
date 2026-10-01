@@ -295,6 +295,8 @@ const history = [];
 const ctx = {
   ask: (text) => askFromView(text),
   go: (id) => showView(id),
+  openWorkbenchPanel: (buildId) => location.assign(`/forge.html?view=chat&build=${encodeURIComponent(buildId)}`),
+  newWorkbenchPanel: () => location.assign('/forge.html?view=chat&new=1'),
   openTask, openApproval, newTask, openDeveloper, createDeveloper, returnToOwner,
   newPlannerItem, openPlannerItem,
 };
@@ -572,11 +574,12 @@ function renderVisual(widgetCode, title){
 window.NexusWorkspaceRenderVisual = renderVisual;
 
 // --- storage ---------------------------------------------------------------
-// Per-device only. Persisting threads server-side is a real schema decision and
-// shouldn't be made as a side effect of a UI change. Reads tolerate junk and
-// writes are caught, so a full or blocked localStorage degrades to "no history"
-// instead of a blank screen.
+// Threads are authoritative on the server so the visible conversations and
+// Nex's model context stay isolated and survive moving between devices. The
+// old local cache remains as an offline fallback and keeps pre-cloud threads
+// visible until the owner continues them, at which point they are saved.
 const THREADS_KEY='nexus:workspace:threads:v1', PINS_KEY='nexus:workspace:pins:v1';
+let recentThreads = [];
 function readStore(key){
   try { const v = JSON.parse(localStorage.getItem(key) || '[]'); return Array.isArray(v) ? v : []; }
   catch { return []; }
@@ -589,22 +592,60 @@ function saveThread(){
   const threads = readStore(THREADS_KEY);
   const record = { id: threadId, title: String(history[0].content).slice(0,48), ts: Date.now(), messages: history.slice(-40) };
   writeStore(THREADS_KEY, [record, ...threads.filter((t) => t && t.id !== threadId)].slice(0,20));
+  recentThreads = [
+    { id:record.id, title:record.title, updated_at:record.ts, message_count:record.messages.length },
+    ...recentThreads.filter((item) => item?.id !== record.id),
+  ].slice(0,20);
   drawRecents();
 }
+async function loadThreads(){
+  const local = readStore(THREADS_KEY);
+  try {
+    const response = await fetch('/api/chat?threads=1', { headers:{ Accept:'application/json' }, cache:'no-store' });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
+    const cloud = Array.isArray(data.threads) ? data.threads : [];
+    const localOnly = local.filter((item) => item?.id && !cloud.some((saved) => saved.id === item.id));
+    const migrated = await Promise.all(localOnly.map(async (item) => {
+      try {
+        const saved = await fetch('/api/chat', { method:'POST', headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({ action:'save_thread', threadId:item.id, title:item.title, updated_at:item.ts, messages:item.messages }) });
+        const result = await saved.json().catch(() => ({}));
+        return saved.ok && result.thread ? result.thread : item;
+      } catch { return item; }
+    }));
+    recentThreads = [...cloud, ...migrated].sort((a,b) => (b.updated_at || b.ts || 0) - (a.updated_at || a.ts || 0)).slice(0,20);
+  } catch {
+    recentThreads = local;
+  }
+  drawRecents();
+}
+async function openThread(record){
+  let messages = Array.isArray(record?.messages) ? record.messages : null;
+  if (!messages) {
+    try {
+      const response = await fetch(`/api/chat?threadId=${encodeURIComponent(record.id)}`, { headers:{ Accept:'application/json' }, cache:'no-store' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
+      messages = Array.isArray(data.messages) ? data.messages : [];
+    } catch {
+      messages = readStore(THREADS_KEY).find((item) => item?.id === record.id)?.messages || [];
+    }
+  }
+  threadId = record.id;
+  history.length = 0;
+  for (const message of messages) history.push(message);
+  showView('chat');
+}
 function drawRecents(){
-  const threads = readStore(THREADS_KEY), host = el('recents');
+  const threads = recentThreads, host = el('recents');
   if (!threads.length) { host.innerHTML = '<div style="font-size:13px;color:#5f5b56;padding:8px 10px">Nothing yet</div>'; return; }
   host.innerHTML = '';
   for (const record of threads) {
     const button = document.createElement('button');
     button.className = 'item';
     button.innerHTML = `<span class="dot"></span><span class="tr">${esc(record.title)}</span>`;
-    button.onclick = () => {
-      threadId = record.id;
-      history.length = 0;
-      for (const m of record.messages || []) history.push(m);
-      showView('chat');
-    };
+    button.onclick = () => openThread(record);
     host.appendChild(button);
   }
 }
@@ -627,7 +668,7 @@ function drawPins(){
     host.appendChild(button);
   }
 }
-drawRecents(); drawPins();
+drawPins();
 
 // --- composer --------------------------------------------------------------
 async function submit(){
@@ -646,7 +687,7 @@ async function submit(){
   try {
     const response = await fetch('/api/chat', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ message: raw, history, workspace: workspaceContext() }),
+      body: JSON.stringify({ message: raw, threadId, workspace: workspaceContext() }),
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data?.error || `Request failed (${response.status})`);
@@ -787,10 +828,11 @@ for (const action of DOCK_ACTIONS) {
 async function dockAsk(text){
   const body = el('dockBody');
   body.textContent = 'Thinking…';
+  if (!threadId) threadId = `t${Date.now().toString(36)}`;
   try {
     const response = await fetch('/api/chat', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ message: text, history, workspace: workspaceContext() }),
+      body: JSON.stringify({ message: text, threadId, workspace: workspaceContext() }),
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data?.error || `Request failed (${response.status})`);
@@ -808,7 +850,8 @@ el('dockSend').onclick = () => {
 el('dockInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') el('dockSend').click(); });
 
 const requestedView = new URLSearchParams(location.search).get('view');
-showView(requestedView && VIEWS[requestedView] ? requestedView : 'chat');
+await loadThreads();
+await showView(requestedView && VIEWS[requestedView] ? requestedView : 'chat');
 </script>
 </body>
 </html>

@@ -15,7 +15,16 @@ import {
 import { getNexChatMode, disengageNex, engageNex } from '../lib/nexMode.js';
 import { detectHyperfocusTrigger, buildHyperfocusDirective } from '../lib/hyperfocusTriggers.js';
 import { getNexusOwner } from '../lib/nexusOwnerAuth.js';
-import { loadRecentConversation, recentKeyFor, saveRecentConversation } from '../lib/nexConversationStore.js';
+import {
+  deleteConversationThread,
+  listConversationThreads,
+  loadConversationThread,
+  loadRecentConversation,
+  normalizeThreadId,
+  recentKeyFor,
+  saveConversationThread,
+  saveRecentConversation,
+} from '../lib/nexConversationStore.js';
 
 // ============================================================
 // SHORT-TERM ROLLING BUFFER — just enough for mid-conversation
@@ -86,6 +95,21 @@ async function saveRecent(operatorUser, fullHistory) {
   return saveRecentConversation(operatorUser, fullHistory.slice(-RECENT_LIMIT));
 }
 
+async function loadConversation(operatorUser, threadId) {
+  if (!threadId) return loadRecent(operatorUser);
+  const thread = await loadConversationThread(operatorUser, threadId);
+  return thread?.messages || [];
+}
+
+async function saveConversation(operatorUser, fullHistory, threadId) {
+  if (!threadId) return saveRecent(operatorUser, fullHistory);
+  return saveConversationThread(operatorUser, {
+    id: threadId,
+    title: fullHistory.find((message) => message?.role === 'user')?.content,
+    messages: fullHistory,
+  });
+}
+
 // ============================================================
 // HANDLER
 // ============================================================
@@ -105,7 +129,12 @@ export default async function handler(req, res) {
         const request = await chatRequest(operatorUser, req.query.requestId);
         return res.status(200).json({ request });
       }
-      const recent = await loadRecent(operatorUser);
+      if (String(req.query?.threads || '') === '1') {
+        const threads = await listConversationThreads(operatorUser);
+        return res.status(200).json({ threads });
+      }
+      const requestedThreadId = req.query?.threadId ? normalizeThreadId(req.query.threadId) : null;
+      const recent = await loadConversation(operatorUser, requestedThreadId);
       return res.status(200).json({ messages: recent });
     } catch (err) {
       if (req.query?.requestId) return res.status(503).json({ error: 'Request status is temporarily unavailable.' });
@@ -118,7 +147,30 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { message, model, workspace, effort, deepThought, resumeRunId, forceSkill, requestId } = req.body;
+  const { action, message, model, workspace, effort, deepThought, resumeRunId, forceSkill, requestId } = req.body || {};
+  let threadId = null;
+  try {
+    threadId = req.body?.threadId ? normalizeThreadId(req.body.threadId) : null;
+  } catch {
+    return res.status(400).json({ error: 'Invalid thread id' });
+  }
+  if (action === 'delete_thread') {
+    if (!threadId) return res.status(400).json({ error: 'A thread id is required' });
+    const deleted = await deleteConversationThread(operatorUser, threadId);
+    return res.status(200).json({ deleted });
+  }
+  if (action === 'save_thread') {
+    if (!threadId) return res.status(400).json({ error: 'A thread id is required' });
+    const thread = await saveConversationThread(operatorUser, {
+      id: threadId,
+      title: req.body?.title,
+      updated_at: Number(req.body?.updated_at) || undefined,
+      messages: req.body?.messages,
+    });
+    return res.status(200).json({
+      thread: { id:thread.id, title:thread.title, updated_at:thread.updated_at, message_count:thread.messages.length },
+    });
+  }
   if (!message) return res.status(400).json({ error: 'Missing message' });
   // Control commands return their own immediate JSON payloads before a
   // normal Nex turn begins. Keep them on that established contract; the
@@ -167,7 +219,7 @@ export default async function handler(req, res) {
       throw new Error('This is a deliberate test error, triggered on purpose to confirm Sentry is catching things.');
     }
 
-    const recent = await loadRecent(operatorUser);
+    const recent = await loadConversation(operatorUser, threadId);
     const runningHistory = recent.filter((msg) => msg.role !== 'system');
 
     // Exact command-level handoff: Nex does not imitate Claude. He creates
@@ -180,11 +232,11 @@ export default async function handler(req, res) {
         `Nex disengaged. I’m paused while you work directly with Claude. ` +
         `Open the direct Claude session: ${wake.session_url}`;
       const usage = { input_tokens: 0, output_tokens: 0 };
-      await saveRecent(operatorUser, [
+      await saveConversation(operatorUser, [
         ...runningHistory,
         { role: 'user', content: message },
         { role: 'assistant', content: reply, model: 'claude-routine', usage },
-      ]);
+      ], threadId);
       return res.status(200).json({
         reply,
         model: 'claude-routine',
@@ -204,11 +256,11 @@ export default async function handler(req, res) {
       await engageNex();
       const reply = 'Nex engaged. I’m back in the lead.';
       const usage = { input_tokens: 0, output_tokens: 0 };
-      await saveRecent(operatorUser, [
+      await saveConversation(operatorUser, [
         ...runningHistory,
         { role: 'user', content: message },
         { role: 'assistant', content: reply, model: 'nex', usage },
-      ]);
+      ], threadId);
       return res.status(200).json({ reply, model: 'nex', usage });
     }
 
@@ -296,7 +348,7 @@ export default async function handler(req, res) {
       ...historyForStorage,
       { role: 'assistant', content: reply, model: answeredModel, usage },
     ];
-    await saveRecent(operatorUser, finalHistory);
+    await saveConversation(operatorUser, finalHistory, threadId);
 
     const response = {
       reply,
