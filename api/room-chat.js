@@ -23,9 +23,10 @@
 // preview. Generated HTML is deliberately free of builder chrome so users
 // see one chat surface, and exports/previews stay portable.
 
-import { saveBuild } from '../lib/roomHistory.js';
+import { listProjects, saveBuild } from '../lib/roomHistory.js';
 import { recordProjectSpend } from '../lib/roomProjectLedger.js';
-import { getRequestUser } from '../lib/roomAuth.js';
+import { getRequestUser, getUserPlan, isOperatorUser } from '../lib/roomAuth.js';
+import { workbenchProjectAllowance } from '../lib/workbenchPlans.js';
 import { openBuildStream, hasOwnBrain, NoBrainError } from '../lib/forge/brainStream.js';
 import { matchTemplate } from '../lib/forge/templates/index.js';
 import { getProjectBrief, compileBriefForModel } from '../lib/forge/projectBrief.js';
@@ -120,7 +121,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { displayMessage, currentHtml, projectId } = req.body || {};
+  const { displayMessage, currentHtml, projectId, surface } = req.body || {};
   let attachments;
   try { attachments = parseRoomAttachments(req.body?.attachments); }
   catch (error) { return res.status(400).json({ error: error.message }); }
@@ -137,6 +138,30 @@ export default async function handler(req, res) {
   // id colliding with a real one.
   const brainUser = signedIn ? username : null;
   const resolvedProjectId = projectId || 'default';
+
+  // A Workbench project slot is consumed only by a NEW complete project.
+  // Edits and supporting pages stay inside the existing project and never
+  // spend another slot. Forge caller projects remain on their own surface.
+  if (surface === 'workbench' && !currentHtml) {
+    try {
+      const projects = await listProjects(username);
+      const isExisting = projects.some((project) => (project.projectId || project.key) === resolvedProjectId);
+      const allowance = workbenchProjectAllowance(await getUserPlan(username), isOperatorUser(username));
+      if (!isExisting && projects.length >= allowance.limit) {
+        return res.status(402).json({
+          error: allowance.limit
+            ? `Your ${allowance.planName} plan includes ${allowance.limit} Workbench projects. Upgrade or remove a project before starting another.`
+            : 'Workbench projects require Nex Chat Pro or Plus.',
+          code: 'WORKBENCH_PROJECT_LIMIT',
+          count: projects.length,
+          limit: allowance.limit,
+        });
+      }
+    } catch (error) {
+      console.error('room-chat: project limit lookup failed:', error.message);
+      return res.status(503).json({ error: 'Could not verify your Workbench project slots. Try again.' });
+    }
+  }
 
   // Ground the first build in the durable Project Brief when the customer has
   // completed one. The browser never gets to invent or rewrite this context:

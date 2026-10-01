@@ -112,6 +112,20 @@
   .rowdel:hover{background:#2a1d1d;color:#e39a8f}
   .rowdel[disabled]{opacity:.25;cursor:default}
   .lempty{font-size:14px;color:#5f5b56;padding:10px 2px 18px}
+  .projectusage{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:0 0 14px;
+    padding:13px 15px;border:1px solid var(--ln);border-radius:15px;background:#131313}
+  .projectusage strong{display:block;font-size:14px;font-weight:500}.projectusage span{display:block;color:var(--dm);font-size:12px;margin-top:4px}
+  .projectmeter{width:92px;height:6px;border-radius:999px;background:#292929;overflow:hidden;flex-shrink:0}
+  .projectmeter i{display:block;height:100%;border-radius:inherit;background:var(--blue)}
+  .projectgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:4px 0 20px}
+  .projectcard{min-width:0;border:1px solid var(--ln);border-radius:17px;overflow:hidden;background:#131313}
+  .projectthumb{position:relative;display:block;width:100%;aspect-ratio:16/10;overflow:hidden;background:#1b1b1b;border-bottom:1px solid var(--ln)}
+  .projectthumb iframe{position:absolute;inset:0;width:200%;height:200%;border:0;background:#fff;transform:scale(.5);transform-origin:top left;pointer-events:none}
+  .projectthumbempty{position:absolute;inset:0;display:grid;place-items:center;color:#76716b;font:400 15px ui-serif,Georgia,serif}
+  .projectcardbody{padding:12px}.projectcardtitle{width:100%;font-size:14px;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .projectcardmeta{font-size:11.5px;color:var(--dm);margin-top:5px}.projectcardactions{display:flex;gap:7px;margin-top:11px}
+  .projectcardactions button{flex:1;padding:8px 9px;border:1px solid #333;border-radius:9px;background:#1a1a1a;color:#d8d4cf;font-size:12px;text-align:center}
+  .projectcardactions button:first-child{background:#edf1f8;color:#111;border-color:#edf1f8}
   .actionform{display:grid;gap:10px;margin:14px 0;padding:18px;border:1px solid var(--ln);border-radius:14px;background:var(--card)}
   .actionform input{width:100%;padding:12px;border:1px solid #414141;border-radius:9px;background:#171717;color:var(--tx);font:inherit}
   .actionform button{padding:11px 15px;border-radius:9px;background:#eee;color:#111;text-align:center}
@@ -186,6 +200,7 @@
     .startergrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:18px}
     .starter{min-height:76px;padding:12px;font-size:13px}
     .vsub{display:none}
+    .projectgrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.projectcardbody{padding:10px}.projectcardactions{flex-direction:column}
   }
 </style>
 </head>
@@ -196,7 +211,7 @@
   <button class="new" id="newBtn">＋&nbsp; New chat</button>
   <button class="item on" data-view="chat"><span class="ic">✦</span>Chat</button>
   <button class="item" data-view="planner"><span class="ic">▤</span>Planner</button>
-  <button class="item" data-view="workbench"><span class="ic">▦</span>Workbench<span class="badgeplan">10 panels</span></button>
+  <button class="item" data-view="workbench"><span class="ic">▦</span>Projects<span class="badgeplan" id="projectPlanBadge">10 projects</span></button>
   <div class="grp">Connected Nexus</div>
   <div id="productNav"></div>
   <div class="grp">Recents</div>
@@ -295,8 +310,12 @@ const history = [];
 const ctx = {
   ask: (text) => askFromView(text),
   go: (id) => showView(id),
-  openWorkbenchPanel: (buildId) => location.assign(`/forge.html?surface=workbench&view=chat&build=${encodeURIComponent(buildId)}`),
+  openWorkbenchPanel: (buildId, mode = 'preview') => location.assign(`/forge.html?surface=workbench&view=${mode === 'edit' ? 'chat' : 'preview'}&build=${encodeURIComponent(buildId)}`),
   newWorkbenchPanel: () => location.assign('/forge.html?surface=workbench&view=chat&new=1'),
+  setProjectUsage: (count, limit) => {
+    const badge = el('projectPlanBadge');
+    if (badge) badge.textContent = Number.isFinite(limit) ? `${count}/${limit}` : `${count} projects`;
+  },
   openTask, openApproval, newTask, openDeveloper, createDeveloper, returnToOwner,
   newPlannerItem, openPlannerItem,
 };
@@ -520,7 +539,7 @@ async function showView(id){
     button.classList.toggle('on', button.dataset.view === id);
   }
   el('viewTitle').textContent = id === 'chat' ? 'Nex Chat' : VIEWS[id].label;
-  el('viewSubtitle').textContent = id === 'workbench' ? 'Build mode' : id === 'chat' ? 'Your connected AI' : 'Connected through Nex';
+  el('viewSubtitle').textContent = id === 'workbench' ? 'Your Workbench projects' : id === 'chat' ? 'Your connected AI' : 'Connected through Nex';
 
   if (id === 'chat') { replayThread(); return; }
 
@@ -745,7 +764,7 @@ function greet(){
   const items = [
     ['Plan my time', 'Days, events, and schedules', null, 'planner'],
     ['Think something through', 'Ideas, decisions, anything', 'Help me think something through. Start by asking what is on my mind.'],
-    ['Open Workbench', 'Build when I choose', null, 'workbench'],
+    ['Open Projects', 'Preview, edit, and create', null, 'workbench'],
     ['Connected life', 'Life, Legacy & Teams', 'Show me how my connected Nexus products can help today.'],
   ];
   for (const [label, meta, prompt, view] of items) {

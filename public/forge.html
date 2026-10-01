@@ -64,6 +64,15 @@
   .grow{flex:1}
   .ticon{font-size:17px;color:#d4d2ce;opacity:.85;padding:4px}
 
+  .workarea{flex:1;min-height:0;display:flex}
+  .conversation-pane{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column}
+  .project-editor-preview{display:none;min-width:0;min-height:0;background:#fff;border-right:1px solid var(--ln)}
+  .project-editor-bar{height:45px;display:flex;align-items:center;gap:9px;padding:7px 10px;background:#111318;color:#f2f0ed;border-bottom:1px solid #2b3040;flex-shrink:0}
+  .project-editor-bar strong{font-size:12.5px;font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .project-editor-bar button{margin-left:auto;padding:7px 11px;border:1px solid #363c49;border-radius:16px;background:#1b2029;color:#e7e9ed;font-size:12px}
+  .project-editor-preview iframe{display:block;width:100%;height:100%;border:0;background:#fff;flex:1}
+  .screen.workbench-editing .project-editor-preview{display:flex;flex-direction:column}
+
   .thread{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 18px 4px}
   .msg{margin-bottom:24px}
   .msg.u{display:flex;justify-content:flex-end}
@@ -159,8 +168,14 @@
     .screen{left:var(--rw);transform:none!important;box-shadow:none;border-left:1px solid var(--ln)}
     .burger{display:none}
     .thread,.foot,.disc{max-width:780px;margin-left:auto;margin-right:auto;width:100%}
+    .screen.workbench-editing .workarea{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(360px,.75fr)}
+    .screen.workbench-editing .thread,.screen.workbench-editing .foot,.screen.workbench-editing .disc{max-width:none}
   }
-  @media (max-width:520px){.qoptions{grid-template-columns:1fr}.qcard{padding:15px}}
+  @media (max-width:899px){
+    .screen.workbench-editing .workarea{flex-direction:column}
+    .screen.workbench-editing .project-editor-preview{height:40vh;min-height:245px;border-right:0;border-bottom:1px solid var(--ln);flex-shrink:0}
+  }
+  @media (max-width:520px){.qoptions{grid-template-columns:1fr}.qcard{padding:15px}.screen.workbench-editing .project-editor-preview{height:36vh;min-height:220px}}
 </style>
 </head>
 <body>
@@ -182,16 +197,24 @@
     <button class="ticon" id="headBtn" aria-label="Nex">◉</button>
     <button class="ticon" id="newTop" aria-label="New">＋</button>
   </div>
-  <div class="thread" id="thread"></div>
-  <div class="disc">Nex can make mistakes.</div>
-  <div class="foot">
-    <div class="comp">
-      <input id="input" placeholder="Tell me what you want to build…" autocomplete="off" />
-      <div class="crow">
-        <button class="round" id="helpBtn" title="What I can do">?</button>
-        <button class="round" id="previewBtn" title="Preview">◱</button>
-        <div class="grow"></div>
-        <button class="send" id="send" aria-label="Send">↑</button>
+  <div class="workarea">
+    <section class="project-editor-preview" id="projectEditorPreview" aria-label="Pinned project preview">
+      <div class="project-editor-bar"><strong>Live project</strong><button type="button" id="editorFullPreview">Full preview</button></div>
+      <iframe id="projectEditorFrame" title="Live project preview" sandbox="allow-scripts allow-forms" referrerpolicy="no-referrer"></iframe>
+    </section>
+    <div class="conversation-pane">
+      <div class="thread" id="thread"></div>
+      <div class="disc">Nex can make mistakes.</div>
+      <div class="foot">
+        <div class="comp">
+          <input id="input" placeholder="Tell me what you want to build…" autocomplete="off" />
+          <div class="crow">
+            <button class="round" id="helpBtn" title="What I can do">?</button>
+            <button class="round" id="previewBtn" title="Preview">◱</button>
+            <div class="grow"></div>
+            <button class="send" id="send" aria-label="Send">↑</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -343,7 +366,7 @@ const isWorkbench = surfaceMode === 'workbench';
 const WORKBENCH_VIEW_ORDER = ['project', 'preview', 'pages', 'stack', 'brief'];
 const WORKBENCH_VIEWS = new Set([...WORKBENCH_VIEW_ORDER, 'help']);
 const WORKBENCH_LABELS = {
-  project: 'Your Project', preview: 'Full Preview', pages: 'Add to Project',
+  project: 'Projects', preview: 'Full Preview', pages: 'Add to Project',
   stack: 'Connections', brief: 'Project Plan', help: 'How It Works',
 };
 if (isWorkbench) {
@@ -405,7 +428,7 @@ const ctx = {
     await showView('chat');
     await runBuild('Build the first working version from my approved Project Brief.', 'Project Brief approved');
   },
-  openBuild: async (id) => {
+  openBuild: async (id, destination = 'chat') => {
     const notice = bubble('sys', 'Opening that project…');
     let opened = false;
     try {
@@ -429,8 +452,10 @@ const ctx = {
           }
         }
       } catch { /* Saved HTML remains available when conversation history is down. */ }
-      await showView('chat');
-      bubble('a', paragraphs(`Opened “${data.build.label || 'Saved project'}”. Tell me what you want to inspect or change.`));
+      await showView(destination === 'preview' ? 'preview' : 'chat');
+      if (destination !== 'preview') {
+        bubble('a', paragraphs(`Opened “${data.build.label || 'Saved project'}”. The live project stays pinned while you tell me what to change.`));
+      }
       opened = true;
     } catch (error) {
       notice.textContent = error.message;
@@ -656,7 +681,9 @@ function drawNav(){
     button.className = 'item';
     button.dataset.view = id;
     button.innerHTML = `<span class="ic">${view.icon}</span>${esc(isWorkbench ? WORKBENCH_LABELS[id] : view.label)}`;
-    button.onclick = () => showView(id);
+    button.onclick = isWorkbench && id === 'project'
+      ? () => location.assign('/workspace.html?view=workbench')
+      : () => showView(id);
     nav.appendChild(button);
   }
 }
@@ -720,6 +747,17 @@ function openPreviewInNewTab(html) {
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
+function syncWorkbenchEditor(){
+  const editing = Boolean(isWorkbench && currentView === 'chat' && currentBuild);
+  screenEl.classList.toggle('workbench-editing', editing);
+  if (!editing) return;
+  const frame = el('projectEditorFrame');
+  if (frame._nexusHtml !== currentBuild) {
+    frame._nexusHtml = currentBuild;
+    frame.srcdoc = currentBuild;
+  }
+}
+
 function renderWorkbenchPreview(){
   if (!currentBuild) return false;
   const shell = document.createElement('section');
@@ -730,8 +768,8 @@ function renderWorkbenchPreview(){
   const bar = document.createElement('div');
   bar.className = 'workbench-preview-bar';
   const back = document.createElement('button');
-  back.type = 'button'; back.textContent = '← Back';
-  back.onclick = () => showView('project');
+  back.type = 'button'; back.textContent = '← Projects';
+  back.onclick = () => location.assign('/workspace.html?view=workbench');
   const title = document.createElement('strong');
   title.textContent = 'Full project preview';
   const edit = document.createElement('button');
@@ -756,6 +794,7 @@ async function showView(id){
   document.getElementById('workbenchFullPreview')?.remove();
   if (!viewAllowed(id)) id = 'project';
   currentView = id;
+  syncWorkbenchEditor();
   railOpen(false);
   for (const button of document.querySelectorAll('[data-view]')) {
     button.classList.toggle('on', button.dataset.view === id);
@@ -783,7 +822,7 @@ function replay(){
   if (!history.length) {
     if (currentBuild) {
       bubble('a', '<p>Your project is open. Tell me what you want to inspect or change.</p>');
-      renderVisual(currentBuild, 'Your site');
+      if (!isWorkbench) renderVisual(currentBuild, 'Your site');
     } else greet();
     return;
   }
@@ -791,7 +830,8 @@ function replay(){
     if (message.role === 'user') bubble('u', esc(message.content));
     else bubble('a', paragraphs(message.content));
   }
-  if (currentBuild) renderVisual(currentBuild, 'Your site');
+  if (currentBuild && !isWorkbench) renderVisual(currentBuild, 'Your site');
+  syncWorkbenchEditor();
 }
 
 const KEY = 'forge:threads:v1';
@@ -995,7 +1035,7 @@ async function runBuild(raw, displayMessage = raw, showUser = true){
   try {
     const response = await fetch('/api/room-chat', {
       method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ message: raw, displayMessage, projectId: currentProjectId, currentHtml: currentBuild || undefined }),
+      body: JSON.stringify({ message: raw, displayMessage, projectId: currentProjectId, currentHtml: currentBuild || undefined, surface: surfaceMode }),
     });
 
     // Refusals (no Builder Brain, bad request) come back as JSON before the
@@ -1015,6 +1055,14 @@ async function runBuild(raw, displayMessage = raw, showUser = true){
               { label: 'Create an account', run: () => goSignIn() },
               { label: 'What am I connecting', run: () => ctx.ask('Explain the Builder Brain in plain terms — what am I connecting and what does it cost me?') },
             ]));
+        return;
+      }
+      if (response.status === 402 && data?.code === 'WORKBENCH_PROJECT_LIMIT') {
+        pending.innerHTML = `<p style="color:#d09a82">${esc(data.error || 'This plan has no open project slots.')}</p>`;
+        pending.appendChild(chips([
+          { label: 'View Projects', run: () => location.assign('/workspace.html?view=workbench') },
+          { label: 'Compare plans', run: () => location.assign('/workspace.html?view=workbench') },
+        ]));
         return;
       }
       throw new Error(data?.error || 'That did not go through.');
@@ -1047,7 +1095,8 @@ async function runBuild(raw, displayMessage = raw, showUser = true){
           finished = true;
           currentBuild = data.html || '';
           pending.innerHTML = '<p>Here it is.</p>';
-          renderVisual(currentBuild, 'Your site');
+          if (isWorkbench) syncWorkbenchEditor();
+          else renderVisual(currentBuild, 'Your site');
           history.push({ role:'user', content:displayMessage }, { role:'assistant', content:'Built it.' });
           saveThread();
         } else if (data.action === 'saved') {
@@ -1078,6 +1127,7 @@ el('send').onclick = submit;
 el('input').addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
 el('helpBtn').onclick = () => showView('help');
 el('previewBtn').onclick = () => showView('preview');
+el('editorFullPreview').onclick = () => showView('preview');
 el('newBtn').onclick = el('newTop').onclick = () => {
   railOpen(false); ctx.startProject();
 };
@@ -1248,7 +1298,7 @@ if (!await handleBrainResult()) {
   const requestedBuild = startupParams.get('build');
   const wantsNewProject = startupParams.get('new') === '1';
   if (signedIn && requestedBuild && /^[a-zA-Z0-9_-]{1,160}$/u.test(requestedBuild)) {
-    await ctx.openBuild(requestedBuild);
+    await ctx.openBuild(requestedBuild, requestedView === 'preview' ? 'preview' : 'chat');
   } else if (signedIn && wantsNewProject) {
     ctx.startProject();
   } else if (requestedView && FORGE_VIEWS[requestedView]) {

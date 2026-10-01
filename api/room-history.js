@@ -10,7 +10,8 @@
 // of the things that unlocks with the Hosted tier and above.
 
 import { listBuilds, getBuild, listProjects, deleteProject } from '../lib/roomHistory.js';
-import { getRequestUser, getUserPlan, isPaidPlan } from '../lib/roomAuth.js';
+import { getRequestUser, getUserPlan, isOperatorUser, isPaidPlan, PLANS } from '../lib/roomAuth.js';
+import { workbenchProjectAllowance } from '../lib/workbenchPlans.js';
 import { removeLiveSite, takeSiteOffline, listLiveSites } from '../lib/roomLiveSites.js';
 import { deleteStaticSite } from '../lib/vercel.js';
 import { getOrCreateAnonId } from '../lib/anonSession.js';
@@ -93,9 +94,22 @@ return async function handler(req, res) {
       ...project,
       liveUrl: project.projectId ? liveByProject.get(project.projectId) ?? null : null,
     }));
+    let plan = PLANS.FREE;
+    try { plan = await resolvePlan(username); }
+    catch (planError) { console.error('room-history: plan lookup failed:', planError.message); }
+    const allowance = workbenchProjectAllowance(plan, isOperatorUser(username));
     // `builds` stays for anything still reading the flat version list;
     // `projects` is the one-row-per-project view the panel now renders.
-    return res.status(200).json({ builds, projects: withLive });
+    return res.status(200).json({
+      builds,
+      projects: withLive,
+      workbench: {
+        count: withLive.length,
+        limit: allowance.limit,
+        planName: allowance.planName,
+        canCreate: withLive.length < allowance.limit,
+      },
+    });
   } catch (err) {
     console.error('room-history handler crashed:', err.message);
     return res.status(500).json({ error: 'Failed to load room history' });

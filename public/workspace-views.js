@@ -172,6 +172,98 @@ export function group(label, children) {
   return wrap;
 }
 
+async function projectPreviewHtml(buildId) {
+  if (!buildId) return '';
+  try {
+    const payload = await getJSON('/api/room-history?id=' + encodeURIComponent(buildId));
+    return typeof payload?.build?.html === 'string' ? payload.build.html : '';
+  } catch {
+    return '';
+  }
+}
+
+function projectUsage(count, limit, planName) {
+  const wrap = document.createElement('div');
+  wrap.className = 'projectusage';
+  const copy = document.createElement('div');
+  const title = document.createElement('strong');
+  title.textContent = Number.isFinite(limit) ? `${count} of ${limit} projects used` : `${count} projects`;
+  const detail = document.createElement('span');
+  detail.textContent = Number.isFinite(limit)
+    ? `${planName || 'Current'} plan · ${Math.max(0, limit - count)} project slot${Math.max(0, limit - count) === 1 ? '' : 's'} left`
+    : `${planName || 'Current'} plan`;
+  copy.append(title, detail);
+  wrap.appendChild(copy);
+  if (Number.isFinite(limit) && limit > 0) {
+    const meter = document.createElement('div');
+    meter.className = 'projectmeter';
+    const fill = document.createElement('i');
+    fill.style.width = `${Math.min(100, Math.round((count / limit) * 100))}%`;
+    meter.appendChild(fill);
+    wrap.appendChild(meter);
+  }
+  return wrap;
+}
+
+async function projectGallery(projects, ctx) {
+  const gallery = document.createElement('div');
+  gallery.className = 'projectgrid';
+  const previews = await Promise.all(projects.map((project) => projectPreviewHtml(field(project, 'latestBuildId', 'id'))));
+  projects.forEach((project, index) => {
+    const buildId = field(project, 'latestBuildId', 'id');
+    const title = String(field(project, 'label', 'title', 'name', 'requestMessage', 'id') || 'Untitled project').slice(0, 90);
+    const versions = Number(field(project, 'versionCount')) || 0;
+    const liveUrl = field(project, 'liveUrl');
+    const card = document.createElement('article');
+    card.className = 'projectcard';
+
+    const thumb = document.createElement('button');
+    thumb.type = 'button';
+    thumb.className = 'projectthumb';
+    thumb.setAttribute('aria-label', `Preview ${title}`);
+    thumb.onclick = buildId ? () => ctx.openWorkbenchPanel(buildId, 'preview') : null;
+    if (previews[index]) {
+      const frame = document.createElement('iframe');
+      frame.title = '';
+      frame.tabIndex = -1;
+      frame.setAttribute('aria-hidden', 'true');
+      frame.setAttribute('sandbox', 'allow-scripts allow-forms');
+      frame.setAttribute('referrerpolicy', 'no-referrer');
+      frame.srcdoc = previews[index];
+      thumb.appendChild(frame);
+    } else {
+      const blank = document.createElement('span');
+      blank.className = 'projectthumbempty';
+      blank.textContent = 'Project preview';
+      thumb.appendChild(blank);
+    }
+
+    const body = document.createElement('div');
+    body.className = 'projectcardbody';
+    const titleButton = document.createElement('button');
+    titleButton.type = 'button';
+    titleButton.className = 'projectcardtitle';
+    titleButton.textContent = title;
+    titleButton.onclick = buildId ? () => ctx.openWorkbenchPanel(buildId, 'preview') : null;
+    const meta = document.createElement('div');
+    meta.className = 'projectcardmeta';
+    meta.textContent = [liveUrl ? 'Live' : 'Saved', versions ? `${versions} version${versions === 1 ? '' : 's'}` : '', relative(field(project, 'updatedAt', 'createdAt', 'ts'))].filter(Boolean).join(' · ');
+    const actions = document.createElement('div');
+    actions.className = 'projectcardactions';
+    const preview = document.createElement('button');
+    preview.type = 'button'; preview.textContent = 'Preview';
+    preview.onclick = buildId ? () => ctx.openWorkbenchPanel(buildId, 'preview') : null;
+    const edit = document.createElement('button');
+    edit.type = 'button'; edit.textContent = 'Edit';
+    edit.onclick = buildId ? () => ctx.openWorkbenchPanel(buildId, 'edit') : null;
+    actions.append(preview, edit);
+    body.append(titleButton, meta, actions);
+    card.append(thumb, body);
+    gallery.appendChild(card);
+  });
+  return gallery;
+}
+
 export function chips(items) {
   const wrap = document.createElement('div');
   wrap.className = 'chips';
@@ -221,38 +313,29 @@ function plannerWeek(items, ctx) {
 
 export const VIEWS = {
   workbench: {
-    label: 'Workbench',
+    label: 'Projects',
     icon: '▦',
     say: ['workbench', 'nex workbench', 'panels', 'build mode'],
     async render(ctx) {
       const payload = await getJSON('/api/room-history');
       const projects = pick(payload, 'projects', 'builds');
-      const panels = projects.length
-        ? projects.slice(0, 10).map((project) => {
-          const buildId = field(project, 'latestBuildId', 'id');
-          const versions = Number(field(project, 'versionCount')) || 0;
-          const liveUrl = field(project, 'liveUrl');
-          return row({
-            title: String(field(project, 'label', 'title', 'name', 'requestMessage', 'id') || 'Untitled panel').slice(0, 90),
-            meta: [
-              versions ? `${versions} version${versions === 1 ? '' : 's'}` : '',
-              relative(field(project, 'updatedAt', 'createdAt', 'ts')),
-            ].filter(Boolean).join(' · '),
-            tone: liveUrl ? { label: 'live', kind: 'f' } : { label: 'saved' },
-            onClick: buildId ? () => ctx.openWorkbenchPanel(buildId) : null,
-          });
-        })
-        : [empty('No projects yet. Start one here and it will become its own complete Workbench space.')];
+      const workbench = payload?.workbench || {};
+      const limit = Number.isFinite(Number(workbench.limit)) ? Number(workbench.limit) : NEX_CHAT_PLANS.plus.panels;
+      const canCreate = workbench.canCreate !== false && projects.length < limit;
+      ctx.setProjectUsage?.(projects.length, limit);
       return [
         say(projects.length
-          ? `Your Workbench has ${projects.length} saved project${projects.length === 1 ? '' : 's'}. A Workbench panel means one complete project—such as a website, app, business system, or intelligence—with its own supporting pieces, full stack, and path to go live.`
-          : 'A Workbench panel means one complete project: a website, app, business system, or intelligence. Everything you add inside it becomes part of that project and its full stack.'),
+          ? 'Choose a project to open its full preview. Use Edit when you want the live project pinned beside your conversation with Nex.'
+          : 'Each project is one complete website, app, business system, or intelligence. Start one here, then add supporting pages, tools, workflows, and intelligences into its stack.'),
+        projectUsage(projects.length, limit, workbench.planName),
         chips([
-          { label: 'New project', run: () => ctx.newWorkbenchPanel() },
+          canCreate
+            ? { label: 'New project', run: () => ctx.newWorkbenchPanel() }
+            : { label: 'Upgrade for more projects', run: () => ctx.ask(`I have used all ${limit} Workbench project slots. Show me which Nex Chat plan gives me more projects.`) },
           { label: 'Map a project', run: () => ctx.ask('Help me map a new website, app, business system, or intelligence before we open its Workbench project.') },
           { label: 'Refresh', run: () => ctx.go('workbench') },
         ]),
-        group('Your projects', panels),
+        projects.length ? await projectGallery(projects.slice(0, 10), ctx) : empty('No projects yet. Start one here and it will become its own complete Workbench space.'),
         group('Plans', Object.values(NEX_CHAT_PLANS).map((plan) => row({
           title: `${plan.name}${plan.price ? ` · $${plan.price}/month` : ''}`,
           meta: plan.description,
