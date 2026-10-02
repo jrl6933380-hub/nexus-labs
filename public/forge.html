@@ -141,6 +141,17 @@
   .workbench-stack-part:nth-child(even){transform:rotate(1.5deg)}
   .workbench-stack-part small{display:block;margin-bottom:8px;color:#d9bc80;font-size:9px;letter-spacing:.12em;text-transform:uppercase}
   .workbench-stack-part strong{display:block;color:#d7d9df;font-size:11.5px;line-height:1.35;font-weight:550;overflow-wrap:anywhere}
+  .live-sites-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;margin:18px 0 22px}
+  .live-site-card{overflow:hidden;border:1px solid #303748;border-radius:18px;background:linear-gradient(155deg,#171b24,#101319)}
+  .live-site-preview{position:relative;display:block;width:100%;aspect-ratio:16/10;border:0;border-bottom:1px solid #303748;background:#fff;overflow:hidden}
+  .live-site-preview iframe{display:block;width:100%;height:100%;border:0;pointer-events:none}
+  .live-site-badge{position:absolute;top:9px;right:9px;padding:5px 8px;border-radius:12px;background:#16372a;color:#8fe0b0;font-size:10px;font-weight:650}
+  .live-site-body{padding:13px}.live-site-body h3{margin:0 0 5px;font-size:15px;font-weight:600;color:#e3e4e8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .live-site-url{display:block;margin-bottom:11px;color:#828895;font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .live-site-actions{display:flex;gap:7px;flex-wrap:wrap}.live-site-actions button{padding:7px 10px;border:1px solid #303748;border-radius:14px;background:#151922;color:#c8ccd4;font-size:10.5px}
+  .live-site-actions button.primary{background:#d0af6d;border-color:#d0af6d;color:#17130a;font-weight:650}
+  .live-site-care{margin-top:11px;padding-top:11px;border-top:1px solid #292e39;display:flex;gap:7px;flex-wrap:wrap}
+  .live-site-care button{padding:7px 10px;border-radius:14px;background:#211d17;border:1px solid #4a402c;color:#e2c991;font-size:10.5px}
 
   .qcard{margin:4px 0 22px;padding:18px;border:1px solid #303748;border-radius:18px;
     background:linear-gradient(155deg,#171b24,#11141a);box-shadow:0 16px 40px rgba(0,0,0,.22)}
@@ -411,10 +422,10 @@ const history = [];
 const startupParams = new URLSearchParams(location.search);
 const surfaceMode = startupParams.get('surface') === 'workbench' ? 'workbench' : 'forge';
 const isWorkbench = surfaceMode === 'workbench';
-const WORKBENCH_VIEW_ORDER = ['project', 'preview', 'pages', 'stack', 'brief'];
+const WORKBENCH_VIEW_ORDER = ['project', 'live', 'preview', 'pages', 'stack', 'brief'];
 const WORKBENCH_VIEWS = new Set([...WORKBENCH_VIEW_ORDER, 'help']);
 const WORKBENCH_LABELS = {
-  project: 'Projects', preview: 'Full Preview', pages: 'Add to Project',
+  project: 'Projects', live: 'Live Sites', preview: 'Full Preview', pages: 'Add to Project',
   stack: 'Connections', brief: 'Project Plan', help: 'How It Works',
 };
 if (isWorkbench) {
@@ -454,6 +465,8 @@ const ctx = {
   hasCurrentBuild: () => Boolean(currentBuild),
   currentBuild: () => currentBuild,
   currentProjectLabel: () => currentProjectLabel,
+  copyText,
+  openExternal: (url) => window.open(url, '_blank', 'noopener'),
   projectId: () => currentProjectId,
   signedIn: () => signedIn,
   signIn: () => goSignIn(),
@@ -854,7 +867,7 @@ function renderWorkbenchPreview(){
   bar.className = 'workbench-preview-bar';
   const back = document.createElement('button');
   back.type = 'button'; back.textContent = '← Projects';
-  back.onclick = () => location.assign('/workspace.html?view=workbench');
+  back.onclick = () => showView('project');
   const title = document.createElement('strong');
   title.textContent = currentProjectLabel || 'Full project preview';
   const status = document.createElement('span');
