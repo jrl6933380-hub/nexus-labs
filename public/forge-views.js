@@ -56,7 +56,7 @@ function briefQuestionCard(question, progress, ctx) {
 
   const head = document.createElement('div');
   head.className = 'qhead';
-  head.innerHTML = `<span>Project brief · ${progress.answered + 1} of ${progress.required}</span><strong>${esc(question.question)}</strong><small>${esc(question.helper || '')}</small>`;
+  head.innerHTML = `<span>Project brief · Question ${progress.answered + 1}</span><strong>${esc(question.question)}</strong><small>${esc(question.helper || '')}</small>`;
   card.appendChild(head);
 
   const selected = new Set();
@@ -78,7 +78,7 @@ function briefQuestionCard(question, progress, ctx) {
       button.dataset.value = option.value;
       button.setAttribute('aria-pressed', 'false');
       button.onclick = () => {
-        if (question.type === 'single_select') {
+        if (question.type === 'single_select' || option.value === 'none' || selected.has('none')) {
           selected.clear();
           for (const sibling of options.querySelectorAll('.qoption')) {
             sibling.classList.remove('picked');
@@ -635,7 +635,7 @@ export const FORGE_VIEWS = {
         if (brief.contextUnavailable?.length) nodes.push(say('Some saved project context could not be loaded. Connection readiness is unconfirmed until its check passes.'));
       }
       if (!brief.progress.ready && brief.next_question) {
-        nodes.push(say(`I'll collect the important decisions one at a time. Each answer saves automatically, and the next question adapts to your project.`));
+        nodes.push(say(`I'll collect the important decisions one at a time. Each answer saves automatically. The number of questions changes with what your project needs.`));
         nodes.push(briefQuestionCard(brief.next_question, brief.progress, ctx));
         return nodes;
       }

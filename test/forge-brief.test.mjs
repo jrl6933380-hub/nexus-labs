@@ -15,11 +15,12 @@ async function completeBrief(store, ownerUsername = 'alice', projectId = 'defaul
   const answers = [
     ['idea', 'A warm neighborhood restaurant site'],
     ['project_type', 'business_website'],
-    ['primary_goals', ['learn', 'book']],
+    ['workflow', 'Visitors learn about us and contact us'],
     ['audience', 'local_customers'],
     ['style', 'warm'],
     ['content', ['logo', 'hours']],
     ['features', ['forms', 'hours']],
+    ['success', 'A welcoming menu and clear contact details'],
   ];
   let brief;
   for (const [questionId, values] of answers) {
@@ -51,7 +52,7 @@ test('feature options adapt to the selected project type', async () => {
   let brief = await ensureProjectBrief({ ownerUsername: 'alice', store });
   for (const [questionId, values] of [
     ['idea', 'A scheduling product'], ['project_type', 'booking'],
-    ['primary_goals', ['book']], ['audience', 'local_customers'],
+    ['workflow', 'Choose a time and confirm it'], ['audience', 'local_customers'],
     ['style', 'clean'], ['content', ['nothing']],
   ]) {
     brief = await saveBriefAnswer({ ownerUsername: 'alice', questionId, values, store });
