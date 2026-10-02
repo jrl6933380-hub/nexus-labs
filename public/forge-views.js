@@ -299,7 +299,7 @@ async function workbenchProjectTiles(ctx) {
     label.className = 'tile-label';
     label.textContent = projectLabel;
     current.append(frame, label);
-    current.onclick = buildId ? () => ctx.openBuild(buildId, 'preview') : () => ctx.go('preview');
+    current.onclick = buildId ? () => ctx.openBuild(buildId, 'preview', projectLabel) : () => ctx.go('preview');
     deck.appendChild(current);
     stack.appendChild(deck);
 
@@ -314,7 +314,7 @@ async function workbenchProjectTiles(ctx) {
       for (const part of parts) {
         const card = document.createElement('div');
         card.className = `workbench-stack-part ${part.kind || 'page'}`;
-        card.innerHTML = `<small>${part.kind || 'page'}</small><strong>${String(part.label || 'Supporting piece').slice(0, 80)}</strong>`;
+        card.innerHTML = `<small>${esc(part.kind || 'page')}</small><strong>${esc(String(part.label || 'Supporting piece').slice(0, 80))}</strong>`;
         fan.appendChild(card);
       }
       toggle.onclick = () => {
@@ -324,6 +324,23 @@ async function workbenchProjectTiles(ctx) {
       };
       stack.append(toggle, fan);
     }
+    const actions = document.createElement('div');
+    actions.className = 'workbench-project-actions';
+    for (const [label, destination] of [['Edit with Nex', 'chat'], ['Add a piece', 'pages']]) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = label;
+      button.setAttribute('aria-label', `${label} to ${projectLabel}`);
+      button.onclick = async () => {
+        button.disabled = true;
+        try {
+          if (buildId) await ctx.openBuild(buildId, destination, projectLabel);
+          else await ctx.go(destination);
+        } finally { button.disabled = false; }
+      };
+      actions.appendChild(button);
+    }
+    stack.appendChild(actions);
     grid.appendChild(stack);
   });
 
@@ -522,14 +539,11 @@ export const FORGE_VIEWS = {
     async render(ctx) {
       if (ctx.surface?.() === 'workbench') {
         return [
-          say(ctx.hasCurrentBuild?.()
-            ? 'Your project is open. It can be a complete website, app, business system, or intelligence—not just one screen. Preview the whole experience, add supporting pieces, connect what it needs, and publish when it is ready.'
-            : 'Start with the main project: a website, app, business system, or intelligence. Nex will build the first working version, then you can add supporting pieces into the same stack.'),
+          say('Choose a project below. Tap its preview to see the full site, or Add a piece on that project to grow its stack.'),
+          say('One stack becomes one live site. Nex builds supporting pages and tools into the same project as you add them. When you go live, the latest combined site is published on one link. Stack cards are visual guides to what you have added.'),
           await workbenchProjectTiles(ctx),
           chips([
             { label: ctx.hasCurrentBuild?.() ? 'Edit with Nex' : 'Start building', run: () => ctx.go('chat') },
-            { label: 'Full Preview', run: () => ctx.go('preview') },
-            { label: 'Add to Project', run: () => ctx.go('pages') },
             { label: 'Connections', run: () => ctx.go('stack') },
           ]),
         ];
@@ -644,8 +658,20 @@ export const FORGE_VIEWS = {
     say: ['pages', 'page'],
     async render(ctx) {
       if (ctx.surface?.() === 'workbench') {
+        if (!ctx.hasCurrentBuild?.()) {
+          return [say('Choose the project you want to add to, then tap Add a piece on its card.'), await workbenchProjectTiles(ctx)];
+        }
+        const selected = document.createElement('div');
+        selected.className = 'workbench-selected-project';
+        const caption = document.createElement('small');
+        caption.textContent = 'Adding to project';
+        const name = document.createElement('strong');
+        name.textContent = ctx.currentProjectLabel?.() || 'Your project';
+        selected.append(caption, name);
         return [
-          say('Add supporting pieces to the main project and its stack. That can be a website page, customer portal, dashboard, calculator, workflow, automation, admin area, or an intelligence that helps operate the main experience.'),
+          selected,
+          chips([{ label: 'Choose a different project', run: () => ctx.go('project') }]),
+          say('Add a page, tool, dashboard, workflow, or intelligence to this project. Nex builds it into the same site while keeping the existing pieces. When you go live, the latest combined project shares one link; stack cards are visual guides to its pieces.'),
           chips([
             { label: 'Add a page', run: () => ctx.ask('Add a supporting page to this project. Ask what it should do and how it connects to the main experience.', { stackItem: { kind: 'page' } }) },
             { label: 'Add a tool', run: () => ctx.ask('Add a useful tool, dashboard, calculator, or workflow to this project. Ask what should power it and who will use it.', { stackItem: { kind: 'tool' } }) },
@@ -963,8 +989,7 @@ export const FORGE_VIEWS = {
           say(`One Workbench panel is one complete project: a website, app, business system, or intelligence. Talk to Nex normally, then use these controls only when you want to inspect or extend a specific part.`),
           group('Inside this project', [
             row({ title: 'Your Project', meta: 'The main experience you are building', onClick: () => ctx.go('project') }),
-            row({ title: 'Full Preview', meta: 'Work directly with the full-screen result', onClick: () => ctx.go('preview') }),
-            row({ title: 'Add to Project', meta: 'Supporting pages, tools, workflows, and intelligences', onClick: () => ctx.go('pages') }),
+            row({ title: 'Project stacks', meta: 'Choose a project to preview or add supporting pages, tools, workflows, and intelligences', onClick: () => ctx.go('project') }),
             row({ title: 'Connections', meta: 'Services and infrastructure behind the project', onClick: () => ctx.go('stack') }),
             row({ title: 'Project Plan', meta: 'Shape the idea before building', onClick: () => ctx.go('brief') }),
           ]),
