@@ -498,13 +498,18 @@ const ctx = {
   },
   resetBrief: async () => {
     await briefAction('reset');
-    currentBuild = '';
-    latestBuildId = null;
     await showView('brief');
   },
   buildFromBrief: async () => {
+    const addon = Boolean(currentBuild);
+    const plannedProjectId = currentProjectId;
+    let approvedPlan;
+    try { approvedPlan = await briefAction('approve'); }
+    catch (error) { bubble('sys', esc(error.message)); return; }
+    if (plannedProjectId !== currentProjectId) { bubble('sys', 'Return to the planned project before building this addition.'); return; }
+    if (addon) pendingStackItem = { id: `part-${Date.now().toString(36)}`, kind: 'tool' };
     await showView('chat');
-    await runBuild('Build the first working version from my approved Project Brief.', 'Project Brief approved');
+    await runBuild(addon ? 'Implement my approved add-on plan in this existing project. Preserve everything outside the planned change and connect the addition to the main experience.' : 'Build the first working version from my approved Project Brief.', addon ? `Add-on approved: ${String(approvedPlan.answers?.idea || 'Project addition').slice(0, 80)}` : 'Project Brief approved', true, addon ? 'addon' : 'new');
   },
   openBuild: async (id, destination = 'chat', projectLabel = '') => {
     const notice = bubble('sys', 'Opening that project…');
@@ -709,7 +714,7 @@ async function briefAction(action, extra = {}) {
   const response = await fetch('/api/forge-brief', {
     method: 'POST', credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action, projectId: currentProjectId, ...extra }),
+    body: JSON.stringify({ action, projectId: currentProjectId, mode: currentBuild ? 'addon' : 'new', ...extra }),
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data?.error || 'That answer could not be saved.');
@@ -762,6 +767,7 @@ function drawNav(){
   for (const [id, view] of entries) {
     const gate = VIEW_REQUIRES[id];
     if (gate && !featureUnlocked(connectionSnapshot(), gate)) continue;
+    if (id === 'stack' && !currentBuild) continue;
     const button = document.createElement('button');
     button.className = 'item';
     button.dataset.view = id;
@@ -931,7 +937,10 @@ function renderWorkbenchPreview(){
 async function showView(id){
   document.getElementById('workbenchFullPreview')?.remove();
   if (!viewAllowed(id)) id = 'project';
+  if (id === 'stack' && !currentBuild) id = 'brief';
   currentView = id;
+  drawNav();
+  el('connectionsProjectBtn').hidden = !isWorkbench || !currentBuild;
   syncWorkbenchEditor();
   railOpen(false);
   for (const button of document.querySelectorAll('[data-view]')) {
@@ -939,7 +948,7 @@ async function showView(id){
   }
   el('viewTitle').textContent = id === 'chat'
     ? (isWorkbench ? 'Nex Workbench' : 'Nexus Forge')
-    : (isWorkbench ? WORKBENCH_LABELS[id] : FORGE_VIEWS[id].label);
+    : (id === 'brief' && currentBuild ? 'Plan an addition' : isWorkbench ? WORKBENCH_LABELS[id] : FORGE_VIEWS[id].label);
   if (id === 'chat') { replay(); return; }
   if (id === 'preview' && isWorkbench && renderWorkbenchPreview()) return;
   thread.innerHTML = '';
@@ -1055,7 +1064,7 @@ async function askNex(raw){
       body: JSON.stringify({
         message: raw,
         projectId: currentProjectId,
-        projectLabel: isWorkbench ? 'Workbench panel' : 'Forge project',
+        projectLabel: currentProjectLabel,
         currentHtml: currentBuild || '',
         viewport: 'responsive',
       }),
@@ -1158,7 +1167,7 @@ async function recoverPendingBuild() {
   } finally { recoveryRunning = false; }
 }
 
-async function runBuild(raw, displayMessage = raw, showUser = true){
+async function runBuild(raw, displayMessage = raw, showUser = true, planMode = undefined){
   if (!raw || busy) return;
   if (currentView !== 'chat') showView('chat');
   if (showUser) bubble('u', esc(displayMessage));
@@ -1174,7 +1183,7 @@ async function runBuild(raw, displayMessage = raw, showUser = true){
     const response = await fetch('/api/room-chat', {
       method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
-        message: raw, displayMessage, projectId: currentProjectId,
+        message: raw, displayMessage, projectId: currentProjectId, planMode,
         currentHtml: currentBuild || undefined, surface: surfaceMode,
         stackItem: pendingStackItem ? { ...pendingStackItem, label: String(displayMessage || raw).slice(0, 80) } : undefined,
       }),
@@ -1238,6 +1247,8 @@ async function runBuild(raw, displayMessage = raw, showUser = true){
           currentBuild = data.html || '';
           if (currentLiveUrl) currentLiveNeedsUpdate = true;
           pending.innerHTML = '<p>Here it is.</p>';
+          drawNav();
+          el('connectionsProjectBtn').hidden = !isWorkbench || !currentBuild;
           if (isWorkbench) syncWorkbenchEditor();
           else renderVisual(currentBuild, 'Your site');
           history.push({ role:'user', content:displayMessage }, { role:'assistant', content:'Built it.' });
@@ -1288,7 +1299,7 @@ function greet(){
       { label: 'Projects', run: () => showView('project') },
     ];
     if (featureUnlocked(connectionSnapshot(), 'brief')) workbenchOptions.push({ label: 'Project Plan', run: () => showView('brief') });
-    if (featureUnlocked(connectionSnapshot(), 'stack')) workbenchOptions.push({ label: 'Connections', run: () => showView('stack') });
+    if (currentBuild && featureUnlocked(connectionSnapshot(), 'stack')) workbenchOptions.push({ label: 'Connections', run: () => showView('stack') });
     thread.appendChild(chips(workbenchOptions));
     return;
   }
@@ -1296,7 +1307,7 @@ function greet(){
   // Offering the Project Brief to someone on the free router sets up a long
   // wait and a rate limit instead of a built page.
   const briefReady = featureUnlocked(connectionSnapshot(), 'brief');
-  const stackReady = featureUnlocked(connectionSnapshot(), 'stack');
+  const stackReady = Boolean(currentBuild) && featureUnlocked(connectionSnapshot(), 'stack');
 
   thread.appendChild(say(briefReady
     ? `Hey, I'm Nex. Welcome to Forge.\n\nTell me what you want to create. I'll ask a few focused questions, save your answers into a Project Brief, and then build the first version from what you actually want.`
@@ -1379,7 +1390,7 @@ async function dockAsk(text){
       body: JSON.stringify({
         message: text,
         projectId: currentProjectId,
-        projectLabel: isWorkbench ? 'Workbench panel' : 'Forge project',
+        projectLabel: currentProjectLabel,
         currentHtml: currentBuild || '',
         viewport: 'responsive',
       }),
@@ -1439,7 +1450,8 @@ if (startupParams.get('onboarding') === '1' || startupParams.get('view') === 'br
 // this customer cannot use — and then remove them, which reads as a glitch.
 await loadConnection();
 el('addProjectBtn').hidden = true;
-for (const id of ['planProjectBtn', 'connectionsProjectBtn']) el(id).hidden = !isWorkbench;
+el('planProjectBtn').hidden = !isWorkbench;
+el('connectionsProjectBtn').hidden = !isWorkbench || !currentBuild;
 drawNav();
 
 if (!await handleBrainResult()) {
