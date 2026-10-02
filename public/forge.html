@@ -114,6 +114,10 @@
   .chip{font-size:13.5px;padding:9px 15px;border-radius:20px;background:#191d25;
     border:1px solid var(--ln);color:#c0c4cc;transition:.13s}
   .chip:hover{border-color:#3b4354;color:var(--tx)}
+  .chat-checklist{margin:14px 0 4px;padding:14px;border:1px solid var(--ln);border-radius:16px;background:rgba(255,255,255,.025)}
+  .chat-checklist strong{display:block;margin-bottom:8px;font-size:13px;color:var(--mut)}
+  .chat-checklist div{display:flex;gap:9px;align-items:flex-start;padding:7px 0;border-top:1px solid rgba(255,255,255,.055);font-size:14px;line-height:1.4}
+  .chat-checklist div:first-of-type{border-top:0}.chat-checklist span{color:var(--accent);font-weight:700}
   .workbench-project-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:16px;margin:18px 0 20px;align-items:start}
   .workbench-project-stack{position:relative;min-width:0}
   .workbench-project-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
@@ -427,6 +431,7 @@ let currentProjectLabel = 'Your project';
 let currentLiveUrl = '';
 let currentLiveNeedsUpdate = false;
 let pendingStackItem = null;
+let plannerEntry = '';
 const scopedConnections = new Set();
 const history = [];
 const startupParams = new URLSearchParams(location.search);
@@ -475,6 +480,7 @@ const ctx = {
   hasCurrentBuild: () => Boolean(currentBuild),
   currentBuild: () => currentBuild,
   currentProjectLabel: () => currentProjectLabel,
+  plannerEntry: () => plannerEntry,
   copyText,
   openExternal: (url) => window.open(url, '_blank', 'noopener'),
   projectId: () => currentProjectId,
@@ -490,9 +496,29 @@ const ctx = {
     el('input').value = text; return submit();
   },
   go: (id) => showView(id),
+  beginAddPiecePlanner: async () => {
+    if (!currentBuild) return showView('project');
+    plannerEntry = 'add-piece';
+    await showView('brief');
+  },
+  chooseAdditionKind: async (additionKind) => {
+    if (plannerEntry === 'add-piece') await briefAction('reset');
+    await briefAction('choose_addition_kind', { additionKind });
+    pendingStackItem = { id: `part-${Date.now().toString(36)}`, kind: additionKind };
+    plannerEntry = 'active-addon';
+    await showView('brief');
+  },
+  openGuidedPlanner: async (additionKind = '') => {
+    plannerEntry = 'nex';
+    if (currentBuild && ['page', 'tool', 'intelligence'].includes(additionKind)) {
+      await briefAction('choose_addition_kind', { additionKind });
+      pendingStackItem = { id: `part-${Date.now().toString(36)}`, kind: additionKind };
+    }
+    await showView('brief');
+  },
   startProject: () => {
     history.length = 0; threadId = null; currentBuild = ''; latestBuildId = null;
-    currentProjectLabel = 'New project'; currentLiveUrl = ''; currentLiveNeedsUpdate = false; pendingStackItem = null;
+    currentProjectLabel = 'New project'; currentLiveUrl = ''; currentLiveNeedsUpdate = false; pendingStackItem = null; plannerEntry = '';
     currentProjectId = newProjectId();
     showView(featureUnlocked(connectionSnapshot(), 'brief') ? 'brief' : 'chat');
   },
@@ -511,7 +537,7 @@ const ctx = {
     try { approvedPlan = await briefAction('approve'); }
     catch (error) { bubble('sys', esc(error.message)); return; }
     if (plannedProjectId !== currentProjectId) { bubble('sys', 'Return to the planned project before building this addition.'); return; }
-    if (addon) pendingStackItem = { id: `part-${Date.now().toString(36)}`, kind: 'tool' };
+    if (addon) pendingStackItem = { id: `part-${Date.now().toString(36)}`, kind: approvedPlan.addition_kind || pendingStackItem?.kind || 'tool' };
     await showView('chat');
     await runBuild(addon ? 'Implement my approved add-on plan in this existing project. Preserve everything outside the planned change and connect the addition to the main experience.' : 'Build the first working version from my approved Project Brief.', addon ? `Add-on approved: ${String(approvedPlan.answers?.idea || 'Project addition').slice(0, 80)}` : 'Project Brief approved', true, addon ? 'addon' : 'new');
   },
@@ -529,6 +555,7 @@ const ctx = {
       latestBuildId = data.build.id;
       currentProjectLabel = projectLabel || data.build.label || 'Your project';
       pendingStackItem = null;
+      plannerEntry = destination === 'add-piece' ? 'add-piece' : '';
       currentLiveUrl = data.build.liveUrl || '';
       currentLiveNeedsUpdate = Boolean(currentLiveUrl && Number(data.build.createdAt) > Number(data.build.livePublishedAt || 0));
       threadId = `project-${currentProjectId}`;
@@ -539,13 +566,14 @@ const ctx = {
         }).then((res) => res.ok ? res.json() : null);
         for (const turn of conversation?.turns || []) {
           if (turn.role === 'user' || turn.role === 'assistant') {
-            history.push({ role: turn.role, content: turn.text });
+            history.push({ role: turn.role, content: turn.text, guidance: turn.guidance || null });
           }
         }
       } catch { /* Saved HTML remains available when conversation history is down. */ }
-      await showView(['preview', 'pages', 'stack'].includes(destination) ? destination : 'chat');
+      await showView(destination === 'add-piece' ? 'brief' : ['preview', 'pages', 'stack'].includes(destination) ? destination : 'chat');
       if (destination === 'chat') {
         bubble('a', paragraphs(`Opened “${data.build.label || 'Saved project'}”. The live project stays pinned while you tell me what to change.`));
+        await askNex('Review the project I just opened. Ask one useful editing question and give me only the most relevant clickable choices for what I could work on next.', { displayMessage: 'Show me relevant editing options' });
       }
       opened = true;
     } catch (error) {
@@ -811,6 +839,38 @@ function paragraphs(text){
   return String(text).split(/\n{2,}/).map((p) => `<p>${esc(p).replace(/\n/g,'<br>')}</p>`).join('');
 }
 
+function renderDecisionGuidance(host, decision){
+  if (decision.checklist?.items?.length) {
+    const card = document.createElement('div');
+    card.className = 'chat-checklist';
+    const title = document.createElement('strong');
+    title.textContent = decision.checklist.title || 'What Nex understands';
+    card.appendChild(title);
+    const marks = { decided: '✓', next: '→', connection: '◇' };
+    for (const item of decision.checklist.items) {
+      const row = document.createElement('div');
+      const mark = document.createElement('span');
+      mark.textContent = marks[item.state] || '•';
+      const label = document.createElement('b');
+      label.textContent = item.label;
+      row.append(mark, label);
+      card.appendChild(row);
+    }
+    host.appendChild(card);
+  }
+  const options = (decision.suggestions || []).map((suggestion) => ({
+    label: suggestion.label,
+    run: () => askNex(suggestion.prompt, { displayMessage: suggestion.label }),
+  }));
+  if (decision.planner) {
+    options.push({
+      label: decision.planner.label || (currentBuild ? 'Open addition planner' : 'Open project planner'),
+      run: () => ctx.openGuidedPlanner(decision.planner.additionKind || ''),
+    });
+  }
+  if (options.length) host.appendChild(chips(options));
+}
+
 // Renders a finished build inline in the thread.
 //
 // This was referenced by the build handler but never defined here — it existed
@@ -994,7 +1054,10 @@ function replay(){
   }
   for (const message of history) {
     if (message.role === 'user') bubble('u', esc(message.content));
-    else bubble('a', paragraphs(message.content));
+    else {
+      const body = bubble('a', paragraphs(message.content));
+      if (message.guidance?.checklist) renderDecisionGuidance(body, { checklist: message.guidance.checklist });
+    }
   }
   if (currentBuild && !isWorkbench) renderVisual(currentBuild, 'Your site');
   syncWorkbenchEditor();
@@ -1071,10 +1134,10 @@ async function submit(){
   await askNex(raw);
 }
 
-async function askNex(raw){
+async function askNex(raw, { displayMessage = raw } = {}){
   if (!raw || busy) return;
   if (currentView !== 'chat') await showView('chat');
-  bubble('u', esc(raw));
+  bubble('u', esc(displayMessage));
   const pending = bubble('a', '<p style="color:#61656f">Thinking through that…</p>');
   busy = true; el('send').disabled = true;
   try {
@@ -1102,7 +1165,8 @@ async function askNex(raw){
 
     if (decision.kind === 'reply' || decision.kind === 'pitch_agent') {
       pending.innerHTML = paragraphs(decision.message || 'What would you like to work through?');
-      history.push({ role:'user', content:raw }, { role:'assistant', content:decision.message });
+      renderDecisionGuidance(pending, decision);
+      history.push({ role:'user', content:displayMessage }, { role:'assistant', content:decision.message, guidance: decision.checklist ? { checklist: decision.checklist } : null });
       if (!threadId) threadId = `f${Date.now().toString(36)}`;
       saveThread();
       return;
@@ -1303,7 +1367,7 @@ el('helpBtn').onclick = () => showView('help');
 el('previewBtn').textContent = isWorkbench ? 'Projects' : 'Preview';
 el('previewBtn').onclick = () => showView(isWorkbench ? 'project' : 'preview');
 el('addProjectBtn').onclick = () => showView('project');
-el('planProjectBtn').onclick = () => showView('brief');
+el('planProjectBtn').onclick = () => { plannerEntry = ''; showView('brief'); };
 el('connectionsProjectBtn').onclick = () => showView('stack');
 el('editorFullPreview').onclick = () => showView('preview');
 el('newBtn').onclick = el('newTop').onclick = () => {

@@ -72,3 +72,33 @@ test('a build decision still requires an instruction', () => {
 test('an unknown kind is still rejected', () => {
   assert.throws(() => parseAssistantDecision('{"kind":"delete_everything","message":"ok"}'));
 });
+
+test('normalizes guided reply buttons, optional planner, and a grounded checklist', () => {
+  const decision = parseAssistantDecision(JSON.stringify({
+    kind: 'reply',
+    message: 'The booking flow is clear enough to summarize.',
+    suggestions: [
+      { label: 'Require a deposit', prompt: 'Require a refundable deposit when someone books.' },
+      { label: 'No deposit', prompt: 'Do not require a deposit for bookings.' },
+    ],
+    planner: { label: 'Scope the booking page', additionKind: 'page' },
+    checklist: { title: 'Booking addition', items: [
+      { label: 'Add Book now to navigation', state: 'decided' },
+      { label: 'Confirm cancellation rules', state: 'next' },
+      { label: 'Check email delivery', state: 'connection' },
+    ] },
+  }));
+  assert.deepEqual(decision.suggestions[0], { label: 'Require a deposit', prompt: 'Require a refundable deposit when someone books.' });
+  assert.deepEqual(decision.planner, { label: 'Scope the booking page', additionKind: 'page' });
+  assert.equal(decision.checklist.items[2].state, 'connection');
+});
+
+test('rejects an invented planner type and limits checklist states', () => {
+  const decision = parseAssistantDecision(JSON.stringify({
+    kind: 'reply', message: 'Choose the next step.',
+    planner: { additionKind: 'database' },
+    checklist: { items: [{ label: 'A real decision', state: 'ready' }] },
+  }));
+  assert.equal(decision.planner, undefined);
+  assert.equal(decision.checklist.items[0].state, 'next');
+});

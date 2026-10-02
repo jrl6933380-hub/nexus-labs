@@ -11,6 +11,7 @@ import {
   resetProjectBrief,
   publicProjectBrief,
   approveProjectBrief,
+  saveBriefAdditionKind,
 } from '../lib/forge/projectBrief.js';
 
 import { readProjectContext, connectionsForPlan } from '../lib/forge/projectContext.js';
@@ -35,6 +36,7 @@ export function createForgeBriefHandler({
   answer = saveBriefAnswer,
   reset = resetProjectBrief,
   approve = approveProjectBrief,
+  chooseAdditionKind = saveBriefAdditionKind,
   readContext = readProjectContext,
   recommend = applyStackRecommendation,
 } = {}) {
@@ -89,6 +91,9 @@ export function createForgeBriefHandler({
             values: body.values,
             comment: body.comment,
           });
+        } else if (body.action === 'choose_addition_kind') {
+          if (mode !== 'addon') return res.status(409).json({ error: 'Choose an addition type only after opening a saved project.' });
+          brief = await chooseAdditionKind({ ownerUsername: username, projectId, additionKind: body.additionKind });
         } else if (body.action === 'approve') {
           if (mode === 'addon' && context.unavailable?.length) return res.status(503).json({ error: 'Could not load the saved plan and connections. Try again before approving this addition.' });
           brief = await approve({ ownerUsername: username, projectId, mode });

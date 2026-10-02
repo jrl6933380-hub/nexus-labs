@@ -37,18 +37,18 @@ test('each project card adds to its own build and carries its main title', async
     await add.onclick();
     assert.equal(add.disabled, false);
   }
-  assert.deepEqual(calls, [['build-a', 'pages', 'Bakery'], ['build-b', 'pages', 'Garage']]);
+  assert.deepEqual(calls, [['build-a', 'add-piece', 'Bakery'], ['build-b', 'add-piece', 'Garage']]);
 });
 
-test('add screen shows the target title and does not start a build until a piece is chosen', async () => {
+test('legacy add screen keeps the target visible and routes into the planner without chatting', async () => {
   const harness = viewsHarness();
-  const asks = [];
-  const nodes = await harness.views.pages.render({ surface: () => 'workbench', hasCurrentBuild: () => true, currentProjectLabel: () => 'Garage', ask: (...args) => asks.push(args) });
+  const opened = [];
+  const nodes = await harness.views.pages.render({ surface: () => 'workbench', hasCurrentBuild: () => true, currentProjectLabel: () => 'Garage', beginAddPiecePlanner: () => opened.push('planner'), go() {} });
   const selected = nodes.find(node => node.className === 'workbench-selected-project');
   assert.equal(selected.children[1].textContent, 'Garage');
-  assert.equal(asks.length, 0);
-  nodes.find(node => node.actions?.some(action => action.label === 'Add a page')).actions[0].run();
-  assert.equal(asks[0][1].stackItem.kind, 'page');
+  assert.equal(opened.length, 0);
+  nodes.find(node => node.actions?.some(action => action.label === 'Open the addition planner')).actions[0].run();
+  assert.deepEqual(opened, ['planner']);
 });
 
 test('without a current build the add screen asks the customer to choose a project', async () => {
@@ -61,7 +61,7 @@ test('without a current build the add screen asks the customer to choose a proje
 function openHarness(ok) {
   const body = forgeSource.split("openBuild: async (id, destination = 'chat', projectLabel = '') => {")[1].split('\n  },\n  buyUsagePack:')[0];
   const context = {
-    currentBuild: '<h1>Old</h1>', currentProjectId: 'old-project', latestBuildId: 'old-build', currentProjectLabel: 'Old', pendingStackItem: { kind: 'tool' },
+    currentBuild: '<h1>Old</h1>', currentProjectId: 'old-project', latestBuildId: 'old-build', currentProjectLabel: 'Old', pendingStackItem: { kind: 'tool' }, plannerEntry: '',
     currentLiveUrl: '', currentLiveNeedsUpdate: false, history: [], threadId: null, shown: [],
     bubble: () => ({ closest: () => ({ remove() {} }) }), paragraphs: text => text,
     fetch: async url => ({ ok, json: async () => url.startsWith('/api/room-history') ? { build: { id: 'build-b', projectId: 'project-b', html: '<h1>Garage</h1>', label: 'Add booking form' } } : { turns: [] } }),
@@ -72,13 +72,14 @@ function openHarness(ok) {
   return context;
 }
 
-test('opening an addition switches project state before showing its controls', async () => {
+test('opening an addition switches project state before showing its planner', async () => {
   const context = openHarness(true);
-  await context.openBuild('build-b', 'pages', 'Garage');
+  await context.openBuild('build-b', 'add-piece', 'Garage');
   assert.equal(context.currentProjectId, 'project-b');
   assert.equal(context.currentProjectLabel, 'Garage');
   assert.equal(context.pendingStackItem, null);
-  assert.deepEqual(context.shown, ['pages']);
+  assert.equal(context.plannerEntry, 'add-piece');
+  assert.deepEqual(context.shown, ['brief']);
 });
 
 test('a failed project load never shows add controls for the previously open project', async () => {

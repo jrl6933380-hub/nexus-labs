@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRoomConversationStore, __internals } from '../lib/roomConversation.js';
 import { createConversationHandler } from '../api/room-conversation.js';
+import { conversationTurnForPrompt } from '../api/room-assistant.js';
 
 function fakeRedis() {
   const lists = new Map();
@@ -48,6 +49,22 @@ test('conversation memory is bounded and redacts token-shaped secrets', async ()
   const saved = await store.getConversation('alice', 'project-a');
   assert.equal(saved.length, __internals.MAX_TURNS);
   assert.doesNotMatch(JSON.stringify([...redis.lists.values()]), /sk-abcdefghijklmnopqrstuvwxyz123456/);
+});
+
+test('a chat checklist survives reload and remains part of Nex understanding', async () => {
+  const redis = fakeRedis();
+  const store = createRoomConversationStore({ command: redis.command, now: () => 789 });
+  await store.appendTurns('alice', 'project-a', [{
+    role: 'assistant', text: 'Here is the plan so far.',
+    guidance: { checklist: { title: 'Booking page', items: [
+      { label: 'Keep the existing menu', state: 'decided' },
+      { label: 'Choose cancellation rules', state: 'next' },
+    ] } },
+  }]);
+  const [saved] = await store.getConversation('alice', 'project-a');
+  assert.equal(saved.guidance.checklist.items[0].label, 'Keep the existing menu');
+  assert.match(conversationTurnForPrompt(saved), /SAVED CHECKLIST \(Booking page\)/);
+  assert.match(conversationTurnForPrompt(saved), /\[next\] Choose cancellation rules/);
 });
 
 test('transcript endpoint derives ownership from the signed-in customer', async () => {
