@@ -721,9 +721,7 @@ function drawNav(){
     button.className = 'item';
     button.dataset.view = id;
     button.innerHTML = `<span class="ic">${view.icon}</span>${esc(isWorkbench ? WORKBENCH_LABELS[id] : view.label)}`;
-    button.onclick = isWorkbench && id === 'project'
-      ? () => location.assign('/workspace.html?view=workbench')
-      : () => showView(id);
+    button.onclick = () => showView(id);
     nav.appendChild(button);
   }
 }

@@ -14,6 +14,12 @@ test('Nex Chat opens panels through the tailored Workbench surface', () => {
   assert.match(workspace, /forge\.html\?surface=workbench&view=chat&new=1/u);
 });
 
+test('Projects stays inside Workbench while All projects returns to the Nex Chat gallery', () => {
+  assert.match(forge, /button\.onclick = \(\) => showView\(id\)/u);
+  assert.match(forge, /location\.assign\('\/workspace\.html\?view=workbench'\)/u);
+  assert.doesNotMatch(forge, /id === 'project'[\s\S]{0,120}workspace\.html\?view=workbench/u);
+});
+
 test('Workbench exposes only its ordered panel rooms while ordinary Forge keeps its full navigation', () => {
   assert.match(forge, /WORKBENCH_VIEW_ORDER = \['project', 'preview', 'pages', 'stack', 'brief'\]/u);
   assert.match(forge, /return id === 'chat' \|\| !isWorkbench \|\| WORKBENCH_VIEWS\.has\(id\)/u);
