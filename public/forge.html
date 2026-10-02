@@ -129,7 +129,7 @@
   .workbench-project-tile{position:relative;aspect-ratio:1;border:1px solid #303748;border-radius:18px;overflow:hidden;
     background:#0a0c10;color:var(--tx);text-align:left;box-shadow:0 14px 34px rgba(0,0,0,.24);z-index:1;width:100%}
   .workbench-project-tile:hover{border-color:#566072}
-  .workbench-project-tile iframe{display:block;width:100%;height:100%;border:0;background:#fff;pointer-events:none}
+  .workbench-project-tile iframe{position:absolute;inset:0;width:500%;height:500%;border:0;background:#fff;transform:scale(.2);transform-origin:top left;pointer-events:none}
   .workbench-project-tile .tile-label{position:absolute;inset:auto 0 0;padding:24px 12px 11px;
     background:linear-gradient(transparent,rgba(5,6,9,.94));font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .workbench-project-tile.add-panel{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;
@@ -150,7 +150,7 @@
   .live-sites-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;margin:18px 0 22px}
   .live-site-card{overflow:hidden;border:1px solid #303748;border-radius:18px;background:linear-gradient(155deg,#171b24,#101319)}
   .live-site-preview{position:relative;display:block;width:100%;aspect-ratio:16/10;border:0;border-bottom:1px solid #303748;background:#fff;overflow:hidden}
-  .live-site-preview iframe{display:block;width:100%;height:100%;border:0;pointer-events:none}
+  .live-site-preview iframe{position:absolute;inset:0;width:500%;height:500%;border:0;background:#fff;transform:scale(.2);transform-origin:top left;pointer-events:none}
   .live-site-badge{position:absolute;top:9px;right:9px;padding:5px 8px;border-radius:12px;background:#16372a;color:#8fe0b0;font-size:10px;font-weight:650}
   .live-site-body{padding:13px}.live-site-body h3{margin:0 0 5px;font-size:15px;font-weight:600;color:#e3e4e8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .live-site-url{display:block;margin-bottom:11px;color:#828895;font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
