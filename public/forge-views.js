@@ -337,6 +337,68 @@ async function workbenchProjectTiles(ctx) {
   return grid;
 }
 
+async function liveSiteGallery(projects, ctx) {
+  const grid = document.createElement('div');
+  grid.className = 'live-sites-grid';
+  const previews = await Promise.all(projects.map(async (project) => {
+    const buildId = field(project, 'latestBuildId', 'id');
+    if (!buildId) return '';
+    try { return (await getJSON('/api/room-history?id=' + encodeURIComponent(buildId)))?.build?.html || ''; }
+    catch { return ''; }
+  }));
+
+  const continueInProject = async (project, prompt) => {
+    const buildId = field(project, 'latestBuildId', 'id');
+    if (buildId) await ctx.openBuild(buildId, 'chat');
+    ctx.ask(prompt);
+  };
+
+  projects.forEach((project, index) => {
+    const buildId = field(project, 'latestBuildId', 'id');
+    const liveUrl = String(field(project, 'liveUrl') || '');
+    const title = String(field(project, 'mainLabel', 'label', 'title', 'name') || 'Live site').slice(0, 80);
+    const card = document.createElement('article');
+    card.className = 'live-site-card';
+    const preview = document.createElement('button');
+    preview.type = 'button'; preview.className = 'live-site-preview';
+    preview.setAttribute('aria-label', `Open live site ${title}`);
+    preview.onclick = () => ctx.openExternal(liveUrl);
+    if (previews[index]) {
+      const frame = document.createElement('iframe');
+      frame.title = ''; frame.tabIndex = -1;
+      frame.setAttribute('aria-hidden', 'true');
+      frame.setAttribute('sandbox', 'allow-scripts allow-forms');
+      frame.setAttribute('referrerpolicy', 'no-referrer');
+      frame.srcdoc = previews[index];
+      preview.appendChild(frame);
+    }
+    const badge = document.createElement('span'); badge.className = 'live-site-badge'; badge.textContent = 'LIVE';
+    preview.appendChild(badge);
+
+    const body = document.createElement('div'); body.className = 'live-site-body';
+    const heading = document.createElement('h3'); heading.textContent = title;
+    const url = document.createElement('span'); url.className = 'live-site-url'; url.textContent = liveUrl;
+    const actions = document.createElement('div'); actions.className = 'live-site-actions';
+    const open = document.createElement('button'); open.type = 'button'; open.className = 'primary'; open.textContent = 'Open site'; open.onclick = () => ctx.openExternal(liveUrl);
+    const copy = document.createElement('button'); copy.type = 'button'; copy.textContent = 'Copy link';
+    copy.onclick = async () => { await ctx.copyText(liveUrl); copy.textContent = 'Copied ✓'; setTimeout(() => { if (copy.isConnected) copy.textContent = 'Copy link'; }, 1600); };
+    const maintain = document.createElement('button'); maintain.type = 'button'; maintain.textContent = 'Maintain with Nex';
+    maintain.onclick = () => continueInProject(project, 'Review my live site for anything that needs maintenance, updating, or fixing. Ask before making changes.');
+    actions.append(open, copy, maintain);
+
+    const care = document.createElement('div'); care.className = 'live-site-care';
+    const feature = document.createElement('button'); feature.type = 'button'; feature.textContent = '+ Add a feature';
+    feature.onclick = () => continueInProject(project, 'I want to add a paid feature or supporting page to this live site. Help me scope the best next addition before building it.');
+    const help = document.createElement('button'); help.type = 'button'; help.textContent = 'Get Nexus help';
+    help.onclick = () => continueInProject(project, 'Show me the paid Nexus help options for maintaining or improving this live site, and help me choose the right level.');
+    care.append(feature, help);
+    body.append(heading, url, actions, care);
+    card.append(preview, body);
+    grid.appendChild(card);
+  });
+  return grid;
+}
+
 // A filling circle, not a number.
 //
 // The customer's real question is "can I keep going", and a ring answers it
@@ -491,6 +553,32 @@ export const FORGE_VIEWS = {
         { label: 'What can you build', run: () => ctx.ask('What kinds of things can you build for me?') },
       ]));
       return nodes;
+    },
+  },
+
+  live: {
+    label: 'Live Sites',
+    icon: '↗',
+    say: ['live sites', 'published sites', 'launched sites'],
+    async render(ctx) {
+      let payload = null;
+      try { payload = await getJSON('/api/room-history'); } catch {}
+      const projects = pick(payload, 'projects', 'builds');
+      const live = projects.filter((project) => field(project, 'liveUrl'));
+      if (!live.length) {
+        return [
+          say('Published sites will live here after the project stage. You will be able to open them, share them, maintain them with Nex, and add paid help or features without rebuilding from scratch.'),
+          empty('No live sites yet.'),
+          chips([
+            { label: 'Open Projects', run: () => ctx.go('project') },
+            { label: 'How publishing works', run: () => ctx.ask('Explain how I take a Workbench project live and maintain it afterward.') },
+          ]),
+        ];
+      }
+      return [
+        say(`${live.length} live site${live.length === 1 ? '' : 's'} in one maintainable home. Open or share a site, keep it healthy with Nex, or add features and hands-on Nexus help whenever it needs to grow.`),
+        await liveSiteGallery(live, ctx),
+      ];
     },
   },
 

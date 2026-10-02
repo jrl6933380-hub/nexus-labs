@@ -21,7 +21,7 @@ test('Projects stays inside Workbench while All projects returns to the Nex Chat
 });
 
 test('Workbench exposes only its ordered panel rooms while ordinary Forge keeps its full navigation', () => {
-  assert.match(forge, /WORKBENCH_VIEW_ORDER = \['project', 'preview', 'pages', 'stack', 'brief'\]/u);
+  assert.match(forge, /WORKBENCH_VIEW_ORDER = \['project', 'live', 'preview', 'pages', 'stack', 'brief'\]/u);
   assert.match(forge, /return id === 'chat' \|\| !isWorkbench \|\| WORKBENCH_VIEWS\.has\(id\)/u);
   assert.match(forge, /if \(!viewAllowed\(id\)\) id = 'project'/u);
   assert.match(forge, /target && viewAllowed\(target\)/u);
@@ -44,12 +44,24 @@ test('Full Preview renders the current build with owner controls and clean live-
   assert.match(forge, /id === 'preview' && isWorkbench && renderWorkbenchPreview\(\)/u);
   assert.match(forge, /edit\.textContent = 'Edit with Nex'/u);
   assert.match(forge, /back\.textContent = '← Projects'/u);
+  assert.match(forge, /back\.onclick = \(\) => showView\('project'\)/u);
   assert.match(forge, /Publish & copy link/u);
   assert.match(forge, /Update & copy link/u);
   assert.match(forge, /Copy live link/u);
   assert.match(forge, /fetch\('\/api\/room-publish'/u);
   assert.match(forge, /navigator\.clipboard\?\.writeText/u);
   assert.doesNotMatch(forge, /Open separately/u);
+});
+
+test('Live Sites owns the post-publish maintenance and growth experience', () => {
+  assert.match(forge, /live: 'Live Sites'/u);
+  assert.match(views, /live: \{/u);
+  assert.match(views, /projects\.filter\(\(project\) => field\(project, 'liveUrl'\)\)/u);
+  assert.match(views, /Maintain with Nex/u);
+  assert.match(views, /\+ Add a feature/u);
+  assert.match(views, /Get Nexus help/u);
+  assert.match(views, /ctx\.openExternal\(liveUrl\)/u);
+  assert.match(views, /ctx\.copyText\(liveUrl\)/u);
 });
 
 test('Workbench editing pins the live project while only the Nex conversation scrolls', () => {
