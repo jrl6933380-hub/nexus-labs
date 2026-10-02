@@ -14,13 +14,14 @@
 
 import { getRequestUser } from '../lib/roomAuth.js';
 import {
-  getConnection,
   getProviderKey,
   markTested,
   setTier,
   disconnect,
   savePendingAuthorization,
 } from '../lib/forge/brainStore.js';
+import { getFeatureConnection, usesPodBrain } from '../lib/forge/featureConnection.js';
+import { livePodBaseUrl } from '../lib/forge/podBrain.js';
 import { getAdapter, listAdapters } from '../lib/forge/brainProviders.js';
 import { deriveState, describe, RECOVERY } from '../lib/forge/onboardingMachine.js';
 
@@ -30,10 +31,16 @@ function callbackUrl(req) {
   return `${proto}://${host}/api/forge-brain-callback`;
 }
 
-export default async function handler(req, res) {
+export function createForgeBrainHandler({
+  resolveUser = getRequestUser,
+  featureConnectionFor = getFeatureConnection,
+  podFor = usesPodBrain,
+  podBaseFor = livePodBaseUrl,
+} = {}) {
+return async function handler(req, res) {
   let username;
   try {
-    username = await getRequestUser(req);
+    username = await resolveUser(req);
   } catch {
     return res.status(500).json({ error: 'Could not check your session.' });
   }
@@ -43,7 +50,7 @@ export default async function handler(req, res) {
 
   if (req.method === 'GET') {
     try {
-      const connection = await getConnection(username);
+      const connection = await featureConnectionFor(username);
       const state = deriveState({
         hasAccount: true,
         acceptedTerms: true,
@@ -60,7 +67,7 @@ export default async function handler(req, res) {
         limit: connection?.limit ?? null,
         state,
         step: describe(state, { tiers: adapter.tiers }),
-        providers: listAdapters(),
+        providers: connection?.provider === 'nex-pod' ? [] : listAdapters(),
       });
     } catch (error) {
       // A missing FORGE_ENCRYPTION_KEY lands here. Say so honestly rather than
@@ -75,6 +82,13 @@ export default async function handler(req, res) {
   const { action, tier, returnTo } = req.body || {};
 
   try {
+    if (podFor(username)) {
+      if (action === 'test') {
+        const available = Boolean(await podBaseFor());
+        return res.status(200).json({ ok: available, message: available ? 'Nex is ready.' : 'Nex is waking up or unavailable. Try again shortly.' });
+      }
+      return res.status(400).json({ error: 'Nex powers this account. No separate Builder Brain connection or power tier is needed.' });
+    }
     if (action === 'authorize') {
       const { redirectUrl, state, codeVerifier } = adapter.beginAuthorization({
         callbackUrl: callbackUrl(req),
@@ -116,3 +130,6 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Something went wrong.', recovery: RECOVERY.unknown });
   }
 }
+}
+
+export default createForgeBrainHandler();
