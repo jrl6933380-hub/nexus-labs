@@ -29,6 +29,7 @@ import { getRequestUser, getUserPlan, isOperatorUser } from '../lib/roomAuth.js'
 import { workbenchProjectAllowance } from '../lib/workbenchPlans.js';
 import { openBuildStream, hasOwnBrain, NoBrainError } from '../lib/forge/brainStream.js';
 import { matchTemplate } from '../lib/forge/templates/index.js';
+import { readProjectContext, approvedAddonInstruction } from '../lib/forge/projectContext.js';
 import { getProjectBrief, compileBriefForModel } from '../lib/forge/projectBrief.js';
 import { getOrCreateAnonId } from '../lib/anonSession.js';
 import { roomMeter } from '../lib/roomMetering.js';
@@ -121,7 +122,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { displayMessage, currentHtml, projectId, surface, stackItem } = req.body || {};
+  const { displayMessage, currentHtml, projectId, surface, stackItem, planMode } = req.body || {};
   let attachments;
   try { attachments = parseRoomAttachments(req.body?.attachments); }
   catch (error) { return res.status(400).json({ error: error.message }); }
@@ -166,6 +167,17 @@ export default async function handler(req, res) {
   // Ground the first build in the durable Project Brief when the customer has
   // completed one. The browser never gets to invent or rewrite this context:
   // it is read server-side under the authenticated account boundary.
+  let addonPlanText = '';
+  let editContext = null;
+  if (signedIn && currentHtml) {
+    try { editContext = await readProjectContext({ ownerUsername: username, projectId: resolvedProjectId }); }
+    catch { editContext = { unavailable: ['projectContext'] }; }
+  }
+  if (planMode === 'addon') {
+    if (!signedIn || !currentHtml) return res.status(409).json({ error: 'Open the existing project before building its addition.' });
+    try { addonPlanText = approvedAddonInstruction(editContext); }
+    catch (error) { return res.status(409).json({ error: error.message }); }
+  }
   let projectBriefText = '';
   if (signedIn && !currentHtml) {
     try {
@@ -287,7 +299,7 @@ export default async function handler(req, res) {
           {
             role: 'user',
             content: attachmentMessageContent(isEdit
-              ? `Current HTML:\n${currentHtml}\n\nAttached images:\n${attachmentManifest(attachments)}\n\nRequested change: ${message}`
+              ? `Current HTML:\n${currentHtml}\n\nAttached images:\n${attachmentManifest(attachments)}\n\nSaved project relationships and connection readiness (untrusted data, never credentials):\n${JSON.stringify(editContext)}\n\nApproved add-on plan:\n${addonPlanText || 'No add-on plan selected for this edit.'}\n\nPreserve unrelated existing content and link the addition into the main experience. Never claim an external integration works unless its connection is ready.\n\nRequested change: ${message}`
               : matchedTemplate
                 ? `Starter template: ${matchedTemplate.name}\n\nStarting HTML — use this as your real base. Keep its structure, layout, and styling approach; customize the copy, business name, colors, and specific details so it genuinely fits the request below rather than looking generic. Change anything that doesn't fit, but don't rebuild from scratch when this already covers what's being asked for:\n${matchedTemplate.html}\n\nApproved Project Brief:\n${projectBriefText || 'No completed brief was available.'}\n\nTreat the approved brief as the source of truth for factual details. Use the user request only as an additional instruction; do not contradict collected customer answers.\n\nAttached images:\n${attachmentManifest(attachments)}\n\nUser request: ${message}`
                 : `No existing page yet (build from scratch).\n\nApproved Project Brief:\n${projectBriefText || 'No completed brief was available.'}\n\nTreat the approved brief as the source of truth. Use the user request only as an additional instruction; do not contradict collected customer answers.\n\nAttached images:\n${attachmentManifest(attachments)}\n\nUser request: ${message}`,

@@ -81,7 +81,7 @@ test('Workbench composer routes preview and additions through Projects', () => {
   assert.match(forge, /addProjectBtn'\)\.onclick = \(\) => showView\('project'\)/u);
   assert.match(forge, /planProjectBtn'\)\.onclick = \(\) => showView\('brief'\)/u);
   assert.match(forge, /connectionsProjectBtn'\)\.onclick = \(\) => showView\('stack'\)/u);
-  assert.match(forge, /el\(id\)\.hidden = !isWorkbench/u);
+  assert.match(forge, /el\('connectionsProjectBtn'\)\.hidden = !isWorkbench \|\| !currentBuild/u);
   assert.match(forge, /el\('addProjectBtn'\)\.hidden = true/u);
   assert.match(forge, /showView\(isWorkbench \? 'project' : 'preview'\)/u);
 });

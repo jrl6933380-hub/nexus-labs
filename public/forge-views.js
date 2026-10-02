@@ -544,7 +544,7 @@ export const FORGE_VIEWS = {
           await workbenchProjectTiles(ctx),
           chips([
             { label: ctx.hasCurrentBuild?.() ? 'Edit with Nex' : 'Start building', run: () => ctx.go('chat') },
-            { label: 'Connections', run: () => ctx.go('stack') },
+            ...(ctx.hasCurrentBuild?.() ? [{ label: 'Connections', run: () => ctx.go('stack') }] : []),
           ]),
         ];
       }
@@ -605,7 +605,7 @@ export const FORGE_VIEWS = {
       let brief = null;
       let unavailable = null;
       try {
-        const response = await fetch('/api/forge-brief?projectId=' + encodeURIComponent(ctx.projectId()), {
+        const response = await fetch('/api/forge-brief?projectId=' + encodeURIComponent(ctx.projectId()) + '&mode=' + (ctx.hasCurrentBuild?.() ? 'addon' : 'new'), {
           credentials: 'include', headers: { Accept:'application/json' }, cache:'no-store',
         });
         const data = await response.json().catch(() => ({}));
@@ -632,21 +632,27 @@ export const FORGE_VIEWS = {
         ];
       }
 
+      const addon = brief.mode === 'addon';
+      if (addon) {
+        nodes.push(say(`Planning an addition to “${brief.project?.label || ctx.currentProjectLabel?.() || 'your project'}”. Your original plan and existing site stay intact.`));
+        if (brief.connections?.length) nodes.push(group('Connections for this plan', brief.connections.map(connection => row({ title: connection.label, meta: `${connection.status === 'ready' ? 'Tested and ready' : 'Needs a check or setup'} · ${connection.purpose}` }))));
+        if (brief.contextUnavailable?.length) nodes.push(say('Some saved project context could not be loaded. Connection readiness is unconfirmed until its check passes.'));
+      }
       if (!brief.progress.ready && brief.next_question) {
         nodes.push(say(`I'll collect the important decisions one at a time. Each answer saves automatically, and the next question adapts to your project.`));
         nodes.push(briefQuestionCard(brief.next_question, brief.progress, ctx));
         return nodes;
       }
 
-      nodes.push(say(`Your Project Brief is ready. This is the information I'll use as the source of truth for the first build.`));
+      nodes.push(say(addon ? 'Your add-on plan is ready. Review the change and its connections, then approve it to update this project.' : `Your Project Brief is ready. This is the information I'll use as the source of truth for the first build.`));
       nodes.push(group('What Nex understands', (brief.summary || []).map((item) => row({
         title: item.value || 'Answered',
         meta: `${item.label}${item.comment ? ` · ${item.comment}` : ''}`,
         tone: { label: 'saved', kind: 'f' },
       }))));
       nodes.push(chips([
-        { label: 'Build the first version', run: () => ctx.buildFromBrief() },
-        { label: 'Start the brief over', run: () => ctx.resetBrief() },
+        { label: addon ? 'Approve & build addition' : 'Build the first version', run: () => ctx.buildFromBrief() },
+        { label: addon ? 'Start another add-on plan' : 'Start the brief over', run: () => ctx.resetBrief() },
       ]));
       return nodes;
     },
@@ -730,6 +736,7 @@ export const FORGE_VIEWS = {
     icon: '⬡',
     say: ['stack', 'my stack', 'your stack', 'setup', 'services', 'build plan'],
     async render(ctx) {
+      if (!ctx.hasCurrentBuild?.()) return [say('Build or open a project first. Its connections will appear here afterward.'), chips([{ label: 'Plan the project', run: () => ctx.go('brief') }])];
       const nodes = [];
       let manifest = null;
       try { manifest = await getJSON('/api/forge-stack?projectId=' + encodeURIComponent(ctx.projectId())); } catch {}
@@ -837,7 +844,7 @@ export const FORGE_VIEWS = {
           chips([
             { label: 'Check Nex', run: () => ctx.testBrain() },
             { label: 'Project Plan', run: () => ctx.go('brief') },
-            { label: 'Connections', run: () => ctx.go('stack') },
+            ...(ctx.hasCurrentBuild?.() ? [{ label: 'Connections', run: () => ctx.go('stack') }] : []),
           ]),
         ];
       }
@@ -1003,7 +1010,7 @@ export const FORGE_VIEWS = {
           group('Inside this project', [
             row({ title: 'Your Project', meta: 'The main experience you are building', onClick: () => ctx.go('project') }),
             row({ title: 'Project stacks', meta: 'Choose a project to preview or add supporting pages, tools, workflows, and intelligences', onClick: () => ctx.go('project') }),
-            row({ title: 'Connections', meta: 'Services and infrastructure behind the project', onClick: () => ctx.go('stack') }),
+            ...(ctx.hasCurrentBuild?.() ? [row({ title: 'Connections', meta: 'Services and infrastructure behind the project', onClick: () => ctx.go('stack') })] : []),
             row({ title: 'Project Plan', meta: 'Shape the idea before building', onClick: () => ctx.go('brief') }),
           ]),
           group('Try asking Nex', [
