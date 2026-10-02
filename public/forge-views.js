@@ -249,29 +249,83 @@ function projectRow(project, ctx) {
   return wrap;
 }
 
-function workbenchProjectTiles(ctx) {
+async function workbenchProjectTiles(ctx) {
   const grid = document.createElement('div');
   grid.className = 'workbench-project-grid';
   grid.setAttribute('aria-label', 'Workbench panels');
 
-  if (ctx.hasCurrentBuild?.()) {
+  let projects = [];
+  try {
+    const history = await getJSON('/api/room-history');
+    projects = pick(history, 'projects', 'builds', 'history', 'items').slice(0, 12);
+  } catch {}
+  if (!projects.length && ctx.hasCurrentBuild?.()) {
+    projects = [{
+      latestBuildId: null,
+      mainLabel: ctx.currentProjectLabel?.() || 'Current panel',
+      stackItems: [],
+      currentHtml: ctx.currentBuild?.() || '',
+    }];
+  }
+
+  const previews = await Promise.all(projects.map(async (project) => {
+    if (project.currentHtml) return project.currentHtml;
+    const buildId = field(project, 'latestBuildId', 'id');
+    if (!buildId) return '';
+    try { return (await getJSON('/api/room-history?id=' + encodeURIComponent(buildId)))?.build?.html || ''; }
+    catch { return ''; }
+  }));
+
+  projects.forEach((project, index) => {
+    const buildId = field(project, 'latestBuildId', 'id');
+    const parts = Array.isArray(project.stackItems) ? project.stackItems : [];
+    const stack = document.createElement('article');
+    stack.className = `workbench-project-stack${parts.length ? ' has-parts' : ''}`;
+    const deck = document.createElement('div');
+    deck.className = 'workbench-stack-deck';
     const current = document.createElement('button');
     current.type = 'button';
     current.className = 'workbench-project-tile';
-    current.setAttribute('aria-label', 'Open the current panel in Full Preview');
+    const projectLabel = String(field(project, 'mainLabel', 'label', 'title', 'name') || 'Untitled panel').slice(0, 80);
+    current.setAttribute('aria-label', `Open ${projectLabel} in Full Preview`);
     const frame = document.createElement('iframe');
-    frame.title = 'Current panel preview';
+    frame.title = '';
     frame.tabIndex = -1;
+    frame.setAttribute('aria-hidden', 'true');
     frame.setAttribute('sandbox', 'allow-scripts allow-forms');
     frame.setAttribute('referrerpolicy', 'no-referrer');
-    frame.srcdoc = ctx.currentBuild?.() || '';
+    frame.srcdoc = previews[index] || '';
     const label = document.createElement('span');
     label.className = 'tile-label';
-    label.textContent = ctx.currentProjectLabel?.() || 'Current panel';
+    label.textContent = projectLabel;
     current.append(frame, label);
-    current.onclick = () => ctx.go('preview');
-    grid.appendChild(current);
-  }
+    current.onclick = buildId ? () => ctx.openBuild(buildId, 'preview') : () => ctx.go('preview');
+    deck.appendChild(current);
+    stack.appendChild(deck);
+
+    if (parts.length) {
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'workbench-stack-toggle';
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.innerHTML = `<span>${parts.length} supporting piece${parts.length === 1 ? '' : 's'}</span><b>⌄</b>`;
+      const fan = document.createElement('div');
+      fan.className = 'workbench-stack-parts';
+      for (const part of parts) {
+        const card = document.createElement('div');
+        card.className = `workbench-stack-part ${part.kind || 'page'}`;
+        card.innerHTML = `<small>${part.kind || 'page'}</small><strong>${String(part.label || 'Supporting piece').slice(0, 80)}</strong>`;
+        fan.appendChild(card);
+      }
+      toggle.onclick = () => {
+        const open = stack.classList.toggle('open');
+        toggle.setAttribute('aria-expanded', String(open));
+        toggle.querySelector('b').textContent = open ? '⌃' : '⌄';
+      };
+      stack.append(toggle, fan);
+    }
+    grid.appendChild(stack);
+  });
 
   const add = document.createElement('button');
   add.type = 'button';
@@ -409,7 +463,7 @@ export const FORGE_VIEWS = {
           say(ctx.hasCurrentBuild?.()
             ? 'Your project is open. It can be a complete website, app, business system, or intelligence—not just one screen. Preview the whole experience, add supporting pieces, connect what it needs, and publish when it is ready.'
             : 'Start with the main project: a website, app, business system, or intelligence. Nex will build the first working version, then you can add supporting pieces into the same stack.'),
-          workbenchProjectTiles(ctx),
+          await workbenchProjectTiles(ctx),
           chips([
             { label: ctx.hasCurrentBuild?.() ? 'Edit with Nex' : 'Start building', run: () => ctx.go('chat') },
             { label: 'Full Preview', run: () => ctx.go('preview') },
@@ -505,9 +559,9 @@ export const FORGE_VIEWS = {
         return [
           say('Add supporting pieces to the main project and its stack. That can be a website page, customer portal, dashboard, calculator, workflow, automation, admin area, or an intelligence that helps operate the main experience.'),
           chips([
-            { label: 'Add a page', run: () => ctx.ask('Add a supporting page to this project. Ask what it should do and how it connects to the main experience.') },
-            { label: 'Add a tool', run: () => ctx.ask('Add a useful tool, dashboard, calculator, or workflow to this project. Ask what should power it and who will use it.') },
-            { label: 'Add an intelligence', run: () => ctx.ask('Add an intelligence that helps run or support this main project. Ask what it should know, watch, and do.') },
+            { label: 'Add a page', run: () => ctx.ask('Add a supporting page to this project. Ask what it should do and how it connects to the main experience.', { stackItem: { kind: 'page' } }) },
+            { label: 'Add a tool', run: () => ctx.ask('Add a useful tool, dashboard, calculator, or workflow to this project. Ask what should power it and who will use it.', { stackItem: { kind: 'tool' } }) },
+            { label: 'Add an intelligence', run: () => ctx.ask('Add an intelligence that helps run or support this main project. Ask what it should know, watch, and do.', { stackItem: { kind: 'intelligence' } }) },
             { label: 'Review the whole stack', run: () => ctx.ask('Review the main project and every supporting piece as one stack. Tell me what is missing or disconnected.') },
           ]),
         ];

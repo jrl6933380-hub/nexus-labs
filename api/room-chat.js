@@ -121,7 +121,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { displayMessage, currentHtml, projectId, surface } = req.body || {};
+  const { displayMessage, currentHtml, projectId, surface, stackItem } = req.body || {};
   let attachments;
   try { attachments = parseRoomAttachments(req.body?.attachments); }
   catch (error) { return res.status(400).json({ error: error.message }); }
@@ -421,6 +421,7 @@ export default async function handler(req, res) {
         requestMessage: customerMessage,
         html,
         projectId: resolvedProjectId,
+        stackItem,
       });
       savedBuildId = saved.id;
       send({ action: 'saved', id: saved.id, projectId: saved.projectId || saved.id });

@@ -72,15 +72,27 @@ test('Workbench composer keeps the full project tool set beside the send button'
   assert.match(forge, /el\(id\)\.hidden = !isWorkbench/u);
 });
 
-test('Projects view pairs the current panel preview with a one-tap new-panel tile', () => {
+test('Projects view pairs panel previews with a one-tap new-panel tile', () => {
   assert.match(forge, /currentBuild: \(\) => currentBuild/u);
   assert.match(forge, /currentProjectLabel: \(\) => currentProjectLabel/u);
   assert.match(forge, /\.workbench-project-grid\{display:grid/u);
-  assert.match(views, /function workbenchProjectTiles\(ctx\)/u);
-  assert.match(views, /frame\.srcdoc = ctx\.currentBuild\?\.\(\) \|\| ''/u);
-  assert.match(views, /current\.onclick = \(\) => ctx\.go\('preview'\)/u);
+  assert.match(views, /async function workbenchProjectTiles\(ctx\)/u);
+  assert.match(views, /frame\.srcdoc = previews\[index\] \|\| ''/u);
+  assert.match(views, /ctx\.openBuild\(buildId, 'preview'\)/u);
   assert.match(views, />New panel<\/strong><small>Add to your Workbench</u);
   assert.match(views, /add\.onclick = \(\) => ctx\.startProject\(\)/u);
+});
+
+test('Projects loads every panel and fans recorded supporting pieces into its stack', () => {
+  assert.match(views, /await getJSON\('\/api\/room-history'\)/u);
+  assert.match(views, /projects\.forEach\(\(project, index\) =>/u);
+  assert.match(views, /workbench-project-stack/u);
+  assert.match(views, /supporting piece/u);
+  assert.match(views, /classList\.toggle\('open'\)/u);
+  assert.match(views, /stackItem: \{ kind: 'page' \}/u);
+  assert.match(views, /stackItem: \{ kind: 'tool' \}/u);
+  assert.match(views, /stackItem: \{ kind: 'intelligence' \}/u);
+  assert.match(forge, /stackItem: pendingStackItem/u);
 });
 
 test('Projects view shows plan usage and the backend receives the Workbench surface for limit enforcement', () => {
