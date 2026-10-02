@@ -831,6 +831,16 @@ export const FORGE_VIEWS = {
         return nodes;
       }
 
+      if (status.provider === 'nex-pod') {
+        return [
+          say('Nex powers your builds, Project Plan, and Connections. No separate Builder Brain or power upgrade is needed.'),
+          chips([
+            { label: 'Check Nex', run: () => ctx.testBrain() },
+            { label: 'Project Plan', run: () => ctx.go('brief') },
+            { label: 'Connections', run: () => ctx.go('stack') },
+          ]),
+        ];
+      }
       const connected = Boolean(field(status, 'connected'));
       const tiers = (status.providers?.[0]?.tiers) || [];
       const currentTier = String(field(status, 'tier') || 'free');
@@ -895,8 +905,11 @@ export const FORGE_VIEWS = {
       const connection = await loadConnection();
       const connected = Boolean(connection?.connected);
       const tier = String(connection?.tier || '').toLowerCase();
+      const pod = connection?.provider === 'nex-pod';
 
-      nodes.push(say(connected
+      nodes.push(say(pod
+        ? 'Nex powers your builds, Project Plan, and Connections. These features are available without a separate Builder Brain upgrade.'
+        : connected
         ? `You're on ${tier || 'free'}. Here's what that unlocks — and what the next step up adds.`
         : `Everything here runs on a Builder Brain you connect yourself. It's one tap, the free option needs no card, and what you pick decides which features are available.`));
 
@@ -933,7 +946,7 @@ export const FORGE_VIEWS = {
 
       nodes.push(chips(connected
         ? [
-            { label: 'Change power', run: () => ctx.go('brain') },
+            { label: pod ? 'Check Nex' : 'Change power', run: () => ctx.go('brain') },
             { label: 'What can you build', run: () => ctx.go('help') },
           ]
         : [

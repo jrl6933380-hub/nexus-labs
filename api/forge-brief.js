@@ -3,6 +3,7 @@
 
 import { getRequestUser } from '../lib/roomAuth.js';
 import { getConnection } from '../lib/forge/brainStore.js';
+import { getFeatureConnection } from '../lib/forge/featureConnection.js';
 import { canUseFeature } from '../lib/forge/features.js';
 import {
   ensureProjectBrief,
@@ -25,6 +26,7 @@ async function getConnectionSafely(connectionFor, username) {
 export function createForgeBriefHandler({
   resolveUser = getRequestUser,
   connectionFor = getConnection,
+  env = process.env,
   ensure = ensureProjectBrief,
   answer = saveBriefAnswer,
   reset = resetProjectBrief,
@@ -46,7 +48,7 @@ export function createForgeBriefHandler({
       // directly, and every brief question is a model call on a connection that
       // may not be able to serve them.
       let connection = null;
-      try { connection = await getConnectionSafely(connectionFor, username); }
+      try { connection = await getConnectionSafely((user) => getFeatureConnection(user, { connectionFor, env }), username); }
       catch { connection = null; }
       const verdict = canUseFeature(connection, 'brief');
       if (!verdict.allowed) {

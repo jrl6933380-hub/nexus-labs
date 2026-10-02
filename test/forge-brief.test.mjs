@@ -103,6 +103,8 @@ test('API scopes brief reads and writes to the signed-in customer', async () => 
   const calls = [];
   const handler = createForgeBriefHandler({
     resolveUser: async () => 'signed-in-user',
+    connectionFor: async () => ({ connected: true, tier: 'fast' }),
+    env: {},
     ensure: async (input) => {
       calls.push(input);
       return { version: 1, owner: input.ownerUsername, project_id: input.projectId, status: 'interviewing', answers: {}, comments: {} };
