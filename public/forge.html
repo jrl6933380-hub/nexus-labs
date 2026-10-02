@@ -114,9 +114,14 @@
   .chip{font-size:13.5px;padding:9px 15px;border-radius:20px;background:#191d25;
     border:1px solid var(--ln);color:#c0c4cc;transition:.13s}
   .chip:hover{border-color:#3b4354;color:var(--tx)}
-  .workbench-project-grid{display:grid;grid-template-columns:repeat(2,minmax(0,180px));gap:12px;margin:18px 0 20px}
+  .workbench-project-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:16px;margin:18px 0 20px;align-items:start}
+  .workbench-project-stack{position:relative;min-width:0}
+  .workbench-stack-deck{position:relative}
+  .workbench-project-stack.has-parts .workbench-stack-deck::before,.workbench-project-stack.has-parts .workbench-stack-deck::after{
+    content:'';position:absolute;inset:7px 9px -7px;border:1px solid #292e39;border-radius:17px;background:#0b0d12;z-index:0}
+  .workbench-project-stack.has-parts .workbench-stack-deck::after{inset:13px 17px -13px;background:#07080b;z-index:-1}
   .workbench-project-tile{position:relative;aspect-ratio:1;border:1px solid #303748;border-radius:18px;overflow:hidden;
-    background:#0a0c10;color:var(--tx);text-align:left;box-shadow:0 14px 34px rgba(0,0,0,.24)}
+    background:#0a0c10;color:var(--tx);text-align:left;box-shadow:0 14px 34px rgba(0,0,0,.24);z-index:1;width:100%}
   .workbench-project-tile:hover{border-color:#566072}
   .workbench-project-tile iframe{display:block;width:100%;height:100%;border:0;background:#fff;pointer-events:none}
   .workbench-project-tile .tile-label{position:absolute;inset:auto 0 0;padding:24px 12px 11px;
@@ -126,6 +131,16 @@
   .workbench-project-tile.add-panel .plus{font-size:38px;font-weight:200;line-height:1;color:#f2f0ed}
   .workbench-project-tile.add-panel strong{font-size:14px;font-weight:550}
   .workbench-project-tile.add-panel small{font-size:11.5px;color:#777d89}
+  .workbench-stack-toggle{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;margin-top:17px;
+    padding:8px 10px;border:1px solid #292e39;border-radius:12px;background:#10131a;color:#aeb4c0;font-size:11.5px}
+  .workbench-stack-toggle b{font-size:15px;font-weight:400;color:#d9bc80}
+  .workbench-stack-parts{display:none;gap:8px;margin-top:9px;overflow-x:auto;padding:2px 2px 8px;scrollbar-width:none}
+  .workbench-stack-parts::-webkit-scrollbar{display:none}.workbench-project-stack.open .workbench-stack-parts{display:flex}
+  .workbench-stack-part{flex:0 0 128px;min-height:86px;padding:11px;border:1px solid #303748;border-radius:13px;
+    background:linear-gradient(145deg,#171b24,#0d1015);box-shadow:0 8px 18px rgba(0,0,0,.2);transform:rotate(-1.5deg)}
+  .workbench-stack-part:nth-child(even){transform:rotate(1.5deg)}
+  .workbench-stack-part small{display:block;margin-bottom:8px;color:#d9bc80;font-size:9px;letter-spacing:.12em;text-transform:uppercase}
+  .workbench-stack-part strong{display:block;color:#d7d9df;font-size:11.5px;line-height:1.35;font-weight:550;overflow-wrap:anywhere}
 
   .qcard{margin:4px 0 22px;padding:18px;border:1px solid #303748;border-radius:18px;
     background:linear-gradient(155deg,#171b24,#11141a);box-shadow:0 16px 40px rgba(0,0,0,.22)}
@@ -198,7 +213,8 @@
   @media (max-width:520px){
     .qoptions{grid-template-columns:1fr}.qcard{padding:15px}.screen.workbench-editing .project-editor-preview{height:36vh;min-height:220px}
     .workbench-preview-bar{gap:7px}.workbench-preview-bar strong,.preview-status,.preview-open{display:none}.workbench-preview-bar button{padding:8px 10px;font-size:12px}
-    .workbench-project-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    .workbench-project-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 10px}
+    .workbench-stack-toggle{font-size:10.5px;padding:7px 8px}.workbench-stack-part{flex-basis:112px;min-height:78px}
   }
 </style>
 </head>
@@ -390,6 +406,7 @@ let latestBuildId = null;
 let currentProjectLabel = 'Your project';
 let currentLiveUrl = '';
 let currentLiveNeedsUpdate = false;
+let pendingStackItem = null;
 const history = [];
 const startupParams = new URLSearchParams(location.search);
 const surfaceMode = startupParams.get('surface') === 'workbench' ? 'workbench' : 'forge';
@@ -440,11 +457,19 @@ const ctx = {
   projectId: () => currentProjectId,
   signedIn: () => signedIn,
   signIn: () => goSignIn(),
-  ask: (text) => { el('input').value = text; submit(); },
+  ask: (text, options = {}) => {
+    if (options.stackItem) {
+      pendingStackItem = {
+        id: options.stackItem.id || `part-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+        kind: options.stackItem.kind,
+      };
+    }
+    el('input').value = text; submit();
+  },
   go: (id) => showView(id),
   startProject: () => {
     history.length = 0; threadId = null; currentBuild = ''; latestBuildId = null;
-    currentProjectLabel = 'New project'; currentLiveUrl = ''; currentLiveNeedsUpdate = false;
+    currentProjectLabel = 'New project'; currentLiveUrl = ''; currentLiveNeedsUpdate = false; pendingStackItem = null;
     currentProjectId = newProjectId();
     showView(featureUnlocked(connectionSnapshot(), 'brief') ? 'brief' : 'chat');
   },
@@ -1124,7 +1149,11 @@ async function runBuild(raw, displayMessage = raw, showUser = true){
   try {
     const response = await fetch('/api/room-chat', {
       method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ message: raw, displayMessage, projectId: currentProjectId, currentHtml: currentBuild || undefined, surface: surfaceMode }),
+      body: JSON.stringify({
+        message: raw, displayMessage, projectId: currentProjectId,
+        currentHtml: currentBuild || undefined, surface: surfaceMode,
+        stackItem: pendingStackItem ? { ...pendingStackItem, label: String(displayMessage || raw).slice(0, 80) } : undefined,
+      }),
     });
 
     // Refusals (no Builder Brain, bad request) come back as JSON before the
@@ -1192,6 +1221,7 @@ async function runBuild(raw, displayMessage = raw, showUser = true){
         } else if (data.action === 'saved') {
           currentProjectId = data.projectId || currentProjectId;
           latestBuildId = data.id || latestBuildId;
+          pendingStackItem = null;
           forgetPendingBuild(jobId);
           saveThread();
         } else if (data.action === 'build_error' || data.action === 'error') {

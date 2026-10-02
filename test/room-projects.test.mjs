@@ -45,6 +45,33 @@ test('separate projects stay separate, newest-updated first', async () => {
   assert.equal(projects[1].label, 'Older project');
 });
 
+test('supporting pages, tools, and intelligences stay grouped under their main project', async () => {
+  await saveBuild('alice', { label: 'Main business site', html: '<p>main</p>', projectId: 'proj-a' });
+  await saveBuild('alice', {
+    label: 'Customer portal', html: '<p>portal</p>', projectId: 'proj-a',
+    stackItem: { id: 'portal', kind: 'page', label: 'Customer portal' },
+  });
+  await saveBuild('alice', {
+    label: 'Lead scorer', html: '<p>ai</p>', projectId: 'proj-a',
+    stackItem: { id: 'scorer', kind: 'intelligence', label: 'Lead scorer' },
+  });
+  const [project] = await listProjects('alice');
+  assert.equal(project.mainLabel, 'Main business site');
+  assert.deepEqual(project.stackItems.map(({ id, kind, label }) => ({ id, kind, label })), [
+    { id: 'portal', kind: 'page', label: 'Customer portal' },
+    { id: 'scorer', kind: 'intelligence', label: 'Lead scorer' },
+  ]);
+});
+
+test('older clearly labeled additions are inferred without treating normal edits as stack pieces', async () => {
+  await saveBuild('alice', { label: 'Main site', html: '<p>main</p>', projectId: 'proj-a' });
+  await saveBuild('alice', { label: 'Add a supporting page for contact', requestMessage: 'Add a supporting page for contact', html: '<p>contact</p>', projectId: 'proj-a' });
+  await saveBuild('alice', { label: 'Make the logo larger', requestMessage: 'Make the logo larger', html: '<p>edit</p>', projectId: 'proj-a' });
+  const [project] = await listProjects('alice');
+  assert.equal(project.stackItems.length, 1);
+  assert.equal(project.stackItems[0].kind, 'page');
+});
+
 test('a legacy save with no projectId still appears as its own project', async () => {
   await saveBuild('alice', { label: 'Before projects existed', html: '<p>x</p>' });
   const projects = await listProjects('alice');
