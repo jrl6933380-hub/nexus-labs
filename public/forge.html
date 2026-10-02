@@ -118,6 +118,9 @@
   .workbench-project-stack{position:relative;min-width:0}
   .workbench-project-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
   .workbench-project-actions button{flex:1;padding:9px 8px;background:#191d26;border:1px solid #303748;border-radius:12px;color:#e5e2dc;font:inherit;font-size:11px;cursor:pointer}
+  .connection-detail summary{cursor:pointer;font-size:14px;font-weight:550;color:#e5e2dc}
+  .connection-detail p{font-size:14px;line-height:1.5;color:#bfc4ce;margin:12px 0}
+  .connection-detail summary:focus-visible{outline:2px solid #d9bc80;outline-offset:4px}
   .workbench-selected-project{padding:14px;border:1px solid #b89b60;border-radius:14px;margin:12px 0}
   .workbench-selected-project strong{display:block;overflow-wrap:anywhere}
   .workbench-selected-project small{display:block;color:#d9bc80;margin-bottom:7px}
@@ -424,6 +427,7 @@ let currentProjectLabel = 'Your project';
 let currentLiveUrl = '';
 let currentLiveNeedsUpdate = false;
 let pendingStackItem = null;
+const scopedConnections = new Set();
 const history = [];
 const startupParams = new URLSearchParams(location.search);
 const surfaceMode = startupParams.get('surface') === 'workbench' ? 'workbench' : 'forge';
@@ -483,7 +487,7 @@ const ctx = {
         kind: options.stackItem.kind,
       };
     }
-    el('input').value = text; submit();
+    el('input').value = text; return submit();
   },
   go: (id) => showView(id),
   startProject: () => {
@@ -539,7 +543,7 @@ const ctx = {
           }
         }
       } catch { /* Saved HTML remains available when conversation history is down. */ }
-      await showView(['preview', 'pages'].includes(destination) ? destination : 'chat');
+      await showView(['preview', 'pages', 'stack'].includes(destination) ? destination : 'chat');
       if (destination === 'chat') {
         bubble('a', paragraphs(`Opened “${data.build.label || 'Saved project'}”. The live project stays pinned while you tell me what to change.`));
       }
@@ -610,6 +614,21 @@ const ctx = {
     } catch (error) {
       notice.textContent = error.message;
     }
+  },
+  hasScopedConnection: (slotId) => scopedConnections.has(`${currentProjectId}:${slotId}`),
+  scopeConnection: async (slotId) => {
+    if (busy) { bubble('sys', 'Wait for Nex to finish this request before scoping a connection.'); return; }
+    const projectId = currentProjectId;
+    const notice = bubble('sys', 'Preparing this connection for your project…');
+    try {
+      const response = await fetch('/api/forge-stack', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'scope', projectId, slotId }) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Could not scope this connection.');
+      if (currentProjectId !== projectId || data.project?.projectId !== projectId) throw new Error('The selected project changed. Reopen its Connections card.');
+      notice.closest('.msg')?.remove();
+      await ctx.ask(data.message);
+      if (currentProjectId === projectId && history.at(-2)?.content === data.message && history.at(-1)?.role === 'assistant') scopedConnections.add(`${projectId}:${slotId}`);
+    } catch (error) { notice.textContent = error.message; }
   },
   setupStack: async () => {
     const notice = bubble('sys', 'Setting up the managed parts of your project…');
@@ -767,7 +786,7 @@ function drawNav(){
   for (const [id, view] of entries) {
     const gate = VIEW_REQUIRES[id];
     if (gate && !featureUnlocked(connectionSnapshot(), gate)) continue;
-    if (id === 'stack' && !currentBuild) continue;
+    if (id === 'stack' && (!currentBuild || ['project', 'live'].includes(currentView))) continue;
     const button = document.createElement('button');
     button.className = 'item';
     button.dataset.view = id;
@@ -940,7 +959,7 @@ async function showView(id){
   if (id === 'stack' && !currentBuild) id = 'brief';
   currentView = id;
   drawNav();
-  el('connectionsProjectBtn').hidden = !isWorkbench || !currentBuild;
+  el('connectionsProjectBtn').hidden = !isWorkbench || !currentBuild || ['project', 'live'].includes(currentView);
   syncWorkbenchEditor();
   railOpen(false);
   for (const button of document.querySelectorAll('[data-view]')) {
@@ -1248,7 +1267,7 @@ async function runBuild(raw, displayMessage = raw, showUser = true, planMode = u
           if (currentLiveUrl) currentLiveNeedsUpdate = true;
           pending.innerHTML = '<p>Here it is.</p>';
           drawNav();
-          el('connectionsProjectBtn').hidden = !isWorkbench || !currentBuild;
+          el('connectionsProjectBtn').hidden = !isWorkbench || !currentBuild || ['project', 'live'].includes(currentView);
           if (isWorkbench) syncWorkbenchEditor();
           else renderVisual(currentBuild, 'Your site');
           history.push({ role:'user', content:displayMessage }, { role:'assistant', content:'Built it.' });
@@ -1451,7 +1470,7 @@ if (startupParams.get('onboarding') === '1' || startupParams.get('view') === 'br
 await loadConnection();
 el('addProjectBtn').hidden = true;
 el('planProjectBtn').hidden = !isWorkbench;
-el('connectionsProjectBtn').hidden = !isWorkbench || !currentBuild;
+el('connectionsProjectBtn').hidden = !isWorkbench || !currentBuild || ['project', 'live'].includes(currentView);
 drawNav();
 
 if (!await handleBrainResult()) {

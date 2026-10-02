@@ -12,6 +12,9 @@ import {
 } from '../lib/forgeStack.js';
 import { describeStackActions, runStackAction, runStackSetup } from '../lib/forge/stackActions.js';
 
+import { readProjectContext } from '../lib/forge/projectContext.js';
+import { describeProjectConnections, connectionScopeMessage } from '../lib/forge/connectionGuidance.js';
+
 function projectIdFrom(req) {
   return String((req.query || {}).projectId || (req.body || {}).projectId || 'default');
 }
@@ -31,6 +34,7 @@ export function createForgeStackHandler({
   reset = resetStackSlot,
   runAction = runStackAction,
   setup = runStackSetup,
+  readContext = readProjectContext,
 } = {}) {
   return async function handler(req, res) {
     res.setHeader('Cache-Control', 'private, no-store');
@@ -48,12 +52,25 @@ export function createForgeStackHandler({
 
       if (req.method === 'GET') {
         const manifest = await ensure({ ownerUsername: username, projectId });
-        return res.status(200).json(responseFor(manifest));
+        const context = await readContext({ ownerUsername: username, projectId });
+        const body = responseFor(manifest);
+        return res.status(200).json({ ...body, project: context.project, contextUnavailable: context.unavailable, guidance: describeProjectConnections(context, manifest, body.actions) });
       }
 
       const body = req.body || {};
       let manifest;
       switch (body.action) {
+        case 'scope': {
+          const context = await readContext({ ownerUsername: username, projectId });
+          if (context.unavailable?.includes('projects')) return res.status(503).json({ error: 'Could not confirm the selected project. Try again.' });
+          if (!context.project || context.project.projectId !== projectId) return res.status(409).json({ error: 'Open a saved project before connecting a service.' });
+          const manifest = await ensure({ ownerUsername: username, projectId });
+          const actions = describeStackActions(manifest);
+          const guidanceBySlot = describeProjectConnections(context, manifest, actions);
+          const guidance = typeof body.slotId === 'string' && Object.hasOwn(guidanceBySlot, body.slotId) ? guidanceBySlot[body.slotId] : null;
+          if (!guidance) return res.status(400).json({ error: 'Unknown connection.' });
+          return res.status(200).json({ project: context.project, slotId: body.slotId, message: connectionScopeMessage(context.project, guidance) });
+        }
         case 'ensure':
           manifest = await ensure({
             ownerUsername: username,

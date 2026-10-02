@@ -118,7 +118,7 @@ const forgeSource = await readFile(new URL('../public/forge.html', import.meta.u
 
 test('Connections navigation follows whether there is a current project build', () => {
   const nav = { children: [], set innerHTML(value) { this.children = []; }, appendChild(child) { this.children.push(child); } };
-  const context = { nav, currentBuild: '', isWorkbench: true,
+  const context = { nav, currentBuild: '', currentView: 'chat', isWorkbench: true,
     WORKBENCH_VIEW_ORDER: ['project', 'stack', 'brief'], FORGE_VIEWS: { project: { icon: 'p' }, stack: { icon: 's' }, brief: { icon: 'b' } },
     WORKBENCH_LABELS: { project: 'Projects', stack: 'Connections', brief: 'Plan' }, VIEW_REQUIRES: { stack: 'stack', brief: 'brief' },
     featureUnlocked: () => true, connectionSnapshot: () => ({}), esc: text => text, showView() {},
@@ -129,6 +129,7 @@ test('Connections navigation follows whether there is a current project build', 
   context.draw(); assert.ok(!nav.children.some(button => button.dataset.view === 'stack'));
   context.currentBuild = '<h1>Bakery</h1>';
   context.draw(); assert.ok(nav.children.some(button => button.dataset.view === 'stack'));
+  context.currentView = 'project'; context.draw(); assert.ok(!nav.children.some(button => button.dataset.view === 'stack'));
 });
 
 test('resetting an add-on plan does not clear the existing build or saved build id', async () => {

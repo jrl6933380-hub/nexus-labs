@@ -326,7 +326,7 @@ async function workbenchProjectTiles(ctx) {
     }
     const actions = document.createElement('div');
     actions.className = 'workbench-project-actions';
-    for (const [label, destination] of [['Edit with Nex', 'chat'], ['Add a piece', 'pages']]) {
+    for (const [label, destination] of [['Edit with Nex', 'chat'], ['Add a piece', 'pages'], ['Connections', 'stack']]) {
       const button = document.createElement('button');
       button.type = 'button';
       button.textContent = label;
@@ -542,10 +542,6 @@ export const FORGE_VIEWS = {
           say('Choose a project below. Tap its preview to see the full site, or Add a piece on that project to grow its stack.'),
           say('One stack becomes one live site. Nex builds supporting pages and tools into the same project as you add them. When you go live, the latest combined site is published on one link. Stack cards are visual guides to what you have added.'),
           await workbenchProjectTiles(ctx),
-          chips([
-            { label: ctx.hasCurrentBuild?.() ? 'Edit with Nex' : 'Start building', run: () => ctx.go('chat') },
-            ...(ctx.hasCurrentBuild?.() ? [{ label: 'Connections', run: () => ctx.go('stack') }] : []),
-          ]),
         ];
       }
       const nodes = [];
@@ -750,57 +746,52 @@ export const FORGE_VIEWS = {
         return nodes;
       }
 
-      const progress = manifest.progress || { ready: 0, required: 0, percent: 0 };
-      nodes.push(say(
-        progress.required
-          ? `Your project stack is ${progress.percent}% ready — ${progress.ready} of ${progress.required} required pieces are tested and working. I'll walk you through the rest one piece at a time.`
-          : `Tell me what you're building and I'll turn it into a stack checklist.`
-      ));
-
-      const statusLabel = {
-        not_needed: 'optional',
-        recommended: 'next',
-        selected: 'selected',
-        connecting: 'connecting',
-        connected: 'test needed',
-        testing: 'testing',
-        ready: 'ready',
-        error: 'needs attention',
-        skipped: 'skipped',
+      const identity = document.createElement('div');
+      identity.className = 'workbench-selected-project';
+      const caption = document.createElement('small'); caption.textContent = 'Connections for project';
+      const name = document.createElement('strong'); name.textContent = manifest.project?.label || ctx.currentProjectLabel?.() || 'Your project';
+      identity.append(caption, name);
+      nodes.push(identity);
+      nodes.push(chips([{ label: 'Choose another project', run: () => ctx.go('project') }]));
+      nodes.push(say('Read a connection to see how it could help this project. Connect starts a scoping conversation with Nex; setup and testing come after you decide what to add.'));
+      if (!manifest.project || manifest.project.projectId !== ctx.projectId()) {
+        nodes.push(say('The saved project could not be confirmed. Reopen it from Projects before connecting a service.'));
+        return nodes;
+      }
+      const makeRow = ([slotId, slot]) => {
+        const definition = manifest.guidance?.[slotId];
+        if (!definition) return row({ title: manifest.catalog?.[slotId]?.label || slotId, meta: 'Connection details are unavailable. Try again shortly.' });
+        const detail = document.createElement('details');
+        detail.className = 'qcard connection-detail';
+        const summary = document.createElement('summary');
+        summary.textContent = `${definition.label} · ${slot.status === 'ready' ? 'Tested and ready' : slot.required ? 'Needed for this project' : 'Optional'}`;
+        detail.appendChild(summary);
+        for (const text of [definition.explanation, definition.application]) {
+          const paragraph = document.createElement('p'); paragraph.textContent = text; detail.appendChild(paragraph);
+        }
+        if (definition.dependencies?.length) {
+          const dependencies = document.createElement('p');
+          dependencies.textContent = 'Works with: ' + definition.dependencies.map(item => `${item.label} (${item.status === 'ready' ? 'tested' : 'needs a check'})`).join(', ');
+          detail.appendChild(dependencies);
+        }
+        if (definition.blocker) {
+          const blocker = document.createElement('p'); blocker.textContent = 'Setup availability: ' + definition.blocker; detail.appendChild(blocker);
+        }
+        detail.appendChild(chips([{ label: 'Connect with Nex', run: () => ctx.scopeConnection(slotId) }]));
+        const action = manifest.actions?.[slotId];
+        if (action?.available && (slot.status === 'ready' || slot.status === 'connected')) {
+          detail.appendChild(chips([{ label: 'Check connection', run: () => ctx.runStackAction(slotId, 'verify') }]));
+        } else if (action?.available && ctx.hasScopedConnection?.(slotId)) {
+          detail.appendChild(say('Once you and Nex have agreed what this project needs, use its setup action below. Setup still needs a successful test before this connection is ready.'));
+          detail.appendChild(chips([{ label: action.label || 'Set up connection', run: () => ctx.runStackAction(slotId, action.operation) }]));
+        }
+        return detail;
       };
       const entries = Object.entries(manifest.slots);
       const required = entries.filter(([, slot]) => slot.required);
       const optional = entries.filter(([, slot]) => !slot.required);
-      const makeRow = ([slotId, slot]) => {
-        const definition = manifest.catalog?.[slotId] || {};
-        const action = manifest.actions?.[slotId] || null;
-        const provider = slot.provider
-          ? (definition.providers || []).find((item) => item.id === slot.provider)?.label || slot.provider
-          : 'Choose when needed';
-        const label = statusLabel[slot.status] || slot.status;
-        return row({
-          title: definition.label || slotId,
-          meta: `${provider} · ${action?.available === false && action?.blocker ? action.blocker : (definition.purpose || 'Project service')}`,
-          tone: { label, kind: slot.status === 'ready' ? 'f' : 'g' },
-          onClick: () => action
-            ? ctx.runStackAction(slotId, action.operation)
-            : ctx.ask(`Walk me through setting up ${definition.label || slotId} for my project. Check its real connection state first and do not call it ready until it passes a test.`),
-        });
-      };
-
       if (required.length) nodes.push(group('Needed for this project', required.map(makeRow)));
       if (optional.length) nodes.push(group('Add when you need them', optional.map(makeRow)));
-      nodes.push(chips([
-        { label: 'Set up this project', run: () => ctx.setupStack() },
-        { label: 'Plan my stack', run: () => ctx.ask('Ask me what I am building, then recommend the full stack it needs and update my checklist.') },
-        { label: 'Set up the next piece', run: () => {
-          const next = progress.next;
-          const action = next ? manifest.actions?.[next] : null;
-          if (next && action) ctx.runStackAction(next, action.operation);
-          else ctx.ask('Open my Build Plan and walk me through the next unfinished required piece.');
-        } },
-        { label: 'Add a database', run: () => ctx.ask('I need a database. Explain the recommended option and walk me through connecting it.') },
-      ]));
       return nodes;
     },
   },
