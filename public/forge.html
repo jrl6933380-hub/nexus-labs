@@ -437,11 +437,11 @@ const history = [];
 const startupParams = new URLSearchParams(location.search);
 const surfaceMode = startupParams.get('surface') === 'workbench' ? 'workbench' : 'forge';
 const isWorkbench = surfaceMode === 'workbench';
-const WORKBENCH_VIEW_ORDER = ['project', 'live', 'stack', 'brief'];
+const WORKBENCH_VIEW_ORDER = ['project', 'live', 'roadmap', 'stack', 'brief'];
 const WORKBENCH_VIEWS = new Set([...WORKBENCH_VIEW_ORDER, 'preview', 'pages', 'help']);
 const WORKBENCH_LABELS = {
   project: 'Projects', live: 'Live Sites', preview: 'Full Preview', pages: 'Add to Project',
-  stack: 'Connections', brief: 'Project Plan', help: 'How It Works',
+  roadmap: 'Project Path', stack: 'Connections', brief: 'Project Plan', help: 'How It Works',
 };
 if (isWorkbench) {
   document.title = 'Nex Workbench';
@@ -814,7 +814,7 @@ function drawNav(){
   for (const [id, view] of entries) {
     const gate = VIEW_REQUIRES[id];
     if (gate && !featureUnlocked(connectionSnapshot(), gate)) continue;
-    if (id === 'stack' && (!currentBuild || ['project', 'live'].includes(currentView))) continue;
+    if (['stack', 'roadmap'].includes(id) && (!currentBuild || ['project', 'live'].includes(currentView))) continue;
     const button = document.createElement('button');
     button.className = 'item';
     button.dataset.view = id;
@@ -1017,8 +1017,10 @@ async function showView(id){
   document.getElementById('workbenchFullPreview')?.remove();
   if (!viewAllowed(id)) id = 'project';
   if (id === 'stack' && !currentBuild) id = 'brief';
+  if (id === 'roadmap' && !currentBuild) id = 'project';
   currentView = id;
   drawNav();
+  el('planProjectBtn').textContent = currentBuild ? 'Path' : 'Plan';
   el('connectionsProjectBtn').hidden = !isWorkbench || !currentBuild || ['project', 'live'].includes(currentView);
   syncWorkbenchEditor();
   railOpen(false);
@@ -1367,7 +1369,8 @@ el('helpBtn').onclick = () => showView('help');
 el('previewBtn').textContent = isWorkbench ? 'Projects' : 'Preview';
 el('previewBtn').onclick = () => showView(isWorkbench ? 'project' : 'preview');
 el('addProjectBtn').onclick = () => showView('project');
-el('planProjectBtn').onclick = () => { plannerEntry = ''; showView('brief'); };
+el('planProjectBtn').textContent = currentBuild ? 'Path' : 'Plan';
+el('planProjectBtn').onclick = () => { plannerEntry = ''; showView(currentBuild ? 'roadmap' : 'brief'); };
 el('connectionsProjectBtn').onclick = () => showView('stack');
 el('editorFullPreview').onclick = () => showView('preview');
 el('newBtn').onclick = el('newTop').onclick = () => {

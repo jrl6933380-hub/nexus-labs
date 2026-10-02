@@ -34,6 +34,7 @@ import { getProjectBrief, compileBriefForModel } from '../lib/forge/projectBrief
 import { getOrCreateAnonId } from '../lib/anonSession.js';
 import { roomMeter } from '../lib/roomMetering.js';
 import { roomConversations } from '../lib/roomConversation.js';
+import { getProjectRoadmap } from '../lib/forge/projectRoadmap.js';
 import { attachmentManifest, attachmentMessageContent, embedRoomAttachments, parseRoomAttachments } from '../lib/roomAttachments.js';
 import { routeMessageStream } from '../lib/modelRouter.js';
 import { waitUntil } from '@vercel/functions';
@@ -450,6 +451,8 @@ export default async function handler(req, res) {
         } catch (conversationError) {
           console.error('room-chat: completion memory write failed:', conversationError.message);
         }
+        try { await getProjectRoadmap({ ownerUsername: username, projectId: saved.projectId }); }
+        catch (roadmapError) { console.error('room-chat: roadmap refresh failed:', roadmapError.message); }
       }
     } catch (saveErr) {
       console.error('room-chat: failed to save build to history:', saveErr.message);
