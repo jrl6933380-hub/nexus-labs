@@ -21,7 +21,7 @@ test('Projects stays inside Workbench while All projects returns to the Nex Chat
 });
 
 test('Workbench exposes only its ordered panel rooms while ordinary Forge keeps its full navigation', () => {
-  assert.match(forge, /WORKBENCH_VIEW_ORDER = \['project', 'live', 'preview', 'pages', 'stack', 'brief'\]/u);
+  assert.match(forge, /WORKBENCH_VIEW_ORDER = \['project', 'live', 'stack', 'brief'\]/u);
   assert.match(forge, /return id === 'chat' \|\| !isWorkbench \|\| WORKBENCH_VIEWS\.has\(id\)/u);
   assert.match(forge, /if \(!viewAllowed\(id\)\) id = 'project'/u);
   assert.match(forge, /target && viewAllowed\(target\)/u);
@@ -34,7 +34,7 @@ test('Workbench copy and rooms stay scoped to the current panel', () => {
   assert.match(forge, />All projects</u);
   assert.match(views, /ctx\.surface\?\.\(\) === 'workbench'/u);
   assert.match(views, /website, app, business system, or intelligence/u);
-  assert.match(views, /Supporting pages, tools, workflows, and intelligences/u);
+  assert.match(views, /supporting pages, tools, workflows, and intelligences/u);
   assert.match(views, /Connections/u);
 });
 
@@ -72,16 +72,18 @@ test('Workbench editing pins the live project while only the Nex conversation sc
   assert.match(forge, /grid-template-columns:minmax\(0,1\.45fr\) minmax\(360px,\.75fr\)/u);
 });
 
-test('Workbench composer keeps the full project tool set beside the send button', () => {
+test('Workbench composer routes preview and additions through Projects', () => {
   assert.match(forge, /id="helpBtn">Help</u);
   assert.match(forge, /id="previewBtn">Preview</u);
   assert.match(forge, /id="addProjectBtn" hidden>Add</u);
   assert.match(forge, /id="planProjectBtn" hidden>Plan</u);
   assert.match(forge, /id="connectionsProjectBtn" hidden>Connections</u);
-  assert.match(forge, /addProjectBtn'\)\.onclick = \(\) => showView\('pages'\)/u);
+  assert.match(forge, /addProjectBtn'\)\.onclick = \(\) => showView\('project'\)/u);
   assert.match(forge, /planProjectBtn'\)\.onclick = \(\) => showView\('brief'\)/u);
   assert.match(forge, /connectionsProjectBtn'\)\.onclick = \(\) => showView\('stack'\)/u);
   assert.match(forge, /el\(id\)\.hidden = !isWorkbench/u);
+  assert.match(forge, /el\('addProjectBtn'\)\.hidden = true/u);
+  assert.match(forge, /showView\(isWorkbench \? 'project' : 'preview'\)/u);
 });
 
 test('Projects view pairs panel previews with a one-tap new-panel tile', () => {
@@ -90,7 +92,7 @@ test('Projects view pairs panel previews with a one-tap new-panel tile', () => {
   assert.match(forge, /\.workbench-project-grid\{display:grid/u);
   assert.match(views, /async function workbenchProjectTiles\(ctx\)/u);
   assert.match(views, /frame\.srcdoc = previews\[index\] \|\| ''/u);
-  assert.match(views, /ctx\.openBuild\(buildId, 'preview'\)/u);
+  assert.match(views, /ctx\.openBuild\(buildId, 'preview', projectLabel\)/u);
   assert.match(views, />New panel<\/strong><small>Add to your Workbench</u);
   assert.match(views, /add\.onclick = \(\) => ctx\.startProject\(\)/u);
 });

@@ -116,6 +116,12 @@
   .chip:hover{border-color:#3b4354;color:var(--tx)}
   .workbench-project-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:16px;margin:18px 0 20px;align-items:start}
   .workbench-project-stack{position:relative;min-width:0}
+  .workbench-project-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+  .workbench-project-actions button{flex:1;padding:9px 8px;background:#191d26;border:1px solid #303748;border-radius:12px;color:#e5e2dc;font:inherit;font-size:11px;cursor:pointer}
+  .workbench-selected-project{padding:14px;border:1px solid #b89b60;border-radius:14px;margin:12px 0}
+  .workbench-selected-project strong{display:block;overflow-wrap:anywhere}
+  .workbench-selected-project small{display:block;color:#d9bc80;margin-bottom:7px}
+  .workbench-publish-note{margin:0;padding:9px 14px;background:#101319;border-bottom:1px solid #303748;color:#b7bbc5;font-size:12px;line-height:1.45}
   .workbench-stack-deck{position:relative}
   .workbench-project-stack.has-parts .workbench-stack-deck::before,.workbench-project-stack.has-parts .workbench-stack-deck::after{
     content:'';position:absolute;inset:7px 9px -7px;border:1px solid #292e39;border-radius:17px;background:#0b0d12;z-index:0}
@@ -422,8 +428,8 @@ const history = [];
 const startupParams = new URLSearchParams(location.search);
 const surfaceMode = startupParams.get('surface') === 'workbench' ? 'workbench' : 'forge';
 const isWorkbench = surfaceMode === 'workbench';
-const WORKBENCH_VIEW_ORDER = ['project', 'live', 'preview', 'pages', 'stack', 'brief'];
-const WORKBENCH_VIEWS = new Set([...WORKBENCH_VIEW_ORDER, 'help']);
+const WORKBENCH_VIEW_ORDER = ['project', 'live', 'stack', 'brief'];
+const WORKBENCH_VIEWS = new Set([...WORKBENCH_VIEW_ORDER, 'preview', 'pages', 'help']);
 const WORKBENCH_LABELS = {
   project: 'Projects', live: 'Live Sites', preview: 'Full Preview', pages: 'Add to Project',
   stack: 'Connections', brief: 'Project Plan', help: 'How It Works',
@@ -500,7 +506,7 @@ const ctx = {
     await showView('chat');
     await runBuild('Build the first working version from my approved Project Brief.', 'Project Brief approved');
   },
-  openBuild: async (id, destination = 'chat') => {
+  openBuild: async (id, destination = 'chat', projectLabel = '') => {
     const notice = bubble('sys', 'Opening that project…');
     let opened = false;
     try {
@@ -512,7 +518,8 @@ const ctx = {
       currentBuild = data.build.html;
       currentProjectId = data.build.projectId || data.build.id;
       latestBuildId = data.build.id;
-      currentProjectLabel = data.build.label || 'Your project';
+      currentProjectLabel = projectLabel || data.build.label || 'Your project';
+      pendingStackItem = null;
       currentLiveUrl = data.build.liveUrl || '';
       currentLiveNeedsUpdate = Boolean(currentLiveUrl && Number(data.build.createdAt) > Number(data.build.livePublishedAt || 0));
       threadId = `project-${currentProjectId}`;
@@ -527,8 +534,8 @@ const ctx = {
           }
         }
       } catch { /* Saved HTML remains available when conversation history is down. */ }
-      await showView(destination === 'preview' ? 'preview' : 'chat');
-      if (destination !== 'preview') {
+      await showView(['preview', 'pages'].includes(destination) ? destination : 'chat');
+      if (destination === 'chat') {
         bubble('a', paragraphs(`Opened “${data.build.label || 'Saved project'}”. The live project stays pinned while you tell me what to change.`));
       }
       opened = true;
@@ -879,6 +886,7 @@ function renderWorkbenchPreview(){
   edit.type = 'button'; edit.className = 'preview-edit'; edit.textContent = 'Edit with Nex';
   edit.onclick = () => { showView('chat'); el('input').focus(); };
   const share = document.createElement('button');
+  share.title = 'Publish the complete project on one live link. Stack cards organize the pieces already built into this site.';
   share.type = 'button'; share.className = 'preview-share';
   share.textContent = !currentLiveUrl ? 'Publish & copy link' : currentLiveNeedsUpdate ? 'Update & copy link' : 'Copy live link';
   const openLive = document.createElement('button');
@@ -912,7 +920,10 @@ function renderWorkbenchPreview(){
   frame.setAttribute('sandbox', 'allow-scripts allow-forms');
   frame.setAttribute('referrerpolicy', 'no-referrer');
   frame.srcdoc = currentBuild;
-  shell.append(bar, frame);
+  const publishNote = document.createElement('p');
+  publishNote.className = 'workbench-publish-note';
+  publishNote.textContent = 'One stack, one live site. Pages and tools are built into this project as you add them. Publishing shares the latest combined site; the cards are visual guides to its pieces.';
+  shell.append(bar, publishNote, frame);
   document.body.appendChild(shell);
   return true;
 }
@@ -1259,8 +1270,9 @@ async function runBuild(raw, displayMessage = raw, showUser = true){
 el('send').onclick = submit;
 el('input').addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
 el('helpBtn').onclick = () => showView('help');
-el('previewBtn').onclick = () => showView('preview');
-el('addProjectBtn').onclick = () => showView('pages');
+el('previewBtn').textContent = isWorkbench ? 'Projects' : 'Preview';
+el('previewBtn').onclick = () => showView(isWorkbench ? 'project' : 'preview');
+el('addProjectBtn').onclick = () => showView('project');
 el('planProjectBtn').onclick = () => showView('brief');
 el('connectionsProjectBtn').onclick = () => showView('stack');
 el('editorFullPreview').onclick = () => showView('preview');
@@ -1273,8 +1285,7 @@ function greet(){
     thread.appendChild(say(`This Workbench project can become a complete website, app, business system, or intelligence. Build the main experience here, then add supporting pages, tools, automations, and connections into the same stack.`));
     const workbenchOptions = [
       { label: 'Describe what to build', run: () => { el('input').focus(); } },
-      { label: 'Full Preview', run: () => showView('preview') },
-      { label: 'Add to Project', run: () => showView('pages') },
+      { label: 'Projects', run: () => showView('project') },
     ];
     if (featureUnlocked(connectionSnapshot(), 'brief')) workbenchOptions.push({ label: 'Project Plan', run: () => showView('brief') });
     if (featureUnlocked(connectionSnapshot(), 'stack')) workbenchOptions.push({ label: 'Connections', run: () => showView('stack') });
@@ -1427,7 +1438,8 @@ if (startupParams.get('onboarding') === '1' || startupParams.get('view') === 'br
 // decide what to offer from it, so rendering first would briefly show options
 // this customer cannot use — and then remove them, which reads as a glitch.
 await loadConnection();
-for (const id of ['addProjectBtn', 'planProjectBtn', 'connectionsProjectBtn']) el(id).hidden = !isWorkbench;
+el('addProjectBtn').hidden = true;
+for (const id of ['planProjectBtn', 'connectionsProjectBtn']) el(id).hidden = !isWorkbench;
 drawNav();
 
 if (!await handleBrainResult()) {
