@@ -52,8 +52,7 @@ export function createForgeBriefHandler({
 
       // The real gate. The UI also hides this feature below the required tier,
       // but hiding is presentation — a customer can still call the endpoint
-      // directly, and every brief question is a model call on a connection that
-      // may not be able to serve them.
+      // directly. The configured runtime must support planning and building.
       let connection = null;
       try { connection = await getConnectionSafely((user) => getFeatureConnection(user, { connectionFor, env }), username); }
       catch { connection = null; }
