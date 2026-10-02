@@ -79,7 +79,7 @@ test('Workbench composer routes preview and additions through Projects', () => {
   assert.match(forge, /id="planProjectBtn" hidden>Plan</u);
   assert.match(forge, /id="connectionsProjectBtn" hidden>Connections</u);
   assert.match(forge, /addProjectBtn'\)\.onclick = \(\) => showView\('project'\)/u);
-  assert.match(forge, /planProjectBtn'\)\.onclick = \(\) => showView\('brief'\)/u);
+  assert.match(forge, /planProjectBtn'\)\.onclick = \(\) => \{ plannerEntry = ''; showView\('brief'\); \}/u);
   assert.match(forge, /connectionsProjectBtn'\)\.onclick = \(\) => showView\('stack'\)/u);
   assert.match(forge, /el\('connectionsProjectBtn'\)\.hidden = !isWorkbench \|\| !currentBuild/u);
   assert.match(forge, /el\('addProjectBtn'\)\.hidden = true/u);
@@ -103,9 +103,9 @@ test('Projects loads every panel and fans recorded supporting pieces into its st
   assert.match(views, /workbench-project-stack/u);
   assert.match(views, /supporting piece/u);
   assert.match(views, /classList\.toggle\('open'\)/u);
-  assert.match(views, /stackItem: \{ kind: 'page' \}/u);
-  assert.match(views, /stackItem: \{ kind: 'tool' \}/u);
-  assert.match(views, /stackItem: \{ kind: 'intelligence' \}/u);
+  assert.match(views, /ctx\.chooseAdditionKind\('page'\)/u);
+  assert.match(views, /ctx\.chooseAdditionKind\('tool'\)/u);
+  assert.match(views, /ctx\.chooseAdditionKind\('intelligence'\)/u);
   assert.match(forge, /stackItem: pendingStackItem/u);
 });
 

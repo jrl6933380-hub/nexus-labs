@@ -133,6 +133,23 @@ function briefQuestionCard(question, progress, ctx) {
   return card;
 }
 
+function additionKindCard(ctx) {
+  const card = document.createElement('section');
+  card.className = 'qcard addition-kind-card';
+  card.setAttribute('aria-label', 'Choose what to add');
+  const head = document.createElement('div');
+  head.className = 'qhead';
+  head.innerHTML = '<span>ADD A PIECE</span><strong>What are you adding to this project?</strong><small>Choose the closest fit. The planner will adapt its next questions to this piece and the project already open.</small>';
+  card.appendChild(head);
+  card.appendChild(chips([
+    { label: 'Add a page', run: () => ctx.chooseAdditionKind('page') },
+    { label: 'Add a tool', run: () => ctx.chooseAdditionKind('tool') },
+    { label: 'Add an intelligence', run: () => ctx.chooseAdditionKind('intelligence') },
+    { label: 'Review the whole stack', run: () => ctx.go('stack') },
+  ]));
+  return card;
+}
+
 // Shared by the `project` (home) and `pages` views — both list saved
 // projects. Built manually rather than through row() because a delete
 // action needs its own separate click target, and row() only supports one
@@ -326,7 +343,7 @@ async function workbenchProjectTiles(ctx) {
     }
     const actions = document.createElement('div');
     actions.className = 'workbench-project-actions';
-    for (const [label, destination] of [['Edit with Nex', 'chat'], ['Add a piece', 'pages'], ['Connections', 'stack']]) {
+    for (const [label, destination] of [['Edit with Nex', 'chat'], ['Add a piece', 'add-piece'], ['Connections', 'stack']]) {
       const button = document.createElement('button');
       button.type = 'button';
       button.textContent = label;
@@ -634,6 +651,10 @@ export const FORGE_VIEWS = {
         if (brief.connections?.length) nodes.push(group('Connections for this plan', brief.connections.map(connection => row({ title: connection.label, meta: `${connection.status === 'ready' ? 'Tested and ready' : 'Needs a check or setup'} · ${connection.purpose}` }))));
         if (brief.contextUnavailable?.length) nodes.push(say('Some saved project context could not be loaded. Connection readiness is unconfirmed until its check passes.'));
       }
+      if (addon && ctx.plannerEntry?.() === 'add-piece') {
+        nodes.push(additionKindCard(ctx));
+        return nodes;
+      }
       if (!brief.progress.ready && brief.next_question) {
         nodes.push(say(`I'll collect the important decisions one at a time. Each answer saves automatically. The number of questions changes with what your project needs.`));
         nodes.push(briefQuestionCard(brief.next_question, brief.progress, ctx));
@@ -675,10 +696,8 @@ export const FORGE_VIEWS = {
           chips([{ label: 'Choose a different project', run: () => ctx.go('project') }]),
           say('Add a page, tool, dashboard, workflow, or intelligence to this project. Nex builds it into the same site while keeping the existing pieces. When you go live, the latest combined project shares one link; stack cards are visual guides to its pieces.'),
           chips([
-            { label: 'Add a page', run: () => ctx.ask('Add a supporting page to this project. Ask what it should do and how it connects to the main experience.', { stackItem: { kind: 'page' } }) },
-            { label: 'Add a tool', run: () => ctx.ask('Add a useful tool, dashboard, calculator, or workflow to this project. Ask what should power it and who will use it.', { stackItem: { kind: 'tool' } }) },
-            { label: 'Add an intelligence', run: () => ctx.ask('Add an intelligence that helps run or support this main project. Ask what it should know, watch, and do.', { stackItem: { kind: 'intelligence' } }) },
-            { label: 'Review the whole stack', run: () => ctx.ask('Review the main project and every supporting piece as one stack. Tell me what is missing or disconnected.') },
+            { label: 'Open the addition planner', run: () => ctx.beginAddPiecePlanner() },
+            { label: 'Review the whole stack', run: () => ctx.go('stack') },
           ]),
         ];
       }

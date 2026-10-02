@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createMemoryBriefStore, ensureProjectBrief, saveBriefAnswer, resetProjectBrief, approveProjectBrief, getProjectBrief, publicProjectBrief } from '../lib/forge/projectBrief.js';
+import { createMemoryBriefStore, ensureProjectBrief, saveBriefAnswer, saveBriefAdditionKind, resetProjectBrief, approveProjectBrief, getProjectBrief, publicProjectBrief } from '../lib/forge/projectBrief.js';
 import { readProjectContext, connectionsForPlan, approvedAddonInstruction } from '../lib/forge/projectContext.js';
 import { createForgeBriefHandler } from '../api/forge-brief.js';
 import { createMemoryStore, applyStackRecommendation, ensureStackManifest } from '../lib/forgeStack.js';
@@ -60,11 +60,40 @@ function apiHarness(project = { projectId, label: 'Bakery' }, unavailable = []) 
   const handler = createForgeBriefHandler({ resolveUser: async () => ownerUsername, env: { NEX_QWEN_ONLY: 'true' },
     readContext: async () => ({ project, features: ['forms'], connections: [], unavailable }),
     ensure: args => ensureProjectBrief({ ...args, store }), answer: args => saveBriefAnswer({ ...args, store }),
+    chooseAdditionKind: args => saveBriefAdditionKind({ ...args, store }),
     approve: args => approveProjectBrief({ ...args, store }), reset: args => resetProjectBrief({ ...args, store }),
     recommend: async args => recommended.push(args),
   });
   return { store, handler, recommended };
 }
+
+test('Add a piece stores its type on the add-on brief without faking a chat answer', async () => {
+  const { store, handler } = apiHarness();
+  const res = response();
+  await handler({ method: 'POST', body: { projectId, mode: 'addon', action: 'choose_addition_kind', additionKind: 'intelligence' } }, res);
+  assert.equal(res.code, 200);
+  assert.equal(res.body.addition_kind, 'intelligence');
+  assert.equal(res.body.next_question.id, 'idea');
+  assert.equal(res.body.summary[0].value, 'Intelligence');
+  const stored = await getProjectBrief({ ownerUsername, projectId, mode: 'addon', store });
+  assert.deepEqual(stored.answers, {});
+});
+
+test('the selected addition type and connections adapt the remaining questions', async () => {
+  const store = createMemoryBriefStore();
+  await saveBriefAdditionKind({ ownerUsername, projectId, additionKind: 'intelligence', store });
+  for (const [questionId, values] of [
+    ['idea', 'Answer questions from uploaded policies'],
+    ['placement', 'Open from the help button'],
+    ['features', ['uploads', 'database']],
+  ]) await saveBriefAnswer({ ownerUsername, projectId, mode: 'addon', questionId, values, store });
+  let brief = await getProjectBrief({ ownerUsername, projectId, mode: 'addon', store });
+  assert.equal(publicProjectBrief(brief).next_question.id, 'intelligence_rules');
+  await saveBriefAnswer({ ownerUsername, projectId, mode: 'addon', questionId: 'intelligence_rules', values: 'Use approved policies and ask before sending anything', store });
+  brief = await getProjectBrief({ ownerUsername, projectId, mode: 'addon', store });
+  assert.equal(publicProjectBrief(brief).next_question.id, 'data_rules');
+  assert.equal(publicProjectBrief(brief).progress.required, 6);
+});
 
 test('add-on API refuses an unsaved project and never silently uses a new-project plan', async () => {
   const { handler } = apiHarness(null);
