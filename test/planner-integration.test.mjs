@@ -43,7 +43,9 @@ test('Schedule offers click-first planning, editable rollover, and Nexus Life en
   assert.match(workspace, /function openScheduleStudio/u);
   assert.match(workspace, /function openWeekStudio/u);
   assert.match(workspace, /function openWeekRollover/u);
-  assert.match(workspace, /Lock in next week/u);
+  assert.match(workspace, /Apply \$\{period\}/u);
+  assert.match(workspace, /Generate my schedule/u);
+  assert.match(boardApi, /generate_schedule_draft/u);
   assert.match(workspace, /checkScheduleReminders/u);
   assert.match(views, /Shape my week/u);
   assert.match(views, /See my time balance/u);

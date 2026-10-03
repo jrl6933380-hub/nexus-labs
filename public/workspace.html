@@ -471,6 +471,7 @@ function openScheduleCategory(category, items) {
 }
 function wizardShell(kicker, title, description) {
   thread.replaceChildren();
+  thread.scrollTop = 0;
   const card = document.createElement('section'); card.className = 'schedulewizard';
   const top = document.createElement('div'); top.innerHTML = `<small>${esc(kicker)}</small><h2>${esc(title)}</h2><p>${esc(description)}</p>`;
   card.appendChild(top); thread.appendChild(card); return card;
@@ -543,17 +544,81 @@ function openScheduleStudio(mode = 'block', preferredDate = '') {
 }
 function openWeekStudio() {
   const selected = new Set();
-  const card = wizardShell('SCHEDULE WITH NEX', 'What deserves space next week?', 'Choose every priority that matters. Nex will read the schedule, protect fixed commitments, show the current time split, and draft the week before applying anything.');
-  const priorities = scheduleCategories.filter(([value]) => value !== 'other');
-  choiceButtons(card, priorities, (value, button) => { selected.has(value) ? selected.delete(value) : selected.add(value); button.classList.toggle('on', selected.has(value)); }, selected);
-  const custom = document.createElement('input'); custom.placeholder = 'Something else that matters this week…'; card.appendChild(custom);
-  choiceButtons(card, [['arrange','Let Nex arrange my week'],['rollover','Start from this week'],['clean','Start with a clean week']], (value) => {
-    if (value === 'rollover') return openWeekRollover();
-    const prioritiesText = [...selected].join(', ') || 'a balanced week';
-    const extra = custom.value.trim() ? ` Also make room for: ${custom.value.trim()}.` : '';
-    askFromView(`Schedule my next week around these priorities: ${prioritiesText}.${extra} Read my existing schedule first. Show my current time split and open capacity, protect fixed blocks, then propose an editable week with clickable choices. Do not create or move anything until I approve the proposal.${value === 'clean' ? ' Start the proposal clean rather than carrying this week forward.' : ''}`);
+  let periodLabel = '';
+  let firstDay;
+  let lastDay;
+  const dateOnly = (date) => localDateTime(date).slice(0, 10);
+  const choosePeriod = wizardShell('PLAN YOUR TIME', 'When are you planning?', 'Generate a visual draft in a few taps, or customize it with Nex.');
+  choiceButtons(choosePeriod, [['today','Today'],['week','This week'],['next','Next week'],['dates','Pick dates']], (value) => {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    firstDay = value === 'next' ? weekBoundary(1) : today;
+    lastDay = value === 'today' ? new Date(today) : value === 'next' ? weekBoundary(2) : weekBoundary(1);
+    if (value !== 'today') lastDay.setDate(lastDay.getDate() - 1);
+    periodLabel = value === 'today' ? 'today' : value === 'next' ? 'next week' : 'this week';
+    if (value !== 'dates') return prioritiesStep();
+    const card = wizardShell('CHOOSE DATES', 'Which days?', 'Choose up to fourteen days.');
+    const from = document.createElement('input'); from.type = 'date'; from.value = dateOnly(today); from.setAttribute('aria-label','First day');
+    const to = document.createElement('input'); to.type = 'date'; to.value = dateOnly(lastDay); to.setAttribute('aria-label','Last day');
+    card.append(from, to);
+    choiceButtons(card, [['continue','Choose priorities']], () => {
+      firstDay = new Date(`${from.value}T00:00:00`); lastDay = new Date(`${to.value}T00:00:00`);
+      if (!Number.isFinite(firstDay.getTime()) || !Number.isFinite(lastDay.getTime()) || lastDay < firstDay || (lastDay - firstDay) / 86400000 > 13) return actionError(new Error('Choose an increasing range of up to fourteen days.'));
+      periodLabel = `${firstDay.toLocaleDateString([], {month:'short',day:'numeric'})}–${lastDay.toLocaleDateString([], {month:'short',day:'numeric'})}`;
+      prioritiesStep();
+    });
   });
-  card.appendChild(chips([{ label:'Back to Schedule', run:() => showView('planner') }]));
+  choosePeriod.appendChild(chips([{ label:'Back to Schedule', run:() => showView('planner') }]));
+  function prioritiesStep() {
+    const card = wizardShell('CHOOSE PRIORITIES', `What deserves space ${periodLabel}?`, 'Choose what matters, then set how much time it needs. Existing commitments stay in place.');
+    choiceButtons(card, scheduleCategories.filter(([value]) => value !== 'other'), (value, button) => {
+      selected.has(value) ? selected.delete(value) : selected.add(value); button.classList.toggle('on', selected.has(value));
+    }, selected);
+    const custom = document.createElement('input'); custom.placeholder = 'Something else…'; custom.setAttribute('aria-label','Custom priority'); card.appendChild(custom);
+    choiceButtons(card, [['continue','Set amounts'],['nex','Customize with Nex']], (value) => {
+      if (!selected.size && !custom.value.trim()) return actionError(new Error('Choose at least one priority.'));
+      if (value === 'nex') return askFromView(`Help me schedule ${periodLabel} (${dateOnly(firstDay)} through ${dateOnly(lastDay)}) around ${[...selected].join(', ')} ${custom.value.trim()}. Read my schedule and propose visual choices before changing anything.`);
+      amountsStep(custom.value.trim());
+    });
+  }
+  function amountsStep(customTitle) {
+    const card = wizardShell('AMOUNTS & AVAILABLE HOURS', `Shape ${periodLabel}`, 'Set sessions and minutes. The automatic planner spreads sessions across your available days and avoids every existing block.');
+    const form = document.createElement('div'); form.className = 'actionform plannerform';
+    const requests = [...selected].map((category) => ({ category, title:scheduleCategories.find(([key]) => key === category)[1] }));
+    if (customTitle) requests.push({ category:'other', title:customTitle });
+    const controls = requests.map((request) => {
+      const name = document.createElement('strong'); name.textContent = request.title; name.style.gridColumn = '1/-1'; form.appendChild(name);
+      const count = optionField('Sessions', Array.from({length:14}, (_, index) => [String(index + 1), String(index + 1)]), '1');
+      const minutes = optionField('Minutes per session', [15,30,45,60,90,120,180,240,480].map((value) => [String(value), `${value} minutes`]), '60');
+      form.append(count.label, minutes.label); return { ...request, count:count.select, minutes:minutes.select };
+    });
+    const startHours = optionField('Available from', Array.from({length:24}, (_, hour) => [String(hour), `${String(hour).padStart(2,'0')}:00`]), '9');
+    const endHours = optionField('Available until', Array.from({length:24}, (_, hour) => [String(hour+1), `${String(hour+1).padStart(2,'0')}:00`]), '18');
+    form.append(startHours.label, endHours.label);
+    const weekdays = new Set([0,1,2,3,4,5,6]);
+    const dayLabel = document.createElement('p'); dayLabel.textContent = 'Available days'; card.append(form, dayLabel);
+    choiceButtons(card, [['1','Mon'],['2','Tue'],['3','Wed'],['4','Thu'],['5','Fri'],['6','Sat'],['0','Sun']], (value, button) => {
+      const day = Number(value); weekdays.has(day) ? weekdays.delete(day) : weekdays.add(day); button.classList.toggle('on', weekdays.has(day));
+    }, new Set(['0','1','2','3','4','5','6']));
+    const status = document.createElement('p'); status.setAttribute('role','status'); card.appendChild(status);
+    choiceButtons(card, [['generate','Generate my schedule'],['back','Change priorities']], async (value, button) => {
+      if (value === 'back') return prioritiesStep();
+      const startHour = Number(startHours.select.value), endHour = Number(endHours.select.value);
+      if (endHour <= startHour || !weekdays.size) { status.textContent = 'Choose available days and an end time after the start.'; return; }
+      const windows = [];
+      for (const day = new Date(firstDay); day <= lastDay; day.setDate(day.getDate()+1)) {
+        if (!weekdays.has(day.getDay())) continue;
+        const starts = new Date(day); starts.setHours(startHour);
+        const ends = new Date(day); ends.setHours(endHour);
+        windows.push({ starts_at:starts.toISOString(), ends_at:ends.toISOString() });
+      }
+      if (!windows.length) { status.textContent = 'No selected weekdays occur in this period.'; return; }
+      button.disabled = true; status.textContent = 'Finding openings…';
+      try {
+        const draft = await postPlanner('generate_schedule_draft', { period_label:periodLabel, windows, requests:controls.map((control) => ({title:control.title,category:control.category,count:Number(control.count.value),minutes:Number(control.minutes.value)})) });
+        openWeekDraft(draft);
+      } catch (error) { button.disabled = false; status.textContent = error.message; }
+    });
+  }
 }
 function weekBoundary(offset = 0) {
   const date = new Date(); date.setHours(0, 0, 0, 0);
@@ -575,7 +640,11 @@ async function openWeekRollover() {
   });
 }
 function openWeekDraft(draft) {
-  const card = wizardShell('EDITABLE DRAFT', 'Review next week before locking it in', draft.items?.length ? `${draft.items.length} blocks were carried forward. Open any block to change its time, category, protection, or rollover setting.` : 'There was nothing to carry forward. Add blocks manually or let Nex shape a clean week.');
+  const period = draft.period_label || (draft.draft_id?.startsWith('auto-') ? 'your schedule' : 'next week');
+  const card = wizardShell('EDITABLE DRAFT', `Review ${period} before applying`, draft.items?.length ? `${draft.items.length} draft blocks. Tap any block to edit its time or details, then return to Schedule to review the draft.` : 'No blocks fit your available hours. Change your amounts or availability to try again.');
+  if (draft.unplaced?.length) {
+    const missing = document.createElement('p'); missing.textContent = `${draft.unplaced.length} sessions could not fit: ${draft.unplaced.map((item) => item.title).join(', ')}. They have not been scheduled.`; card.appendChild(missing);
+  }
   const banner = document.createElement('div'); banner.className = 'draftbanner';
   const conflicts = draft.summary?.conflicts?.length || 0;
   banner.innerHTML = `<strong>${draft.items?.length || 0} blocks · ${Math.round((draft.summary?.scheduled_minutes || 0) / 6) / 10} hours</strong><span>${conflicts ? `${conflicts} conflict${conflicts === 1 ? '' : 's'} need review` : 'No draft conflicts detected'}</span>`; card.appendChild(banner);
@@ -585,7 +654,8 @@ function openWeekDraft(draft) {
     button.innerHTML = `<span class="lmain"><span><span class="lt">${esc(item.title)}</span><span class="lm">${new Date(item.starts_at).toLocaleString([], { weekday:'short', hour:'numeric', minute:'2-digit' })} · ${esc(item.category)}</span></span></span><span class="tag g">draft</span>`;
     button.onclick = () => openPlannerItem(item); card.appendChild(button);
   }
-  choiceButtons(card, [['apply','Lock in next week'],['adjust','Ask Nex to adjust'],['discard','Discard draft']], async (value, button) => {
+  choiceButtons(card, [...(draft.items?.length ? [['apply',`Apply ${period}`]] : [['retry','Change planning choices']]),['adjust','Customize with Nex'],['discard','Discard draft']], async (value, button) => {
+    if (value === 'retry') return openWeekStudio();
     if (value === 'adjust') return askFromView(`Review schedule draft ${draft.draft_id}. Show its time split and conflicts, then offer clickable adjustments. Do not apply it yet.`);
     button.disabled = true;
     try { await postPlanner(value === 'apply' ? 'apply_week_draft' : 'discard_week_draft', { draft_id:draft.draft_id }); await showView('planner'); }
@@ -607,7 +677,7 @@ function reviewWeekDraft(draftId, items) {
     if (Date.parse(ordered[right].starts_at) >= leftEnd) break;
     conflicts.push({ item_ids:[ordered[left].id, ordered[right].id] });
   }
-  openWeekDraft({ draft_id:draftId, items:items || [], summary:{ scheduled_minutes:scheduledMinutes, category_minutes:categoryMinutes, conflicts } });
+  openWeekDraft({ draft_id:draftId, period_label:items?.[0]?.period_label, items:items || [], summary:{ scheduled_minutes:scheduledMinutes, category_minutes:categoryMinutes, conflicts } });
 }
 function openPlannerItem(item) {
   const when = new Date(item.starts_at).toLocaleString([], { dateStyle:'full', timeStyle:item.all_day ? undefined : 'short' });
