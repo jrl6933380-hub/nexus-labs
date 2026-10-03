@@ -1,3 +1,4 @@
+import { lifeStore } from '../lib/life.js';
 import { reminderStore } from '../lib/reminders.js';
 // /api/board.js
 // Shared task board endpoint — read/write access for Claude, GPT, and
@@ -106,6 +107,28 @@ function developerSource(value) {
   const source = String(value || 'developer').trim().toLowerCase();
   return `developer:${/^[a-z0-9_-]{1,32}$/u.test(source) ? source : 'developer'}`;
 }
+
+export function createLifeHandler({getOwner=getNexusOwner,getUser=getRequestUser,store=lifeStore}={}) {
+  return async(req,res)=>{
+    res.setHeader('Cache-Control','private, no-store');
+    const owner=await getOwner(req).catch(()=>null),roomUser=owner ? null : await getUser(req).catch(()=>null);
+    if(!owner && !roomUser)return res.status(401).json({error:'Sign in to use Life.'});
+    const user=owner ? `owner:${owner.id}` : `room:${roomUser}`;
+    try{
+      if(req.method==='GET')return res.status(200).json(req.query?.alerts==='1' ? {items:await store.alerts(user)} : await store.overview(user));
+      if(req.method!=='POST')return res.status(405).json({error:'Method Not Allowed'});
+      const {action,...input}=req.body || {};let result;
+      if(action==='profile')result=await store.profile(user,input);
+      else if(action==='preview')result=await store.preview(input,user);
+      else if(action==='save')result=await store.save(input,user);
+      else if(action==='check_in')result=await store.checkIn(input,user);
+      else if(action==='delete')result=await store.remove(input.id,user);
+      else return res.status(400).json({error:'Unknown Life action'});
+      return res.status(200).json(result);
+    }catch(error){return res.status(400).json({error:error.message});}
+  };
+}
+const handleLife=createLifeHandler();
 
 export function createRemindersHandler({getOwner=getNexusOwner,getUser=getRequestUser,store=reminderStore}={}) {
  return async function handleReminders(req,res) {
@@ -684,6 +707,7 @@ export default async function handler(req, res) {
     if (path.startsWith('/api/hyperfocus')) return await handleHyperfocus(req, res);
     if (path.startsWith('/api/agentlog')) return await handleAgentLog(req, res);
     if (path.startsWith('/api/vault')) return await handleVault(req, res);
+    if (path.startsWith('/api/life')) return await handleLife(req,res);
     if (path.startsWith('/api/reminders')) return await handleReminders(req, res);
     if (path.startsWith('/api/planner')) return await handlePlanner(req, res);
     if (path.startsWith('/api/pinned-visuals')) return await handlePinnedVisuals(req, res);

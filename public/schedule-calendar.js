@@ -1,7 +1,7 @@
 // A calendar-first surface over the shared Schedule store.
 import { occupiedStart } from './schedule-availability.js';
-const COLORS = {work:'#6f9ce8',project:'#9a7bea',gym:'#56c596',health:'#65b8b2',family:'#e9a66f',social:'#df7fa4',appointment:'#e0c35c',errands:'#a5a19a',learning:'#74b7e8',creative:'#c883d8',rest:'#7b87a7',travel:'#d78b68',other:'#8e8a84'};
-const state = {date:new Date(),mode:'month'};
+const COLORS = {sleep:'#879ade',personal:'#bd91d9',work:'#6f9ce8',project:'#9a7bea',gym:'#56c596',health:'#65b8b2',family:'#e9a66f',social:'#df7fa4',appointment:'#e0c35c',errands:'#a5a19a',learning:'#74b7e8',creative:'#c883d8',rest:'#7b87a7',travel:'#d78b68',other:'#8e8a84'};
+const globalCalendarState = {date:new Date(),mode:'month'};
 export function calendarKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 }
@@ -33,6 +33,7 @@ function node(tag,className,text) { const element=document.createElement(tag);el
 function button(text,action,label=text) { const element=node('button','',text);element.type='button';element.setAttribute('aria-label',label);element.onclick=action;return element; }
 const clock = (date) => date.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
 export async function renderScheduleCalendar(ctx, extras) {
+  const state=ctx.calendarState || globalCalendarState;
   const root=node('section','nexcalendar');
   let payload={items:[]}, requestId=0, search='', closeActivityActions=null;
   async function load() {
@@ -43,7 +44,7 @@ export async function renderScheduleCalendar(ctx, extras) {
     const to=state.mode === 'month' ? shift(from,42) : shift(from,state.mode === 'multi' ? 3 : state.mode === 'list' ? 30 : 1);
     try {
       // Include blocks starting before the range, such as overnight events.
-      const response=await fetch(`/api/planner?from=${encodeURIComponent(shift(from,-14).toISOString())}&to=${encodeURIComponent(to.toISOString())}`,{credentials:'include'});
+      const response=await fetch(`${ctx.calendarEndpoint || '/api/planner'}?from=${encodeURIComponent(shift(from,-14).toISOString())}&to=${encodeURIComponent(to.toISOString())}`,{credentials:'include'});
       const data=await response.json(); if(!response.ok) throw new Error(data.error || 'Could not load your calendar');
       if(id !== requestId) return;
       const items=(data.items || []).filter((item)=>new Date(item.starts_at)<to && endOf(item)>from && item.status !== 'cancelled');
@@ -71,12 +72,12 @@ export async function renderScheduleCalendar(ctx, extras) {
     }
     controls.append(modes,button('Today',()=>{state.date=new Date();return load();}));root.append(controls);
     const tools=node('div','caltools');
-    tools.append(button('✦ Plan with Nex',()=>ctx.openScheduleStudio('week')),button('Time balance',()=>{
+    tools.append(button('✦ Plan with Nex',()=>ctx.openScheduleStudio('week')),button(ctx.balanceLabel || 'Time balance',()=>{
       const previous=root.querySelector('.calinsight');if(previous){previous.remove();return;}
       const host=node('div','calinsight');host.append(extras.balance(payload.summary,payload.items || [],ctx));root.append(host);host.scrollIntoView({block:'nearest'});
     }));
     const more=node('details','calmore');more.append(node('summary','','More'));
-    more.append(button('Build next week',()=>ctx.openWeekRollover()),button('Ask Nex to adjust',()=>ctx.ask(`Read my schedule for ${calendarKey(state.date)}. Show me the tradeoffs and clickable ways to adjust it without moving protected commitments.`)));
+    more.append(button(ctx.weekLabel || 'Build next week',()=>ctx.openWeekRollover()),button('Ask Nex to adjust',()=>ctx.ask(`Read my ${ctx.calendarSubject || 'schedule'} for ${calendarKey(state.date)}. Show me the tradeoffs and clickable ways to adjust it without moving protected commitments.`)));
     const find=node('input','calsearch');find.type='search';find.placeholder='Find an activity';find.setAttribute('aria-label','Search schedule');find.value=search;
     find.onchange=()=>{search=find.value;state.mode='list';return load();};more.append(find);tools.append(more);root.append(tools);
     for(const draftId of payload.drafts || []) {
@@ -121,7 +122,7 @@ export async function renderScheduleCalendar(ctx, extras) {
     const actions=node('div','calactivityactions');actions.hidden=true;
     actions.append(button(item.notes ? 'Notes' : 'Add notes',()=>ctx.editScheduleNotes(item)),button('Edit',()=>ctx.editScheduleItem(item)));
     if(item.status==='planned' && !item.all_day)actions.append(button('Running over',()=>ctx.openScheduleOverrun(item)));
-    actions.append(button('Details',()=>ctx.openPlannerItem(item)));
+    actions.append(button(ctx.detailsLabelFor?.(item) || ctx.detailsLabel || 'Details',()=>ctx.openPlannerItem(item)));
     block.onkeydown=(event)=>{if(event.key==='Escape'){closeActivityActions?.();closeActivityActions=null;main.focus();}};
     block.append(main,actions);if(compact)block.className+=' compactactivity';return block;
   }

@@ -231,6 +231,7 @@
 </style>
 <link rel="stylesheet" href="/schedule-calendar.css">
 <link rel="stylesheet" href="/reminders.css">
+<link rel="stylesheet" href="/life.css">
 </head>
 <body>
 
@@ -965,7 +966,7 @@ function paragraphs(text){
 async function showView(id){
   currentView = id;
   document.body.dataset.view = id;
-  el('input').placeholder = id === 'planner' ? 'Ask Nex about your schedule…' : id === 'reminders' ? 'Ask Nex about your reminders…' : 'Ask Nex anything…';
+  el('input').placeholder = id === 'planner' ? 'Ask Nex about your schedule…' : id === 'reminders' ? 'Ask Nex about your reminders…' : id === 'life' ? 'Talk with Nex about your life…' : 'Ask Nex anything…';
   railOpen(false);
   if (!['chat', 'workbench', 'planner', 'reminders', 'life', 'legacy', 'teams', 'skills'].includes(id)) {
     document.querySelector('.ops').open = true;
@@ -1324,6 +1325,7 @@ const requestedView = new URLSearchParams(location.search).get('view');
 await loadThreads();
 await showView(requestedView && VIEWS[requestedView] ? requestedView : 'chat');
 startReminderAlerts(()=>showView('reminders'));
+startReminderAlerts(()=>showView('life'),{endpoint:'/api/life?alerts=1'});
 </script>
 </body>
 </html>

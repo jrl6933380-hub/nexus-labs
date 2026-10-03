@@ -45,6 +45,5 @@ test('Schedule offers click-first planning, editable rollover, and Nexus Life en
   assert.match(workspace, /Generate my schedule/u);
   assert.match(boardApi, /generate_schedule_draft/u);
   assert.match(workspace, /checkScheduleReminders/u);
-  assert.match(views, /Shape my week/u);
-  assert.match(views, /See my time balance/u);
+  assert.match(views, /renderLife\(ctx\)/u);
 });
