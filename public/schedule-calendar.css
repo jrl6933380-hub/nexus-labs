@@ -14,3 +14,5 @@ body[data-view=planner] .disc{display:none}body[data-view=planner] .foot{padding
 body[data-view=planner] #newTop{display:none}
 
 .scheduletoast .scheduleextend{position:static;display:block;padding:8px 12px;margin-top:10px;border:1px solid #667ba0;border-radius:9px;color:#e4c891;font-size:12px}.scheduletoast strong{padding-right:22px}
+
+.scheduleendguide{grid-column:1/-1;padding:10px 12px;border-left:2px solid #d9b77b;background:#d9b77b0a;border-radius:0 8px 8px 0;color:#decba6!important;font-size:13px!important}.schedulecompactform select option:disabled{color:#666b74;background:#101216}.calslot.taken{background:repeating-linear-gradient(135deg,#ffffff03,#ffffff03 4px,transparent 4px,transparent 9px);cursor:not-allowed}

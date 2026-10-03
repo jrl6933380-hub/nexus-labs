@@ -301,6 +301,7 @@
 import { VIEWS, matchView, say, chips, esc, scheduleBalance } from '/workspace-views.js';
 import { NEX_CHAT_MODES } from '/nexus-product-catalog.js';
 import { dueScheduleReminders } from '/schedule-reminders.js';
+import { scheduleStart, scheduleEnd, occupiedStart, plannedEndLabel, updateStartOptions } from '/schedule-availability.js';
 
 // Owner gate. The previous root page checked this before rendering anything, and
 // this shell now sits at the root, so it has to hold the same line — without it,
@@ -434,6 +435,7 @@ function scheduleDateTime(value, labelText, optional = false) {
     time.select.value = String(minutes);
   };
   Object.defineProperty(host, 'value', {get:() => date.value ? `${date.value}T${String(Math.floor(Number(time.select.value)/60)).padStart(2,'0')}:${String(Number(time.select.value)%60).padStart(2,'0')}` : '', set:setValue});
+  host.dateInput=date;host.timeSelect=time.select;
   date.required = !optional; host.append(date, time.label); setValue(value); return host;
 }
 function scheduleAdded(day) {
@@ -526,6 +528,12 @@ function choiceButtons(host, values, onChoose, selected = new Set()) {
   }
   host.appendChild(wrap); return wrap;
 }
+async function readTakenSchedule() {
+  const response=await fetch('/api/planner',{credentials:'include'});
+  const data=await response.json();
+  if(!response.ok)throw new Error(data.error || 'Could not read taken times');
+  return Array.isArray(data.items) ? data.items : [];
+}
 function openScheduleStudio(mode = 'block', preferredDate = '', preferredMinutes = null) {
   if (mode === 'week') return openWeekStudio();
   const base = preferredDate ? new Date(`${preferredDate}T09:00:00`) : new Date(Date.now()+3600000);
@@ -546,10 +554,17 @@ function openScheduleStudio(mode = 'block', preferredDate = '', preferredMinutes
   const timing=optionField('Timing',[['fixed','Fixed time'],['flexible','Flexible · Nex may suggest a move']],'fixed');
   const protect=document.createElement('input');protect.type='checkbox';
   const protectLabel=document.createElement('label');protectLabel.textContent='Protect this time';protectLabel.appendChild(protect);options.append(timing.label,protectLabel);form.appendChild(options);
+  const endGuide=document.createElement('p');endGuide.className='scheduleendguide';form.appendChild(endGuide);
   const status=document.createElement('p');status.setAttribute('role','status');card.appendChild(status);
-  choiceButtons(card,[['add','Add activity'],['nex','Find time with Nex'],['back','Back to calendar']],async(value,button)=>{
+  let savedItems=[], availabilityReady=false;start.timeSelect.disabled=true;
+  const refreshSlots=()=>{const day=start.dateInput.value;const blocked=updateStartOptions(start.timeSelect,{days:day ? [day] : [],durationMinutes:Number(duration.select.value),items:savedItems});endGuide.textContent=day ? `Planned end: ${plannedEndLabel([day],Number(start.timeSelect.value),Number(duration.select.value))}` : 'Choose a day to see the planned end.';status.textContent=!availabilityReady ? 'Reading taken times…' : blocked ? 'That block overlaps taken time. Choose an open start.' : 'Taken starts are unavailable for this duration.';};
+  form.addEventListener('input',refreshSlots);form.addEventListener('change',refreshSlots);refreshSlots();
+  const loadSlots=async()=>{try{savedItems=await readTakenSchedule();availabilityReady=true;start.timeSelect.disabled=false;refreshSlots();}catch(error){status.textContent=error.message;}};loadSlots();
+  choiceButtons(card,[['add','Add activity'],['nex','Find time with Nex'],['retry','Refresh taken times'],['back','Back to calendar']],async(value,button)=>{
     if(value==='back')return showView('planner');
+    if(value==='retry')return loadSlots();
     const title=name.value.trim() || scheduleCategories.find(([key])=>key===category.select.value)[1];
+    if(value==='add' && (!availabilityReady || start.timeSelect.selectedOptions[0]?.disabled)){status.textContent='Choose an open start time after taken times load.';return;}
     if(!start.value)return;
     if(value==='nex')return askFromView(`Read my schedule. Help me place ${title}, ${durationLabel(Number(duration.select.value))}, on ${start.value.slice(0,10)}. Category ${category.select.value}; timing ${timing.select.value}; protected ${protect.checked}. Show me relevant clickable choices before creating it.`);
     button.disabled=true;status.textContent='Checking this time…';
@@ -615,6 +630,9 @@ function openWeekStudio() {
     const days = [];
     for (const day = new Date(firstDay); day <= lastDay; day.setDate(day.getDate()+1)) days.push(new Date(day));
     const controls = [];
+    let savedItems=[], availabilityReady=false;
+    function pendingBlocks(exclude) {return controls.filter((control)=>control!==exclude && control.timing.select.value==='fixed').flatMap((control)=>[...control.selectedDays].map((day)=>({id:`pending-${controls.indexOf(control)}`,title:control.name.value,starts_at:scheduleStart(day,Number(control.from.select.value)).toISOString(),ends_at:scheduleEnd(day,Number(control.from.select.value),Number(control.duration.select.value)).toISOString(),status:'planned'})));}
+    function refreshAll(){for(const control of controls)control.refresh();}
     const activities = document.createElement('div'); card.appendChild(activities);
     function addActivity(request) {
       const panel = document.createElement('details'); panel.className='scheduleactivity'; activities.appendChild(panel);
@@ -632,31 +650,43 @@ function openWeekStudio() {
       const reminderHint=document.createElement('p');reminderHint.textContent='Optional reminders appear while Nexus is open.';section.appendChild(reminderHint);
       const selectedDays = new Set();
       choiceButtons(section, days.map((day) => [dateOnly(day),day.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})]), (value,button) => {
-        selectedDays.has(value) ? selectedDays.delete(value) : selectedDays.add(value); button.classList.toggle('on',selectedDays.has(value)); refresh();
+        selectedDays.has(value) ? selectedDays.delete(value) : selectedDays.add(value); button.classList.toggle('on',selectedDays.has(value)); refreshAll();
       });
       const explain = document.createElement('p'); explain.textContent = 'Choose days for this activity'; section.insertBefore(explain,section.querySelector('.schedulechoices'));
-      const refresh = () => { const fixed = timing.select.value === 'fixed'; count.label.hidden = fixed; from.label.firstChild.textContent = 'Start time'; summary.replaceChildren(); const title=document.createElement('strong');title.textContent=name.value || 'New activity'; const meta=document.createElement('small');meta.textContent=`${durationLabel(Number(duration.select.value))} · ${selectedDays.size ? `${selectedDays.size} day${selectedDays.size===1 ? '' : 's'}` : 'Choose days'} · ${fixed ? from.select.selectedOptions[0].textContent : 'Flexible'}`;summary.append(title,meta); };
-      section.addEventListener('input',refresh);section.addEventListener('change',refresh);
-      timing.select.onchange = refresh; refresh();
+      const endGuide=document.createElement('p');endGuide.className='scheduleendguide';section.appendChild(endGuide);
       const control = {request,name,category,duration,timing,from,endReminder,count,selectedDays}; controls.push(control);
+      const refresh = () => {
+        const fixed=timing.select.value==='fixed';count.label.hidden=fixed;from.select.disabled=!availabilityReady;
+        const dates=[...selectedDays];const checkDays=dates.length ? dates : [];
+        const blocked=updateStartOptions(from.select,{days:checkDays,durationMinutes:Number(duration.select.value),items:[...savedItems,...pendingBlocks(control)]});
+        const end=plannedEndLabel(dates.length ? dates : [dateOnly(firstDay)],Number(from.select.value),Number(duration.select.value));
+        endGuide.textContent=`${fixed ? 'Planned end' : 'Earliest end'}: ${end}${blocked ? ' · Choose an open start' : ''}`;
+        summary.replaceChildren();const title=document.createElement('strong');title.textContent=name.value || 'New activity';
+        const meta=document.createElement('small');meta.textContent=`${selectedDays.size ? `${selectedDays.size} day${selectedDays.size===1 ? '' : 's'}` : 'Choose days'} · ${from.select.selectedOptions[0].dataset.clock || from.select.selectedOptions[0].textContent} – ${end}${fixed ? '' : ' earliest'}`;summary.append(title,meta);
+      };
+      control.refresh=refresh;section.addEventListener('input',refreshAll);section.addEventListener('change',refreshAll);refreshAll();
       if (controls.length===1) panel.open=true;
       choiceButtons(section, [['more','Add another time'],['remove','Remove this activity']], (value) => {
         if (value === 'more') return addActivity({...request,title:name.value});
-        controls.splice(controls.indexOf(control),1); panel.remove();
+        controls.splice(controls.indexOf(control),1); panel.remove();refreshAll();
       });
     }
     requests.forEach(addActivity);
     const status = document.createElement('p'); status.setAttribute('role','status'); card.appendChild(status);
-    choiceButtons(card, [['extra','Add another activity'],['generate','Generate my schedule'],['back','Change priorities']], async (value, button) => {
+    const loadSlots=async()=>{status.textContent='Reading taken times…';try{savedItems=await readTakenSchedule();availabilityReady=true;refreshAll();status.textContent='Taken starts are disabled on your selected days.';}catch(error){status.textContent=error.message;}};loadSlots();
+    choiceButtons(card, [['extra','Add another activity'],['generate','Generate my schedule'],['retry','Refresh taken times'],['back','Change priorities']], async (value, button) => {
       if (value === 'back') return prioritiesStep();
       if (value === 'extra') return addActivity({category:'other',title:'New activity'});
+      if(value==='retry')return loadSlots();
+      if(!availabilityReady){status.textContent='Wait for taken times to load, or refresh them.';return;}
+      refreshAll();
       const windows = days.map((day) => { const end = new Date(day); end.setDate(end.getDate()+1); return {starts_at:day.toISOString(),ends_at:end.toISOString()}; });
       const scopedRequests = [];
       for (const control of controls) {
         const minutes = Number(control.duration.select.value), start = Number(control.from.select.value);
         const fixed = control.timing.select.value === 'fixed';
         const end = fixed ? start + minutes : Math.max(1440,start+minutes);
-        if (!control.name.value.trim() || !control.selectedDays.size || end <= start ) { status.textContent = 'Give each activity a name and choose its days.'; activities.children[controls.indexOf(control)].open=true; return; }
+        if (!control.name.value.trim() || !control.selectedDays.size || end <= start || control.from.select.selectedOptions[0]?.disabled ) { status.textContent = 'Give each activity a name, choose its days, and pick an open start time.'; activities.children[controls.indexOf(control)].open=true; return; }
         const activityWindows = days.filter((day) => control.selectedDays.has(dateOnly(day))).map((day) => {
           const from = new Date(day); from.setMinutes(start);
           const to = fixed ? new Date(from.getTime()+minutes*60000) : new Date(day); if(!fixed)to.setMinutes(end);

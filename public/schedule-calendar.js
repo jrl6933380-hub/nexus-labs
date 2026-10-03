@@ -1,4 +1,5 @@
 // A calendar-first surface over the shared Schedule store.
+import { occupiedStart } from './schedule-availability.js';
 const COLORS = {work:'#6f9ce8',project:'#9a7bea',gym:'#56c596',health:'#65b8b2',family:'#e9a66f',social:'#df7fa4',appointment:'#e0c35c',errands:'#a5a19a',learning:'#74b7e8',creative:'#c883d8',rest:'#7b87a7',travel:'#d78b68',other:'#8e8a84'};
 const state = {date:new Date(),mode:'month'};
 export function calendarKey(date) {
@@ -132,7 +133,9 @@ export async function renderScheduleCalendar(ctx, extras) {
     for(const day of days) {
       const column=node('div','calhourcolumn');
       for(let hour=0;hour<24;hour++) {
-        const slot=button('',()=>ctx.openScheduleStudio('block',calendarKey(day),hour*60),`Add activity ${day.toLocaleDateString('en-US',{weekday:'long'})} at ${hour%12 || 12} ${hour<12 ? 'AM' : 'PM'}`);slot.className='calslot';column.append(slot);
+        const slot=button('',()=>ctx.openScheduleStudio('block',calendarKey(day),hour*60),`Add activity ${day.toLocaleDateString('en-US',{weekday:'long'})} at ${hour%12 || 12} ${hour<12 ? 'AM' : 'PM'}`);slot.className='calslot';
+        const busy=occupiedStart({days:[calendarKey(day)],startMinutes:hour*60,durationMinutes:60,items}).length>0;
+        slot.disabled=busy;if(busy){slot.classList.add('taken');slot.setAttribute('aria-label',`Taken hour ${hour%12 || 12} ${hour<12 ? 'AM' : 'PM'}`);}column.append(slot);
       }
       for(const entry of calendarLayout(items,day)) {
         const {item}=entry;const event=button('',()=>ctx.openPlannerItem(item));event.className=`caltimed${item.status==='draft' ? ' draft' : ''}`;
