@@ -19,6 +19,10 @@
       "destination": "/api/board"
     },
     {
+      "source": "/api/reminders",
+      "destination": "/api/board"
+    },
+    {
       "source": "/api/planner",
       "destination": "/api/board"
     },

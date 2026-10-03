@@ -230,6 +230,7 @@
   }
 </style>
 <link rel="stylesheet" href="/schedule-calendar.css">
+<link rel="stylesheet" href="/reminders.css">
 </head>
 <body>
 
@@ -237,6 +238,7 @@
   <div class="brand"><span class="brandmark">N</span><span class="brandcopy"><span class="brandname">Nex Chat</span><span class="brandmeta">Founder workspace</span></span></div>
   <button class="new" id="newBtn">＋&nbsp; New chat</button>
   <button class="item on" data-view="chat"><span class="ic">✦</span>Chat</button>
+  <button class="item" data-view="reminders"><span class="ic">◉</span>Reminders</button>
   <button class="item" data-view="planner"><span class="ic">▤</span>Schedule</button>
   <button class="item" data-view="workbench"><span class="ic">▦</span>Projects<span class="badgeplan" id="projectPlanBadge">10 projects</span></button>
   <div class="grp">Connected Nexus</div>
@@ -300,6 +302,7 @@
 <script type="module">
 import { VIEWS, matchView, say, chips, esc, scheduleBalance } from '/workspace-views.js';
 import { NEX_CHAT_MODES } from '/nexus-product-catalog.js';
+import { startReminderAlerts } from '/reminders.js';
 import { dueScheduleReminders } from '/schedule-reminders.js';
 import { scheduleStart, scheduleEnd, occupiedStart, plannedEndLabel, updateStartOptions } from '/schedule-availability.js';
 
@@ -919,7 +922,7 @@ screenEl.addEventListener('click', (e) => {
 // Rail entries are generated from the view table, so the menu can never offer
 // somewhere that doesn't exist or miss somewhere that does.
 const productViews = new Set(['life', 'legacy', 'teams']);
-const hiddenViews = new Set(['workbench', 'planner', 'skills']);
+const hiddenViews = new Set(['workbench', 'planner', 'reminders', 'skills']);
 const makeNav = (id, view, host) => {
   const button = document.createElement('button');
   button.className = 'item';
@@ -962,9 +965,9 @@ function paragraphs(text){
 async function showView(id){
   currentView = id;
   document.body.dataset.view = id;
-  el('input').placeholder = id === 'planner' ? 'Ask Nex about your schedule…' : 'Ask Nex anything…';
+  el('input').placeholder = id === 'planner' ? 'Ask Nex about your schedule…' : id === 'reminders' ? 'Ask Nex about your reminders…' : 'Ask Nex anything…';
   railOpen(false);
-  if (!['chat', 'workbench', 'planner', 'life', 'legacy', 'teams', 'skills'].includes(id)) {
+  if (!['chat', 'workbench', 'planner', 'reminders', 'life', 'legacy', 'teams', 'skills'].includes(id)) {
     document.querySelector('.ops').open = true;
   }
   for (const button of document.querySelectorAll('[data-view]')) {
@@ -1320,6 +1323,7 @@ el('dockInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') el('
 const requestedView = new URLSearchParams(location.search).get('view');
 await loadThreads();
 await showView(requestedView && VIEWS[requestedView] ? requestedView : 'chat');
+startReminderAlerts(()=>showView('reminders'));
 </script>
 </body>
 </html>

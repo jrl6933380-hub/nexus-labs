@@ -1,3 +1,4 @@
+import { reminderStore } from '../lib/reminders.js';
 // /api/board.js
 // Shared task board endpoint — read/write access for Claude, GPT, and
 // Nex to coordinate work without stepping on each other. GET reads
@@ -105,6 +106,27 @@ function developerSource(value) {
   const source = String(value || 'developer').trim().toLowerCase();
   return `developer:${/^[a-z0-9_-]{1,32}$/u.test(source) ? source : 'developer'}`;
 }
+
+export function createRemindersHandler({getOwner=getNexusOwner,getUser=getRequestUser,store=reminderStore}={}) {
+ return async function handleReminders(req,res) {
+  res.setHeader('Cache-Control','private, no-store');
+  const owner=await getOwner(req).catch(()=>null);
+  const roomUser=owner ? null : await getUser(req).catch(()=>null);
+  if(!owner && !roomUser)return res.status(401).json({error:'Sign in to use Reminders.'});
+  const user=owner ? `owner:${owner.id}` : `room:${roomUser}`;
+  try {
+    if(req.method==='GET')return res.status(200).json({items:await store.list(user)});
+    if(req.method!=='POST')return res.status(405).json({error:'Method Not Allowed'});
+    const {action,...input}=req.body || {};
+    if(action==='create')return res.status(200).json({item:await store.create(input,user)});
+    if(action==='update')return res.status(200).json({item:await store.update(input,user)});
+    if(action==='delete')return res.status(200).json({deleted:await store.remove(input.id,user)});
+    if(action==='schedule')return res.status(200).json(await store.schedule(input,user));
+    return res.status(400).json({error:'Unknown reminder action'});
+  }catch(error){return res.status(400).json({error:error.message});}
+};
+}
+const handleReminders=createRemindersHandler();
 
 async function handlePlanner(req, res) {
   res.setHeader('Cache-Control', 'private, no-store');
@@ -662,6 +684,7 @@ export default async function handler(req, res) {
     if (path.startsWith('/api/hyperfocus')) return await handleHyperfocus(req, res);
     if (path.startsWith('/api/agentlog')) return await handleAgentLog(req, res);
     if (path.startsWith('/api/vault')) return await handleVault(req, res);
+    if (path.startsWith('/api/reminders')) return await handleReminders(req, res);
     if (path.startsWith('/api/planner')) return await handlePlanner(req, res);
     if (path.startsWith('/api/pinned-visuals')) return await handlePinnedVisuals(req, res);
     if (path.startsWith('/api/nex/action')) return await handleNexAction(req, res);
