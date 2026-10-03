@@ -21,7 +21,7 @@ test('Projects stays inside Workbench while All projects returns to the Nex Chat
 });
 
 test('Workbench exposes only its ordered panel rooms while ordinary Forge keeps its full navigation', () => {
-  assert.match(forge, /WORKBENCH_VIEW_ORDER = \['project', 'live', 'stack', 'brief'\]/u);
+  assert.match(forge, /WORKBENCH_VIEW_ORDER = \['project', 'live', 'roadmap', 'stack', 'brief'\]/u);
   assert.match(forge, /return id === 'chat' \|\| !isWorkbench \|\| WORKBENCH_VIEWS\.has\(id\)/u);
   assert.match(forge, /if \(!viewAllowed\(id\)\) id = 'project'/u);
   assert.match(forge, /target && viewAllowed\(target\)/u);
@@ -79,7 +79,7 @@ test('Workbench composer routes preview and additions through Projects', () => {
   assert.match(forge, /id="planProjectBtn" hidden>Plan</u);
   assert.match(forge, /id="connectionsProjectBtn" hidden>Connections</u);
   assert.match(forge, /addProjectBtn'\)\.onclick = \(\) => showView\('project'\)/u);
-  assert.match(forge, /planProjectBtn'\)\.onclick = \(\) => \{ plannerEntry = ''; showView\('brief'\); \}/u);
+  assert.match(forge, /planProjectBtn'\)\.onclick = \(\) => \{ plannerEntry = ''; showView\(currentBuild \? 'roadmap' : 'brief'\); \}/u);
   assert.match(forge, /connectionsProjectBtn'\)\.onclick = \(\) => showView\('stack'\)/u);
   assert.match(forge, /el\('connectionsProjectBtn'\)\.hidden = !isWorkbench \|\| !currentBuild/u);
   assert.match(forge, /el\('addProjectBtn'\)\.hidden = true/u);

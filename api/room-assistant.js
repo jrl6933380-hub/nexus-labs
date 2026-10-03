@@ -13,6 +13,7 @@ import { attachmentManifest, attachmentMessageContent, parseRoomAttachments } fr
 import { wasAgentPitched, markAgentPitched } from '../lib/siteAgent.js';
 import { searchVault } from '../lib/codeVault.js';
 import { readProjectContext } from '../lib/forge/projectContext.js';
+import { getProjectRoadmap, recordRoadmapChecklist } from '../lib/forge/projectRoadmap.js';
 
 const ALLOWED_COMMANDS = new Set([
   'preview_phone',
@@ -41,6 +42,7 @@ Rules:
 - Add a checklist only after the conversation establishes enough real decisions to summarize a coherent change. Keep it to 3-7 short items. Use decided only for customer-confirmed facts, next for unresolved build decisions, and connection only for dependencies reflected in workspace state. A checklist records understanding; it never authorizes a build or claims a connection is ready.
 - Use build whenever the customer clearly asks to create or change the project. Preserve their intent and compile relevant details from the recent conversation into instruction so they do not have to repeat themselves. If the full request is ambitious, instruct the builder to produce the strongest complete working version now and leave a clear foundation for follow-up improvements. Complexity is never a reason to stop, defer, open a ticket, or ask the customer to supervise internal model coordination. If a RELEVANT VAULT PATTERNS section below lists a fitting proven pattern, adapt it instead of generating fully from scratch, and mention it briefly in your instruction.
 - The workspace includes account-scoped original/add-on plans, supporting pieces, and connection statuses. For a new project, use the normal planner to shape the first build; connection setup comes after a working project exists. For an existing project, plan additions against what is already built: identify where the change fits, preserve unrelated pages/tools, reuse tested connections, and explain missing dependencies. An integration UI or recommended connection is not proof that its service works. Only ready means verified; unavailable context means unknown. Planning questions do not authorize code changes or provisioning. Respect the current stack as one project whose pieces must link together.
+- The projectRoadmap is Nex's durable operational map: confirmed facts, open questions, dependencies, prior chat checklist items, and the best next step. Use it to maintain continuity and make suggestions relevant. It is not permission to build, and a newer explicit customer answer overrides an older roadmap item. Customer-facing checklist states must stay evidence-backed.
 - Use command only for the exact safe workspace controls listed above. Never invent a command.
 - When the customer asks to open, load, resume, show, or inspect a specific saved project/build ID, use command open_project and copy that exact ID into target. This is navigation, never a build or edit.
 - Questions, advice, brainstorming, explanations, status checks, and "tell me" requests must stay reply unless the customer clearly and directly asks you to change code. Never treat the word "project", an existing ID, or a discussion about a possible change as permission to build.
@@ -245,6 +247,8 @@ export function createAssistantHandler({
   ask = askCustomerBrain,
   searchVaultFn = searchVault,
   readContext = readProjectContext,
+  readRoadmap = getProjectRoadmap,
+  saveRoadmapChecklist = recordRoadmapChecklist,
 } = {}) {
   return async function handler(req, res) {
     res.setHeader('Cache-Control', 'private, no-store');
@@ -327,14 +331,18 @@ export function createAssistantHandler({
       catch (error) { console.error('room-assistant: pitch-state read failed:', error.message); }
       const vaultPatterns = await buildVaultContext(message, searchVaultFn);
       let projectContext = null;
+      let projectRoadmap = null;
       if (signedIn) {
         try { projectContext = await readContext({ ownerUsername: username, projectId }); }
         catch { projectContext = { unavailable: ['projectContext'] }; }
+        try { projectRoadmap = await readRoadmap({ ownerUsername: username, projectId, context: projectContext, readContext }); }
+        catch { projectRoadmap = { unavailable: true }; }
       }
       const workspace = {
         projectId,
         planningMode: req.body?.currentHtml ? 'addon' : 'new',
         projectContext,
+        projectRoadmap,
         hasProject: Boolean(req.body?.currentHtml),
         label: String(req.body?.projectLabel || 'New project').slice(0, 80),
         viewport: ['responsive', 'tablet', 'phone'].includes(req.body?.viewport) ? req.body.viewport : 'responsive',
@@ -402,6 +410,10 @@ export function createAssistantHandler({
       if (decision.kind === 'pitch_agent') {
         try { await markAgentPitched(projectId); }
         catch (error) { console.error('room-assistant: pitch-state write failed:', error.message); }
+      }
+      if (signedIn && responseDecision.checklist) {
+        try { await saveRoadmapChecklist({ ownerUsername: username, projectId, checklist: responseDecision.checklist, context: projectContext, readContext }); }
+        catch (error) { console.error('room-assistant: roadmap checklist write failed:', error.message); }
       }
       try {
         await conversations.appendTurns(username, projectId, [

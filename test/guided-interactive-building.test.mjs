@@ -31,3 +31,11 @@ test('Nex can offer a skippable planner and render a bounded checklist in chat',
   assert.match(assistant, /Keep it to 3-7 short items/);
   assert.match(assistant, /never authorizes a build/);
 });
+
+test('Workbench exposes the stable Project Path only for an opened project', () => {
+  assert.match(forge, /WORKBENCH_VIEW_ORDER = \['project', 'live', 'roadmap', 'stack', 'brief'\]/);
+  assert.match(forge, /showView\(currentBuild \? 'roadmap' : 'brief'\)/);
+  assert.match(views, /label: 'Project Path'/);
+  assert.match(views, /\/api\/forge-roadmap\?projectId=/);
+  assert.match(views, /Nex keeps the working roadmap flexible behind the scenes/);
+});

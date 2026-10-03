@@ -746,6 +746,41 @@ export const FORGE_VIEWS = {
     },
   },
 
+  roadmap: {
+    label: 'Project Path',
+    icon: '↝',
+    say: ['roadmap', 'project path', 'next step', 'checklist'],
+    async render(ctx) {
+      if (!ctx.hasCurrentBuild?.()) return [
+        say('Choose a saved project first. Its Project Path belongs only to that project.'),
+        chips([{ label: 'Choose a project', run: () => ctx.go('project') }]),
+      ];
+      let roadmap;
+      try { roadmap = await getJSON('/api/forge-roadmap?projectId=' + encodeURIComponent(ctx.projectId())); }
+      catch { return [say("I couldn't load this project's path just now. Nothing in the project was changed."), chips([{ label: 'Try again', run: () => ctx.go('roadmap') }])]; }
+      const statuses = {
+        complete: { label: 'done', kind: 'f' },
+        current: { label: 'now', kind: 'g' },
+        waiting: { label: 'later', kind: '' },
+        attention: { label: 'check', kind: 'g' },
+      };
+      const nodes = [
+        say(`Project Path for “${roadmap.project_label || ctx.currentProjectLabel?.() || 'your project'}”. Nex keeps the working roadmap flexible behind the scenes; this view stays calm and only changes when the project actually moves forward.`),
+      ];
+      if (roadmap.progress?.total) nodes.push(say(`${roadmap.progress.complete} of ${roadmap.progress.total} stages complete. The highlighted stage is the clearest next place to work.`));
+      nodes.push(group('Your path', (roadmap.path || []).map(item => row({
+        title: item.label,
+        meta: item.note,
+        tone: statuses[item.status] || statuses.waiting,
+      }))));
+      const actions = [];
+      if (roadmap.best_next_step) actions.push({ label: roadmap.best_next_step.label, run: () => ctx.go(roadmap.best_next_step.view || 'chat') });
+      actions.push({ label: 'Work on it with Nex', run: () => ctx.go('chat') });
+      nodes.push(chips(actions));
+      return nodes;
+    },
+  },
+
   stack: {
     label: 'Build Plan',
     icon: '⬡',
