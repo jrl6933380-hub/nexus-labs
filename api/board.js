@@ -72,7 +72,16 @@ import { maybeCheckSystemStatus } from '../lib/systemMonitor.js';
 import { getNexusOwner } from '../lib/nexusOwnerAuth.js';
 import { getPinnedVisual, renderPinnedVisual, restorePinnedVisual, setPinnedVisualLocked } from '../lib/pinnedVisuals.js';
 import { listQueue, approveQueueItem, rejectQueueItem, notifyQueue } from '../lib/queue.js';
-import { listPlannerItems, createPlannerItem, updatePlannerItem, deletePlannerItem } from '../lib/planner.js';
+import {
+  createPlannerItem,
+  previewPlannerItem,
+  updatePlannerItem,
+  deletePlannerItem,
+  getScheduleOverview,
+  createWeekDraft,
+  applyWeekDraft,
+  discardWeekDraft,
+} from '../lib/planner.js';
 
 // This must exactly match the Authorization Callback URL / Redirect
 // URL registered with GitHub and Vercel — deriving it from the
@@ -98,19 +107,26 @@ function developerSource(value) {
 async function handlePlanner(req, res) {
   res.setHeader('Cache-Control', 'private, no-store');
   const owner = await getNexusOwner(req).catch(() => null);
-  if (!owner) return res.status(401).json({ error: 'Nexus owner authentication required.' });
+  const roomUser = owner ? null : await getRequestUser(req).catch(() => null);
+  if (!owner && !roomUser) return res.status(401).json({ error: 'Sign in to use Schedule.' });
+  const scheduleUserId = owner ? `owner:${owner.id}` : `room:${roomUser}`;
+  const storeOptions = { allowLegacyMigration: Boolean(owner) };
 
   try {
     if (req.method === 'GET') {
       const { from, to, status } = req.query || {};
-      return res.status(200).json({ items: await listPlannerItems({ from, to, status }) });
+      return res.status(200).json(await getScheduleOverview({ from, to, status }, scheduleUserId, storeOptions));
     }
     if (req.method === 'POST') {
       const { action, ...params } = req.body || {};
-      if (action === 'create') return res.status(200).json({ item: await createPlannerItem(params) });
-      if (action === 'update') return res.status(200).json({ item: await updatePlannerItem(params) });
-      if (action === 'delete') return res.status(200).json({ deleted: await deletePlannerItem(params.id) });
-      return res.status(400).json({ error: `Unknown planner action: ${action || '(none)'}` });
+      if (action === 'preview') return res.status(200).json(await previewPlannerItem(params, scheduleUserId));
+      if (action === 'create') return res.status(200).json({ item: await createPlannerItem(params, scheduleUserId) });
+      if (action === 'update') return res.status(200).json({ item: await updatePlannerItem(params, scheduleUserId) });
+      if (action === 'delete') return res.status(200).json({ deleted: await deletePlannerItem(params.id, scheduleUserId) });
+      if (action === 'create_week_draft') return res.status(200).json(await createWeekDraft(params, scheduleUserId));
+      if (action === 'apply_week_draft') return res.status(200).json(await applyWeekDraft(params.draft_id, scheduleUserId));
+      if (action === 'discard_week_draft') return res.status(200).json(await discardWeekDraft(params.draft_id, scheduleUserId));
+      return res.status(400).json({ error: `Unknown schedule action: ${action || '(none)'}` });
     }
     return res.status(405).json({ error: 'Method Not Allowed' });
   } catch (err) {

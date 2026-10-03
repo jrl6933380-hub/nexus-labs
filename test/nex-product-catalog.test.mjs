@@ -47,7 +47,7 @@ test('fixed Workbench and Capabilities controls use the workspace router', () =>
 });
 
 test('Nex Chat composer exposes customer actions instead of founder visual controls', () => {
-  assert.match(workspace, /id="plannerQuickBtn">Plan</u);
+  assert.match(workspace, /id="plannerQuickBtn">Schedule</u);
   assert.match(workspace, /id="projectsQuickBtn">Projects</u);
   assert.match(workspace, /id="connectedQuickBtn">Connected</u);
   assert.match(workspace, /plannerQuickBtn'\)\.onclick = \(\) => showView\('planner'\)/u);
@@ -55,9 +55,9 @@ test('Nex Chat composer exposes customer actions instead of founder visual contr
   assert.doesNotMatch(workspace, /id="capBtn"|id="snapBtn"|id="pinBtn"/u);
 });
 
-test('the public home card introduces Planner while the system briefing stays private', () => {
-  assert.match(workspace, /Plan my time/u);
-  assert.match(workspace, /Days, events, and schedules/u);
+test('the public home card introduces Schedule while the system briefing stays private', () => {
+  assert.match(workspace, /Open Schedule/u);
+  assert.match(workspace, /Time blocks, weeks, and routines/u);
   assert.match(workspace, /id="ownerBriefBtn"/u);
   assert.match(workspace, /Founder operations/u);
 });

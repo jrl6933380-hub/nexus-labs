@@ -87,6 +87,27 @@
   .plannerweek::-webkit-scrollbar{display:none}.plannerday{min-height:104px;border:1px solid var(--ln);border-radius:16px;background:#131313;padding:12px;text-align:center}
   .plannerday:hover{border-color:#3b4f70}.plannerday.today{border-color:#4f75ad;background:#151b25}.plannerday span,.plannerday small{display:block;color:#817d77;font-size:11px}
   .plannerday strong{display:block;font:400 28px/1.35 ui-serif,Georgia,serif}.plannerday small{color:#9fbcf3}
+  .schedulebalance{margin:8px 0 18px;padding:16px;border:1px solid var(--ln);border-radius:17px;background:#131313}
+  .schedulebalancehead{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}.schedulebalancehead span{display:grid;gap:5px}
+  .schedulebalancehead small{font-size:10px;letter-spacing:.12em;color:#cda968}.schedulebalancehead strong{font:400 19px ui-serif,Georgia,serif}
+  .schedulebalancehead em{font-style:normal;font-size:11px;color:#8f8b85}.schedulebar{height:14px;display:flex;overflow:hidden;border-radius:999px;margin:15px 0 11px;background:#292929}
+  .schedulebar button,.schedulebar i{display:block;height:100%;min-width:3px}.schedulelegend{display:flex;gap:8px 13px;flex-wrap:wrap;color:#8f8b85;font-size:11px}
+  .schedulelegend button{display:flex;align-items:center;gap:5px;text-transform:capitalize;color:#8f8b85;font-size:11px}.schedulelegend i{width:7px;height:7px;border-radius:50%}
+  .scheduletimeline{display:grid;gap:7px;width:100%}.schedulelane{display:grid;grid-template-columns:48px 1fr;gap:9px;align-items:stretch}
+  .schedulelabel{border:1px solid var(--ln);border-radius:12px;background:#131313;text-align:center;padding:8px 5px}.schedulelabel strong,.schedulelabel small{display:block}
+  .schedulelabel strong{font-size:11px;color:#aaa59e}.schedulelabel small{font:400 17px ui-serif,Georgia,serif;margin-top:2px}
+  .scheduleblocks{display:flex;gap:6px;overflow-x:auto;min-width:0;scrollbar-width:none}.scheduleblocks::-webkit-scrollbar{display:none}
+  .scheduleblock{--cat:#8e8a84;min-width:145px;max-width:220px;border:1px solid color-mix(in srgb,var(--cat) 44%,#282828);border-left:4px solid var(--cat);border-radius:12px;background:#151515;padding:9px 11px}
+  .scheduleblock.draft{border-style:dashed}.scheduleblock strong,.scheduleblock small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.scheduleblock strong{font-size:12.5px}.scheduleblock small{font-size:10.5px;color:#8f8b85;margin-top:4px}
+  .scheduleopen{display:grid;place-items:center;min-width:100%;border:1px dashed #292929;border-radius:12px;color:#5f5b56;font-size:11px}
+  .schedulewizard{margin:10px 0 22px;padding:18px;border:1px solid #313846;border-radius:19px;background:linear-gradient(155deg,#151922,#121212)}
+  .schedulewizard small{display:block;color:#cda968;font-size:10px;letter-spacing:.12em;text-transform:uppercase}.schedulewizard h2{font:400 25px/1.15 ui-serif,Georgia,serif;margin:8px 0}.schedulewizard p{color:#99948d;font-size:13px;line-height:1.5}
+  .schedulechoices{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}.schedulechoice{padding:10px 14px;border:1px solid #303744;border-radius:18px;background:#191d24;color:#d9d5d0;font-size:13px}
+  .schedulechoice.on{background:#e1bd73;color:#17120a;border-color:#e1bd73}.schedulepreview{margin-top:16px;padding:14px;border:1px solid #323946;border-radius:14px;background:#101217}
+  .schedulepreview strong,.schedulepreview span{display:block}.schedulepreview span{margin-top:6px;color:#aaa59e;font-size:12px;line-height:1.5}.schedulewizard input{width:100%;margin-top:14px;padding:12px;border:1px solid #363d49;border-radius:12px;background:#101217;color:var(--tx);font:inherit}
+  .draftbanner{margin:8px 0 16px;padding:15px;border:1px solid #715d35;border-radius:15px;background:#211c13}.draftbanner strong,.draftbanner span{display:block}.draftbanner span{font-size:12px;color:#b8aa8e;margin-top:5px}
+  .scheduletoast{position:fixed;z-index:80;left:50%;bottom:calc(env(safe-area-inset-bottom) + 116px);transform:translateX(-50%);width:min(420px,calc(100vw - 28px));padding:14px 16px;border:1px solid #4b6080;border-radius:15px;background:#172033;box-shadow:0 14px 40px rgba(0,0,0,.5)}
+  .scheduletoast strong,.scheduletoast span{display:block}.scheduletoast span{font-size:12px;color:#aebbd0;margin-top:4px}.scheduletoast button{position:absolute;right:11px;top:9px;color:#9fa9b9}
   .msg{margin-bottom:24px}
   .msg.u{display:flex;justify-content:flex-end}
   .msg.u .body{background:#1f1f1f;padding:12px 17px;border-radius:20px;max-width:82%;font-size:16px;line-height:1.5}
@@ -215,7 +236,7 @@
   <div class="brand"><span class="brandmark">N</span><span class="brandcopy"><span class="brandname">Nex Chat</span><span class="brandmeta">Founder workspace</span></span></div>
   <button class="new" id="newBtn">＋&nbsp; New chat</button>
   <button class="item on" data-view="chat"><span class="ic">✦</span>Chat</button>
-  <button class="item" data-view="planner"><span class="ic">▤</span>Planner</button>
+  <button class="item" data-view="planner"><span class="ic">▤</span>Schedule</button>
   <button class="item" data-view="workbench"><span class="ic">▦</span>Projects<span class="badgeplan" id="projectPlanBadge">10 projects</span></button>
   <div class="grp">Connected Nexus</div>
   <div id="productNav"></div>
@@ -250,7 +271,7 @@
       <input id="input" placeholder="Ask Nex anything…" autocomplete="off" />
       <div class="crow">
         <div class="composer-actions" aria-label="Nex Chat actions">
-          <button class="quickaction" id="plannerQuickBtn">Plan</button>
+          <button class="quickaction" id="plannerQuickBtn">Schedule</button>
           <button class="quickaction" id="projectsQuickBtn">Projects</button>
           <button class="quickaction" id="connectedQuickBtn">Connected</button>
         </div>
@@ -276,7 +297,7 @@
 </div>
 
 <script type="module">
-import { VIEWS, matchView, say, chips, esc } from '/workspace-views.js';
+import { VIEWS, matchView, say, chips, esc, scheduleBalance } from '/workspace-views.js';
 import { NEX_CHAT_MODES } from '/nexus-product-catalog.js';
 
 // Owner gate. The previous root page checked this before rendering anything, and
@@ -313,6 +334,8 @@ let currentView = 'chat';
 let busy = false;
 let threadId = null;
 const history = [];
+let activeScheduleItems = [];
+const deliveredScheduleReminders = new Set();
 
 const ctx = {
   ask: (text) => askFromView(text),
@@ -324,7 +347,8 @@ const ctx = {
     if (badge) badge.textContent = Number.isFinite(limit) ? `${count}/${limit}` : `${count} projects`;
   },
   openTask, openApproval, newTask, openDeveloper, createDeveloper, returnToOwner,
-  newPlannerItem, openPlannerItem,
+  newPlannerItem, openPlannerItem, openScheduleDay, openScheduleCategory, openScheduleStudio, openWeekRollover, reviewWeekDraft,
+  setScheduleItems: (items) => { activeScheduleItems = Array.isArray(items) ? items : []; checkScheduleReminders(); },
 };
 
 async function postAction(verb, payload = {}) {
@@ -371,6 +395,16 @@ function localDateTime(date) {
   const pad = (value) => String(value).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
+const scheduleCategories = [
+  ['work','Work'],['project','Build a project'],['gym','Gym'],['health','Health'],['family','Family'],['social','Social'],
+  ['appointment','Appointments'],['errands','Errands'],['learning','Learning'],['creative','Creative'],['rest','Rest'],['travel','Travel'],['other','Something else'],
+];
+function optionField(labelText, values, selected) {
+  const select = document.createElement('select');
+  select.style.cssText = 'width:100%;background:#111;border:1px solid #303030;border-radius:11px;color:var(--tx);padding:11px;font:inherit';
+  for (const [value, label] of values) { const option = document.createElement('option'); option.value = value; option.textContent = label; option.selected = value === selected; select.appendChild(option); }
+  const label = document.createElement('label'); label.textContent = labelText; label.appendChild(select); return { label, select };
+}
 function plannerForm(item = null, preferredDate = '') {
   const base = item ? new Date(item.starts_at) : new Date();
   if (!item) {
@@ -380,19 +414,26 @@ function plannerForm(item = null, preferredDate = '') {
     }
     base.setHours(base.getHours() + 1, 0, 0, 0);
   }
-  detail(item ? 'Edit plan' : 'Add to your planner', 'Nex can read and update anything saved here. Connected Nexus products can later sync into this same view without replacing their own planners.', [], 'planner');
+  detail(item ? 'Edit schedule block' : 'Add to Schedule', 'Fixed blocks hold their time. Flexible blocks give Nex permission to suggest a better opening. Protected blocks should never move without your approval.', [], 'planner');
   const form = document.createElement('form'); form.className = 'actionform plannerform';
   const field = (labelText, input) => { const label = document.createElement('label'); label.textContent = labelText; label.appendChild(input); return label; };
   const title = document.createElement('input'); title.required = true; title.placeholder = 'What is happening?'; title.value = item?.title || '';
   const start = document.createElement('input'); start.type = 'datetime-local'; start.required = true; start.value = localDateTime(base);
   const end = document.createElement('input'); end.type = 'datetime-local'; end.value = item?.ends_at ? localDateTime(new Date(item.ends_at)) : '';
   const notes = document.createElement('textarea'); notes.placeholder = 'Notes, location, or what to remember'; notes.value = item?.notes || '';
-  const save = document.createElement('button'); save.type = 'submit'; save.textContent = item ? 'Save changes' : 'Add to planner';
+  const category = optionField('Category', scheduleCategories, item?.category || 'other');
+  const kind = optionField('Type', [['time_block','Time block'],['event','Event'],['task','Task'],['reminder','Reminder']], item?.kind || 'time_block');
+  const flexibility = optionField('Timing', [['fixed','Fixed time'],['flexible','Nex can move it']], item?.flexibility || 'fixed');
+  const repeat = optionField('Rollover', [['none','One time'],['every_week','Every week'],['ask_weekly','Ask me each week']], item?.repeat_mode || 'none');
+  const reminder = optionField('Remind me', [['','No reminder'],['10','10 minutes before'],['30','30 minutes before'],['60','1 hour before'],['1440','1 day before']], item?.reminder_minutes == null ? '' : String(item.reminder_minutes));
+  const protectedInput = document.createElement('input'); protectedInput.type = 'checkbox'; protectedInput.checked = Boolean(item?.protected);
+  const protectedLabel = field('Protect this time', protectedInput); protectedLabel.style.display = 'flex'; protectedLabel.style.alignItems = 'center'; protectedLabel.style.gap = '9px'; protectedInput.style.width = 'auto';
+  const save = document.createElement('button'); save.type = 'submit'; save.textContent = item ? 'Save changes' : 'Add to Schedule';
   const error = document.createElement('span'); error.setAttribute('role', 'status');
-  form.append(field('Title', title), field('Starts', start), field('Ends (optional)', end), field('Notes (optional)', notes), save, error);
+  form.append(field('Title', title), category.label, field('Starts', start), field('Ends (optional)', end), kind.label, flexibility.label, repeat.label, reminder.label, protectedLabel, field('Notes (optional)', notes), save, error);
   form.onsubmit = async (event) => { event.preventDefault(); save.disabled = true; error.textContent = '';
     try {
-      const payload = { title:title.value.trim(), starts_at:new Date(start.value).toISOString(), ends_at:end.value ? new Date(end.value).toISOString() : null, notes:notes.value.trim() };
+      const payload = { title:title.value.trim(), starts_at:new Date(start.value).toISOString(), ends_at:end.value ? new Date(end.value).toISOString() : null, notes:notes.value.trim(), category:category.select.value, kind:kind.select.value, flexibility:flexibility.select.value, repeat_mode:repeat.select.value, protected:protectedInput.checked, reminder_minutes:reminder.select.value === '' ? null : Number(reminder.select.value) };
       await postPlanner(item ? 'update' : 'create', item ? { id:item.id, ...payload } : payload);
       await showView('planner');
     } catch (failure) { error.textContent = failure.message; save.disabled = false; }
@@ -400,14 +441,200 @@ function plannerForm(item = null, preferredDate = '') {
   thread.appendChild(form); title.focus();
 }
 function newPlannerItem(preferredDate = '') { plannerForm(null, preferredDate); }
+function openScheduleDay(key, items) {
+  const date = new Date(`${key}T12:00:00`);
+  detail(date.toLocaleDateString([], { weekday:'long', month:'long', day:'numeric' }), `${items.length} scheduled block${items.length === 1 ? '' : 's'}. Tap one to edit, move, protect, repeat, or complete it.`, [
+    { label:'Add another block', run:() => openScheduleStudio('block', key) },
+    { label:'Ask Nex to rebalance', run:() => askFromView(`Read my schedule for ${key}. Show me what is fixed and flexible, identify conflicts, and offer clickable options before changing anything.`) },
+  ], 'planner');
+  const list = document.createElement('div'); list.className = 'lgroup';
+  for (const item of items) {
+    const button = document.createElement('button'); button.className = 'lrow';
+    button.innerHTML = `<span class="lmain"><span><span class="lt">${esc(item.title)}</span><span class="lm">${item.all_day ? 'All day' : new Date(item.starts_at).toLocaleTimeString([], { hour:'numeric', minute:'2-digit' })} · ${esc(item.category || 'other')}${item.status === 'draft' ? ' · draft' : ''}</span></span></span>`;
+    button.onclick = () => openPlannerItem(item); list.appendChild(button);
+  }
+  thread.appendChild(list);
+}
+function openScheduleCategory(category, items) {
+  const label = scheduleCategories.find(([value]) => value === category)?.[1] || category;
+  detail(label, `${items.length} upcoming block${items.length === 1 ? '' : 's'} use this part of your time.`, [
+    { label:`Add ${label}`, run:() => openScheduleStudio('block') },
+    { label:'Ask Nex to adjust this', run:() => askFromView(`Read my schedule and focus on my ${category} time. Show how it is distributed, then offer relevant clickable ways to increase, reduce, protect, or move it.`) },
+  ], 'planner');
+  const list = document.createElement('div'); list.className = 'lgroup';
+  for (const item of items) {
+    const button = document.createElement('button'); button.className = 'lrow';
+    button.innerHTML = `<span class="lmain"><span><span class="lt">${esc(item.title)}</span><span class="lm">${new Date(item.starts_at).toLocaleString([], { weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' })}</span></span></span>`;
+    button.onclick = () => openPlannerItem(item); list.appendChild(button);
+  }
+  if (items.length) thread.appendChild(list);
+}
+function wizardShell(kicker, title, description) {
+  thread.replaceChildren();
+  const card = document.createElement('section'); card.className = 'schedulewizard';
+  const top = document.createElement('div'); top.innerHTML = `<small>${esc(kicker)}</small><h2>${esc(title)}</h2><p>${esc(description)}</p>`;
+  card.appendChild(top); thread.appendChild(card); return card;
+}
+function choiceButtons(host, values, onChoose, selected = new Set()) {
+  const wrap = document.createElement('div'); wrap.className = 'schedulechoices';
+  for (const [value, label] of values) {
+    const button = document.createElement('button'); button.className = `schedulechoice${selected.has(value) ? ' on' : ''}`; button.textContent = label;
+    button.onclick = () => onChoose(value, button); wrap.appendChild(button);
+  }
+  host.appendChild(wrap); return wrap;
+}
+function openScheduleStudio(mode = 'block', preferredDate = '') {
+  if (mode === 'week') return openWeekStudio();
+  const state = { duration:60, category:'', flexibility:'fixed', preferredDate };
+  const durationStep = () => {
+    const card = wizardShell('QUICK SCHEDULE', 'How much time are you planning?', 'Choose the closest block. Nex only asks for details that affect where it belongs.');
+    choiceButtons(card, [['60','One hour'],['180','Part of a day'],['480','Full day'],['week','Plan my week'],['custom','Custom time']], (value) => {
+      if (value === 'week') return openWeekStudio();
+      if (value === 'custom') return plannerForm(null, preferredDate);
+      state.duration = Number(value); categoryStep();
+    });
+    card.appendChild(chips([{ label:'Back to Schedule', run:() => showView('planner') }]));
+  };
+  const categoryStep = () => {
+    const card = wizardShell('QUICK SCHEDULE', 'What is the time for?', 'These become real schedule categories, so your time-split view stays useful.');
+    choiceButtons(card, scheduleCategories, (value) => { state.category = value; timingStep(); });
+  };
+  const timingStep = () => {
+    const card = wizardShell('QUICK SCHEDULE', 'How firm is this block?', 'Nex can rearrange flexible time, while fixed and protected commitments stay put.');
+    choiceButtons(card, [['fixed','Fixed time'],['flexible','Fit it wherever'],['protected','Must happen · protect it']], (value) => { state.flexibility = value === 'flexible' ? 'flexible' : 'fixed'; state.protected = value === 'protected'; detailsStep(); });
+  };
+  const detailsStep = () => {
+    const label = scheduleCategories.find(([value]) => value === state.category)?.[1] || 'Time block';
+    const base = preferredDate ? new Date(`${preferredDate}T09:00:00`) : new Date(Date.now() + 3600000);
+    base.setMinutes(0, 0, 0);
+    const card = wizardShell('REVIEW BLOCK', label, 'Name it if you want, choose the start, then add it directly or let Nex find a better opening.');
+    const name = document.createElement('input'); name.placeholder = state.category === 'other' ? 'What is this new thing?' : `Optional name · ${label}`; name.setAttribute('aria-label', 'Schedule block name');
+    const start = document.createElement('input'); start.type = 'datetime-local'; start.value = localDateTime(base); start.setAttribute('aria-label', 'Schedule block start');
+    card.append(name, start);
+    const preview = document.createElement('div'); preview.className = 'schedulepreview';
+    const refreshPreview = () => { const when = new Date(start.value); preview.innerHTML = `<strong>${esc(name.value.trim() || label)}</strong><span>${when.toLocaleString([], { weekday:'long', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' })} · ${state.duration >= 480 ? 'Full day' : `${state.duration / 60} hour${state.duration === 60 ? '' : 's'}`} · ${state.protected ? 'protected' : state.flexibility}</span>`; };
+    name.oninput = refreshPreview; start.oninput = refreshPreview; refreshPreview(); card.appendChild(preview);
+    choiceButtons(card, [['add','Add to Schedule'],['nex','Have Nex place it'],['back','Change choices']], async (value, button) => {
+      if (value === 'back') return durationStep();
+      const title = name.value.trim() || label;
+      if (!start.value) return;
+      if (value === 'nex') return askFromView(`I want to schedule ${title} for ${state.duration} minutes. Category: ${state.category}. It is ${state.protected ? 'protected and must happen' : state.flexibility}. Read my schedule, find the best openings, and give me clickable choices before creating it.`);
+      button.disabled = true;
+      try {
+        const startsAt = new Date(start.value); const endsAt = new Date(startsAt.getTime() + state.duration * 60000);
+        const payload = { title, starts_at:startsAt.toISOString(), ends_at:endsAt.toISOString(), category:state.category, kind:'time_block', flexibility:state.flexibility, protected:Boolean(state.protected) };
+        const check = await postPlanner('preview', payload);
+        if (check.conflicts?.length) {
+          button.disabled = false;
+          preview.innerHTML = `<strong>That time overlaps ${check.conflicts.length} block${check.conflicts.length === 1 ? '' : 's'}</strong><span>${check.conflicts.map((item) => esc(item.title)).join(' · ')}. You can add it anyway or let Nex find a cleaner opening.</span>`;
+          choiceButtons(card, [['confirm-conflict','Add anyway'],['nex-conflict','Let Nex resolve it']], async (next, conflictButton) => {
+            if (next === 'nex-conflict') return askFromView(`I need to schedule ${title} for ${state.duration} minutes, but it conflicts with ${check.conflicts.map((item) => item.title).join(', ')}. Read my schedule and give me clickable ways to resolve it without moving protected time.`);
+            conflictButton.disabled = true;
+            try { await postPlanner('create', payload); await showView('planner'); }
+            catch (error) { conflictButton.disabled = false; actionError(error); }
+          });
+          return;
+        }
+        await postPlanner('create', payload); await showView('planner');
+      } catch (error) { button.disabled = false; actionError(error); }
+    });
+  };
+  durationStep();
+}
+function openWeekStudio() {
+  const selected = new Set();
+  const card = wizardShell('SCHEDULE WITH NEX', 'What deserves space next week?', 'Choose every priority that matters. Nex will read the schedule, protect fixed commitments, show the current time split, and draft the week before applying anything.');
+  const priorities = scheduleCategories.filter(([value]) => value !== 'other');
+  choiceButtons(card, priorities, (value, button) => { selected.has(value) ? selected.delete(value) : selected.add(value); button.classList.toggle('on', selected.has(value)); }, selected);
+  const custom = document.createElement('input'); custom.placeholder = 'Something else that matters this week…'; card.appendChild(custom);
+  choiceButtons(card, [['arrange','Let Nex arrange my week'],['rollover','Start from this week'],['clean','Start with a clean week']], (value) => {
+    if (value === 'rollover') return openWeekRollover();
+    const prioritiesText = [...selected].join(', ') || 'a balanced week';
+    const extra = custom.value.trim() ? ` Also make room for: ${custom.value.trim()}.` : '';
+    askFromView(`Schedule my next week around these priorities: ${prioritiesText}.${extra} Read my existing schedule first. Show my current time split and open capacity, protect fixed blocks, then propose an editable week with clickable choices. Do not create or move anything until I approve the proposal.${value === 'clean' ? ' Start the proposal clean rather than carrying this week forward.' : ''}`);
+  });
+  card.appendChild(chips([{ label:'Back to Schedule', run:() => showView('planner') }]));
+}
+function weekBoundary(offset = 0) {
+  const date = new Date(); date.setHours(0, 0, 0, 0);
+  const mondayOffset = (date.getDay() + 6) % 7;
+  date.setDate(date.getDate() - mondayOffset + offset * 7);
+  return date;
+}
+async function openWeekRollover() {
+  const card = wizardShell('NEXT WEEK DRAFT', 'Carry this week forward?', 'This creates an editable copy. Your completed week stays in history, and nothing becomes live until you lock the draft in.');
+  choiceButtons(card, [['all','Carry this week'],['normal','Use only weekly routines'],['nex','Have Nex decide'],['back','Back']], async (value, button) => {
+    if (value === 'back') return showView('planner');
+    if (value === 'nex') return askFromView('Build my next-week draft. Read this week first, separate routines from one-time events and unfinished work, then show me clickable carry-forward choices before changing the schedule.');
+    button.disabled = true;
+    try {
+      const sourceStart = weekBoundary(0), sourceEnd = weekBoundary(1), targetStart = weekBoundary(1), targetEnd = weekBoundary(2);
+      const draft = await postPlanner('create_week_draft', { mode:value, source_start:sourceStart.toISOString(), source_end:sourceEnd.toISOString(), target_start:targetStart.toISOString(), target_end:targetEnd.toISOString() });
+      openWeekDraft(draft);
+    } catch (error) { button.disabled = false; actionError(error); }
+  });
+}
+function openWeekDraft(draft) {
+  const card = wizardShell('EDITABLE DRAFT', 'Review next week before locking it in', draft.items?.length ? `${draft.items.length} blocks were carried forward. Open any block to change its time, category, protection, or rollover setting.` : 'There was nothing to carry forward. Add blocks manually or let Nex shape a clean week.');
+  const banner = document.createElement('div'); banner.className = 'draftbanner';
+  const conflicts = draft.summary?.conflicts?.length || 0;
+  banner.innerHTML = `<strong>${draft.items?.length || 0} blocks · ${Math.round((draft.summary?.scheduled_minutes || 0) / 6) / 10} hours</strong><span>${conflicts ? `${conflicts} conflict${conflicts === 1 ? '' : 's'} need review` : 'No draft conflicts detected'}</span>`; card.appendChild(banner);
+  card.appendChild(scheduleBalance(draft.summary, draft.items || [], ctx));
+  for (const item of draft.items || []) {
+    const button = document.createElement('button'); button.className = 'lrow';
+    button.innerHTML = `<span class="lmain"><span><span class="lt">${esc(item.title)}</span><span class="lm">${new Date(item.starts_at).toLocaleString([], { weekday:'short', hour:'numeric', minute:'2-digit' })} · ${esc(item.category)}</span></span></span><span class="tag g">draft</span>`;
+    button.onclick = () => openPlannerItem(item); card.appendChild(button);
+  }
+  choiceButtons(card, [['apply','Lock in next week'],['adjust','Ask Nex to adjust'],['discard','Discard draft']], async (value, button) => {
+    if (value === 'adjust') return askFromView(`Review schedule draft ${draft.draft_id}. Show its time split and conflicts, then offer clickable adjustments. Do not apply it yet.`);
+    button.disabled = true;
+    try { await postPlanner(value === 'apply' ? 'apply_week_draft' : 'discard_week_draft', { draft_id:draft.draft_id }); await showView('planner'); }
+    catch (error) { button.disabled = false; actionError(error); }
+  });
+}
+function reviewWeekDraft(draftId, items) {
+  const categoryMinutes = {};
+  const scheduledMinutes = (items || []).reduce((sum, item) => {
+    const start = Date.parse(item.starts_at); const end = item.ends_at ? Date.parse(item.ends_at) : start + 3600000;
+    const minutes = Math.max(15, Math.round((end - start) / 60000));
+    categoryMinutes[item.category || 'other'] = (categoryMinutes[item.category || 'other'] || 0) + minutes;
+    return sum + minutes;
+  }, 0);
+  const ordered = [...(items || [])].sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at));
+  const conflicts = [];
+  for (let left = 0; left < ordered.length; left += 1) for (let right = left + 1; right < ordered.length; right += 1) {
+    const leftEnd = ordered[left].ends_at ? Date.parse(ordered[left].ends_at) : Date.parse(ordered[left].starts_at) + 3600000;
+    if (Date.parse(ordered[right].starts_at) >= leftEnd) break;
+    conflicts.push({ item_ids:[ordered[left].id, ordered[right].id] });
+  }
+  openWeekDraft({ draft_id:draftId, items:items || [], summary:{ scheduled_minutes:scheduledMinutes, category_minutes:categoryMinutes, conflicts } });
+}
 function openPlannerItem(item) {
   const when = new Date(item.starts_at).toLocaleString([], { dateStyle:'full', timeStyle:item.all_day ? undefined : 'short' });
-  detail(item.title, [when, item.notes, `Status: ${item.status || 'planned'}${item.source && item.source !== 'nex_chat' ? ` · From ${item.source}` : ''}`].filter(Boolean).join('\n\n'), [
+  detail(item.title, [when, item.notes, `${item.category || 'other'} · ${item.flexibility || 'fixed'}${item.protected ? ' · protected' : ''}${item.repeat_mode && item.repeat_mode !== 'none' ? ` · ${item.repeat_mode.replaceAll('_',' ')}` : ''}`, `Status: ${item.status || 'planned'}${item.source && item.source !== 'nex_chat' ? ` · From ${item.source}` : ''}`].filter(Boolean).join('\n\n'), [
     { label:'Edit', run:() => plannerForm(item) },
     { label:item.status === 'done' ? 'Mark planned' : 'Mark done', run:async () => { await postPlanner('update', { id:item.id, status:item.status === 'done' ? 'planned' : 'done' }); await showView('planner'); } },
     { label:'Delete', run:async () => { if (!confirm(`Delete “${item.title}”? This can't be undone.`)) return; await postPlanner('delete', { id:item.id }); await showView('planner'); } },
   ], 'planner');
 }
+function checkScheduleReminders() {
+  const now = Date.now();
+  for (const item of activeScheduleItems) {
+    if (item.status !== 'planned' || item.reminder_minutes == null) continue;
+    const startsAt = Date.parse(item.starts_at);
+    const reminderAt = startsAt - Number(item.reminder_minutes) * 60000;
+    const key = `${item.id}:${startsAt}`;
+    if (deliveredScheduleReminders.has(key) || now < reminderAt || now > startsAt + 300000) continue;
+    deliveredScheduleReminders.add(key);
+    document.querySelector('.scheduletoast')?.remove();
+    const toast = document.createElement('div'); toast.className = 'scheduletoast';
+    const title = document.createElement('strong'); title.textContent = item.title;
+    const timing = document.createElement('span'); timing.textContent = item.all_day ? 'Scheduled for today' : `Starts ${new Date(startsAt).toLocaleTimeString([], { hour:'numeric', minute:'2-digit' })}`;
+    const close = document.createElement('button'); close.textContent = '×'; close.setAttribute('aria-label', 'Dismiss reminder'); close.onclick = () => toast.remove();
+    toast.append(title, timing, close); document.body.appendChild(toast);
+  }
+}
+setInterval(checkScheduleReminders, 30000);
 async function openTask(id) {
   if (!id) return;
   try {
@@ -784,7 +1011,7 @@ function greet(){
   welcome.innerHTML = `<div class="welcome-mark">N</div><h1>What's on your mind, Justin?</h1><p>Talk through anything. I can help you think, plan, decide, and run what matters across Nexus.</p>`;
   const starters = document.createElement('div'); starters.className = 'startergrid';
   const items = [
-    ['Plan my time', 'Days, events, and schedules', null, 'planner'],
+    ['Open Schedule', 'Time blocks, weeks, and routines', null, 'planner'],
     ['Think something through', 'Ideas, decisions, anything', 'Help me think something through. Start by asking what is on my mind.'],
     ['Open Projects', 'Preview, edit, and create', null, 'workbench'],
     ['Connected life', 'Life, Legacy & Teams', 'Show me how my connected Nexus products can help today.'],
