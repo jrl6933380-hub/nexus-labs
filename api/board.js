@@ -79,6 +79,7 @@ import {
   deletePlannerItem,
   getScheduleOverview,
   createWeekDraft,
+  generateScheduleDraft,
   applyWeekDraft,
   discardWeekDraft,
 } from '../lib/planner.js';
@@ -124,6 +125,7 @@ async function handlePlanner(req, res) {
       if (action === 'update') return res.status(200).json({ item: await updatePlannerItem(params, scheduleUserId) });
       if (action === 'delete') return res.status(200).json({ deleted: await deletePlannerItem(params.id, scheduleUserId) });
       if (action === 'create_week_draft') return res.status(200).json(await createWeekDraft(params, scheduleUserId));
+      if (action === 'generate_schedule_draft') return res.status(200).json(await generateScheduleDraft(params, scheduleUserId));
       if (action === 'apply_week_draft') return res.status(200).json(await applyWeekDraft(params.draft_id, scheduleUserId));
       if (action === 'discard_week_draft') return res.status(200).json(await discardWeekDraft(params.draft_id, scheduleUserId));
       return res.status(400).json({ error: `Unknown schedule action: ${action || '(none)'}` });

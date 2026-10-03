@@ -453,7 +453,7 @@ export const VIEWS = {
         chips([
           { label: 'Add a block', run: () => ctx.openScheduleStudio('block') },
           { label: 'Schedule with Nex', run: () => ctx.openScheduleStudio('week') },
-          ...(payload.drafts?.length ? [{ label: 'Review next-week draft', run: () => ctx.reviewWeekDraft(payload.drafts[0], items.filter((item) => item.draft_id === payload.drafts[0])) }] : []),
+          ...(payload.drafts?.length ? payload.drafts.map((id) => ({ label: 'Review schedule draft', run: () => ctx.reviewWeekDraft(id, (payload.draft_items || items).filter((item) => item.draft_id === id)) })) : []),
           { label: 'Build next week', run: () => ctx.openWeekRollover() },
           { label: 'Refresh', run: () => ctx.go('planner') },
         ]),

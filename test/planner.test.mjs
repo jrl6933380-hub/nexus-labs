@@ -11,7 +11,7 @@ function fakePlannerRedis() {
     if (verb === 'SET') { strings.set(key, args[0]); return 'OK'; }
     if (verb === 'HGETALL') return [...hash.entries()].flat();
     if (verb === 'HGET') return hash.get(args[0]) ?? null;
-    if (verb === 'HSET') { hash.set(args[0], args[1]); hashes.set(key, hash); return 1; }
+    if (verb === 'HSET') { for (let index = 0; index < args.length; index += 2) hash.set(args[index], args[index + 1]); hashes.set(key, hash); return args.length / 2; }
     if (verb === 'HDEL') return hash.delete(args[0]) ? 1 : 0;
     throw new Error(`Unexpected command: ${verb}`);
   };
@@ -96,4 +96,37 @@ test('Schedule rejects invalid ranges and unknown structured values', async () =
   await assert.rejects(() => store.createPlannerItem({ title: 'Backwards', starts_at: '2026-10-02T10:00:00Z', ends_at: '2026-10-02T09:00:00Z' }), /before/u);
   await assert.rejects(() => store.createPlannerItem({ title: 'Unknown', starts_at: '2026-10-02T10:00:00Z', source: 'random_app' }), /source/u);
   await assert.rejects(() => store.createPlannerItem({ title: 'Unknown', starts_at: '2026-10-02T10:00:00Z', category: 'doomscrolling' }), /category/u);
+});
+
+test('automatic planning spreads sessions, avoids commitments, and saves drafts only', async () => {
+  const store = testStore();
+  await store.createPlannerItem({title:'Protected work',starts_at:'2026-10-05T09:00:00Z',ends_at:'2026-10-05T11:00:00Z',protected:true}, 'alpha');
+  const draft = await store.generateScheduleDraft({
+    period_label:'next week',
+    windows:[{starts_at:'2026-10-05T09:00:00Z',ends_at:'2026-10-05T13:00:00Z'},{starts_at:'2026-10-06T09:00:00Z',ends_at:'2026-10-06T13:00:00Z'}],
+    requests:[{title:'Gym',category:'gym',count:2,minutes:60}],
+  }, 'alpha');
+  assert.equal(draft.items.length, 2);
+  assert.equal(draft.items[0].starts_at, '2026-10-05T11:00:00.000Z');
+  assert.equal(draft.items[1].starts_at, '2026-10-06T09:00:00.000Z');
+  assert.ok(draft.items.every((item) => item.status === 'draft'));
+  assert.equal((await store.listPlannerItems({}, 'alpha')).length, 3);
+  assert.deepEqual(await store.listPlannerItems({}, 'beta'), []);
+  assert.deepEqual(draft.unplaced, []);
+  const applied = await store.applyWeekDraft(draft.draft_id, 'alpha');
+  assert.equal(applied.items.length, 2);
+});
+
+test('automatic planning reports overflow and rejects invalid windows before writing', async () => {
+  const store = testStore();
+  const draft = await store.generateScheduleDraft({
+    windows:[{starts_at:'2026-10-05T09:00:00Z',ends_at:'2026-10-05T10:00:00Z'}],
+    requests:[{title:'Focus',category:'work',count:3,minutes:60}],
+  });
+  assert.equal(draft.items.length, 1);
+  assert.equal(draft.unplaced.length, 2);
+  await assert.rejects(() => store.generateScheduleDraft({windows:[{starts_at:'2026-10-05T12:00:00Z',ends_at:'2026-10-05T10:00:00Z'}],requests:[{title:'Bad'}]}), /increasing/);
+  assert.equal((await store.listPlannerItems()).length, 1);
+  await store.discardWeekDraft(draft.draft_id);
+  assert.equal((await store.listPlannerItems()).length, 0);
 });
