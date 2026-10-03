@@ -91,3 +91,40 @@ test('Life calendar reads its own endpoint and an activity is reviewed before th
     await all(root).find(el=>el.textContent==='Keep in Life only').onclick();assert.equal((await life.overview('room:a')).items.length,1);assert.equal((await planner.listPlannerItems({},'room:a')).length,0);
   }finally{globalThis.document=oldDocument;globalThis.fetch=oldFetch;globalThis.requestAnimationFrame=oldFrame;}
 });
+
+test('saved check-ins are visible on Life cards and calendar blocks; quick choices preserve reflections and actual time',async()=>{
+  const oldDocument=globalThis.document,oldFetch=globalThis.fetch,oldFrame=globalThis.requestAnimationFrame;
+  const {life}=fixture(),requests=[];const start=new Date();start.setHours(9,0,0,0);
+  const item=await save(life,{...activity,starts_at:start.toISOString(),ends_at:new Date(+start+3600000).toISOString()});
+  globalThis.document={createElement:element};globalThis.requestAnimationFrame=callback=>callback();
+  globalThis.fetch=async(url,options)=>{
+    let result;if(!options?.method)result=await life.overview('room:a');else{const {action,...input}=JSON.parse(options.body);requests.push({action,...input});result=await life[action==='check_in' ? 'checkIn' : action](input,'room:a');}
+    return {ok:true,json:async()=>result};
+  };
+  try{
+    const root=await renderLife({ask(){}});await all(root).find(el=>el.textContent==='Today').onclick();
+    all(root).find(el=>el.textContent==='How was it?').onclick();
+    const input=label=>all(root).find(el=>el.tagName==='label' && el.textContent===label).children[0];
+    input('What happened?').value='happened';input('How did it feel?').value='5';
+    all(root).find(el=>el.tagName==='label' && el.textContent.startsWith('Use the planned times')).children[0].checked=true;
+    input('Reflection (optional)').value='A beautiful walk';
+    await all(root).find(el=>el.tagName==='form').onsubmit({preventDefault(){}});
+    assert.ok(all(root).find(el=>el.textContent==='It happened · 5/5 · Very energizing'));
+    assert.ok(all(root).find(el=>el.textContent?.startsWith('Actual time:')));
+    let card=all(root).find(el=>el.className==='lifeactivity');
+    assert.equal(all(card).find(el=>el.tagName==='button' && el.textContent==='It happened').attrs['aria-pressed'],'true');
+    await all(card).find(el=>el.textContent==='4 · Energizing').onclick();
+    let saved=(await life.overview('room:a')).items[0];assert.equal(saved.energy,4);assert.equal(saved.reflection,'A beautiful walk');assert.equal(saved.actual_starts_at,start.toISOString());
+    assert.deepEqual(requests.at(-1),{action:'check_in',id:item.id,energy:4});
+    await all(root).find(el=>el.textContent==='Life calendar').onclick();await all(root).find(el=>el.textContent==='Day').onclick();await all(all(root).find(el=>el.className==='nexcalendar')).find(el=>el.textContent==='Today').onclick();
+    let block=all(root).find(el=>el.className==='caltimed');assert.ok(block);
+    assert.ok(all(block).find(el=>el.textContent==='It happened · 4/5 · Energizing'));
+    assert.match(block.children[0].attrs['aria-label'],/It happened/);
+    await all(block).find(el=>el.tagName==='button' && el.textContent==='Did not happen').onclick();
+    block=all(root).find(el=>el.className==='caltimed');assert.ok(all(block).find(el=>el.textContent==='Did not happen · 4/5 · Energizing'));
+    saved=(await life.overview('room:a')).items[0];assert.equal(saved.actual_starts_at,null);assert.equal(saved.reflection,'A beautiful walk');
+    await all(block).find(el=>el.tagName==='button' && el.textContent==='It happened').onclick();
+    saved=(await life.overview('room:a')).items[0];assert.equal(saved.outcome,'happened');assert.equal(saved.actual_starts_at,null);
+    for(const control of all(root).filter(el=>el.tagName==='button'))assert.equal(all(control).slice(1).some(el=>el.tagName==='button'),false);
+  }finally{globalThis.document=oldDocument;globalThis.fetch=oldFetch;globalThis.requestAnimationFrame=oldFrame;}
+});

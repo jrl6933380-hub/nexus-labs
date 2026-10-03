@@ -117,12 +117,14 @@ export async function renderScheduleCalendar(ctx, extras) {
       actions.hidden=!opening;main.setAttribute('aria-expanded',String(opening));
       block.classList.toggle('actionsopen',opening);
       closeActivityActions=opening ? ()=>{actions.hidden=true;main.setAttribute('aria-expanded','false');block.classList.toggle('actionsopen',false);} : null;
-    },`${item.title}, activity actions`);main.className='calactivitymain';main.setAttribute('aria-expanded','false');
-    main.append(node('strong','',item.title),node('small','',item.all_day ? 'All day' : `${clock(new Date(item.starts_at))} – ${clock(endOf(item))}`));
+    },`${item.title}${ctx.activitySummary ? `, ${ctx.activitySummary(item)}` : ''}, activity actions`);main.className='calactivitymain';main.setAttribute('aria-expanded','false');
+    main.append(node('strong','',ctx.activityTitle?.(item) || item.title),node('small','',item.all_day ? 'All day' : `${clock(new Date(item.starts_at))} – ${clock(endOf(item))}`));
+    if(ctx.activitySummary)main.append(node('small','calexperience',ctx.activitySummary(item)));
     const actions=node('div','calactivityactions');actions.hidden=true;
     actions.append(button(item.notes ? 'Notes' : 'Add notes',()=>ctx.editScheduleNotes(item)),button('Edit',()=>ctx.editScheduleItem(item)));
     if(item.status==='planned' && !item.all_day)actions.append(button('Running over',()=>ctx.openScheduleOverrun(item)));
     actions.append(button(ctx.detailsLabelFor?.(item) || ctx.detailsLabel || 'Details',()=>ctx.openPlannerItem(item)));
+    if(ctx.activityActions)actions.append(...ctx.activityActions(item));
     block.onkeydown=(event)=>{if(event.key==='Escape'){closeActivityActions?.();closeActivityActions=null;main.focus();}};
     block.append(main,actions);if(compact)block.className+=' compactactivity';return block;
   }
