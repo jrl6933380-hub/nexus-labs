@@ -5,12 +5,13 @@ import { getRoom, listRooms } from '../lib/rooms.js';
 test('built-in Nexus rooms stay available without the remote registry', async () => {
   const rooms = await listRooms({ fetchRemote: false });
   assert.deepEqual(rooms.map((room) => room.slug), [
-    'reminders', 'schedule', 'command-center', 'conference-room', 'room-builder', 'forge-field', 'forge-ops',
+    'life', 'reminders', 'schedule', 'command-center', 'conference-room', 'room-builder', 'forge-field', 'forge-ops',
     'story-studio', 'memory-archive', 'approval-queue', 'connector-bay', 'tenant-hub',
   ]);
 });
 
 test('room lookup accepts friendly names, slugs, and spoken aliases', async () => {
+  assert.equal((await getRoom('life calendar', {fetchRemote:false})).url, '/workspace.html?view=life');
   assert.equal((await getRoom('my reminders', {fetchRemote:false})).url, '/workspace.html?view=reminders');
   assert.equal((await getRoom('calendar', {fetchRemote:false})).url, '/workspace.html?view=planner');
   const conference = await getRoom('conference room', { fetchRemote: false });
@@ -29,6 +30,7 @@ test('every built-in room has one direct isolated destination', async () => {
   const rooms = await listRooms({ fetchRemote: false });
   const destinations = Object.fromEntries(rooms.map(({ slug, url }) => [slug, url]));
   assert.deepEqual(destinations, {
+    life: '/workspace.html?view=life',
     reminders: '/workspace.html?view=reminders',
     schedule: '/workspace.html?view=planner',
     'command-center': '/mission-control.html',

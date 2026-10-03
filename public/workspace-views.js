@@ -16,6 +16,7 @@
 // blanks the whole shell because a field moved is worse.
 
 import { NEXUS_PRODUCTS, NEX_CHAT_PLANS } from './nexus-product-catalog.js';
+import { renderLife } from './life.js';
 import { renderReminders } from './reminders.js';
 import { renderScheduleCalendar } from './schedule-calendar.js';
 
@@ -403,20 +404,8 @@ export const VIEWS = {
   },
 
   life: {
-    label: 'Nexus Life',
-    icon: NEXUS_PRODUCTS.life.icon,
-    say: ['nexus life', 'life'],
-    async render(ctx) {
-      return [
-        say(`${NEXUS_PRODUCTS.life.promise} Schedule and Reminders are the action layers underneath Life: routines, health, relationships, projects, and recovery can become real protected time instead of another list.`),
-        chips([
-          { label: 'Shape my week', run: () => ctx.openScheduleStudio('week') },
-          { label:'My reminders', run:()=>ctx.go('reminders') },
-          { label: 'See my time balance', run: () => ctx.go('planner') },
-          { label: 'Daily check-in', run: () => ctx.ask('Give me a short Nexus Life check-in. Read my reminders and schedule first, show what is fixed and flexible today, then offer only relevant clickable choices.') },
-        ]),
-      ];
-    },
+    label:'Nexus Life', icon:NEXUS_PRODUCTS.life.icon, say:['nexus life','life'],
+    async render(ctx){return [await renderLife(ctx)];},
   },
 
   legacy: {
