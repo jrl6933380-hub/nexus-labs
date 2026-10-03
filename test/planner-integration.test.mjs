@@ -34,9 +34,7 @@ test('Schedule is reachable from the sidebar and the home card', () => {
   assert.match(workspace, /\['Open Schedule', 'Time blocks, weeks, and routines', null, 'planner'\]/u);
   assert.match(workspace, /id="ownerBriefBtn"[^>]*>.*What needs me\?/u);
   assert.match(views, /planner: \{/u);
-  assert.match(views, /getJSON\(`\/api\/planner\?from=/u);
-  assert.match(views, /scheduleBalance\(payload\.summary, items, ctx\)/u);
-  assert.match(views, /Build next week/u);
+  assert.match(views, /renderScheduleCalendar\(ctx, \{balance:scheduleBalance\}\)/u);
 });
 
 test('Schedule offers click-first planning, editable rollover, and Nexus Life entry points', () => {

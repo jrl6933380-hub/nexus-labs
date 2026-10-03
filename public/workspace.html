@@ -229,6 +229,7 @@
     .projectgrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.projectcardbody{padding:10px}.projectcardactions{flex-direction:column}
   }
 </style>
+<link rel="stylesheet" href="/schedule-calendar.css">
 </head>
 <body>
 
@@ -522,63 +523,46 @@ function choiceButtons(host, values, onChoose, selected = new Set()) {
   }
   host.appendChild(wrap); return wrap;
 }
-function openScheduleStudio(mode = 'block', preferredDate = '') {
+function openScheduleStudio(mode = 'block', preferredDate = '', preferredMinutes = null) {
   if (mode === 'week') return openWeekStudio();
-  const state = { duration:60, category:'', flexibility:'fixed', preferredDate };
-  const durationStep = () => {
-    const card = wizardShell('QUICK SCHEDULE', 'How much time are you planning?', 'Choose the closest block. Nex only asks for details that affect where it belongs.');
-    choiceButtons(card, [...scheduleDurations.filter((minutes) => minutes <= 120 || minutes % 60 === 0).map((minutes) => [String(minutes), durationLabel(minutes)]),['week','Plan my week'],['custom','Custom time']], (value) => {
-      if (value === 'week') return openWeekStudio();
-      if (value === 'custom') return plannerForm(null, preferredDate);
-      state.duration = Number(value); categoryStep();
-    });
-    card.appendChild(chips([{ label:'Back to Schedule', run:() => showView('planner') }]));
-  };
-  const categoryStep = () => {
-    const card = wizardShell('QUICK SCHEDULE', 'What is the time for?', 'These become real schedule categories, so your time-split view stays useful.');
-    choiceButtons(card, scheduleCategories, (value) => { state.category = value; timingStep(); });
-  };
-  const timingStep = () => {
-    const card = wizardShell('QUICK SCHEDULE', 'How firm is this block?', 'Nex can rearrange flexible time, while fixed and protected commitments stay put.');
-    choiceButtons(card, [['fixed','Fixed time'],['flexible','Fit it wherever'],['protected','Must happen · protect it']], (value) => { state.flexibility = value === 'flexible' ? 'flexible' : 'fixed'; state.protected = value === 'protected'; detailsStep(); });
-  };
-  const detailsStep = () => {
-    const label = scheduleCategories.find(([value]) => value === state.category)?.[1] || 'Time block';
-    const base = preferredDate ? new Date(`${preferredDate}T09:00:00`) : new Date(Date.now() + 3600000);
-    base.setMinutes(0, 0, 0);
-    const card = wizardShell('REVIEW BLOCK', label, 'Name it if you want, choose the start, then add it directly or let Nex find a better opening.');
-    const name = document.createElement('input'); name.placeholder = state.category === 'other' ? 'What is this new thing?' : `Optional name · ${label}`; name.setAttribute('aria-label', 'Schedule block name');
-    const start = scheduleDateTime(localDateTime(base), 'Schedule block start');
-    card.append(name, start);
-    const preview = document.createElement('div'); preview.className = 'schedulepreview';
-    const refreshPreview = () => { const when = new Date(start.value); preview.innerHTML = `<strong>${esc(name.value.trim() || label)}</strong><span>${when.toLocaleString([], { weekday:'long', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' })} · ${durationLabel(state.duration)} · ${state.protected ? 'protected' : state.flexibility}</span>`; };
-    name.oninput = refreshPreview; start.addEventListener('input', refreshPreview); refreshPreview(); card.appendChild(preview);
-    choiceButtons(card, [['add','Add to Schedule'],['nex','Have Nex place it'],['back','Change choices']], async (value, button) => {
-      if (value === 'back') return durationStep();
-      const title = name.value.trim() || label;
-      if (!start.value) return;
-      if (value === 'nex') return askFromView(`I want to schedule ${title} for ${state.duration} minutes. Category: ${state.category}. It is ${state.protected ? 'protected and must happen' : state.flexibility}. Read my schedule, find the best openings, and give me clickable choices before creating it.`);
-      button.disabled = true;
-      try {
-        const startsAt = new Date(start.value); const endsAt = new Date(startsAt.getTime() + state.duration * 60000);
-        const payload = { title, starts_at:startsAt.toISOString(), ends_at:endsAt.toISOString(), category:state.category, kind:'time_block', flexibility:state.flexibility, protected:Boolean(state.protected) };
-        const check = await postPlanner('preview', payload);
-        if (check.conflicts?.length) {
-          button.disabled = false;
-          preview.innerHTML = `<strong>That time overlaps ${check.conflicts.length} block${check.conflicts.length === 1 ? '' : 's'}</strong><span>${check.conflicts.map((item) => esc(item.title)).join(' · ')}. You can add it anyway or let Nex find a cleaner opening.</span>`;
-          choiceButtons(card, [['confirm-conflict','Add anyway'],['nex-conflict','Let Nex resolve it']], async (next, conflictButton) => {
-            if (next === 'nex-conflict') return askFromView(`I need to schedule ${title} for ${state.duration} minutes, but it conflicts with ${check.conflicts.map((item) => item.title).join(', ')}. Read my schedule and give me clickable ways to resolve it without moving protected time.`);
-            conflictButton.disabled = true;
-            try { await postPlanner('create', payload); scheduleAdded(start.value.slice(0,10)); }
-            catch (error) { conflictButton.disabled = false; actionError(error); }
-          });
-          return;
-        }
-        await postPlanner('create', payload); scheduleAdded(start.value.slice(0,10));
-      } catch (error) { button.disabled = false; actionError(error); }
-    });
-  };
-  durationStep();
+  const base = preferredDate ? new Date(`${preferredDate}T09:00:00`) : new Date(Date.now()+3600000);
+  base.setMinutes(0,0,0);
+  if (preferredMinutes !== null) base.setHours(Math.floor(preferredMinutes/60),preferredMinutes%60,0,0);
+  const card = wizardShell('NEW ACTIVITY', 'Make time for it', 'Choose a day and time. Nex can help find an opening.');
+  card.classList.add('compactwizard');
+  const name = document.createElement('input'); name.placeholder = 'What are you doing?';name.setAttribute('aria-label','Activity name');
+  const form = document.createElement('div');form.className='schedulecompactform';card.appendChild(form);
+  const category = optionField('Activity', scheduleCategories, 'work');
+  const duration = optionField('Duration', scheduleDurations.map((value)=>[String(value),durationLabel(value)]),'60');
+  const start = scheduleDateTime(localDateTime(base),'Start');
+  form.append(name,category.label,duration.label,start);
+  const options=document.createElement('details');options.className='scheduleoptions';
+  const summary=document.createElement('summary');summary.textContent='Timing & protection';options.append(summary);
+  const timing=optionField('Timing',[['fixed','Fixed time'],['flexible','Flexible · Nex may suggest a move']],'fixed');
+  const protect=document.createElement('input');protect.type='checkbox';
+  const protectLabel=document.createElement('label');protectLabel.textContent='Protect this time';protectLabel.appendChild(protect);options.append(timing.label,protectLabel);form.appendChild(options);
+  const status=document.createElement('p');status.setAttribute('role','status');card.appendChild(status);
+  choiceButtons(card,[['add','Add activity'],['nex','Find time with Nex'],['back','Back to calendar']],async(value,button)=>{
+    if(value==='back')return showView('planner');
+    const title=name.value.trim() || scheduleCategories.find(([key])=>key===category.select.value)[1];
+    if(!start.value)return;
+    if(value==='nex')return askFromView(`Read my schedule. Help me place ${title}, ${durationLabel(Number(duration.select.value))}, on ${start.value.slice(0,10)}. Category ${category.select.value}; timing ${timing.select.value}; protected ${protect.checked}. Show me relevant clickable choices before creating it.`);
+    button.disabled=true;status.textContent='Checking this time…';
+    try {
+      const starts=new Date(start.value);
+      const payload={title,category:category.select.value,starts_at:starts.toISOString(),ends_at:new Date(starts.getTime()+Number(duration.select.value)*60000).toISOString(),kind:'time_block',flexibility:timing.select.value,protected:protect.checked};
+      const check=await postPlanner('preview',payload);
+      if(check.conflicts?.length) {
+        status.textContent=`Overlaps ${check.conflicts.map((item)=>item.title).join(', ')}.`;button.disabled=false;
+        choiceButtons(card,[['anyway','Add anyway'],['nex','Resolve with Nex']],async(next,confirmButton)=>{
+          if(next==='nex')return askFromView(`Help me resolve the overlap for ${title} at ${start.value}. Read my schedule and protect existing commitments.`);
+          confirmButton.disabled=true;
+          try{await postPlanner('create',payload);scheduleAdded(start.value.slice(0,10));}catch(error){confirmButton.disabled=false;status.textContent=error.message;}
+        });return;
+      }
+      await postPlanner('create',payload);scheduleAdded(start.value.slice(0,10));
+    } catch(error){button.disabled=false;status.textContent=error.message;}
+  });
 }
 function openWeekStudio() {
   const selected = new Set();
@@ -619,7 +603,8 @@ function openWeekStudio() {
     });
   }
   function amountsStep(customTitle) {
-    const card = wizardShell('ACTIVITIES & TIMES', `Shape ${periodLabel}`, 'Give each activity its own days and times. Add another time for a split shift, a second workout, or anything else in the same day.');
+    const card = wizardShell('PLAN WITH NEX', `Shape ${periodLabel}`, 'Tap an activity to set its days and times. Review the draft before applying it.');
+    card.classList.add('compactwizard');
     const requests = [...selected].map((category) => ({ category, title:scheduleCategories.find(([key]) => key === category)[1] }));
     if (customTitle) requests.push({ category:'other', title:customTitle });
     const days = [];
@@ -627,7 +612,10 @@ function openWeekStudio() {
     const controls = [];
     const activities = document.createElement('div'); card.appendChild(activities);
     function addActivity(request) {
-      const section = document.createElement('section'); section.className = 'schedulepreview'; activities.appendChild(section);
+      const panel = document.createElement('details'); panel.className='scheduleactivity'; activities.appendChild(panel);
+      const summary=document.createElement('summary');panel.appendChild(summary);
+      const section=document.createElement('div');section.className='schedulecompactform';panel.appendChild(section);
+      panel.addEventListener('toggle',()=>{if(panel.open) for(const other of activities.children)if(other!==panel)other.open=false;});
       const name = document.createElement('input'); name.value = request.title; name.setAttribute('aria-label','Activity name'); section.appendChild(name);
       const category = optionField('Activity type', scheduleCategories, request.category); section.appendChild(category.label);
       const duration = optionField('Time per block', scheduleDurations.map((value) => [String(value),durationLabel(value)]), request.category === 'work' ? '480' : '60');
@@ -638,15 +626,17 @@ function openWeekStudio() {
       section.append(duration.label, timing.label, from.label, until.label, count.label);
       const selectedDays = new Set();
       choiceButtons(section, days.map((day) => [dateOnly(day),day.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})]), (value,button) => {
-        selectedDays.has(value) ? selectedDays.delete(value) : selectedDays.add(value); button.classList.toggle('on',selectedDays.has(value));
+        selectedDays.has(value) ? selectedDays.delete(value) : selectedDays.add(value); button.classList.toggle('on',selectedDays.has(value)); refresh();
       });
-      const explain = document.createElement('p'); explain.textContent = 'Tap the days for this activity only.'; section.appendChild(explain);
-      const refresh = () => { const fixed = timing.select.value === 'fixed'; until.label.hidden = fixed; count.label.hidden = fixed; from.label.firstChild.textContent = fixed ? 'Start time' : 'Available from'; };
+      const explain = document.createElement('p'); explain.textContent = 'Choose days for this activity'; section.insertBefore(explain,section.querySelector('.schedulechoices'));
+      const refresh = () => { const fixed = timing.select.value === 'fixed'; until.label.hidden = fixed; count.label.hidden = fixed; from.label.firstChild.textContent = fixed ? 'Start time' : 'Available from'; summary.replaceChildren(); const title=document.createElement('strong');title.textContent=name.value || 'New activity'; const meta=document.createElement('small');meta.textContent=`${durationLabel(Number(duration.select.value))} · ${selectedDays.size ? `${selectedDays.size} day${selectedDays.size===1 ? '' : 's'}` : 'Choose days'} · ${fixed ? from.select.selectedOptions[0].textContent : 'Flexible'}`;summary.append(title,meta); };
+      section.addEventListener('input',refresh);section.addEventListener('change',refresh);
       timing.select.onchange = refresh; refresh();
       const control = {request,name,category,duration,timing,from,until,count,selectedDays}; controls.push(control);
+      if (controls.length===1) panel.open=true;
       choiceButtons(section, [['more','Add another time'],['remove','Remove this activity']], (value) => {
         if (value === 'more') return addActivity({...request,title:name.value});
-        controls.splice(controls.indexOf(control),1); section.remove();
+        controls.splice(controls.indexOf(control),1); panel.remove();
       });
     }
     requests.forEach(addActivity);
@@ -660,7 +650,7 @@ function openWeekStudio() {
         const minutes = Number(control.duration.select.value), start = Number(control.from.select.value);
         const fixed = control.timing.select.value === 'fixed';
         const end = fixed ? start + minutes : Number(control.until.select.value);
-        if (!control.name.value.trim() || !control.selectedDays.size || end <= start || end > 1440) { status.textContent = 'Give each activity a name, days, and times that fit in the day.'; return; }
+        if (!control.name.value.trim() || !control.selectedDays.size || end <= start || end > 1440) { status.textContent = 'Give each activity a name, days, and times that fit in the day.'; activities.children[controls.indexOf(control)].open=true; return; }
         const activityWindows = days.filter((day) => control.selectedDays.has(dateOnly(day))).map((day) => {
           const from = new Date(day), to = new Date(day); from.setMinutes(start); to.setMinutes(end);
           return {starts_at:from.toISOString(),ends_at:to.toISOString()};
@@ -890,6 +880,8 @@ function paragraphs(text){
 // ---------------------------------------------------------------------------
 async function showView(id){
   currentView = id;
+  document.body.dataset.view = id;
+  el('input').placeholder = id === 'planner' ? 'Ask Nex about your schedule…' : 'Ask Nex anything…';
   railOpen(false);
   if (!['chat', 'workbench', 'planner', 'life', 'legacy', 'teams', 'skills'].includes(id)) {
     document.querySelector('.ops').open = true;
@@ -1104,6 +1096,8 @@ function askFromView(text) {
 }
 function showConnectedActions(){
   currentView = 'chat';
+  document.body.dataset.view = 'chat';
+  el('input').placeholder = 'Ask Nex anything…';
   railOpen(false);
   for (const button of document.querySelectorAll('[data-view]')) button.classList.toggle('on', button.dataset.view === 'chat');
   el('viewTitle').textContent = 'Nex Chat';
