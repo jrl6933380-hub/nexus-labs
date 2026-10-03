@@ -130,3 +130,30 @@ test('automatic planning reports overflow and rejects invalid windows before wri
   await store.discardWeekDraft(draft.draft_id);
   assert.equal((await store.listPlannerItems()).length, 0);
 });
+
+test('each activity keeps its own days and times, including long work shifts and multiple blocks a day', async () => {
+  const store = testStore();
+  const monday = {starts_at:'2026-10-05T00:00:00Z',ends_at:'2026-10-06T00:00:00Z'};
+  const tuesday = {starts_at:'2026-10-06T00:00:00Z',ends_at:'2026-10-07T00:00:00Z'};
+  const draft = await store.generateScheduleDraft({windows:[monday,tuesday],requests:[
+    {title:'Work',category:'work',minutes:600,count:1,flexibility:'fixed',windows:[{starts_at:'2026-10-05T08:00:00Z',ends_at:'2026-10-05T18:00:00Z'}]},
+    {title:'Gym',category:'gym',minutes:45,count:1,windows:[{starts_at:'2026-10-05T18:30:00Z',ends_at:'2026-10-05T20:00:00Z'}]},
+    {title:'Family',category:'family',minutes:60,count:1,windows:[{starts_at:'2026-10-06T18:00:00Z',ends_at:'2026-10-06T19:00:00Z'}]},
+  ]});
+  assert.equal(draft.items.length,3);
+  assert.equal(draft.items[0].starts_at,'2026-10-05T08:00:00.000Z');
+  assert.equal(draft.items[0].ends_at,'2026-10-05T18:00:00.000Z');
+  assert.equal(draft.items[0].flexibility,'fixed');
+  assert.equal(draft.items[1].starts_at,'2026-10-05T18:30:00.000Z');
+  assert.equal(draft.items[2].starts_at,'2026-10-06T18:00:00.000Z');
+  await assert.rejects(() => store.generateScheduleDraft({windows:[monday],requests:[{title:'Outside',minutes:60,count:1,windows:[{starts_at:'2026-10-06T12:00:00Z',ends_at:'2026-10-06T13:00:00Z'}]}]}), /fit within/);
+});
+
+test('fixed activity conflicts are reported instead of moving the activity to another time', async () => {
+  const store = testStore();
+  await store.createPlannerItem({title:'Appointment',starts_at:'2026-10-05T09:00:00Z',ends_at:'2026-10-05T10:00:00Z'});
+  const draft = await store.generateScheduleDraft({windows:[{starts_at:'2026-10-05T00:00:00Z',ends_at:'2026-10-06T00:00:00Z'}],requests:[{title:'Work',minutes:480,count:1,flexibility:'fixed',windows:[{starts_at:'2026-10-05T08:00:00Z',ends_at:'2026-10-05T16:00:00Z'}]}]});
+  assert.equal(draft.items.length,0);
+  assert.equal(draft.unplaced.length,1);
+  assert.equal((await store.listPlannerItems()).length,1);
+});
