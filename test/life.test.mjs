@@ -4,7 +4,7 @@ import {createLifeStore,summarizeLife} from '../lib/life.js';
 import {createPlannerStore} from '../lib/planner.js';
 import {createReminderStore} from '../lib/reminders.js';
 import {createLifeHandler} from '../api/board.js';
-import {renderLife,lifeWeekItems} from '../public/life.js';
+import {renderLife,lifeWeekItems,copyLifeTimes} from '../public/life.js';
 function fixture(){const hashes=new Map();let id=0,time=1000;const command=async([verb,key,...args])=>{const hash=hashes.get(key) || new Map();hashes.set(key,hash);if(verb==='HSET'){for(let i=0;i<args.length;i+=2)hash.set(args[i],args[i+1]);return 1;}if(verb==='HGET')return hash.get(args[0]) || null;if(verb==='HGETALL')return [...hash].flat();if(verb==='HDEL')return hash.delete(args[0]) ? 1 : 0;throw Error(verb);};const now=()=>++time;const planner=createPlannerStore({command,now,idFactory:()=>`block-${++id}`}),reminders=createReminderStore({command,planner,now,idFactory:()=>`reminder-${++id}`});return {planner,reminders,life:createLifeStore({command,planner,reminders,now,idFactory:()=>`life-${++id}`})};}
 const activity={title:'Walk',pillar:'health',kind:'activity',starts_at:'2026-10-05T15:00:00Z',ends_at:'2026-10-05T16:00:00Z'};
 async function save(life,input,user='room:a',destination='life'){const preview=await life.preview(input,user);return life.save({...preview.item,baseline:preview.baseline,destination},user);}
@@ -127,4 +127,74 @@ test('saved check-ins are visible on Life cards and calendar blocks; quick choic
     saved=(await life.overview('room:a')).items[0];assert.equal(saved.outcome,'happened');assert.equal(saved.actual_starts_at,null);
     for(const control of all(root).filter(el=>el.tagName==='button'))assert.equal(all(control).slice(1).some(el=>el.tagName==='button'),false);
   }finally{globalThis.document=oldDocument;globalThis.fetch=oldFetch;globalThis.requestAnimationFrame=oldFrame;}
+});
+
+test('daily pulses are private, optional, editable by date, and never count as activity experience',async()=>{
+  const {life}=fixture();await life.pulse({date:'2026-10-03',energy:2,note:'A slower day'},'room:a');
+  await life.pulse({date:'2026-10-03',energy:4,note:'Feeling better'},'room:a');
+  await life.pulse({date:'2026-10-04',energy:null,note:'Just a note'},'room:a');
+  const data=await life.overview('room:a');assert.equal(data.pulses.length,2);assert.equal(data.pulses[1].energy,4);assert.equal(data.items.length,0);assert.equal(data.summary.accounted,0);
+  assert.equal((await life.overview('room:b')).pulses.length,0);
+  await assert.rejects(life.pulse({date:'2026-02-30',energy:3},'room:a'),/date/);await assert.rejects(life.pulse({date:'2026-10-03',energy:9},'room:a'),/energy/);
+});
+test('weekly reset previews before atomic save, copies clean experience, and prevents duplicate carry-forward',async()=>{
+  const {life,planner}=fixture();const source=await save(life,activity,'room:a','linked');await life.checkIn({id:source.id,use_planned_times:true,energy:5,reflection:'Wonderful',memory_url:'https://example.com/photo'},'room:a');
+  const entries=[{source_id:source.id,title:'Next week walk',starts_at:'2026-10-12T15:00:00Z',ends_at:'2026-10-12T16:00:00Z'}];
+  const preview=await life.previewWeek({entries},'room:a');assert.equal((await life.overview('room:a')).items.length,1);assert.equal(preview.conflicts.length,0);
+  await life.saveWeek({entries:preview.entries,baseline:preview.baseline},'room:a');const copied=(await life.overview('room:a')).items.find(item=>item.id!==source.id);
+  assert.equal(copied.title,'Next week walk');assert.equal(copied.outcome,'unknown');assert.equal(copied.energy,null);assert.equal(copied.actual_starts_at,null);assert.equal(copied.reflection,'');assert.equal(copied.memory_url,'');assert.equal(copied.link,null);
+  assert.equal((await planner.listPlannerItems({},'room:a')).length,1);
+  const repeat=await life.previewWeek({entries},'room:a');assert.equal(repeat.items.length,0);assert.equal(repeat.already.length,1);await life.saveWeek({entries:repeat.entries,baseline:repeat.baseline},'room:a');assert.equal((await life.overview('room:a')).items.length,2);
+  await assert.rejects(life.previewWeek({entries},'room:b'),/original/);
+});
+test('weekly reset rejects conflicts within draft, Life, and Nex, plus stale or edited approvals without partial writes',async()=>{
+  const {life,planner}=fixture();const source=await save(life,activity),second=await save(life,{...activity,title:'Sleep',starts_at:'2026-10-05T20:00:00Z',ends_at:'2026-10-06T04:00:00Z'});
+  const next={source_id:source.id,starts_at:'2026-10-12T15:00:00Z',ends_at:'2026-10-12T16:00:00Z'};
+  let preview=await life.previewWeek({entries:[next,{...next,source_id:second.id}]},'room:a');assert.ok(preview.conflicts.length);await assert.rejects(life.saveWeek({entries:preview.entries,baseline:preview.baseline},'room:a'),/overlapping/);assert.equal((await life.overview('room:a')).items.length,2);
+  preview=await life.previewWeek({entries:[next]},'room:a');await planner.createPlannerItem({title:'Protected work',starts_at:next.starts_at,ends_at:next.ends_at,protected:true},'room:a');
+  await assert.rejects(life.saveWeek({entries:preview.entries,baseline:preview.baseline},'room:a'),/changed/);
+  const conflict=await life.previewWeek({entries:[next]},'room:a');assert.ok(conflict.conflicts.some(item=>item.where==='Nex Schedule'));await assert.rejects(life.saveWeek({entries:conflict.entries,baseline:conflict.baseline},'room:a'),/overlapping/);
+  const clear={...next,starts_at:'2026-10-12T17:00:00Z',ends_at:'2026-10-12T18:00:00Z'};preview=await life.previewWeek({entries:[clear]},'room:a');await assert.rejects(life.saveWeek({entries:[{...preview.entries[0],title:'Changed after review'}],baseline:preview.baseline},'room:a'),/changed/);
+  await save(life,{...activity,title:'Life commitment',starts_at:clear.starts_at,ends_at:clear.ends_at});preview=await life.previewWeek({entries:[clear]},'room:a');assert.ok(preview.conflicts.some(item=>item.where==='Life'));
+});
+test('daily pulse, history, guided day changes, and relevant suggestions work without an activity planner',async()=>{
+  const oldDocument=globalThis.document,oldFetch=globalThis.fetch,oldFrame=globalThis.requestAnimationFrame,{life}=fixture(),prompts=[];
+  const date=new Date(),day=`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+  globalThis.document={createElement:element};globalThis.requestAnimationFrame=callback=>callback();
+  globalThis.fetch=async(url,options)=>{let result;if(!options?.method)result=await life.overview('room:a');else{const {action,...input}=JSON.parse(options.body);result=await life[action==='check_in' ? 'checkIn' : action](input,'room:a');}return {ok:true,json:async()=>result};};
+  try{
+    const root=await renderLife({ask:prompt=>prompts.push(prompt)});await all(root).find(el=>el.textContent==='Today').onclick();await all(root).find(el=>el.textContent==='2 · Low').onclick();
+    assert.ok(all(root).find(el=>el.textContent==='Today: 2/5 · Low'));assert.ok(all(root).find(el=>el.textContent==='Plan a short pause'));
+    const pulse=all(root).find(el=>el.className==='lifepulse');all(pulse).find(el=>el.tagName==='textarea').value='Need a quiet afternoon';await all(pulse).find(el=>el.textContent==='Save note').onclick();
+    await all(root).find(el=>el.textContent==='Life history').onclick();assert.ok(all(root).find(el=>el.textContent?.includes('Need a quiet afternoon')));
+    assert.equal((await life.overview('room:a')).pulses[0].date,day);
+    all(root).find(el=>el.textContent==='My day changed').onclick();all(root).find(el=>el.textContent==='I am running late').onclick();assert.match(prompts[0],/Ask how late/);assert.match(prompts[0],/Protect fixed commitments/);assert.equal((await life.overview('room:a')).items.length,0);
+  }finally{globalThis.document=oldDocument;globalThis.fetch=oldFetch;globalThis.requestAnimationFrame=oldFrame;}
+});
+test('weekly reset UI edits each activity, reviews conflicts, and only copies after confirmation',async()=>{
+  const oldDocument=globalThis.document,oldFetch=globalThis.fetch,oldFrame=globalThis.requestAnimationFrame,{life}=fixture(),requests=[];
+  const start=new Date();start.setHours(9,0,0,0);const source=await save(life,{...activity,starts_at:start.toISOString(),ends_at:new Date(+start+3600000).toISOString()});
+  globalThis.document={createElement:element};globalThis.requestAnimationFrame=callback=>callback();
+  globalThis.fetch=async(url,options)=>{let result;if(!options?.method)result=await life.overview('room:a');else{const {action,...input}=JSON.parse(options.body);requests.push(action);result=await life[{preview_week:'previewWeek',save_week:'saveWeek',check_in:'checkIn'}[action] || action](input,'room:a');}return {ok:true,json:async()=>result};};
+  try{
+    const root=await renderLife({ask(){}});await all(root).find(el=>el.textContent==='Your rhythm').onclick();await all(root).find(el=>el.textContent==='This week').onclick();await all(root).find(el=>el.textContent==='Weekly reset').onclick();
+    const reset=all(root).find(el=>el.className==='liferesetitem');assert.ok(reset);
+    const label=name=>all(reset).find(el=>el.tagName==='label' && el.textContent===name).children[0];
+    label('Carry this activity forward').checked=true;label('Name').value='Next week movement';
+    await all(root).find(el=>el.textContent==='Review next week').onclick();assert.ok(all(root).find(el=>el.textContent==='Review your next week'));assert.equal((await life.overview('room:a')).items.length,1);
+    await all(root).find(el=>el.textContent==='Confirm and save in Life').onclick();const records=(await life.overview('room:a')).items;assert.equal(records.length,2);assert.equal(records.find(item=>item.id!==source.id).title,'Next week movement');assert.ok(requests.indexOf('preview_week')<requests.indexOf('save_week'));
+  }finally{globalThis.document=oldDocument;globalThis.fetch=oldFetch;globalThis.requestAnimationFrame=oldFrame;}
+});
+
+test('weekly carry-forward preserves local start times and overnight duration across a clock-change week',()=>{
+  const source=new Date(2026,9,26),target=new Date(2026,10,2),start=new Date(2026,9,28,9,15),end=new Date(+start+8*3600000);
+  const times=copyLifeTimes({starts_at:start.toISOString(),ends_at:end.toISOString()},target,source),copied=new Date(times.starts_at);
+  assert.equal(copied.getDate(),4);assert.equal(copied.getHours(),9);assert.equal(copied.getMinutes(),15);assert.equal(Date.parse(times.ends_at)-Date.parse(times.starts_at),8*3600000);
+  const sleep=new Date(2026,9,31,23);const overnight=copyLifeTimes({starts_at:sleep.toISOString(),ends_at:new Date(+sleep+8*3600000).toISOString()},target,source);
+  assert.equal(new Date(overnight.starts_at).getHours(),23);assert.equal(new Date(overnight.starts_at).getDate(),7);assert.equal(Date.parse(overnight.ends_at)-Date.parse(overnight.starts_at),8*3600000);
+});
+test('weekly carry-forward uses the chosen local day for duplicate protection when edits cross UTC midnight',async()=>{
+  const {life}=fixture(),source=await save(life,activity);
+  let proposed=await life.previewWeek({entries:[{source_id:source.id,copy_date:'2026-10-12',starts_at:'2026-10-12T23:00:00Z',ends_at:'2026-10-13T00:00:00Z'}]},'room:a');await life.saveWeek({entries:proposed.entries,baseline:proposed.baseline},'room:a');
+  proposed=await life.previewWeek({entries:[{source_id:source.id,copy_date:'2026-10-12',starts_at:'2026-10-13T01:00:00Z',ends_at:'2026-10-13T02:00:00Z'}]},'room:a');assert.equal(proposed.items.length,0);assert.equal(proposed.already.length,1);
 });
