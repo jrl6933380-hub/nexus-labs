@@ -307,6 +307,46 @@ function dayKey(value) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
+const SCHEDULE_COLORS = {
+  work:'#6f9ce8', project:'#9a7bea', gym:'#56c596', health:'#65b8b2', family:'#e9a66f',
+  social:'#df7fa4', appointment:'#e0c35c', errands:'#a5a19a', learning:'#74b7e8',
+  creative:'#c883d8', rest:'#7b87a7', travel:'#d78b68', other:'#8e8a84',
+};
+
+export function scheduleBalance(summary = {}, items = [], ctx) {
+  const card = document.createElement('section');
+  card.className = 'schedulebalance';
+  const minutes = summary.category_minutes || {};
+  const entries = Object.entries(minutes).filter(([, value]) => value > 0).sort((a, b) => b[1] - a[1]);
+  const total = Math.max(1, entries.reduce((sum, [, value]) => sum + value, 0));
+  const hours = Math.round((total / 60) * 10) / 10;
+  const conflictCount = Array.isArray(summary.conflicts) ? summary.conflicts.length : 0;
+  const header = document.createElement('div'); header.className = 'schedulebalancehead';
+  header.innerHTML = `<span><small>TIME SPLIT</small><strong>${hours} scheduled hour${hours === 1 ? '' : 's'}</strong></span><em>${conflictCount ? `${conflictCount} conflict${conflictCount === 1 ? '' : 's'}` : 'No conflicts'}</em>`;
+  const bar = document.createElement('div'); bar.className = 'schedulebar';
+  const legend = document.createElement('div'); legend.className = 'schedulelegend';
+  if (!entries.length) {
+    bar.innerHTML = '<i style="width:100%;background:#292929"></i>';
+    legend.textContent = 'Add a block to see how your time is divided.';
+  } else {
+    for (const [category, value] of entries) {
+      const segment = document.createElement('button');
+      segment.style.width = `${Math.max(2, value / total * 100)}%`;
+      segment.style.background = SCHEDULE_COLORS[category] || SCHEDULE_COLORS.other;
+      segment.title = `${category}: ${Math.round(value / 6) / 10} hours`;
+      segment.setAttribute('aria-label', `Open ${category} schedule blocks`);
+      segment.onclick = () => ctx.openScheduleCategory(category, items.filter((item) => item.category === category));
+      bar.appendChild(segment);
+      const label = document.createElement('button');
+      label.innerHTML = `<i style="background:${SCHEDULE_COLORS[category] || SCHEDULE_COLORS.other}"></i>${category} · ${Math.round(value / 6) / 10}h`;
+      label.onclick = segment.onclick;
+      legend.appendChild(label);
+    }
+  }
+  card.append(header, bar, legend);
+  return card;
+}
+
 function plannerWeek(items, ctx) {
   const wrap = document.createElement('div');
   wrap.className = 'plannerweek';
@@ -318,10 +358,34 @@ function plannerWeek(items, ctx) {
     const button = document.createElement('button');
     button.className = `plannerday${offset === 0 ? ' today' : ''}`;
     button.innerHTML = `<span>${date.toLocaleDateString(undefined, { weekday: 'short' })}</span><strong>${date.getDate()}</strong><small>${events.length ? `${events.length} plan${events.length === 1 ? '' : 's'}` : 'Open'}</small>`;
-    button.onclick = () => events[0] ? ctx.openPlannerItem(events[0]) : ctx.newPlannerItem(key);
+    button.onclick = () => events.length ? ctx.openScheduleDay(key, events) : ctx.openScheduleStudio('block', key);
     wrap.appendChild(button);
   }
   return wrap;
+}
+
+function scheduleTimeline(items, ctx) {
+  const board = document.createElement('div'); board.className = 'scheduletimeline';
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  for (let offset = 0; offset < 7; offset += 1) {
+    const date = new Date(today); date.setDate(today.getDate() + offset);
+    const events = items.filter((item) => item.status !== 'cancelled' && dayKey(item.starts_at) === dayKey(date));
+    const lane = document.createElement('section'); lane.className = 'schedulelane';
+    const label = document.createElement('button'); label.className = 'schedulelabel';
+    label.innerHTML = `<strong>${date.toLocaleDateString(undefined, { weekday:'short' })}</strong><small>${date.getDate()}</small>`;
+    label.onclick = () => events.length ? ctx.openScheduleDay(dayKey(date), events) : ctx.openScheduleStudio('block', dayKey(date));
+    const blocks = document.createElement('div'); blocks.className = 'scheduleblocks';
+    if (!events.length) blocks.innerHTML = '<span class="scheduleopen">Open</span>';
+    for (const item of events.slice(0, 5)) {
+      const block = document.createElement('button'); block.className = `scheduleblock${item.status === 'draft' ? ' draft' : ''}`;
+      block.style.setProperty('--cat', SCHEDULE_COLORS[item.category] || SCHEDULE_COLORS.other);
+      block.innerHTML = `<strong>${item.title}</strong><small>${item.all_day ? 'All day' : new Date(item.starts_at).toLocaleTimeString([], { hour:'numeric', minute:'2-digit' })}${item.protected ? ' · protected' : item.flexibility === 'flexible' ? ' · flexible' : ''}</small>`;
+      block.onclick = () => ctx.openPlannerItem(item);
+      blocks.appendChild(block);
+    }
+    lane.append(label, blocks); board.appendChild(lane);
+  }
+  return board;
 }
 
 // --- the rooms -------------------------------------------------------------
@@ -364,29 +428,36 @@ export const VIEWS = {
   },
 
   planner: {
-    label: 'Planner',
+    label: 'Schedule',
     icon: '▤',
     say: ['planner', 'calendar', 'schedule', 'my day', 'my week'],
     async render(ctx) {
-      const payload = await getJSON('/api/planner');
+      const rangeStart = new Date(); rangeStart.setHours(0, 0, 0, 0);
+      const rangeEnd = new Date(rangeStart); rangeEnd.setDate(rangeStart.getDate() + 14);
+      const payload = await getJSON(`/api/planner?from=${encodeURIComponent(rangeStart.toISOString())}&to=${encodeURIComponent(rangeEnd.toISOString())}`);
       const items = pick(payload, 'items').filter((item) => item.status !== 'cancelled');
-      const upcoming = items.filter((item) => Date.parse(item.starts_at) >= Date.now() - 86400000);
+      ctx.setScheduleItems?.(items);
+      const upcoming = items.filter((item) => Date.parse(item.starts_at) >= Date.now() - 3600000);
       const agenda = upcoming.length
         ? upcoming.slice(0, 30).map((item) => row({
           title: item.status === 'done' ? `✓ ${item.title}` : item.title,
           meta: `${new Date(item.starts_at).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: item.all_day ? undefined : 'numeric', minute: item.all_day ? undefined : '2-digit' })}${item.source && item.source !== 'nex_chat' ? ` · ${item.source}` : ''}`,
-          tone: item.status === 'done' ? { label: 'done' } : null,
+          tone: item.status === 'done' ? { label: 'done' } : item.status === 'draft' ? { label: 'draft', kind:'g' } : null,
           onClick: () => ctx.openPlannerItem(item),
         }))
         : [empty('Nothing planned yet. Add an event or ask Nex to shape the week with you.')];
       return [
-        say('Your time, in one place. Plan days, events, appointments, and reminders here—or tell Nex what needs to happen and let him organize it with you.'),
+        say('Your time, made visible. Add a block in a few taps, or let Nex arrange the whole week around what matters and show you the tradeoffs before anything changes.'),
+        scheduleBalance(payload.summary, items, ctx),
         plannerWeek(items, ctx),
         chips([
-          { label: 'Add event', run: () => ctx.newPlannerItem() },
-          { label: 'Plan with Nex', run: () => ctx.ask('Help me plan my upcoming days. Read my planner first, then ask what I need to make room for.') },
+          { label: 'Add a block', run: () => ctx.openScheduleStudio('block') },
+          { label: 'Schedule with Nex', run: () => ctx.openScheduleStudio('week') },
+          ...(payload.drafts?.length ? [{ label: 'Review next-week draft', run: () => ctx.reviewWeekDraft(payload.drafts[0], items.filter((item) => item.draft_id === payload.drafts[0])) }] : []),
+          { label: 'Build next week', run: () => ctx.openWeekRollover() },
           { label: 'Refresh', run: () => ctx.go('planner') },
         ]),
+        group('This week', [scheduleTimeline(items.filter((item) => item.status !== 'done'), ctx)]),
         group('Upcoming', agenda),
       ];
     },
@@ -398,10 +469,11 @@ export const VIEWS = {
     say: ['nexus life', 'life'],
     async render(ctx) {
       return [
-        say(`${NEXUS_PRODUCTS.life.promise} Nex connects the plans you talk through here with the routines, health, time, and relationships you want to protect.`),
+        say(`${NEXUS_PRODUCTS.life.promise} Schedule is the action layer underneath Life: routines, health, relationships, projects, and recovery can become real protected time instead of another list.`),
         chips([
-          { label: 'Plan my day', run: () => ctx.ask('Help me plan today around what matters most in Nexus Life.') },
-          { label: 'Check my balance', run: () => ctx.ask('Look across my priorities and tell me what part of life I am neglecting.') },
+          { label: 'Shape my week', run: () => ctx.openScheduleStudio('week') },
+          { label: 'See my time balance', run: () => ctx.go('planner') },
+          { label: 'Daily check-in', run: () => ctx.ask('Give me a short Nexus Life check-in. Read my schedule first, show what is fixed and flexible today, then offer only relevant clickable choices.') },
         ]),
       ];
     },

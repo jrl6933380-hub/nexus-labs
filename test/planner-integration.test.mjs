@@ -15,6 +15,10 @@ test('the authenticated planner API is routed through the shared function', () =
   assert.match(config, /"source": "\/api\/planner"/u);
   assert.match(boardApi, /path\.startsWith\('\/api\/planner'\)/u);
   assert.match(boardApi, /getNexusOwner\(req\)/u);
+  assert.match(boardApi, /getRequestUser\(req\)/u);
+  assert.match(boardApi, /create_week_draft/u);
+  assert.match(boardApi, /apply_week_draft/u);
+  assert.match(boardApi, /action === 'preview'/u);
 });
 
 test('Nex can read and mutate the same planner as the UI', () => {
@@ -25,10 +29,22 @@ test('Nex can read and mutate the same planner as the UI', () => {
   assert.match(categories, /'read_planner'/u);
 });
 
-test('Planner is reachable from the sidebar and the home card', () => {
+test('Schedule is reachable from the sidebar and the home card', () => {
   assert.match(workspace, /data-view="planner"/u);
-  assert.match(workspace, /\['Plan my time', 'Days, events, and schedules', null, 'planner'\]/u);
+  assert.match(workspace, /\['Open Schedule', 'Time blocks, weeks, and routines', null, 'planner'\]/u);
   assert.match(workspace, /id="ownerBriefBtn"[^>]*>.*What needs me\?/u);
   assert.match(views, /planner: \{/u);
-  assert.match(views, /getJSON\('\/api\/planner'\)/u);
+  assert.match(views, /getJSON\(`\/api\/planner\?from=/u);
+  assert.match(views, /scheduleBalance\(payload\.summary, items, ctx\)/u);
+  assert.match(views, /Build next week/u);
+});
+
+test('Schedule offers click-first planning, editable rollover, and Nexus Life entry points', () => {
+  assert.match(workspace, /function openScheduleStudio/u);
+  assert.match(workspace, /function openWeekStudio/u);
+  assert.match(workspace, /function openWeekRollover/u);
+  assert.match(workspace, /Lock in next week/u);
+  assert.match(workspace, /checkScheduleReminders/u);
+  assert.match(views, /Shape my week/u);
+  assert.match(views, /See my time balance/u);
 });
