@@ -12,3 +12,5 @@ body[data-view=planner] .disc{display:none}body[data-view=planner] .foot{padding
 @media(min-width:700px){.caldate{height:86px}.calnumber{font-size:18px}.calhours{height:440px}.caltimed strong{font-size:13px}.caltimed small{font-size:11px}}
 
 body[data-view=planner] #newTop{display:none}
+
+.scheduletoast .scheduleextend{position:static;display:block;padding:8px 12px;margin-top:10px;border:1px solid #667ba0;border-radius:9px;color:#e4c891;font-size:12px}.scheduletoast strong{padding-right:22px}
