@@ -16,6 +16,7 @@
 // blanks the whole shell because a field moved is worse.
 
 import { NEXUS_PRODUCTS, NEX_CHAT_PLANS } from './nexus-product-catalog.js';
+import { renderScheduleCalendar } from './schedule-calendar.js';
 
 export const pill = (text, tone = '') => {
   const span = document.createElement('span');
@@ -347,47 +348,6 @@ export function scheduleBalance(summary = {}, items = [], ctx) {
   return card;
 }
 
-function plannerWeek(items, ctx) {
-  const wrap = document.createElement('div');
-  wrap.className = 'plannerweek';
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  for (let offset = 0; offset < 7; offset += 1) {
-    const date = new Date(today); date.setDate(today.getDate() + offset);
-    const key = dayKey(date);
-    const events = items.filter((item) => item.status !== 'cancelled' && dayKey(item.starts_at) === key);
-    const button = document.createElement('button');
-    button.className = `plannerday${offset === 0 ? ' today' : ''}`;
-    button.innerHTML = `<span>${date.toLocaleDateString(undefined, { weekday: 'short' })}</span><strong>${date.getDate()}</strong><small>${events.length ? `${events.length} plan${events.length === 1 ? '' : 's'}` : 'Open'}</small>`;
-    button.onclick = () => events.length ? ctx.openScheduleDay(key, events) : ctx.openScheduleStudio('block', key);
-    wrap.appendChild(button);
-  }
-  return wrap;
-}
-
-function scheduleTimeline(items, ctx) {
-  const board = document.createElement('div'); board.className = 'scheduletimeline';
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  for (let offset = 0; offset < 7; offset += 1) {
-    const date = new Date(today); date.setDate(today.getDate() + offset);
-    const events = items.filter((item) => item.status !== 'cancelled' && dayKey(item.starts_at) === dayKey(date));
-    const lane = document.createElement('section'); lane.className = 'schedulelane';
-    const label = document.createElement('button'); label.className = 'schedulelabel';
-    label.innerHTML = `<strong>${date.toLocaleDateString(undefined, { weekday:'short' })}</strong><small>${date.getDate()}</small>`;
-    label.onclick = () => events.length ? ctx.openScheduleDay(dayKey(date), events) : ctx.openScheduleStudio('block', dayKey(date));
-    const blocks = document.createElement('div'); blocks.className = 'scheduleblocks';
-    if (!events.length) blocks.innerHTML = '<span class="scheduleopen">Open</span>';
-    for (const item of events.slice(0, 5)) {
-      const block = document.createElement('button'); block.className = `scheduleblock${item.status === 'draft' ? ' draft' : ''}`;
-      block.style.setProperty('--cat', SCHEDULE_COLORS[item.category] || SCHEDULE_COLORS.other);
-      block.innerHTML = `<strong>${item.title}</strong><small>${item.all_day ? 'All day' : new Date(item.starts_at).toLocaleTimeString([], { hour:'numeric', minute:'2-digit' })}${item.protected ? ' · protected' : item.flexibility === 'flexible' ? ' · flexible' : ''}</small>`;
-      block.onclick = () => ctx.openPlannerItem(item);
-      blocks.appendChild(block);
-    }
-    lane.append(label, blocks); board.appendChild(lane);
-  }
-  return board;
-}
-
 // --- the rooms -------------------------------------------------------------
 // Each returns nodes. `ctx` gives a view access to the shell: ctx.ask(text)
 // sends Nex a message in the thread, ctx.go(id) switches view.
@@ -432,34 +392,7 @@ export const VIEWS = {
     icon: '▤',
     say: ['planner', 'calendar', 'schedule', 'my day', 'my week'],
     async render(ctx) {
-      const rangeStart = new Date(); rangeStart.setHours(0, 0, 0, 0);
-      const rangeEnd = new Date(rangeStart); rangeEnd.setDate(rangeStart.getDate() + 14);
-      const payload = await getJSON(`/api/planner?from=${encodeURIComponent(rangeStart.toISOString())}&to=${encodeURIComponent(rangeEnd.toISOString())}`);
-      const items = pick(payload, 'items').filter((item) => item.status !== 'cancelled');
-      ctx.setScheduleItems?.(items);
-      const upcoming = items.filter((item) => Date.parse(item.starts_at) >= Date.now() - 3600000);
-      const agenda = upcoming.length
-        ? upcoming.slice(0, 30).map((item) => row({
-          title: item.status === 'done' ? `✓ ${item.title}` : item.title,
-          meta: `${new Date(item.starts_at).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: item.all_day ? undefined : 'numeric', minute: item.all_day ? undefined : '2-digit' })}${item.source && item.source !== 'nex_chat' ? ` · ${item.source}` : ''}`,
-          tone: item.status === 'done' ? { label: 'done' } : item.status === 'draft' ? { label: 'draft', kind:'g' } : null,
-          onClick: () => ctx.openPlannerItem(item),
-        }))
-        : [empty('Nothing planned yet. Add an event or ask Nex to shape the week with you.')];
-      return [
-        say('Your time, made visible. Add a block in a few taps, or let Nex arrange the whole week around what matters and show you the tradeoffs before anything changes.'),
-        scheduleBalance(payload.summary, items, ctx),
-        plannerWeek(items, ctx),
-        chips([
-          { label: 'Add a block', run: () => ctx.openScheduleStudio('block') },
-          { label: 'Schedule with Nex', run: () => ctx.openScheduleStudio('week') },
-          ...(payload.drafts?.length ? payload.drafts.map((id) => ({ label: 'Review schedule draft', run: () => ctx.reviewWeekDraft(id, (payload.draft_items || items).filter((item) => item.draft_id === id)) })) : []),
-          { label: 'Build next week', run: () => ctx.openWeekRollover() },
-          { label: 'Refresh', run: () => ctx.go('planner') },
-        ]),
-        group('This week', [scheduleTimeline(items.filter((item) => item.status !== 'done'), ctx)]),
-        group('Upcoming', agenda),
-      ];
+      return [await renderScheduleCalendar(ctx, {balance:scheduleBalance})];
     },
   },
 
