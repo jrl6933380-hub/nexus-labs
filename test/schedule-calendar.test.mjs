@@ -20,7 +20,7 @@ test('overlapping calendar events receive separate columns; adjoining events use
   assert.equal(layout[2].columns,1);
 });
 function fakeElement(tag) {
-  return {tagName:tag,children:[],attrs:{},className:'',style:{setProperty(){}},classList:{toggle(){}},
+  return {tagName:tag,children:[],attrs:{},className:'',style:{setProperty(){}},classList:{toggle(){},add(){}},
     setAttribute(key,value){this.attrs[key]=value;},removeAttribute(key){delete this.attrs[key];},
     append(...nodes){this.children.push(...nodes);},replaceChildren(...nodes){this.children=nodes;},
     get childNodes(){return this.children;},querySelector(){return null;},scrollIntoView(){},
@@ -55,5 +55,30 @@ test('calendar keeps events and saved draft review linked to their exact records
     const root=await renderScheduleCalendar({openPlannerItem:(record)=>opened.push(record),reviewWeekDraft:(id,items)=>opened.push({id,items})},{balance:()=>fakeElement('div')});
     const review=descendants(root).find((node)=>node.className==='caldraft');review.onclick();
     assert.deepEqual(opened[0],{id:'auto-draft',items:[draft]});
+  } finally {globalThis.document=previousDocument;globalThis.fetch=previousFetch;globalThis.requestAnimationFrame=previousFrame;}
+});
+
+
+test('activity actions target the exact block without nested buttons or completion controls',async()=>{
+  const previousDocument=globalThis.document, previousFetch=globalThis.fetch, previousFrame=globalThis.requestAnimationFrame;
+  const start=new Date();start.setHours(9,0,0,0);
+  const item={id:'direct-actions',title:'Social',starts_at:start.toISOString(),ends_at:new Date(+start+3600000).toISOString(),category:'social',status:'planned'};
+  const calls=[];
+  globalThis.document={createElement:fakeElement};globalThis.requestAnimationFrame=(callback)=>callback();
+  globalThis.fetch=async()=>({ok:true,json:async()=>({items:[item],drafts:[]})});
+  try {
+    const root=await renderScheduleCalendar({editScheduleNotes:record=>calls.push(['notes',record]),editScheduleItem:record=>calls.push(['edit',record]),openScheduleOverrun:record=>calls.push(['overrun',record])},{balance:()=>fakeElement('div')});
+    await descendants(root).find(node=>node.textContent==='Today').onclick();
+    await descendants(root).find(node=>node.textContent==='Day').onclick();
+    const block=descendants(root).find(node=>node.className==='caltimed');assert.ok(block);
+    const menu=block.children[1];assert.equal(menu.hidden,true);
+    block.children[0].onclick();assert.equal(menu.hidden,false);assert.equal(block.children[0].attrs['aria-expanded'],'true');
+    for(const label of ['Add notes','Edit','Running over'])descendants(block).find(node=>node.textContent===label).onclick();
+    assert.deepEqual(calls,[['notes',item],['edit',item],['overrun',item]]);
+    for(const node of descendants(block).filter(node=>node.tagName==='button'))assert.equal(descendants(node).slice(1).some(child=>child.tagName==='button'),false);
+    assert.equal(descendants(block).some(node=>node.textContent==='Mark done'),false);
+    block.children[0].onclick();assert.equal(menu.hidden,true);
+    await descendants(root).find(node=>node.textContent==='List').onclick();
+    assert.ok(descendants(root).find(node=>node.className==='caleventrow').children[1].children.some(node=>node.textContent==='Add notes'));
   } finally {globalThis.document=previousDocument;globalThis.fetch=previousFetch;globalThis.requestAnimationFrame=previousFrame;}
 });

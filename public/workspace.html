@@ -350,7 +350,7 @@ const ctx = {
     if (badge) badge.textContent = Number.isFinite(limit) ? `${count}/${limit}` : `${count} projects`;
   },
   openTask, openApproval, newTask, openDeveloper, createDeveloper, returnToOwner,
-  newPlannerItem, openPlannerItem, openScheduleDay, openScheduleCategory, openScheduleStudio, openWeekRollover, reviewWeekDraft,
+  newPlannerItem, openPlannerItem, editScheduleNotes, openScheduleOverrun, editScheduleItem: (item) => plannerForm(item), openScheduleDay, openScheduleCategory, openScheduleStudio, openWeekRollover, reviewWeekDraft,
   setScheduleItems: (items) => { activeScheduleItems = Array.isArray(items) ? items : []; checkScheduleReminders(); },
 };
 
@@ -761,12 +761,29 @@ function reviewWeekDraft(draftId, items) {
   }
   openWeekDraft({ draft_id:draftId, period_label:items?.[0]?.period_label, items:items || [], summary:{ scheduled_minutes:scheduledMinutes, category_minutes:categoryMinutes, conflicts } });
 }
+function editScheduleNotes(item) {
+  const card=wizardShell('ACTIVITY NOTES', item.title, 'Add a location, details, or anything you want to remember.');
+  card.classList.add('compactwizard');
+  const form=document.createElement('form');form.className='schedulenotesform';
+  const notes=document.createElement('textarea');notes.value=item.notes || '';notes.maxLength=4000;
+  notes.placeholder='Notes, location, or what to remember';notes.setAttribute('aria-label',`Notes for ${item.title}`);
+  const save=document.createElement('button');save.type='submit';save.textContent='Save notes';
+  const cancel=document.createElement('button');cancel.type='button';cancel.textContent='Back to Schedule';cancel.onclick=()=>showView('planner');
+  const status=document.createElement('p');status.setAttribute('role','status');
+  form.append(notes,save,cancel,status);card.appendChild(form);
+  form.onsubmit=async(event)=>{
+    event.preventDefault();save.disabled=true;status.textContent='';
+    try {await postPlanner('update',{id:item.id,notes:notes.value});await showView('planner');}
+    catch(error){status.textContent=error.message;save.disabled=false;}
+  };
+  notes.focus();
+}
 function openPlannerItem(item) {
   const when = new Date(item.starts_at).toLocaleString([], { dateStyle:'full', timeStyle:item.all_day ? undefined : 'short' });
   detail(item.title, [when, item.notes, `${item.category || 'other'} · ${item.flexibility || 'fixed'}${item.protected ? ' · protected' : ''}${item.repeat_mode && item.repeat_mode !== 'none' ? ` · ${item.repeat_mode.replaceAll('_',' ')}` : ''}`, `Status: ${item.status || 'planned'}${item.source && item.source !== 'nex_chat' ? ` · From ${item.source}` : ''}`].filter(Boolean).join('\n\n'), [
     { label:'Edit', run:() => plannerForm(item) },
     ...(item.status === 'planned' && !item.all_day ? [{label:'Running over',run:()=>openScheduleOverrun(item)}] : []),
-    { label:item.status === 'done' ? 'Mark planned' : 'Mark done', run:async () => { await postPlanner('update', { id:item.id, status:item.status === 'done' ? 'planned' : 'done' }); await showView('planner'); } },
+    { label:item.notes ? 'Notes' : 'Add notes', run:() => editScheduleNotes(item) },
     { label:'Delete', run:async () => { if (!confirm(`Delete “${item.title}”? This can't be undone.`)) return; await postPlanner('delete', { id:item.id }); await showView('planner'); } },
   ], 'planner');
 }
@@ -774,7 +791,7 @@ function openScheduleOverrun(item) {
   const card=wizardShell('RUNNING OVER', `More time for ${item.title}?`, 'Extend this block and review shifts to flexible activities. Fixed and protected commitments stay put.');
   card.classList.add('compactwizard');
   choiceButtons(card,[['15','15 more minutes'],['30','30 more minutes'],['60','1 more hour'],['nex','Work it out with Nex'],['back','Back']],async(value,button)=>{
-    if(value==='back')return openPlannerItem(item);
+    if(value==='back')return showView('planner');
     if(value==='nex')return askFromView(`My activity ${item.title} (Schedule id ${item.id}) is running over. Read my schedule, ask how much extra time I need, then propose a revised path for the rest of the day. Preserve fixed and protected commitments. Show the proposed changes and get my approval before applying them.`);
     button.disabled=true;
     const oldEnd=item.ends_at ? Date.parse(item.ends_at) : Date.parse(item.starts_at)+3600000;
