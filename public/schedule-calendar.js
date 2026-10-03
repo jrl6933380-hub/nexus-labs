@@ -34,7 +34,7 @@ function button(text,action,label=text) { const element=node('button','',text);e
 const clock = (date) => date.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
 export async function renderScheduleCalendar(ctx, extras) {
   const root=node('section','nexcalendar');
-  let payload={items:[]}, requestId=0, search='';
+  let payload={items:[]}, requestId=0, search='', closeActivityActions=null;
   async function load() {
     const id=++requestId;
     root.setAttribute('aria-busy','true');
@@ -58,7 +58,7 @@ export async function renderScheduleCalendar(ctx, extras) {
     } finally {if(id === requestId) root.removeAttribute('aria-busy');}
   }
   function draw() {
-    root.replaceChildren();
+    closeActivityActions=null;root.replaceChildren();
     const items=(payload.items || []).filter((item) => item.status !== 'cancelled' && (!search || item.title.toLowerCase().includes(search.toLowerCase())));
     const toolbar=node('div','caltoolbar');
     const heading=node('h2','',state.date.toLocaleDateString('en-US',{month:'long',year:'numeric'}));
@@ -108,14 +108,30 @@ export async function renderScheduleCalendar(ctx, extras) {
     }
     root.append(grid,node('p','calhint','Tap a day to see its time slots.'));
   }
+  // Sibling controls keep actions on the block without nesting buttons.
+  function activityBlock(item, className, compact=false) {
+    const block=node('div',className);block.style.setProperty('--event',COLORS[item.category] || COLORS.other);
+    const main=button('',()=>{
+      const opening=actions.hidden;closeActivityActions?.();
+      actions.hidden=!opening;main.setAttribute('aria-expanded',String(opening));
+      block.classList.toggle('actionsopen',opening);
+      closeActivityActions=opening ? ()=>{actions.hidden=true;main.setAttribute('aria-expanded','false');block.classList.toggle('actionsopen',false);} : null;
+    },`${item.title}, activity actions`);main.className='calactivitymain';main.setAttribute('aria-expanded','false');
+    main.append(node('strong','',item.title),node('small','',item.all_day ? 'All day' : `${clock(new Date(item.starts_at))} – ${clock(endOf(item))}`));
+    const actions=node('div','calactivityactions');actions.hidden=true;
+    actions.append(button(item.notes ? 'Notes' : 'Add notes',()=>ctx.editScheduleNotes(item)),button('Edit',()=>ctx.editScheduleItem(item)));
+    if(item.status==='planned' && !item.all_day)actions.append(button('Running over',()=>ctx.openScheduleOverrun(item)));
+    actions.append(button('Details',()=>ctx.openPlannerItem(item)));
+    block.onkeydown=(event)=>{if(event.key==='Escape'){closeActivityActions?.();closeActivityActions=null;main.focus();}};
+    block.append(main,actions);if(compact)block.className+=' compactactivity';return block;
+  }
   function agenda(items) {
     const host=node('div','calagenda');root.append(host);let count=0;
     for(let i=0;i<30;i++) {
       const date=shift(state.date,i), events=calendarDayItems(items,date);if(!events.length)continue;count+=events.length;
       host.append(node('h3','',date.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'})));
       for(const item of events) {
-        const row=button('',()=>ctx.openPlannerItem(item));row.className='caleventrow';row.style.setProperty('--event',COLORS[item.category] || COLORS.other);
-        row.append(node('span','',`${item.status==='done' ? '✓ ' : ''}${item.title}`),node('small','',item.all_day ? 'All day' : `${clock(new Date(item.starts_at))} – ${clock(endOf(item))}${item.status==='draft' ? ' · draft' : ''}`));host.append(row);
+        host.append(activityBlock(item,'caleventrow'));
       }
     }
     if(!count)host.append(node('p','calempty',search ? 'No matching activities in this period.' : 'Your schedule is open. Tap + to add something, or plan with Nex.'));
@@ -125,7 +141,7 @@ export async function renderScheduleCalendar(ctx, extras) {
     const head=node('div','caldayheads');head.style.setProperty('--days',days.length);head.append(node('span','',''));
     for(const day of days)head.append(button(day.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}),()=>{state.date=day;state.mode='day';return load();}));root.append(head);
     const allDay=node('div','calallday');
-    for(const day of days) for(const item of calendarDayItems(items,day).filter((item)=>item.all_day)) allDay.append(button(`${day.toLocaleDateString('en-US',{weekday:'short'})} · ${item.title} · All day`,()=>ctx.openPlannerItem(item)));
+    for(const day of days) for(const item of calendarDayItems(items,day).filter((item)=>item.all_day)) allDay.append(activityBlock(item,'calalldayitem'));
     if(allDay.childNodes.length)root.append(allDay);
     const scroll=node('div','calhours');const grid=node('div','calhourgrid');grid.style.setProperty('--days',days.length);scroll.append(grid);root.append(scroll);
     const labels=node('div','calhourlabels');
@@ -138,14 +154,14 @@ export async function renderScheduleCalendar(ctx, extras) {
         slot.disabled=busy;if(busy){slot.classList.add('taken');slot.setAttribute('aria-label',`Taken hour ${hour%12 || 12} ${hour<12 ? 'AM' : 'PM'}`);}column.append(slot);
       }
       for(const entry of calendarLayout(items,day)) {
-        const {item}=entry;const event=button('',()=>ctx.openPlannerItem(item));event.className=`caltimed${item.status==='draft' ? ' draft' : ''}`;
+        const {item}=entry;const event=activityBlock(item,`caltimed${item.status==='draft' ? ' draft' : ''}`,(entry.end-entry.start)<45);
         event.style.cssText=`top:${entry.start/60*56}px;height:${Math.max(20,(entry.end-entry.start)/60*56)}px;left:calc(${entry.column/entry.columns*100}% + 2px);width:calc(${100/entry.columns}% - 4px);--event:${COLORS[item.category] || COLORS.other}`;
-        event.setAttribute('aria-label',`${item.title}, ${clock(new Date(item.starts_at))} to ${clock(endOf(item))}`);event.append(node('strong','',item.title),node('small','',clock(new Date(item.starts_at))));column.append(event);
+        column.append(event);
       }
       if(calendarKey(day)===calendarKey(new Date())) {const now=new Date();const line=node('div','calnow');line.style.top=`${(now.getHours()+now.getMinutes()/60)*56}px`;column.append(line);}
       grid.append(column);
     }
-    requestAnimationFrame(()=>{scroll.scrollTop=8*56;});root.append(node('p','calhint','Tap an open hour to add. Tap an activity to edit.'));
+    requestAnimationFrame(()=>{scroll.scrollTop=8*56;});root.append(node('p','calhint','Tap an open hour to add. Tap an activity for notes, editing, or more time.'));
   }
   await load();return root;
 }
