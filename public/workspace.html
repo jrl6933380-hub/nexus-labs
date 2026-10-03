@@ -300,6 +300,7 @@
 <script type="module">
 import { VIEWS, matchView, say, chips, esc, scheduleBalance } from '/workspace-views.js';
 import { NEX_CHAT_MODES } from '/nexus-product-catalog.js';
+import { dueScheduleReminders } from '/schedule-reminders.js';
 
 // Owner gate. The previous root page checked this before rendering anything, and
 // this shell now sits at the root, so it has to hold the same line — without it,
@@ -458,7 +459,9 @@ function plannerForm(item = null, preferredDate = '') {
   const field = (labelText, input) => { const label = document.createElement(input.tagName === 'DIV' ? 'div' : 'label'); label.textContent = labelText; label.appendChild(input); return label; };
   const title = document.createElement('input'); title.required = true; title.placeholder = 'What is happening?'; title.value = item?.title || '';
   const start = scheduleDateTime(localDateTime(base), 'Starts');
-  const end = scheduleDateTime(item?.ends_at ? localDateTime(new Date(item.ends_at)) : '', 'Ends', true);
+  const plannedMinutes = item?.ends_at ? Math.max(1,Math.round((Date.parse(item.ends_at)-Date.parse(item.starts_at))/60000)) : 60;
+  const duration = optionField('Planned duration', [...new Set([...scheduleDurations,plannedMinutes])].sort((a,b)=>a-b).map((value)=>[String(value),durationLabel(value)]), String(plannedMinutes));
+  const endReminder = optionField('Block-time reminder', [['no','Off'],['yes','Remind me when the planned time is up']], item?.end_reminder ? 'yes' : 'no');
   const notes = document.createElement('textarea'); notes.placeholder = 'Notes, location, or what to remember'; notes.value = item?.notes || '';
   const category = optionField('Category', scheduleCategories, item?.category || 'other');
   const kind = optionField('Type', [['time_block','Time block'],['event','Event'],['task','Task'],['reminder','Reminder']], item?.kind || 'time_block');
@@ -469,10 +472,10 @@ function plannerForm(item = null, preferredDate = '') {
   const protectedLabel = field('Protect this time', protectedInput); protectedLabel.style.display = 'flex'; protectedLabel.style.alignItems = 'center'; protectedLabel.style.gap = '9px'; protectedInput.style.width = 'auto';
   const save = document.createElement('button'); save.type = 'submit'; save.textContent = item ? 'Save changes' : 'Add to Schedule';
   const error = document.createElement('span'); error.setAttribute('role', 'status');
-  form.append(field('Title', title), category.label, field('Starts', start), field('Ends (optional)', end), kind.label, flexibility.label, repeat.label, reminder.label, protectedLabel, field('Notes (optional)', notes), save, error);
+  form.append(field('Title', title), category.label, field('Starts', start), duration.label, endReminder.label, kind.label, flexibility.label, repeat.label, reminder.label, protectedLabel, field('Notes (optional)', notes), save, error);
   form.onsubmit = async (event) => { event.preventDefault(); save.disabled = true; error.textContent = '';
     try {
-      const payload = { title:title.value.trim(), starts_at:new Date(start.value).toISOString(), ends_at:end.value ? new Date(end.value).toISOString() : null, notes:notes.value.trim(), category:category.select.value, kind:kind.select.value, flexibility:flexibility.select.value, repeat_mode:repeat.select.value, protected:protectedInput.checked, reminder_minutes:reminder.select.value === '' ? null : Number(reminder.select.value) };
+      const payload = { title:title.value.trim(), starts_at:new Date(start.value).toISOString(), ends_at:new Date(new Date(start.value).getTime()+Number(duration.select.value)*60000).toISOString(), end_reminder:endReminder.select.value==='yes', notes:notes.value.trim(), category:category.select.value, kind:kind.select.value, flexibility:flexibility.select.value, repeat_mode:repeat.select.value, protected:protectedInput.checked, reminder_minutes:reminder.select.value === '' ? null : Number(reminder.select.value) };
       await postPlanner(item ? 'update' : 'create', item ? { id:item.id, ...payload } : payload);
       if (item) await showView('planner'); else scheduleAdded(start.value.slice(0,10));
     } catch (failure) { error.textContent = failure.message; save.disabled = false; }
@@ -533,9 +536,11 @@ function openScheduleStudio(mode = 'block', preferredDate = '', preferredMinutes
   const name = document.createElement('input'); name.placeholder = 'What are you doing?';name.setAttribute('aria-label','Activity name');
   const form = document.createElement('div');form.className='schedulecompactform';card.appendChild(form);
   const category = optionField('Activity', scheduleCategories, 'work');
-  const duration = optionField('Duration', scheduleDurations.map((value)=>[String(value),durationLabel(value)]),'60');
+  const duration = optionField('Planned duration', scheduleDurations.map((value)=>[String(value),durationLabel(value)]),'60');
   const start = scheduleDateTime(localDateTime(base),'Start');
-  form.append(name,category.label,duration.label,start);
+  const endReminder=optionField('When the block time is up',[['no','No reminder'],['yes','Remind me in the app']],'no');
+  form.append(name,category.label,duration.label,start,endReminder.label);
+  const reminderHint=document.createElement('p');reminderHint.textContent='Optional reminders appear while Nexus is open.';form.appendChild(reminderHint);
   const options=document.createElement('details');options.className='scheduleoptions';
   const summary=document.createElement('summary');summary.textContent='Timing & protection';options.append(summary);
   const timing=optionField('Timing',[['fixed','Fixed time'],['flexible','Flexible · Nex may suggest a move']],'fixed');
@@ -550,7 +555,7 @@ function openScheduleStudio(mode = 'block', preferredDate = '', preferredMinutes
     button.disabled=true;status.textContent='Checking this time…';
     try {
       const starts=new Date(start.value);
-      const payload={title,category:category.select.value,starts_at:starts.toISOString(),ends_at:new Date(starts.getTime()+Number(duration.select.value)*60000).toISOString(),kind:'time_block',flexibility:timing.select.value,protected:protect.checked};
+      const payload={title,category:category.select.value,starts_at:starts.toISOString(),ends_at:new Date(starts.getTime()+Number(duration.select.value)*60000).toISOString(),kind:'time_block',flexibility:timing.select.value,protected:protect.checked,end_reminder:endReminder.select.value==='yes'};
       const check=await postPlanner('preview',payload);
       if(check.conflicts?.length) {
         status.textContent=`Overlaps ${check.conflicts.map((item)=>item.title).join(', ')}.`;button.disabled=false;
@@ -619,20 +624,21 @@ function openWeekStudio() {
       const name = document.createElement('input'); name.value = request.title; name.setAttribute('aria-label','Activity name'); section.appendChild(name);
       const category = optionField('Activity type', scheduleCategories, request.category); section.appendChild(category.label);
       const duration = optionField('Time per block', scheduleDurations.map((value) => [String(value),durationLabel(value)]), request.category === 'work' ? '480' : '60');
-      const timing = optionField('Placement', [['fixed','Start at this time'],['flexible','Find an opening in this range']], request.category === 'work' ? 'fixed' : 'flexible');
+      const timing = optionField('Placement', [['fixed','Start at this time'],['flexible','Find time after this start']], 'fixed');
       const from = optionField('Start time', clockOptions(), request.category === 'gym' ? '420' : '540');
-      const until = optionField('Available until', clockOptions(true), '1080');
+      const endReminder = optionField('Block-time reminder', [['no','Off'],['yes','Remind me in the app']], 'no');
       const count = optionField('Blocks to fit', Array.from({length:14}, (_,i) => [String(i+1),String(i+1)]), '1');
-      section.append(duration.label, timing.label, from.label, until.label, count.label);
+      section.append(duration.label, timing.label, from.label, count.label, endReminder.label);
+      const reminderHint=document.createElement('p');reminderHint.textContent='Optional reminders appear while Nexus is open.';section.appendChild(reminderHint);
       const selectedDays = new Set();
       choiceButtons(section, days.map((day) => [dateOnly(day),day.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})]), (value,button) => {
         selectedDays.has(value) ? selectedDays.delete(value) : selectedDays.add(value); button.classList.toggle('on',selectedDays.has(value)); refresh();
       });
       const explain = document.createElement('p'); explain.textContent = 'Choose days for this activity'; section.insertBefore(explain,section.querySelector('.schedulechoices'));
-      const refresh = () => { const fixed = timing.select.value === 'fixed'; until.label.hidden = fixed; count.label.hidden = fixed; from.label.firstChild.textContent = fixed ? 'Start time' : 'Available from'; summary.replaceChildren(); const title=document.createElement('strong');title.textContent=name.value || 'New activity'; const meta=document.createElement('small');meta.textContent=`${durationLabel(Number(duration.select.value))} · ${selectedDays.size ? `${selectedDays.size} day${selectedDays.size===1 ? '' : 's'}` : 'Choose days'} · ${fixed ? from.select.selectedOptions[0].textContent : 'Flexible'}`;summary.append(title,meta); };
+      const refresh = () => { const fixed = timing.select.value === 'fixed'; count.label.hidden = fixed; from.label.firstChild.textContent = 'Start time'; summary.replaceChildren(); const title=document.createElement('strong');title.textContent=name.value || 'New activity'; const meta=document.createElement('small');meta.textContent=`${durationLabel(Number(duration.select.value))} · ${selectedDays.size ? `${selectedDays.size} day${selectedDays.size===1 ? '' : 's'}` : 'Choose days'} · ${fixed ? from.select.selectedOptions[0].textContent : 'Flexible'}`;summary.append(title,meta); };
       section.addEventListener('input',refresh);section.addEventListener('change',refresh);
       timing.select.onchange = refresh; refresh();
-      const control = {request,name,category,duration,timing,from,until,count,selectedDays}; controls.push(control);
+      const control = {request,name,category,duration,timing,from,endReminder,count,selectedDays}; controls.push(control);
       if (controls.length===1) panel.open=true;
       choiceButtons(section, [['more','Add another time'],['remove','Remove this activity']], (value) => {
         if (value === 'more') return addActivity({...request,title:name.value});
@@ -649,18 +655,19 @@ function openWeekStudio() {
       for (const control of controls) {
         const minutes = Number(control.duration.select.value), start = Number(control.from.select.value);
         const fixed = control.timing.select.value === 'fixed';
-        const end = fixed ? start + minutes : Number(control.until.select.value);
-        if (!control.name.value.trim() || !control.selectedDays.size || end <= start || end > 1440) { status.textContent = 'Give each activity a name, days, and times that fit in the day.'; activities.children[controls.indexOf(control)].open=true; return; }
+        const end = fixed ? start + minutes : Math.max(1440,start+minutes);
+        if (!control.name.value.trim() || !control.selectedDays.size || end <= start ) { status.textContent = 'Give each activity a name and choose its days.'; activities.children[controls.indexOf(control)].open=true; return; }
         const activityWindows = days.filter((day) => control.selectedDays.has(dateOnly(day))).map((day) => {
-          const from = new Date(day), to = new Date(day); from.setMinutes(start); to.setMinutes(end);
+          const from = new Date(day); from.setMinutes(start);
+          const to = fixed ? new Date(from.getTime()+minutes*60000) : new Date(day); if(!fixed)to.setMinutes(end);
           return {starts_at:from.toISOString(),ends_at:to.toISOString()};
         });
-        scopedRequests.push({title:control.name.value.trim(),category:control.category.select.value,minutes,count:fixed ? activityWindows.length : Number(control.count.select.value),windows:activityWindows,flexibility:fixed ? 'fixed' : 'flexible'});
+        scopedRequests.push({title:control.name.value.trim(),category:control.category.select.value,minutes,count:fixed ? activityWindows.length : Number(control.count.select.value),windows:activityWindows,end_reminder:control.endReminder.select.value==='yes',flexibility:fixed ? 'fixed' : 'flexible'});
       }
       if (!scopedRequests.length) { status.textContent = 'Add at least one activity.'; return; }
       button.disabled = true; status.textContent = 'Finding openings…';
       try {
-        const draft = await postPlanner('generate_schedule_draft', {period_label:periodLabel,windows,requests:scopedRequests}); openWeekDraft(draft);
+        const draft = await postPlanner('generate_schedule_draft', {period_label:periodLabel,windows,requests:scopedRequests,allow_overnight:true}); openWeekDraft(draft);
       } catch (error) { button.disabled = false; status.textContent = error.message; }
     });
   }
@@ -686,7 +693,7 @@ async function openWeekRollover() {
 }
 function openWeekDraft(draft) {
   const period = draft.period_label || (draft.draft_id?.startsWith('auto-') ? 'your schedule' : 'next week');
-  const card = wizardShell('EDITABLE DRAFT', `Review ${period} before applying`, draft.items?.length ? `${draft.items.length} draft blocks. Tap any block to edit its time or details, then return to Schedule to review the draft.` : 'No blocks fit your available hours. Change your amounts or availability to try again.');
+  const card = wizardShell('EDITABLE DRAFT', `Review ${period} before applying`, draft.items?.length ? `${draft.items.length} draft blocks. Tap any block to edit its time or details, then return to Schedule to review the draft.` : 'No blocks fit after those start times. Try another start or duration.');
   if (draft.unplaced?.length) {
     const missing = document.createElement('p'); missing.textContent = `${draft.unplaced.length} sessions could not fit: ${draft.unplaced.map((item) => item.title).join(', ')}. They have not been scheduled.`; card.appendChild(missing);
   }
@@ -728,25 +735,52 @@ function openPlannerItem(item) {
   const when = new Date(item.starts_at).toLocaleString([], { dateStyle:'full', timeStyle:item.all_day ? undefined : 'short' });
   detail(item.title, [when, item.notes, `${item.category || 'other'} · ${item.flexibility || 'fixed'}${item.protected ? ' · protected' : ''}${item.repeat_mode && item.repeat_mode !== 'none' ? ` · ${item.repeat_mode.replaceAll('_',' ')}` : ''}`, `Status: ${item.status || 'planned'}${item.source && item.source !== 'nex_chat' ? ` · From ${item.source}` : ''}`].filter(Boolean).join('\n\n'), [
     { label:'Edit', run:() => plannerForm(item) },
+    ...(item.status === 'planned' && !item.all_day ? [{label:'Running over',run:()=>openScheduleOverrun(item)}] : []),
     { label:item.status === 'done' ? 'Mark planned' : 'Mark done', run:async () => { await postPlanner('update', { id:item.id, status:item.status === 'done' ? 'planned' : 'done' }); await showView('planner'); } },
     { label:'Delete', run:async () => { if (!confirm(`Delete “${item.title}”? This can't be undone.`)) return; await postPlanner('delete', { id:item.id }); await showView('planner'); } },
   ], 'planner');
 }
+function openScheduleOverrun(item) {
+  const card=wizardShell('RUNNING OVER', `More time for ${item.title}?`, 'Extend this block and review shifts to flexible activities. Fixed and protected commitments stay put.');
+  card.classList.add('compactwizard');
+  choiceButtons(card,[['15','15 more minutes'],['30','30 more minutes'],['60','1 more hour'],['nex','Work it out with Nex'],['back','Back']],async(value,button)=>{
+    if(value==='back')return openPlannerItem(item);
+    if(value==='nex')return askFromView(`My activity ${item.title} (Schedule id ${item.id}) is running over. Read my schedule, ask how much extra time I need, then propose a revised path for the rest of the day. Preserve fixed and protected commitments. Show the proposed changes and get my approval before applying them.`);
+    button.disabled=true;
+    const oldEnd=item.ends_at ? Date.parse(item.ends_at) : Date.parse(item.starts_at)+3600000;
+    const end=new Date(Math.max(oldEnd,Date.now())+Number(value)*60000);
+    const boundary=new Date(oldEnd);boundary.setHours(24,0,0,0);
+    const params={id:item.id,ends_at:end.toISOString(),day_end:boundary.toISOString()};
+    try {
+      const proposal=await postPlanner('adjust_overrun',params);
+      const review=wizardShell('REVIEW ADJUSTMENT','Here’s the new plan',proposal.conflicts.length || proposal.unresolved.length ? 'Some commitments need your decision. Nex can help resolve them.' : 'Only flexible activities move. Apply when this works for you.');review.classList.add('compactwizard');
+      for(const change of proposal.changes) {
+        const row=document.createElement('p');
+        const time=(value)=>new Date(value).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+        row.textContent=change.after.id===item.id ? `${change.after.title}: ${durationLabel(Math.round((Date.parse(change.after.ends_at)-Date.parse(change.after.starts_at))/60000))} planned` : `${change.after.title}: ${time(change.before.starts_at)} → ${time(change.after.starts_at)}`;review.appendChild(row);
+      }
+      for(const conflict of proposal.conflicts){const row=document.createElement('p');row.textContent=`Overlap: ${conflict.items.map((record)=>record.title).join(' / ')}`;review.appendChild(row);}
+      for(const unresolved of proposal.unresolved){const row=document.createElement('p');row.textContent=`No opening today: ${unresolved.title}`;review.appendChild(row);}
+      choiceButtons(review,[...(proposal.conflicts.length || proposal.unresolved.length ? [] : [['apply','Apply adjustment']]),['only','Just extend this block'],['nex','Adjust with Nex'],['back','Cancel']],async(action,control)=>{
+        if(action==='back')return openPlannerItem(item);
+        if(action==='nex')return askFromView(`My ${item.title} block (id ${item.id}) needs to run until ${params.ends_at}. Read my schedule and scope a revised day with me. Fixed/protected conflicts: ${proposal.conflicts.flatMap((conflict)=>conflict.items.map((record)=>record.title)).join(', ') || 'none'}. Show proposed shifts and ask approval before changing anything.`);
+        control.disabled=true;
+        try{if(action==='only')await postPlanner('update',{id:item.id,ends_at:params.ends_at});else await postPlanner('adjust_overrun',{...params,apply:true,baseline:proposal.baseline});await showView('planner');}catch(error){control.disabled=false;actionError(error);}
+      });
+    }catch(error){button.disabled=false;actionError(error);}
+  });
+}
 function checkScheduleReminders() {
-  const now = Date.now();
-  for (const item of activeScheduleItems) {
-    if (item.status !== 'planned' || item.reminder_minutes == null) continue;
-    const startsAt = Date.parse(item.starts_at);
-    const reminderAt = startsAt - Number(item.reminder_minutes) * 60000;
-    const key = `${item.id}:${startsAt}`;
-    if (deliveredScheduleReminders.has(key) || now < reminderAt || now > startsAt + 300000) continue;
-    deliveredScheduleReminders.add(key);
+  if(document.querySelector('.scheduletoast'))return;
+  for(const {item,kind,key,start} of dueScheduleReminders(activeScheduleItems,Date.now(),deliveredScheduleReminders).slice(0,1)) {
+    const endDue=kind==='end';deliveredScheduleReminders.add(key);
     document.querySelector('.scheduletoast')?.remove();
-    const toast = document.createElement('div'); toast.className = 'scheduletoast';
-    const title = document.createElement('strong'); title.textContent = item.title;
-    const timing = document.createElement('span'); timing.textContent = item.all_day ? 'Scheduled for today' : `Starts ${new Date(startsAt).toLocaleTimeString([], { hour:'numeric', minute:'2-digit' })}`;
-    const close = document.createElement('button'); close.textContent = '×'; close.setAttribute('aria-label', 'Dismiss reminder'); close.onclick = () => toast.remove();
-    toast.append(title, timing, close); document.body.appendChild(toast);
+    const toast=document.createElement('div');toast.className='scheduletoast';
+    const title=document.createElement('strong');title.textContent=item.title;
+    const timing=document.createElement('span');timing.textContent=endDue ? 'Your planned block time is up. Keep going if you need to.' : `Starts ${new Date(start).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}`;
+    toast.append(title,timing);
+    if(endDue){const adjust=document.createElement('button');adjust.textContent='Running over';adjust.className='scheduleextend';adjust.onclick=()=>{toast.remove();openScheduleOverrun(item);};toast.appendChild(adjust);}
+    const close=document.createElement('button');close.textContent='×';close.setAttribute('aria-label','Dismiss reminder');close.onclick=()=>toast.remove();toast.appendChild(close);document.body.appendChild(toast);
   }
 }
 setInterval(checkScheduleReminders, 30000);

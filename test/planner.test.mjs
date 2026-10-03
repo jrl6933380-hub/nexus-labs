@@ -157,3 +157,54 @@ test('fixed activity conflicts are reported instead of moving the activity to an
   assert.equal(draft.unplaced.length,1);
   assert.equal((await store.listPlannerItems()).length,1);
 });
+
+test('planned-time reminders persist through edits and generation', async()=>{
+  const store=testStore();
+  const item=await store.createPlannerItem({title:'Focus',starts_at:'2026-10-05T09:00:00Z',ends_at:'2026-10-05T10:00:00Z',end_reminder:true});
+  assert.equal((await store.updatePlannerItem({id:item.id,title:'Focus work'})).end_reminder,true);
+  const draft=await store.generateScheduleDraft({windows:[{starts_at:'2026-10-06T00:00:00Z',ends_at:'2026-10-07T00:00:00Z'}],requests:[{title:'Gym',minutes:60,count:1,end_reminder:true}]});
+  assert.equal(draft.items[0].end_reminder,true);
+  assert.equal((await store.updatePlannerItem({id:item.id,end_reminder:false})).end_reminder,false);
+});
+test('overruns preview cascading flexible shifts, preserve protected time, and apply only an unchanged review',async()=>{
+  const store=testStore();
+  const work=await store.createPlannerItem({title:'Work',starts_at:'2026-10-05T09:00:00Z',ends_at:'2026-10-05T10:00:00Z'});
+  const gym=await store.createPlannerItem({title:'Gym',starts_at:'2026-10-05T10:00:00Z',ends_at:'2026-10-05T11:00:00Z',flexibility:'flexible'});
+  const family=await store.createPlannerItem({title:'Family',starts_at:'2026-10-05T11:00:00Z',ends_at:'2026-10-05T12:00:00Z',flexibility:'flexible'});
+  const fixed=await store.createPlannerItem({title:'Appointment',starts_at:'2026-10-05T12:00:00Z',ends_at:'2026-10-05T13:00:00Z',protected:true});
+  const params={id:work.id,ends_at:'2026-10-05T10:30:00Z',day_end:'2026-10-06T00:00:00Z'};
+  const proposal=await store.adjustScheduleOverrun(params);
+  assert.equal(proposal.applied,false);assert.equal(proposal.conflicts.length,0);
+  assert.equal((await store.listPlannerItems()).find((item)=>item.id===gym.id).starts_at,gym.starts_at);
+  assert.equal(proposal.changes.find(({after})=>after.id===gym.id).after.starts_at,'2026-10-05T10:30:00.000Z');
+  assert.equal(proposal.changes.find(({after})=>after.id===family.id).after.starts_at,'2026-10-05T13:00:00.000Z');
+  assert.ok(!proposal.changes.some(({after})=>after.id===fixed.id));
+  assert.equal((await store.adjustScheduleOverrun({...params,baseline:proposal.baseline,apply:true})).applied,true);
+  await assert.rejects(()=>store.adjustScheduleOverrun({...params,ends_at:'2026-10-05T11:00:00Z',baseline:proposal.baseline,apply:true}),/schedule changed/);
+  await assert.rejects(()=>store.adjustScheduleOverrun(params,'room:other'),/not found/i);
+});
+test('fixed conflicts and insufficient room prevent applying an overrun adjustment',async()=>{
+  const store=testStore();
+  const activity=await store.createPlannerItem({title:'Social',starts_at:'2026-10-05T20:00:00Z',ends_at:'2026-10-05T21:00:00Z'});
+  await store.createPlannerItem({title:'Protected',starts_at:'2026-10-05T21:00:00Z',ends_at:'2026-10-05T22:00:00Z',flexibility:'flexible',protected:true});
+  const params={id:activity.id,ends_at:'2026-10-05T21:30:00Z',day_end:'2026-10-06T00:00:00Z'};
+  const preview=await store.adjustScheduleOverrun(params);assert.equal(preview.conflicts.length,1);
+  await assert.rejects(()=>store.adjustScheduleOverrun({...params,baseline:preview.baseline,apply:true}),/remaining conflicts/);
+  assert.equal((await store.listPlannerItems()).find((item)=>item.id===activity.id).ends_at,activity.ends_at);
+});
+test('late starts and durations can cross midnight without requiring a finish input',async()=>{
+  const store=testStore();
+  const request={title:'Night shift',minutes:480,count:1,windows:[{starts_at:'2026-10-05T20:00:00Z',ends_at:'2026-10-06T04:00:00Z'}]};
+  const input={windows:[{starts_at:'2026-10-05T00:00:00Z',ends_at:'2026-10-06T00:00:00Z'}],requests:[request]};
+  await assert.rejects(()=>store.generateScheduleDraft(input),/fit within/);
+  const preview=await store.generateScheduleDraft({...input,allow_overnight:true});assert.equal(preview.items[0].ends_at,'2026-10-06T04:00:00.000Z');
+});
+test('an overrun with no remaining room leaves the schedule unchanged',async()=>{
+  const store=testStore();
+  const work=await store.createPlannerItem({title:'Work',starts_at:'2026-10-05T22:00:00Z',ends_at:'2026-10-05T23:00:00Z'});
+  const next=await store.createPlannerItem({title:'Rest',starts_at:'2026-10-05T23:00:00Z',ends_at:'2026-10-06T00:00:00Z',flexibility:'flexible'});
+  const params={id:work.id,ends_at:'2026-10-05T23:30:00Z',day_end:'2026-10-06T00:00:00Z'};
+  const preview=await store.adjustScheduleOverrun(params);assert.equal(preview.unresolved[0].id,next.id);
+  await assert.rejects(()=>store.adjustScheduleOverrun({...params,apply:true,baseline:preview.baseline}),/remaining conflicts/);
+  assert.equal((await store.listPlannerItems()).find((item)=>item.id===next.id).starts_at,next.starts_at);
+});

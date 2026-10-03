@@ -80,6 +80,7 @@ import {
   getScheduleOverview,
   createWeekDraft,
   generateScheduleDraft,
+  adjustScheduleOverrun,
   applyWeekDraft,
   discardWeekDraft,
 } from '../lib/planner.js';
@@ -125,6 +126,7 @@ async function handlePlanner(req, res) {
       if (action === 'update') return res.status(200).json({ item: await updatePlannerItem(params, scheduleUserId) });
       if (action === 'delete') return res.status(200).json({ deleted: await deletePlannerItem(params.id, scheduleUserId) });
       if (action === 'create_week_draft') return res.status(200).json(await createWeekDraft(params, scheduleUserId));
+      if (action === 'adjust_overrun') return res.status(200).json(await adjustScheduleOverrun(params, scheduleUserId));
       if (action === 'generate_schedule_draft') return res.status(200).json(await generateScheduleDraft(params, scheduleUserId));
       if (action === 'apply_week_draft') return res.status(200).json(await applyWeekDraft(params.draft_id, scheduleUserId));
       if (action === 'discard_week_draft') return res.status(200).json(await discardWeekDraft(params.draft_id, scheduleUserId));
