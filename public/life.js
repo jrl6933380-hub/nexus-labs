@@ -6,6 +6,13 @@ const button=(text,run)=>{const el=node('button',text);el.type='button';el.oncli
 const field=(label,input)=>{const el=node('label',label);el.append(input);return el;};
 const local=(date)=>`${calendarKey(date)}T${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
 const clock=(date)=>new Date(date).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
+const ENERGY=['Very draining','Draining','Neutral','Energizing','Very energizing'];
+export function lifeExperience(item){
+  if(item.kind!=='activity')return item.status==='done' ? 'Completed' : '';
+  const parts=[item.outcome==='happened' ? 'It happened' : item.outcome==='missed' ? 'Did not happen' : 'Not checked in yet'];
+  if(item.energy!=null)parts.push(`${item.energy}/5 · ${ENERGY[item.energy-1]}`);
+  return parts.join(' · ');
+}
 function select(values,value){const el=node('select');for(const [key,label] of values){const option=node('option',label);option.value=String(key);el.append(option);}el.value=String(value);return el;}
 async function api(action,input={}){const response=await fetch('/api/life',{credentials:'include',...(action ? {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...input})} : {})});const data=await response.json();if(!response.ok)throw new Error(data.error || 'Could not save Life');return data;}
 export function lifeWeekItems(items,day){const from=new Date(day);from.setHours(0,0,0,0);from.setDate(from.getDate()-((from.getDay()+6)%7));const to=new Date(from);to.setDate(to.getDate()+7);return items.filter(item=>item.starts_at && Date.parse(item.starts_at)<+to && Date.parse(item.ends_at)>+from);}
@@ -21,6 +28,7 @@ export async function renderLife(ctx){
     if(!data.profile.onboarded){const welcome=node('div',undefined,'lifewelcome');welcome.append(node('h3','Start with what matters to you.'),node('p','Choose a few priorities, or jump straight into your day. You can change them anytime.'),button('Choose my priorities',preferences),button('Skip for now',async()=>{await api('profile',{focus:[]});await load();}));root.append(welcome);}
     if(state.tab==='calendar'){
       const calendar=await renderScheduleCalendar({calendarState:state,calendarEndpoint:'/api/life',calendarSubject:'Life plan',detailsLabel:'Check in',balanceLabel:'Your rhythm',weekLabel:'Design next week',
+        activitySummary:lifeExperience,activityTitle:item=>`${item.title}${item.outcome==='happened' ? ' · ✓' : item.outcome==='missed' ? ' · Did not happen' : ''}${item.energy!=null ? ` · ${item.energy}/5` : ''}`,activityActions:quickCheckIn,
         openScheduleStudio:(_mode,day,minutes)=>_mode==='week' ? askNex('Help me design a balanced Life week. Read my priorities, Life records, and Nex Schedule. Show relevant clickable choices and preview conflicts before linking anything.') : form(null,'activity',day,minutes),
         editScheduleItem:item=>form(item,item.kind==='reminder' ? 'reservation' : 'activity'),editScheduleNotes:item=>form(item),openPlannerItem:item=>item.kind==='reminder' ? form(item) : checkIn(item),detailsLabelFor:item=>item.kind==='reminder' ? 'Reminder' : 'Check in',
         openScheduleOverrun:item=>askNex(`Life activity ${item.id}, ${item.title}, is running over. Ask how much time I need. Read Life and Nex Schedule, preserve protected commitments, and preview any changes before I approve them.`),
@@ -34,11 +42,28 @@ export async function renderLife(ctx){
     const card=node('article',undefined,'lifeactivity');card.style.setProperty('--pillar',PILLARS.find(([key])=>key===item.pillar)?.[2]);
     card.append(node('small',`${PILLARS.find(([key])=>key===item.pillar)?.[1]} · ${item.link_missing ? 'Nex link is missing' : item.link ? 'Linked to Nex' : 'Life only'}`),node('h3',item.title));
     card.append(node('p',item.starts_at ? `${clock(item.starts_at)} – ${clock(item.ends_at)}` : item.due_date || 'No date'));
+    const experience=node('p',lifeExperience(item),'lifeexperience');experience.setAttribute('role','status');card.append(experience);
+    if(item.outcome==='happened' && item.actual_starts_at && item.actual_ends_at)card.append(node('p',`Actual time: ${clock(item.actual_starts_at)} – ${clock(item.actual_ends_at)}`));
     if(item.person || item.place)card.append(node('p',[item.person,item.place].filter(Boolean).join(' · ')));
     if(item.reflection)card.append(node('p',item.reflection,'lifereflection'));
     const actions=node('div',undefined,'lifeactions');actions.append(button('Edit plan',()=>form(item)),button(item.kind==='activity' ? 'How was it?' : item.status==='done' ? 'Reopen' : 'Done',()=>item.kind==='activity' ? checkIn(item) : complete(item)));
     if(item.kind==='reminder' && item.status!=='done')actions.append(button(item.starts_at ? 'Change reserved time' : 'Find time in Life',()=>form(item,'reservation')));
-    if(item.memory_url){const link=node('a','Open memory');link.href=item.memory_url;link.target='_blank';link.rel='noopener noreferrer';actions.append(link);}card.append(actions);return card;
+    if(item.memory_url){const link=node('a','Open memory');link.href=item.memory_url;link.target='_blank';link.rel='noopener noreferrer';actions.append(link);}card.append(actions,...quickCheckIn(item));return card;
+  }
+  function quickCheckIn(item){
+    if(item.kind!=='activity')return [];
+    const choices=node('div',undefined,'lifeactions lifequickcheck');choices.setAttribute('aria-label',`Check in for ${item.title}`);
+    for(const [value,label] of [['happened','It happened'],['missed','Did not happen']]){
+      const choice=button(label,()=>saveQuick({outcome:value},choice));choice.setAttribute('aria-pressed',String(item.outcome===value));choices.append(choice);
+    }
+    const ratings=node('details',undefined,'lifeenergypicker');ratings.append(node('summary',item.energy!=null ? 'Change energy rating' : 'How did it feel?'));
+    const options=node('div',undefined,'lifeactions');
+    for(const [value,label] of [...ENERGY.map((label,index)=>[index+1,`${index+1} · ${label}`]),[null,'Clear energy rating']]){
+      const choice=button(label,()=>saveQuick({energy:value},choice));choice.setAttribute('aria-pressed',String(value===item.energy));options.append(choice);
+    }
+    ratings.append(options);
+    async function saveQuick(values,control){control.disabled=true;try{await api('check_in',{id:item.id,...values});await load();}catch(error){control.disabled=false;errorBox(error);}}
+    return [choices,ratings];
   }
   function today(){
     const date=calendarKey(new Date()),activities=calendarDayItems(data.items.filter(item=>item.starts_at && item.status!=='done'),new Date()).sort((a,b)=>Date.parse(a.starts_at)-Date.parse(b.starts_at));
