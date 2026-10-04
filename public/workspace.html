@@ -232,14 +232,16 @@
 <link rel="stylesheet" href="/schedule-calendar.css">
 <link rel="stylesheet" href="/reminders.css">
 <link rel="stylesheet" href="/life.css">
+<link rel="stylesheet" href="/nexus-messages.css">
 <link rel="stylesheet" href="/ux.css" />
 </head>
 <body>
 
 <nav class="rail" id="rail">
-  <div class="brand"><span class="brandmark">N</span><span class="brandcopy"><span class="brandname">Nex Chat</span><span class="brandmeta">Founder workspace</span></span></div>
-  <button class="new" id="newBtn">＋&nbsp; New chat</button>
-  <button class="item on" data-view="chat"><span class="ic">✦</span>Chat</button>
+  <div class="brand"><span class="brandmark">N</span><span class="brandcopy"><span class="brandname">Nexus Messages</span><span class="brandmeta">Your intelligent workspace</span></span></div>
+  <button class="new" id="newBtn">＋&nbsp; New conversation</button>
+  <button class="item on" data-view="messages"><span class="ic">✦</span>Messages</button>
+  <div class="grp">Nexus spaces</div>
   <button class="item" data-view="reminders"><span class="ic">◉</span>Reminders</button>
   <button class="item" data-view="planner"><span class="ic">▤</span>Schedule</button>
   <button class="item" data-view="workbench"><span class="ic">▦</span>Projects<span class="badgeplan" id="projectPlanBadge">10 projects</span></button>
@@ -262,7 +264,7 @@
 <div class="screen" id="screen">
   <div class="top">
     <button class="burger" id="burger" aria-label="Menu"><i></i><i></i><i></i></button>
-    <div class="viewcopy"><div class="vt" id="viewTitle">Nex Chat</div><div class="vsub" id="viewSubtitle">Your connected AI</div></div>
+    <div class="viewcopy"><div class="vt" id="viewTitle">Messages</div><div class="vsub" id="viewSubtitle">One intelligence. A team when you need one.</div></div>
     <div class="grow"></div>
     <button class="ticon" id="headBtn" aria-label="Nex">◉</button>
     <button class="ticon" id="newTop" aria-label="New">＋</button>
@@ -339,9 +341,11 @@ const screenEl = el('screen');
 // ---------------------------------------------------------------------------
 // Shell state
 // ---------------------------------------------------------------------------
-let currentView = 'chat';
+let currentView = 'messages';
 let busy = false;
 let threadId = null;
+let activeConversation = null;
+let messagesStartNew = false;
 const history = [];
 let activeScheduleItems = [];
 const deliveredScheduleReminders = new Set();
@@ -349,6 +353,11 @@ const deliveredScheduleReminders = new Set();
 const ctx = {
   ask: (text) => askFromView(text),
   go: (id) => showView(id),
+  openConversation: (conversation,fresh=false) => openMessagesConversation(conversation,fresh),
+  openSystem: (id) => { activeConversation=null; showView(id); },
+  openThread: (record) => openThread(record),
+  recentThreads: () => recentThreads,
+  consumeMessagesNew: () => { const value=messagesStartNew;messagesStartNew=false;return value; },
   openWorkbenchPanel: (buildId, mode = 'preview') => location.assign(`/forge.html?surface=workbench&view=${mode === 'edit' ? 'chat' : 'preview'}&build=${encodeURIComponent(buildId)}`),
   newWorkbenchPanel: () => location.assign('/forge.html?surface=workbench&view=chat&new=1'),
   setProjectUsage: (count, limit) => {
@@ -926,7 +935,7 @@ screenEl.addEventListener('click', (e) => {
 // Rail entries are generated from the view table, so the menu can never offer
 // somewhere that doesn't exist or miss somewhere that does.
 const productViews = new Set(['life', 'legacy', 'teams']);
-const hiddenViews = new Set(['workbench', 'planner', 'reminders', 'skills']);
+const hiddenViews = new Set(['messages','workbench', 'planner', 'reminders', 'skills']);
 const makeNav = (id, view, host) => {
   const button = document.createElement('button');
   button.className = 'item';
@@ -971,14 +980,14 @@ async function showView(id){
   document.body.dataset.view = id;
   el('input').placeholder = id === 'planner' ? 'Ask Nex about your schedule…' : id === 'reminders' ? 'Ask Nex about your reminders…' : id === 'life' ? 'Talk with Nex about your life…' : 'Ask Nex anything…';
   railOpen(false);
-  if (!['chat', 'workbench', 'planner', 'reminders', 'life', 'legacy', 'teams', 'skills'].includes(id)) {
+  if (!['messages','chat', 'workbench', 'planner', 'reminders', 'life', 'legacy', 'teams', 'skills'].includes(id)) {
     document.querySelector('.ops').open = true;
   }
   for (const button of document.querySelectorAll('[data-view]')) {
     button.classList.toggle('on', button.dataset.view === id);
   }
-  el('viewTitle').textContent = id === 'chat' ? 'Nex Chat' : VIEWS[id].label;
-  el('viewSubtitle').textContent = id === 'workbench' ? 'Your websites, apps, and tools' : id === 'chat' ? 'What would you like to do?' : 'Nex can help you here';
+  el('viewTitle').textContent = id === 'chat' ? (activeConversation?.name || activeConversation?.title || 'Nex') : VIEWS[id].label;
+  el('viewSubtitle').textContent = id === 'workbench' ? 'Your websites, apps, and tools' : id === 'messages' ? 'One intelligence. A team when you need one.' : id === 'chat' ? conversationSubtitle() : 'Nex can help you here';
 
   if (id === 'chat') { replayThread(); return; }
 
@@ -998,10 +1007,54 @@ async function showView(id){
 
 function replayThread(){
   thread.innerHTML = '';
-  if (!history.length) { greet(); return; }
+  renderConversationBanner();
+  if (!history.length) { conversationGreeting(); return; }
   for (const message of history) {
     if (message.role === 'user') bubble('u', esc(message.content));
     else bubble('a', paragraphs(message.content));
+  }
+}
+function conversationSubtitle(){
+  if(activeConversation?.kind==='specialist')return `${activeConversation.role || 'Specialist'} · ${activeConversation.scopes?.map(scope=>scope==='conversation'?'this chat':scope).join(', ') || 'this chat'}`;
+  if(activeConversation?.kind==='group')return `Nex + ${(activeConversation.members || []).map(member=>typeof member==='string'?member:member.name).join(' + ')}`;
+  return 'Your main intelligence';
+}
+function renderConversationBanner(){
+  if(!activeConversation || activeConversation.kind==='nex')return;
+  const banner=document.createElement('div');banner.className='conversationbanner';
+  const mark=document.createElement('span');mark.className=`messageavatar ${activeConversation.role || activeConversation.kind}`;mark.textContent=(activeConversation.name || activeConversation.title || '+').slice(0,1).toUpperCase();
+  const copy=document.createElement('div');const title=document.createElement('strong');title.textContent=activeConversation.name || activeConversation.title;const detail=document.createElement('span');detail.textContent=activeConversation.kind==='specialist'?activeConversation.job:'Nex coordinates this shared conversation';copy.append(title,detail);
+  if(activeConversation.kind==='group'){const chips=document.createElement('div');chips.className='participantchips';for(const name of ['Nex',...(activeConversation.members || []).map(member=>typeof member==='string'?member:member.name)]){const chip=document.createElement('i');chip.textContent=name;chips.append(chip);}copy.append(chips);}
+  banner.append(mark,copy);thread.append(banner);
+}
+function conversationGreeting(){
+  if(activeConversation?.kind==='specialist'){
+    bubble('a',`<p>I'm ${esc(activeConversation.name)}, your ${esc(activeConversation.role || 'specialist')} specialist. My job is ${esc(activeConversation.job)}.</p><p>What should I take on?</p>`);
+    thread.appendChild(chips([
+      {label:'Give me a task',run:()=>{el('input').value='I need you to help with ';el('input').focus();}},
+      {label:'What can you help with?',run:()=>{el('input').value='Show me what you can help with in this role.';submit();}},
+    ]));return;
+  }
+  if(activeConversation?.kind==='group'){
+    bubble('a',`<p>Nex here. I'll coordinate ${esc((activeConversation.members || []).map(member=>typeof member==='string'?member:member.name).join(' and '))} in this conversation and keep the handoffs clear.</p><p>What are we working on?</p>`);
+    thread.appendChild(chips([
+      {label:'Assign a project',run:()=>{el('input').value='I need this group to work together on ';el('input').focus();}},
+      {label:'Review the team',run:()=>{el('input').value='Explain each specialist’s role in this group.';submit();}},
+    ]));return;
+  }
+  greet();
+}
+function renderResponseActions(data){
+  const options=data.question?.options?.length?data.question.options:data.suggestedReplies;
+  if(Array.isArray(options) && options.length)thread.appendChild(chips(options.slice(0,4).map(label=>({label,run:()=>{el('input').value=label;submit();}}))));
+  if(data.pendingApproval){
+    const card=document.createElement('section');card.className='approvalcard';
+    const title=document.createElement('strong');title.textContent='Your approval is needed';
+    const copy=document.createElement('p');copy.textContent=data.pendingApproval.description || 'Review this action before Nex continues.';
+    const approve=document.createElement('button');approve.type='button';approve.className='uxprimary';approve.textContent=data.pendingApproval.label || 'Approve';
+    const status=document.createElement('p');status.setAttribute('role','status');
+    approve.onclick=async()=>{approve.disabled=true;try{const response=await fetch('/api/queue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:data.pendingApproval.id,action:'approve'})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error || 'Approval failed');status.textContent='Approved. Nex can continue.';}catch(error){status.textContent=friendlyError(error,{subject:'this approval'});approve.disabled=false;}};
+    card.append(title,copy,approve,status);thread.append(card);
   }
 }
 
@@ -1091,9 +1144,19 @@ async function openThread(record){
     }
   }
   threadId = record.id;
+  activeConversation = {kind:'nex',name:'Nex'};
   history.length = 0;
   for (const message of messages) history.push(message);
   showView('chat');
+}
+async function openMessagesConversation(conversation,fresh=false){
+  activeConversation=conversation?.kind==='nex'?{kind:'nex',name:'Nex'}:conversation;
+  threadId=['specialist','group'].includes(conversation?.kind)?conversation.id:fresh?`t${Date.now().toString(36)}`:'nex-main';
+  history.length=0;
+  if(!fresh){
+    try{const response=await fetch(`/api/chat?threadId=${encodeURIComponent(threadId)}`,{headers:{Accept:'application/json'},cache:'no-store'});const data=await response.json().catch(()=>({}));if(response.ok)for(const message of data.messages || [])history.push(message);}catch{}
+  }
+  await showView('chat');
 }
 function drawRecents(){
   const threads = recentThreads, host = el('recents');
@@ -1153,6 +1216,7 @@ async function submit(){
     pending.innerHTML = paragraphs(reply);
     history.push({ role:'user', content:raw }, { role:'assistant', content:reply });
     saveThread();
+    renderResponseActions(data);
     // Nex asking the workspace to move is honoured as a view switch, not a page load.
     const wanted = data.navigation?.room || data.navigation?.url;
     if (wanted) {
@@ -1171,6 +1235,7 @@ function workspaceContext() {
     .filter((node) => !node.closest('.secret-card'));
   const mode = currentView === 'workbench' ? 'workbench' : 'chat';
   return { active_view: `${location.pathname}#${currentView}`, mode, build_tools: NEX_CHAT_MODES[mode].buildTools,
+    conversation: activeConversation && ['specialist','group'].includes(activeConversation.kind) ? {kind:activeConversation.kind,id:activeConversation.id} : null,
     screen: { title: currentView === 'chat' ? 'Nex Chat' : VIEWS[currentView].label,
       viewport_text: visible.map((node) => node.innerText).filter(Boolean).slice(0, 30),
       controls: [...thread.querySelectorAll('button')].filter((node) => !node.closest('.secret-card'))
@@ -1204,7 +1269,7 @@ el('plannerQuickBtn').onclick = () => showView('planner');
 el('projectsQuickBtn').onclick = () => showView('workbench');
 el('connectedQuickBtn').onclick = showConnectedActions;
 el('newBtn').onclick = el('newTop').onclick = () => {
-  history.length = 0; threadId = null; railOpen(false); showView('chat');
+  messagesStartNew=true;activeConversation=null;history.length=0;threadId=null;railOpen(false);showView('messages');
 };
 el('ownerBriefBtn').onclick = () => {
   document.querySelector('.ops').open = true;
@@ -1309,7 +1374,7 @@ el('dockInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') el('
 
 const requestedView = new URLSearchParams(location.search).get('view');
 await loadThreads();
-await showView(requestedView && VIEWS[requestedView] ? requestedView : 'chat');
+await showView(requestedView && VIEWS[requestedView] ? requestedView : 'messages');
 startReminderAlerts(()=>showView('reminders'));
 startReminderAlerts(()=>showView('life'),{endpoint:'/api/life?alerts=1'});
 </script>

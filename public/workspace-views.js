@@ -19,6 +19,7 @@ import { NEXUS_PRODUCTS, NEX_CHAT_PLANS } from './nexus-product-catalog.js';
 import { renderLife } from './life.js';
 import { renderReminders } from './reminders.js';
 import { renderScheduleCalendar } from './schedule-calendar.js';
+import { renderMessages } from './nexus-messages.js';
 import { friendlyError } from './ux.js';
 
 export function primaryAction(label,run){const button=document.createElement('button');button.type='button';button.className='uxprimary';button.textContent=label;button.onclick=run;return button;}
@@ -367,6 +368,10 @@ export function scheduleBalance(summary = {}, items = [], ctx) {
 // sends Nex a message in the thread, ctx.go(id) switches view.
 
 export const VIEWS = {
+  messages: {
+    label:'Messages', icon:'✦', say:['messages','inbox','conversations'],
+    async render(ctx){return [await renderMessages(ctx)];},
+  },
   workbench: {
     label: 'Projects',
     icon: '▦',
