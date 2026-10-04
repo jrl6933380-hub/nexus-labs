@@ -36,8 +36,9 @@
   .screen{position:fixed;inset:0;background:var(--bg);z-index:5;display:flex;flex-direction:column}
 
   .top{display:flex;align-items:center;gap:14px;padding:calc(env(safe-area-inset-top) + 14px) 16px 10px}
+  .messagebrand{display:none;width:42px;height:42px;place-items:center;flex:0 0 42px;border:1.5px solid #e2bd70;border-radius:50%;color:#e8c779;font:700 20px ui-serif,Georgia,serif;box-shadow:0 0 22px rgba(226,189,112,.13)}
   .backmessages{width:30px;height:30px;display:grid;place-items:center;flex-shrink:0;color:#d8d4cf;font-size:28px;line-height:1}
-  body[data-view="messages"] .backmessages{visibility:hidden;pointer-events:none}
+  body[data-view="messages"] .backmessages{display:none}
   .viewcopy{min-width:0}.vt{font-size:15px;color:#e4e1dd}.vsub{font-size:11px;color:#77736d;margin-top:2px}
   .grow{flex:1}
   .ticon{font-size:17px;color:#d8d4cf;opacity:.85;padding:4px}
@@ -77,13 +78,18 @@
   .draftbanner{margin:8px 0 16px;padding:15px;border:1px solid #715d35;border-radius:15px;background:#211c13}.draftbanner strong,.draftbanner span{display:block}.draftbanner span{font-size:12px;color:#b8aa8e;margin-top:5px}
   .scheduletoast{position:fixed;z-index:80;left:50%;bottom:calc(env(safe-area-inset-bottom) + 116px);transform:translateX(-50%);width:min(420px,calc(100vw - 28px));padding:14px 16px;border:1px solid #4b6080;border-radius:15px;background:#172033;box-shadow:0 14px 40px rgba(0,0,0,.5)}
   .scheduletoast strong,.scheduletoast span{display:block}.scheduletoast span{font-size:12px;color:#aebbd0;margin-top:4px}.scheduletoast button{position:absolute;right:11px;top:9px;color:#9fa9b9}
-  .msg{margin-bottom:24px}
-  .msg.u{display:flex;justify-content:flex-end}
-  .msg.u .body{background:#1f1f1f;padding:12px 17px;border-radius:20px;max-width:82%;font-size:16px;line-height:1.5}
-  .msg.a .body{font:400 16.5px/1.72 ui-serif,Georgia,"Times New Roman",serif;color:#efece8}
+  .msg{display:flex;align-items:flex-end;gap:9px;margin-bottom:16px}
+  .msg.u{justify-content:flex-end}
+  .msgstack{display:grid;gap:4px;max-width:min(82%,620px)}
+  .msg.u .msgstack{justify-items:end}.msgspeaker{padding:0 7px;color:#c9c5bf;font-size:11px;font-weight:650}.msgtime{padding:0 7px;color:#646a75;font-size:10px}
+  .msgavatar{display:grid;place-items:center;flex:0 0 31px;width:31px;height:31px;border:1px solid #d8b666;border-radius:50%;color:#e5c371;background:#17150f;font:700 13px ui-serif,Georgia,serif;box-shadow:0 0 16px rgba(211,173,92,.12)}
+  .msg .body{padding:11px 14px;border:1px solid #282e38;border-radius:16px;background:#171b22;color:#eeece8;font-size:14px;line-height:1.5}
+  .msg.u .body{border-color:#34425f;background:linear-gradient(145deg,#303c59,#252d42);font-size:14px}
+  .msg.a .body{font:400 14px/1.55 -apple-system,"SF Pro Text",Inter,system-ui,sans-serif}
   .msg.a .body p{margin-bottom:15px}
   .msg.a .body p:last-child{margin-bottom:0}
   .msg.sys .body{font-size:14px;color:var(--dm);line-height:1.6}
+  .msg.sys{display:block}.msg.sys .msgstack{max-width:none}.msg.sys .body{border:0;background:transparent;padding:4px 0}
 
   .lgroup{margin-bottom:18px}
   .lhead{font-size:12.5px;color:var(--dm);margin-bottom:8px}
@@ -153,6 +159,8 @@
   .send{width:33px;height:33px;border-radius:50%;background:#f2f0ed;color:#0e0e0e;display:flex;
     align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
   .send[disabled]{opacity:.4;cursor:default}
+  .messagenav{display:none;position:relative;z-index:20;grid-template-columns:repeat(4,1fr);gap:4px;padding:8px 14px calc(env(safe-area-inset-bottom) + 7px);border-top:1px solid #292b31;background:rgba(13,14,16,.97);backdrop-filter:blur(18px)}
+  .messagenav button{display:grid;place-items:center;gap:3px;min-height:48px;color:#858b96;font-size:10px;text-align:center}.messagenav button span{font-size:20px;line-height:1}.messagenav button.active{color:#e1bd72}.messagenav button.active span{filter:drop-shadow(0 0 8px rgba(225,189,114,.28))}
 
   /* --- Nex head: drag anywhere, tap to work with him over the current view --- */
   .head{position:fixed;z-index:40;width:52px;height:52px;border-radius:50%;
@@ -195,6 +203,30 @@
     .vsub{display:none}
     .projectgrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.projectcardbody{padding:10px}.projectcardactions{flex-direction:column}
   }
+  body[data-view="messages"] .messagebrand{display:grid}
+  body[data-view="messages"] .top{padding-left:18px;padding-right:18px}
+  body[data-view="messages"] .viewcopy{display:flex;align-items:center}
+  body[data-view="messages"] .vt{font-size:28px;font-weight:750;letter-spacing:-.035em;color:#f4f2ee}
+  body[data-view="messages"] .vsub{display:none}
+  body[data-view="messages"] #newTop{display:grid;place-items:center;width:42px;height:42px;padding:0;border-radius:50%;background:linear-gradient(145deg,#f2d58f,#cf9f43);color:#181207;font-size:25px;opacity:1;box-shadow:0 8px 24px rgba(211,169,84,.22)}
+  body[data-view="messages"] #headBtn{display:none}
+  body[data-view="messages"] .messagenav{display:grid}
+  body.messages-panel[data-view="messages"] .top,body.messages-panel[data-view="messages"] .messagenav{display:none}
+  body.messages-panel[data-view="messages"] .thread{padding-top:calc(env(safe-area-inset-top) + 14px);padding-bottom:calc(env(safe-area-inset-bottom) + 14px)}
+  body[data-view="chat"] .top{border-bottom:1px solid #242830;background:rgba(14,15,18,.96)}
+  body[data-view="chat"] .viewcopy{position:absolute;left:54px;right:54px;text-align:center;pointer-events:none}
+  body[data-view="chat"] .vt{font-size:16px;font-weight:700;color:#f4f2ee}
+  body[data-view="chat"] .vsub{display:none}
+  body[data-view="chat"] #headBtn{display:none}
+  body[data-view="chat"] #newTop{font-size:0}
+  body[data-view="chat"] #newTop::after{content:"•••";font-size:17px;letter-spacing:2px}
+  body[data-view="chat"] .thread{padding-top:0}
+  body[data-view="chat"] .disc{display:none}
+  body[data-view="chat"] .foot{padding-top:8px;border-top:1px solid #252830;background:#0e0f12}
+  body[data-view="chat"] .comp{display:flex;align-items:center;gap:8px;padding:7px 8px 7px 13px;border-radius:22px;background:#171a20}
+  body[data-view="chat"] .comp input{min-width:0;flex:1;font-size:14px}
+  body[data-view="chat"] .crow{margin:0}
+  body[data-view="chat"] .composer-actions,body[data-view="chat"] .crow>.grow{display:none}
 </style>
 <link rel="stylesheet" href="/schedule-calendar.css">
 <link rel="stylesheet" href="/reminders.css">
@@ -206,6 +238,7 @@
 
 <div class="screen" id="screen">
   <div class="top">
+    <span class="messagebrand" aria-hidden="true">N</span>
     <button class="backmessages" id="backMessages" aria-label="Back to Messages">‹</button>
     <div class="viewcopy"><div class="vt" id="viewTitle">Messages</div><div class="vsub" id="viewSubtitle">One intelligence. A team when you need one.</div></div>
     <div class="grow"></div>
@@ -230,6 +263,12 @@
       </div>
     </div>
   </div>
+  <nav class="messagenav" id="messageNav" aria-label="Primary Nexus navigation">
+    <button class="active" id="navMessages"><span>▢</span>Messages</button>
+    <button id="navProjects"><span>▣</span>Projects</button>
+    <button id="navLife"><span>☼</span>Life</button>
+    <button id="navMore"><span>•••</span>More</button>
+  </nav>
 </div>
 
 <button class="head" id="head">N<span class="badge" id="headBadge"></span></button>
@@ -283,6 +322,7 @@ let busy = false;
 let threadId = null;
 let activeConversation = null;
 let messagesStartNew = false;
+let messagesStartMore = false;
 const history = [];
 let activeScheduleItems = [];
 const deliveredScheduleReminders = new Set();
@@ -296,6 +336,7 @@ const ctx = {
   recentThreads: () => recentThreads,
   clearRecentThreads: (keepThreadIds) => clearRecentConversationThreads(keepThreadIds),
   consumeMessagesNew: () => { const value=messagesStartNew;messagesStartNew=false;return value; },
+  consumeMessagesMore: () => { const value=messagesStartMore;messagesStartMore=false;return value; },
   focusComposer: () => { el('input').focus(); },
   openSecurity: () => location.assign('/nexus-login.html?pin-setup=1&next=%2Fworkspace.html'),
   lockNex: async () => {
@@ -873,10 +914,15 @@ async function returnToOwner() {
 function bubble(role, html){
   const wrap = document.createElement('div');
   wrap.className = `msg ${role}`;
+  const stack = document.createElement('div'); stack.className = 'msgstack';
   const body = document.createElement('div');
   body.className = 'body';
   body.innerHTML = html;
-  wrap.appendChild(body);
+  if(role==='a'){
+    const mark=document.createElement('span');mark.className='msgavatar';mark.textContent=(activeConversation?.kind==='specialist'?activeConversation.name:'Nex').slice(0,1).toUpperCase();
+    const speaker=document.createElement('span');speaker.className='msgspeaker';speaker.textContent=activeConversation?.kind==='specialist'?activeConversation.name:'Nex';stack.append(speaker,body);wrap.append(mark,stack);
+  }else if(role==='u'){stack.append(body);const time=document.createElement('span');time.className='msgtime';time.textContent='You';stack.append(time);wrap.append(stack);}
+  else{stack.append(body);wrap.append(stack);}
   thread.appendChild(wrap);
   thread.scrollTop = thread.scrollHeight;
   return body;
@@ -891,8 +937,13 @@ function paragraphs(text){
 // survives you looking around, which is the whole point of rooms living here.
 // ---------------------------------------------------------------------------
 async function showView(id){
+  document.body.classList.remove('messages-panel');
   currentView = id;
   document.body.dataset.view = id;
+  for(const button of el('messageNav').querySelectorAll('button'))button.classList.remove('active');
+  if(id==='messages')el(messagesStartMore?'navMore':'navMessages').classList.add('active');
+  else if(id==='workbench')el('navProjects').classList.add('active');
+  else if(id==='life')el('navLife').classList.add('active');
   el('input').placeholder = id === 'planner' ? 'Ask Nex about your schedule…' : id === 'reminders' ? 'Ask Nex about your reminders…' : id === 'life' ? 'Talk with Nex about your life…' : 'Message Nex…';
   el('viewTitle').textContent = id === 'chat' ? (activeConversation?.name || activeConversation?.title || 'Nex') : VIEWS[id].label;
   el('viewSubtitle').textContent = id === 'workbench' ? 'Your websites, apps, and tools' : id === 'messages' ? 'One intelligence. A team when you need one.' : id === 'chat' ? conversationSubtitle() : 'Connected through Messages';
@@ -928,12 +979,10 @@ function conversationSubtitle(){
   return 'Talk about anything';
 }
 function renderConversationBanner(){
-  if(!activeConversation || activeConversation.kind==='nex')return;
+  if(!activeConversation)return;
   const banner=document.createElement('div');banner.className='conversationbanner';
-  const mark=document.createElement('span');mark.className=`messageavatar ${activeConversation.role || activeConversation.kind}`;mark.textContent=(activeConversation.name || activeConversation.title || '+').slice(0,1).toUpperCase();
-  const copy=document.createElement('div');const title=document.createElement('strong');title.textContent=activeConversation.name || activeConversation.title;const detail=document.createElement('span');detail.textContent=activeConversation.kind==='specialist'?activeConversation.job:'Nex coordinates this shared conversation';copy.append(title,detail);
-  if(activeConversation.kind==='group'){const chips=document.createElement('div');chips.className='participantchips';for(const name of ['Nex',...(activeConversation.members || []).map(member=>typeof member==='string'?member:member.name)]){const chip=document.createElement('i');chip.textContent=name;chips.append(chip);}copy.append(chips);}
-  banner.append(mark,copy);thread.append(banner);
+  const participants=activeConversation.kind==='group'?['Nex',...(activeConversation.members || []).map(member=>typeof member==='string'?member:member.name)]:[activeConversation.name || 'Nex'];
+  const chips=document.createElement('div');chips.className='participantchips';for(const name of participants){const chip=document.createElement('i');const mark=document.createElement('b');mark.textContent=name.slice(0,1).toUpperCase();chip.append(mark,document.createTextNode(name));chips.append(chip);}banner.append(chips);thread.append(banner);
 }
 function conversationGreeting(){
   if(activeConversation?.kind==='specialist'){
@@ -1175,7 +1224,19 @@ function askFromView(text) {
 el('plannerQuickBtn').onclick = () => showView('planner');
 el('projectsQuickBtn').onclick = () => showView('workbench');
 el('connectedQuickBtn').onclick = () => showView('messages');
+el('navMessages').onclick = () => showView('messages');
+el('navProjects').onclick = () => showView('workbench');
+el('navLife').onclick = () => showView('life');
+el('navMore').onclick = () => { messagesStartMore=true;showView('messages'); };
 el('newTop').onclick = () => {
+  if(currentView==='chat'){
+    document.getElementById('conversationMenu')?.remove();
+    const card=document.createElement('section');card.id='conversationMenu';card.className='approvalcard conversationmenu';
+    const title=document.createElement('strong');title.textContent='Conversation options';
+    const fresh=document.createElement('button');fresh.className='uxprimary';fresh.textContent='Start a new conversation';fresh.onclick=()=>{messagesStartNew=true;activeConversation=null;history.length=0;threadId=null;showView('messages');};
+    const inbox=document.createElement('button');inbox.className='messagesecondary';inbox.textContent='Back to Messages';inbox.onclick=()=>{activeConversation=null;showView('messages');};
+    card.append(title,fresh,inbox);thread.append(card);thread.scrollTop=thread.scrollHeight;return;
+  }
   messagesStartNew=true;activeConversation=null;history.length=0;threadId=null;showView('messages');
 };
 el('backMessages').onclick = () => { activeConversation=null;showView('messages'); };

@@ -53,6 +53,8 @@ test('workspace opens on Messages and sends only a saved conversation id back to
   assert.match(source,/openSystem/);
   assert.doesNotMatch(source,/id="burger"|class="rail"/);
   assert.match(source,/id="backMessages"/);
+  assert.match(source,/class="messagebrand"/);
+  for(const id of ['navMessages','navProjects','navLife','navMore'])assert.match(source,new RegExp(`id="${id}"`));
 });
 
 test('Messages carries the old navigation as colored connected conversation rows',()=>{
@@ -60,6 +62,8 @@ test('Messages carries the old navigation as colored connected conversation rows
   const css=fs.readFileSync(new URL('../public/nexus-messages.css',import.meta.url),'utf8');
   for(const name of ['Schedule','Reminders','Nexus Life','Projects','Nexus Legacy','Nexus Teams','Command Deck','Capabilities'])assert.match(source,new RegExp(`name:'${name}'`));
   assert.match(css,/tone-schedule/);assert.match(css,/tone-reminders/);assert.match(css,/tone-life/);assert.match(css,/tone-projects/);
+  assert.match(css,/messageitem\.pinned/);assert.match(css,/rolechoice/);assert.match(css,/messageprimary/);
+  assert.match(source,/Create a specialist/);assert.match(source,/Step 1 of 2/);assert.match(source,/You choose what this agent can access/);
 });
 
 test('conversation cleanup protects permanent and shared Nexus threads',()=>{
