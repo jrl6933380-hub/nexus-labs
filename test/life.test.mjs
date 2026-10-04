@@ -198,3 +198,19 @@ test('weekly carry-forward uses the chosen local day for duplicate protection wh
   let proposed=await life.previewWeek({entries:[{source_id:source.id,copy_date:'2026-10-12',starts_at:'2026-10-12T23:00:00Z',ends_at:'2026-10-13T00:00:00Z'}]},'room:a');await life.saveWeek({entries:proposed.entries,baseline:proposed.baseline},'room:a');
   proposed=await life.previewWeek({entries:[{source_id:source.id,copy_date:'2026-10-12',starts_at:'2026-10-13T01:00:00Z',ends_at:'2026-10-13T02:00:00Z'}]},'room:a');assert.equal(proposed.items.length,0);assert.equal(proposed.already.length,1);
 });
+
+test('Life home keeps extra views collapsed and returns from Explore Life without losing the daily pulse',async()=>{
+  const oldDocument=globalThis.document,oldFetch=globalThis.fetch;const prompts=[];
+  globalThis.document={createElement:element};globalThis.fetch=async()=>({ok:true,json:async()=>({items:[],pulses:[],profile:{onboarded:true,focus:[]}})});
+  try{
+    const root=await renderLife({ask:prompt=>prompts.push(prompt)});await all(root).find(el=>el.textContent==='Today').onclick();
+    let explore=all(root).find(el=>el.className==='lifeexplore');assert.equal(explore.open,false);assert.equal(explore.children[0].textContent,'Explore Life');
+    assert.equal(all(explore).filter(el=>el.tagName==='button').length,5);
+    assert.ok(all(root).find(el=>el.className==='lifepulse'));assert.ok(all(root).find(el=>el.className==='lifeideas' && !el.open));
+    const primary=all(root).find(el=>el.className==='lifeactions lifeprimary');assert.deepEqual(primary.children.map(el=>el.textContent),['✦ Plan with Nex','+ Plan an activity']);
+    primary.children[0].onclick();assert.match(prompts[0],/Read Life and Nex Schedule/);
+    explore.open=true;await all(explore).find(el=>el.textContent==='Life history').onclick();
+    explore=all(root).find(el=>el.className==='lifeexplore');assert.equal(explore.open,true);assert.ok(all(root).find(el=>el.textContent==='Your Life history'));
+    await all(root).find(el=>el.textContent==='Today').onclick();assert.equal(all(root).find(el=>el.className==='lifeexplore').open,false);assert.ok(all(root).find(el=>el.className==='lifepulse'));
+  }finally{globalThis.document=oldDocument;globalThis.fetch=oldFetch;}
+});

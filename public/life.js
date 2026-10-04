@@ -25,9 +25,12 @@ export async function renderLife(ctx){
   function heading(){root.replaceChildren();const head=node('div',undefined,'lifehead');head.append(node('div','NEXUS LIFE','lifeeyebrow'),node('h2','Make room for your life.'),node('p','Plan your time. Notice how it feels. Shape what comes next.'));root.append(head);}
   async function draw(){
     const generation=++drawId;heading();
-    const tabs=node('nav',undefined,'lifetabs');tabs.setAttribute('aria-label','Life views');
-    for(const [key,label] of [['today','Today'],['calendar','Life calendar'],['reminders','Life reminders'],['insights','Your rhythm'],['history','Life history'],['reset','Weekly reset']]){const tab=button(label,()=>{state.tab=key;return draw();});tab.setAttribute('aria-pressed',String(state.tab===key));tabs.append(tab);}root.append(tabs);
-    const actions=node('div',undefined,'lifeactions');actions.append(button('+ Plan an activity',()=>form()),button('+ Remember something',()=>form(null,'reminder')),button('✦ Plan with Nex',()=>askNex('Help me design my Life week around my priorities. Read Life and Nex Schedule. Ask only the decisions you need, using relevant clickable options. Preview each linked change and get my approval.')));root.append(actions);const more=node('details',undefined,'lifemore');more.append(node('summary','More options'),button('My priorities',preferences),button('My day changed',dayChanged));root.append(more);
+    const navigation=node('nav',undefined,'lifehomeviews');navigation.setAttribute('aria-label','Life views');
+    const home=button('Today',()=>{state.tab='today';return draw();});home.setAttribute('aria-pressed',String(state.tab==='today'));
+    const explore=node('details',undefined,'lifeexplore');explore.open=state.tab!=='today';explore.append(node('summary','Explore Life'));
+    const tabs=node('div',undefined,'lifetabs');
+    for(const [key,label] of [['calendar','Life calendar'],['reminders','Life reminders'],['insights','Your rhythm'],['history','Life history'],['reset','Weekly reset']]){const tab=button(label,()=>{state.tab=key;return draw();});tab.setAttribute('aria-pressed',String(state.tab===key));tabs.append(tab);}explore.append(tabs);navigation.append(home,explore);root.append(navigation);
+    const actions=node('div',undefined,'lifeactions lifeprimary');actions.append(button('✦ Plan with Nex',()=>askNex('Help me design my Life week around my priorities. Read Life and Nex Schedule. Ask only the decisions you need, using relevant clickable options. Preview each linked change and get my approval.')),button('+ Plan an activity',()=>form()));root.append(actions);const more=node('details',undefined,'lifemore');more.append(node('summary','More options'),button('+ Remember something',()=>form(null,'reminder')),button('My priorities',preferences),button('My day changed',dayChanged));root.append(more);
     if(!data.profile.onboarded){const welcome=node('div',undefined,'lifewelcome');welcome.append(node('h3','Start with what matters to you.'),node('p','Choose a few priorities, or jump straight into your day. You can change them anytime.'),button('Choose my priorities',preferences),button('Skip for now',async()=>{await api('profile',{focus:[]});await load();}));root.append(welcome);}
     if(state.tab==='calendar'){
       const calendar=await renderScheduleCalendar({calendarState:state,calendarEndpoint:'/api/life',calendarSubject:'Life plan',detailsLabel:'Check in',balanceLabel:'Your rhythm',weekLabel:'Design next week',
@@ -75,7 +78,7 @@ export async function renderLife(ctx){
     for(const item of activities)root.append(row(item));
     const due=data.items.filter(item=>item.kind==='reminder' && item.status!=='done' && item.due_date && item.due_date<=date && !activities.some(activity=>activity.id===item.id));
     if(due.length){root.append(node('h3','Things to remember','lifesectiontitle'));due.forEach(item=>root.append(row(item)));}
-    root.append(button('My day changed',dayChanged),suggestions());root.append(button('Help me make today feel better',()=>askNex('Read my Life priorities, today’s records, and recent energy check-ins. Offer one or two relevant choices for a more enjoyable or manageable day. Explain what records support your suggestion; if there is too little data, ask me what I want.')));
+    const ideas=node('details',undefined,'lifeideas');ideas.append(node('summary','Ideas for today'),suggestions());root.append(button('My day changed',dayChanged),ideas);
   }
   function reminders(){
     root.append(node('p','Small things to remember, with a home in your Life plan. Dates are optional.'));
