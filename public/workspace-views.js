@@ -5,9 +5,8 @@
 // The rule these all follow: a room is not a dashboard here. It reads the way
 // Nex would tell you about it if you asked — a sentence in his voice, then only
 // the rows that matter, then the things you can do about it. No panels, no
-// widget chrome, no nested tabs. One tap from the hamburger gets you the whole
-// room; there is no second level of navigation anywhere in this file, and that
-// is deliberate rather than unfinished.
+// widget chrome, no nested tabs. Each one opens from its row in Nexus Messages;
+// there is no second navigation system.
 //
 // Data is read from endpoints that already exist. Response shapes are NOT
 // assumed: every view pulls through `pick()` below, which tolerates an array, a
@@ -26,8 +25,8 @@ export function primaryAction(label,run){const button=document.createElement('bu
 export function secondaryActions(label,nodes){const details=document.createElement('details');details.className='uxsecondary';const summary=document.createElement('summary');summary.textContent=label;details.append(summary,...nodes);return details;}
 export function renderWelcome(ctx){
   const welcome=document.createElement('section');welcome.className='welcome';
-  for(const [tag,text,cls] of [['div','N','welcome-mark'],['h1','What would you like to do?',''],['p','Nex can help you build something, plan your time, or think it through.','']]){const node=document.createElement(tag);node.className=cls;node.textContent=text;welcome.append(node);}
-  welcome.append(primaryAction('Start with Nex',()=>ctx.ask('Help me get started. Offer relevant clickable choices to build something, plan my time, or make room for life. Ask one short question and explain the next step. Do not build or change anything until I choose a goal.')));
+  for(const [tag,text,cls] of [['div','N','welcome-mark'],['h1',"What’s on your mind?",''],['p',"Talk with Nex about anything—an idea, a problem, your day, or something you want to make. You don’t need to know where to start.",'']]){const node=document.createElement(tag);node.className=cls;node.textContent=text;welcome.append(node);}
+  welcome.append(primaryAction('Start talking',()=>ctx.focusComposer?.()));
   const goals=document.createElement('div');goals.className='startergrid';
   for(const [label,description,view] of [['Build something','A website, app, or tool','workbench'],['Plan my time','Activities and reminders','planner'],['Make room for life','Balance, energy, and what matters','life']]){const button=document.createElement('button');button.type='button';button.className='starter';button.textContent=label;const meta=document.createElement('span');meta.textContent=description;button.append(meta);button.onclick=()=>ctx.go(view);goals.append(button);}
   welcome.append(secondaryActions('Choose a goal yourself',[goals]));return welcome;

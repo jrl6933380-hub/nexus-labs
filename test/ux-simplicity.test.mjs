@@ -17,10 +17,11 @@ test('errors hide service diagnostics and give actionable account, retry, and co
 });
 
 test('welcome has one main action and collapsed goal choices route to the correct product',()=>{
-  const previous=globalThis.document;globalThis.document={createElement:element};const prompts=[],routes=[];
+  const previous=globalThis.document;globalThis.document={createElement:element};const routes=[];let focused=0;
   try{
-    const root=renderWelcome({ask:prompt=>prompts.push(prompt),go:view=>routes.push(view)});
-    const primary=all(root).filter(el=>el.className==='uxprimary');assert.equal(primary.length,1);primary[0].onclick();assert.match(prompts[0],/Do not build or change anything/);
+    const root=renderWelcome({focusComposer:()=>focused++,go:view=>routes.push(view)});
+    const primary=all(root).filter(el=>el.className==='uxprimary');assert.equal(primary.length,1);primary[0].onclick();assert.equal(focused,1);
+    assert.match(all(root).find(el=>el.tagName==='h1').textContent,/What’s on your mind/);
     const options=all(root).find(el=>el.tagName==='details');assert.ok(!options.open);
     for(const choice of all(options).filter(el=>el.className==='starter'))choice.onclick();
     assert.deepEqual(routes,['workbench','planner','life']);

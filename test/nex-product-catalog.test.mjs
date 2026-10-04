@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 const catalog = await import('../public/nexus-product-catalog.js');
 const workspace = await readFile(new URL('../public/workspace.html', import.meta.url), 'utf8');
+const messages = await readFile(new URL('../public/nexus-messages.js', import.meta.url), 'utf8');
 
 test('the Nexus product map preserves the five distinct pillars', () => {
   assert.deepEqual(Object.keys(catalog.NEXUS_PRODUCTS), ['chat', 'forge', 'life', 'legacy', 'teams']);
@@ -25,12 +26,13 @@ test('chat stays conversational while Workbench owns build tools', () => {
   assert.match(workspace, /mode, build_tools: NEX_CHAT_MODES\[mode\]\.buildTools/u);
 });
 
-test('the owner shell leads with Nex Chat and separates products from operations', () => {
-  assert.match(workspace, /<title>Nex Chat<\/title>/u);
-  assert.match(workspace, /id="productNav"/u);
-  assert.match(workspace, /Founder operations/u);
+test('the owner shell leads with Nexus Messages and keeps every destination in its inbox', () => {
+  assert.match(workspace, /<title>Nexus Messages<\/title>/u);
+  assert.doesNotMatch(workspace, /class="rail"|id="burger"|id="productNav"/u);
+  assert.match(messages, /Founder operations/u);
+  assert.match(messages, /Connected Nexus/u);
   assert.match(workspace, /renderWelcome\(ctx\)/u);
-  assert.match(workspace, /Ask Nex anything/u);
+  assert.match(workspace, /Message Nex/u);
 });
 
 test('the mobile welcome keeps goal choices in a compact two-column grid', () => {
@@ -39,24 +41,23 @@ test('the mobile welcome keeps goal choices in a compact two-column grid', () =>
   assert.doesNotMatch(workspace, /When you are ready to build/u);
 });
 
-test('fixed Workbench and Capabilities controls use the workspace router', () => {
-  assert.match(workspace, /data-view="workbench"/u);
-  assert.match(workspace, /data-view="skills"/u);
-  assert.match(workspace, /document\.querySelectorAll\('\[data-view\]'\)/u);
-  assert.match(workspace, /showView\(button\.dataset\.view\)/u);
+test('Workbench and Capabilities open from connected conversation rows', () => {
+  assert.match(messages, /id:'workbench',name:'Projects'/u);
+  assert.match(messages, /id:'skills',name:'Capabilities'/u);
+  assert.match(messages, /ctx\.openSystem\(system\.id\)/u);
 });
 
 test('Nex Chat composer exposes customer actions instead of founder visual controls', () => {
   assert.match(workspace, /id="plannerQuickBtn">Schedule</u);
   assert.match(workspace, /id="projectsQuickBtn">Projects</u);
-  assert.match(workspace, /id="connectedQuickBtn">Connected</u);
+  assert.match(workspace, /id="connectedQuickBtn">Messages</u);
   assert.match(workspace, /plannerQuickBtn'\)\.onclick = \(\) => showView\('planner'\)/u);
   assert.match(workspace, /projectsQuickBtn'\)\.onclick = \(\) => showView\('workbench'\)/u);
   assert.doesNotMatch(workspace, /id="capBtn"|id="snapBtn"|id="pinBtn"/u);
 });
 
-test('the public home card introduces Schedule while the system briefing stays private', () => {
+test('the public home card introduces Schedule while owner operations stay in Messages', () => {
   assert.match(workspace, /renderWelcome\(ctx\)/u);
-  assert.match(workspace, /id="ownerBriefBtn"/u);
-  assert.match(workspace, /Founder operations/u);
+  assert.match(messages, /id:'planner',name:'Schedule'/u);
+  assert.match(messages, /id:'deck',name:'Command Deck'/u);
 });
