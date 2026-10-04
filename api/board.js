@@ -122,6 +122,9 @@ export function createLifeHandler({getOwner=getNexusOwner,getUser=getRequestUser
       else if(action==='preview')result=await store.preview(input,user);
       else if(action==='save')result=await store.save(input,user);
       else if(action==='check_in')result=await store.checkIn(input,user);
+      else if(action==='pulse')result=await store.pulse(input,user);
+      else if(action==='preview_week')result=await store.previewWeek(input,user);
+      else if(action==='save_week')result=await store.saveWeek(input,user);
       else if(action==='delete')result=await store.remove(input.id,user);
       else return res.status(400).json({error:'Unknown Life action'});
       return res.status(200).json(result);
