@@ -1,3 +1,4 @@
+import { friendlyError } from './ux.js';
 // /public/forge-views.js
 //
 // Forge's rooms. Same shell as the operator workspace, different furniture.
@@ -12,8 +13,8 @@
 // that cannot load says so honestly and offers Nex instead, and there is no
 // second level of navigation anywhere.
 
-export { esc, pick, getJSON, field, relative, say, row, group, chips, empty, pill } from '/workspace-views.js';
-import { esc, pick, getJSON, field, relative, say, row, group, chips, empty } from '/workspace-views.js';
+export { esc, pick, getJSON, field, relative, say, row, group, chips, empty, pill, primaryAction, secondaryActions } from '/workspace-views.js';
+import { esc, pick, getJSON, field, relative, say, row, group, chips, empty, primaryAction, secondaryActions } from '/workspace-views.js';
 
 // Mirrors lib/forge/features.js. The server is the real gate; this is what the
 // customer sees. Kept as plain data so the two stay readable side by side.
@@ -25,11 +26,11 @@ const FEATURES = [
     blurb:'Describe what you want and get a working page.' },
   { id:'edit', name:'Change what you built', requires:'free',
     blurb:'Ask for changes and I patch the page instead of rebuilding it.' },
-  { id:'brief', name:'Project Brief', requires:'fast',
+  { id:'brief', name:'Project plan', requires:'fast',
     blurb:'I interview you first — audience, goals, must-haves — then build from your answers instead of guessing.',
-    reason:'Planning takes several passes before anything gets built. On the free router that means a lot of waiting and a lot of rate limits, so it needs a paid brain to feel good.' },
-  { id:'stack', name:'Full stack setup', requires:'strong',
-    blurb:'Database, auth, and payments wired into your project.',
+    reason:'Planning takes several passes before anything gets built. This option is included with a paid plan.' },
+  { id:'stack', name:'Project connections', requires:'strong',
+    blurb:'Save information, let people sign in, and accept payments in your project.',
     reason:'Setup involves long multi-step reasoning where a wrong call costs real money, so it runs on the strongest tier only.' },
 ];
 
@@ -56,7 +57,7 @@ function briefQuestionCard(question, progress, ctx) {
 
   const head = document.createElement('div');
   head.className = 'qhead';
-  head.innerHTML = `<span>Project brief · Question ${progress.answered + 1}</span><strong>${esc(question.question)}</strong><small>${esc(question.helper || '')}</small>`;
+  head.innerHTML = `<span>Question ${progress.answered + 1} · ${progress.answered} ${progress.answered === 1 ? 'answer' : 'answers'} saved</span><strong>${esc(question.question)}</strong><small>${esc(question.helper || '')}</small>`;
   card.appendChild(head);
 
   const selected = new Set();
@@ -106,17 +107,18 @@ function briefQuestionCard(question, progress, ctx) {
     comment.className = 'qcomment';
     comment.placeholder = 'Add a focused note for Nex (optional)…';
     comment.rows = 2;
-    card.appendChild(comment);
+    card.appendChild(secondaryActions('Add a note (optional)', [comment]));
   }
 
   const actions = document.createElement('div');
   actions.className = 'qactions';
   const save = document.createElement('button');
   save.type = 'button';
-  save.className = 'qsave';
-  save.textContent = 'Save and continue';
+  save.className = 'qsave uxprimary';
+  save.textContent = 'Save answer and continue';
   const error = document.createElement('span');
   error.className = 'qerror';
+  error.setAttribute('role', 'status');
   save.onclick = async () => {
     save.disabled = true;
     error.textContent = '';
@@ -124,7 +126,7 @@ function briefQuestionCard(question, progress, ctx) {
       const values = question.type === 'long_text' ? longText.value.trim() : [...selected];
       await ctx.answerBrief(question.id, values, comment?.value.trim() || '');
     } catch (failure) {
-      error.textContent = failure.message || 'Choose an answer first.';
+      error.textContent = friendlyError(failure, {subject:'your answer', keepDraft:true});
       save.disabled = false;
     }
   };
@@ -145,7 +147,7 @@ function additionKindCard(ctx) {
     { label: 'Add a page', run: () => ctx.chooseAdditionKind('page') },
     { label: 'Add a tool', run: () => ctx.chooseAdditionKind('tool') },
     { label: 'Add an intelligence', run: () => ctx.chooseAdditionKind('intelligence') },
-    { label: 'Review the whole stack', run: () => ctx.go('stack') },
+    { label: 'Review project connections', run: () => ctx.go('stack') },
   ]));
   return card;
 }
@@ -226,7 +228,7 @@ function projectRow(project, ctx) {
         window.open(liveUrl, '_blank', 'noopener');
       } catch (err) {
         paint();
-        window.alert(err.message || 'Could not put this site live.');
+        window.alert(friendlyError(err, {subject:'your live site'}));
       }
     };
     offBtn.onclick = async (event) => {
@@ -244,7 +246,7 @@ function projectRow(project, ctx) {
       } catch (err) {
         offBtn.textContent = 'Take offline';
         paint();
-        window.alert(err.message || 'Could not take this site offline.');
+        window.alert(friendlyError(err, {subject:'your live site'}));
       }
     };
     paint();
@@ -556,8 +558,8 @@ export const FORGE_VIEWS = {
     async render(ctx) {
       if (ctx.surface?.() === 'workbench') {
         return [
-          say('Choose a project below. Tap its preview to see the full site, or Add a piece on that project to grow its stack.'),
-          say('One stack becomes one live site. Nex builds supporting pages and tools into the same project as you add them. When you go live, the latest combined site is published on one link. Stack cards are visual guides to what you have added.'),
+          say('Choose your project. Tap its preview to open it, or choose Add a piece to add a page or tool.'),
+          say('Your pages and tools become one complete site at one link. These cards help you organize its parts.'),
           await workbenchProjectTiles(ctx),
         ];
       }
@@ -656,21 +658,21 @@ export const FORGE_VIEWS = {
         return nodes;
       }
       if (!brief.progress.ready && brief.next_question) {
-        nodes.push(say(`I'll collect the important decisions one at a time. Each answer saves automatically. The number of questions changes with what your project needs.`));
+        nodes.push(say(`Choose an answer, then save it to see the next question. Nex only asks what your project needs.`));
         nodes.push(briefQuestionCard(brief.next_question, brief.progress, ctx));
         return nodes;
       }
 
-      nodes.push(say(addon ? 'Your add-on plan is ready. Review the change and its connections, then approve it to update this project.' : `Your Project Brief is ready. This is the information I'll use as the source of truth for the first build.`));
+      nodes.push(say(addon ? 'Your add-on plan is ready. Review the change and its connections, then approve it to update this project.' : `Your project plan is ready. Review your choices, then let Nex build the first version.`));
       nodes.push(group('What Nex understands', (brief.summary || []).map((item) => row({
         title: item.value || 'Answered',
         meta: `${item.label}${item.comment ? ` · ${item.comment}` : ''}`,
         tone: { label: 'saved', kind: 'f' },
       }))));
-      nodes.push(chips([
-        { label: addon ? 'Approve & build addition' : 'Build the first version', run: () => ctx.buildFromBrief() },
-        { label: addon ? 'Start another add-on plan' : 'Start the brief over', run: () => ctx.resetBrief() },
-      ]));
+      nodes.push(primaryAction(addon ? 'Approve and build addition' : 'Build the first version', () => ctx.buildFromBrief()));
+      nodes.push(secondaryActions('Change my plan', [chips([
+        { label: addon ? 'Start another addition plan' : 'Start the plan over', run: () => ctx.resetBrief() },
+      ])]));
       return nodes;
     },
   },
@@ -694,10 +696,10 @@ export const FORGE_VIEWS = {
         return [
           selected,
           chips([{ label: 'Choose a different project', run: () => ctx.go('project') }]),
-          say('Add a page, tool, dashboard, workflow, or intelligence to this project. Nex builds it into the same site while keeping the existing pieces. When you go live, the latest combined project shares one link; stack cards are visual guides to its pieces.'),
+          say('Choose what to add. Nex helps you plan it and connects it to this project. Your pages and tools share one site and one link.'),
           chips([
             { label: 'Open the addition planner', run: () => ctx.beginAddPiecePlanner() },
-            { label: 'Review the whole stack', run: () => ctx.go('stack') },
+            { label: 'Review project connections', run: () => ctx.go('stack') },
           ]),
         ];
       }
@@ -792,7 +794,7 @@ export const FORGE_VIEWS = {
       try { manifest = await getJSON('/api/forge-stack?projectId=' + encodeURIComponent(ctx.projectId())); } catch {}
 
       if (!manifest?.slots) {
-        nodes.push(say(`I couldn't load your stack checklist just now. Nothing was marked connected.`));
+        nodes.push(say(`We couldn't open your project connections. Try again to see what is connected.`));
         nodes.push(chips([
           { label: 'Try again', run: () => ctx.go('stack') },
           { label: 'Ask Nex', run: () => ctx.ask('Help me check what my project needs to run.') },
@@ -807,7 +809,7 @@ export const FORGE_VIEWS = {
       identity.append(caption, name);
       nodes.push(identity);
       nodes.push(chips([{ label: 'Choose another project', run: () => ctx.go('project') }]));
-      nodes.push(say('Read a connection to see how it could help this project. Connect starts a scoping conversation with Nex; setup and testing come after you decide what to add.'));
+      nodes.push(say('Choose a connection to see how it could help this project. Connect lets Nex help you decide how to use it before making changes.'));
       if (!manifest.project || manifest.project.projectId !== ctx.projectId()) {
         nodes.push(say('The saved project could not be confirmed. Reopen it from Projects before connecting a service.'));
         return nodes;

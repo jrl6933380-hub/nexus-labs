@@ -232,6 +232,7 @@
 <link rel="stylesheet" href="/schedule-calendar.css">
 <link rel="stylesheet" href="/reminders.css">
 <link rel="stylesheet" href="/life.css">
+<link rel="stylesheet" href="/ux.css" />
 </head>
 <body>
 
@@ -301,7 +302,8 @@
 </div>
 
 <script type="module">
-import { VIEWS, matchView, say, chips, esc, scheduleBalance } from '/workspace-views.js';
+import { friendlyError, showFeedback } from '/ux.js';
+import { VIEWS, matchView, say, chips, esc, scheduleBalance, renderWelcome } from '/workspace-views.js';
 import { NEX_CHAT_MODES } from '/nexus-product-catalog.js';
 import { startReminderAlerts } from '/reminders.js';
 import { dueScheduleReminders } from '/schedule-reminders.js';
@@ -384,7 +386,7 @@ function detail(title, description, actions, back = currentView) {
   thread.appendChild(chips([{ label:'Back', run:() => showView(back) }, ...actions]));
   railOpen(false);
 }
-function actionError(error) { thread.appendChild(say(error.message || 'That action failed.')); }
+function actionError(error) { thread.appendChild(say(friendlyError(error) || 'That action failed.')); }
 function formCard(title, placeholder, submitLabel, onSubmit, { secret = false } = {}) {
   const form = document.createElement('form'); form.className = 'actionform';
   if (secret) form.classList.add('secret-card');
@@ -395,7 +397,7 @@ function formCard(title, placeholder, submitLabel, onSubmit, { secret = false } 
   const error = document.createElement('span'); error.setAttribute('role','status');
   form.append(label, input, button, error);
   form.onsubmit = async (event) => { event.preventDefault(); button.disabled = true; error.textContent = '';
-    try { await onSubmit(input.value.trim()); } catch (failure) { error.textContent = failure.message; button.disabled = false; } };
+    try { await onSubmit(input.value.trim()); } catch (failure) { error.textContent = friendlyError(failure); button.disabled = false; } };
   thread.appendChild(form); input.focus();
 }
 function localDateTime(date) {
@@ -464,27 +466,28 @@ function plannerForm(item = null, preferredDate = '') {
   const form = document.createElement('form'); form.className = 'actionform plannerform';
   const field = (labelText, input) => { const label = document.createElement(input.tagName === 'DIV' ? 'div' : 'label'); label.textContent = labelText; label.appendChild(input); return label; };
   const title = document.createElement('input'); title.required = true; title.placeholder = 'What is happening?'; title.value = item?.title || '';
-  const start = scheduleDateTime(localDateTime(base), 'Starts');
+  const start = scheduleDateTime(localDateTime(base), 'Start time');
   const plannedMinutes = item?.ends_at ? Math.max(1,Math.round((Date.parse(item.ends_at)-Date.parse(item.starts_at))/60000)) : 60;
   const duration = optionField('Planned duration', [...new Set([...scheduleDurations,plannedMinutes])].sort((a,b)=>a-b).map((value)=>[String(value),durationLabel(value)]), String(plannedMinutes));
   const endReminder = optionField('Block-time reminder', [['no','Off'],['yes','Remind me when the planned time is up']], item?.end_reminder ? 'yes' : 'no');
   const notes = document.createElement('textarea'); notes.placeholder = 'Notes, location, or what to remember'; notes.value = item?.notes || '';
   const category = optionField('Category', scheduleCategories, item?.category || 'other');
   const kind = optionField('Type', [['time_block','Time block'],['event','Event'],['task','Task'],['reminder','Reminder']], item?.kind || 'time_block');
-  const flexibility = optionField('Timing', [['fixed','Fixed time'],['flexible','Nex can move it']], item?.flexibility || 'fixed');
-  const repeat = optionField('Rollover', [['none','One time'],['every_week','Every week'],['ask_weekly','Ask me each week']], item?.repeat_mode || 'none');
+  const flexibility = optionField('Timing', [['fixed','Fixed time'],['flexible','Nex can suggest another time']], item?.flexibility || 'fixed');
+  const repeat = optionField('Repeat next week', [['none','One time'],['every_week','Every week'],['ask_weekly','Ask me each week']], item?.repeat_mode || 'none');
   const reminder = optionField('Remind me', [['','No reminder'],['10','10 minutes before'],['30','30 minutes before'],['60','1 hour before'],['1440','1 day before']], item?.reminder_minutes == null ? '' : String(item.reminder_minutes));
   const protectedInput = document.createElement('input'); protectedInput.type = 'checkbox'; protectedInput.checked = Boolean(item?.protected);
   const protectedLabel = field('Protect this time', protectedInput); protectedLabel.style.display = 'flex'; protectedLabel.style.alignItems = 'center'; protectedLabel.style.gap = '9px'; protectedInput.style.width = 'auto';
   const save = document.createElement('button'); save.type = 'submit'; save.textContent = item ? 'Save changes' : 'Add to Schedule';
   const error = document.createElement('span'); error.setAttribute('role', 'status');
-  form.append(field('Title', title), category.label, field('Starts', start), duration.label, endReminder.label, kind.label, flexibility.label, repeat.label, reminder.label, protectedLabel, field('Notes (optional)', notes), save, error);
+  const more=document.createElement('details');more.className='uxsecondary';const summary=document.createElement('summary');summary.textContent='More details (optional)';more.append(summary,endReminder.label,kind.label,flexibility.label,repeat.label,reminder.label,protectedLabel,field('Notes (optional)',notes));
+  form.append(field('What is it?',title),category.label,field('Start time',start),duration.label,more,save,error);
   form.onsubmit = async (event) => { event.preventDefault(); save.disabled = true; error.textContent = '';
     try {
       const payload = { title:title.value.trim(), starts_at:new Date(start.value).toISOString(), ends_at:new Date(new Date(start.value).getTime()+Number(duration.select.value)*60000).toISOString(), end_reminder:endReminder.select.value==='yes', notes:notes.value.trim(), category:category.select.value, kind:kind.select.value, flexibility:flexibility.select.value, repeat_mode:repeat.select.value, protected:protectedInput.checked, reminder_minutes:reminder.select.value === '' ? null : Number(reminder.select.value) };
       await postPlanner(item ? 'update' : 'create', item ? { id:item.id, ...payload } : payload);
-      if (item) await showView('planner'); else scheduleAdded(start.value.slice(0,10));
-    } catch (failure) { error.textContent = failure.message; save.disabled = false; }
+      if (item){await showView('planner');showFeedback(thread,`Saved changes to ${title.value.trim()}.`);} else scheduleAdded(start.value.slice(0,10));
+    } catch (failure) { error.textContent = friendlyError(failure); save.disabled = false; }
   };
   thread.appendChild(form); title.focus();
 }
@@ -563,7 +566,7 @@ function openScheduleStudio(mode = 'block', preferredDate = '', preferredMinutes
   let savedItems=[], availabilityReady=false;start.timeSelect.disabled=true;
   const refreshSlots=()=>{const day=start.dateInput.value;const blocked=updateStartOptions(start.timeSelect,{days:day ? [day] : [],durationMinutes:Number(duration.select.value),items:savedItems});endGuide.textContent=day ? `Planned end: ${plannedEndLabel([day],Number(start.timeSelect.value),Number(duration.select.value))}` : 'Choose a day to see the planned end.';status.textContent=!availabilityReady ? 'Reading taken times…' : blocked ? 'That block overlaps taken time. Choose an open start.' : 'Taken starts are unavailable for this duration.';};
   form.addEventListener('input',refreshSlots);form.addEventListener('change',refreshSlots);refreshSlots();
-  const loadSlots=async()=>{try{savedItems=await readTakenSchedule();availabilityReady=true;start.timeSelect.disabled=false;refreshSlots();}catch(error){status.textContent=error.message;}};loadSlots();
+  const loadSlots=async()=>{try{savedItems=await readTakenSchedule();availabilityReady=true;start.timeSelect.disabled=false;refreshSlots();}catch(error){status.textContent=friendlyError(error);}};loadSlots();
   choiceButtons(card,[['add','Add activity'],['nex','Find time with Nex'],['retry','Refresh taken times'],['back','Back to calendar']],async(value,button)=>{
     if(value==='back')return showView('planner');
     if(value==='retry')return loadSlots();
@@ -581,11 +584,11 @@ function openScheduleStudio(mode = 'block', preferredDate = '', preferredMinutes
         choiceButtons(card,[['anyway','Add anyway'],['nex','Resolve with Nex']],async(next,confirmButton)=>{
           if(next==='nex')return askFromView(`Help me resolve the overlap for ${title} at ${start.value}. Read my schedule and protect existing commitments.`);
           confirmButton.disabled=true;
-          try{await postPlanner('create',payload);scheduleAdded(start.value.slice(0,10));}catch(error){confirmButton.disabled=false;status.textContent=error.message;}
+          try{await postPlanner('create',payload);scheduleAdded(start.value.slice(0,10));}catch(error){confirmButton.disabled=false;status.textContent=friendlyError(error);}
         });return;
       }
       await postPlanner('create',payload);scheduleAdded(start.value.slice(0,10));
-    } catch(error){button.disabled=false;status.textContent=error.message;}
+    } catch(error){button.disabled=false;status.textContent=friendlyError(error);}
   });
 }
 function openWeekStudio() {
@@ -677,7 +680,7 @@ function openWeekStudio() {
     }
     requests.forEach(addActivity);
     const status = document.createElement('p'); status.setAttribute('role','status'); card.appendChild(status);
-    const loadSlots=async()=>{status.textContent='Reading taken times…';try{savedItems=await readTakenSchedule();availabilityReady=true;refreshAll();status.textContent='Taken starts are disabled on your selected days.';}catch(error){status.textContent=error.message;}};loadSlots();
+    const loadSlots=async()=>{status.textContent='Reading taken times…';try{savedItems=await readTakenSchedule();availabilityReady=true;refreshAll();status.textContent='Taken starts are disabled on your selected days.';}catch(error){status.textContent=friendlyError(error);}};loadSlots();
     choiceButtons(card, [['extra','Add another activity'],['generate','Generate my schedule'],['retry','Refresh taken times'],['back','Change priorities']], async (value, button) => {
       if (value === 'back') return prioritiesStep();
       if (value === 'extra') return addActivity({category:'other',title:'New activity'});
@@ -702,7 +705,7 @@ function openWeekStudio() {
       button.disabled = true; status.textContent = 'Finding openings…';
       try {
         const draft = await postPlanner('generate_schedule_draft', {period_label:periodLabel,windows,requests:scopedRequests,allow_overnight:true}); openWeekDraft(draft);
-      } catch (error) { button.disabled = false; status.textContent = error.message; }
+      } catch (error) { button.disabled = false; status.textContent = friendlyError(error); }
     });
   }
 }
@@ -777,8 +780,8 @@ function editScheduleNotes(item) {
   form.append(notes,save,cancel,status);card.appendChild(form);
   form.onsubmit=async(event)=>{
     event.preventDefault();save.disabled=true;status.textContent='';
-    try {await postPlanner('update',{id:item.id,notes:notes.value});await showView('planner');}
-    catch(error){status.textContent=error.message;save.disabled=false;}
+    try {await postPlanner('update',{id:item.id,notes:notes.value});await showView('planner');showFeedback(thread,`Notes saved for ${item.title}.`);}
+    catch(error){status.textContent=friendlyError(error);save.disabled=false;}
   };
   notes.focus();
 }
@@ -975,7 +978,7 @@ async function showView(id){
     button.classList.toggle('on', button.dataset.view === id);
   }
   el('viewTitle').textContent = id === 'chat' ? 'Nex Chat' : VIEWS[id].label;
-  el('viewSubtitle').textContent = id === 'workbench' ? 'Your Workbench projects' : id === 'chat' ? 'Your connected AI' : 'Connected through Nex';
+  el('viewSubtitle').textContent = id === 'workbench' ? 'Your websites, apps, and tools' : id === 'chat' ? 'What would you like to do?' : 'Nex can help you here';
 
   if (id === 'chat') { replayThread(); return; }
 
@@ -987,8 +990,8 @@ async function showView(id){
     for (const node of nodes) thread.appendChild(node);
   } catch (error) {
     thread.innerHTML = '';
-    bubble('sys', `Couldn't load ${esc(VIEWS[id].label)} — ${esc(error.message)}`);
-    thread.appendChild(chips([{ label: 'Ask Nex instead', run: () => ctx.ask(`Tell me what's going on in ${VIEWS[id].label}.`) }]));
+    bubble('sys', esc(friendlyError(error,{action:'load',subject:VIEWS[id].label})));
+    thread.appendChild(chips([{ label:'Try again', run:() => showView(id) }, { label: 'Ask Nex instead', run: () => ctx.ask(`Tell me what's going on in ${VIEWS[id].label}.`) }]));
   }
   loading.remove?.();
 }
@@ -1157,7 +1160,8 @@ async function submit(){
       if (id) showView(id);
     }
   } catch (error) {
-    pending.innerHTML = `<p style="color:#c98b78">${esc(error.message)}</p>`;
+    if(!el('input').value)el('input').value=raw;
+    pending.innerHTML = `<p style="color:#c98b78">${esc(friendlyError(error,{action:'reply'}))} Your message is still in this conversation.</p>`;
   } finally { busy = false; el('send').disabled = false; }
 }
 el('send').onclick = submit;
@@ -1209,25 +1213,7 @@ el('ownerBriefBtn').onclick = () => {
   submit();
 };
 
-function greet(){
-  const welcome = document.createElement('section');
-  welcome.className = 'welcome';
-  welcome.innerHTML = `<div class="welcome-mark">N</div><h1>What's on your mind, Justin?</h1><p>Talk through anything. I can help you think, plan, decide, and run what matters across Nexus.</p>`;
-  const starters = document.createElement('div'); starters.className = 'startergrid';
-  const items = [
-    ['Open Schedule', 'Time blocks, weeks, and routines', null, 'planner'],
-    ['Think something through', 'Ideas, decisions, anything', 'Help me think something through. Start by asking what is on my mind.'],
-    ['Open Projects', 'Preview, edit, and create', null, 'workbench'],
-    ['Connected life', 'Life, Legacy & Teams', 'Show me how my connected Nexus products can help today.'],
-  ];
-  for (const [label, meta, prompt, view] of items) {
-    const button = document.createElement('button'); button.className = 'starter';
-    button.innerHTML = `${esc(label)}<span>${esc(meta)}</span>`;
-    button.onclick = () => view ? showView(view) : askFromView(prompt);
-    starters.appendChild(button);
-  }
-  welcome.appendChild(starters); thread.appendChild(welcome);
-}
+function greet(){thread.appendChild(renderWelcome(ctx));}
 
 // --- Nex head --------------------------------------------------------------
 // Drags anywhere, snaps to the nearest side, stays put between sessions. Tap to
@@ -1311,7 +1297,7 @@ async function dockAsk(text){
     body.textContent = data.reply || 'No reply came back.';
     history.push({ role:'user', content:text }, { role:'assistant', content:data.reply || '' });
     saveThread();
-  } catch (error) { body.textContent = error.message; }
+  } catch (error) { body.textContent = friendlyError(error); }
 }
 el('dockSend').onclick = () => {
   const value = el('dockInput').value.trim();

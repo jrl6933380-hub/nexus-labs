@@ -20,7 +20,7 @@ test('question panels support choices, focused comments, and accessible selectio
   assert.match(forgeViews, /const selected = new Set\(\)/);
   assert.match(forgeViews, /Add a focused note for Nex/);
   assert.match(forgeViews, /aria-pressed/);
-  assert.match(forgeViews, /Save and continue/);
+  assert.match(forgeViews, /Save answer and continue/);
 });
 
 test('first build reads the approved brief on the server-side account boundary', () => {

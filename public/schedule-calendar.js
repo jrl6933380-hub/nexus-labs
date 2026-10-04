@@ -1,3 +1,4 @@
+import { friendlyError } from './ux.js';
 // A calendar-first surface over the shared Schedule store.
 import { occupiedStart } from './schedule-availability.js';
 const COLORS = {sleep:'#879ade',personal:'#bd91d9',work:'#6f9ce8',project:'#9a7bea',gym:'#56c596',health:'#65b8b2',family:'#e9a66f',social:'#df7fa4',appointment:'#e0c35c',errands:'#a5a19a',learning:'#74b7e8',creative:'#c883d8',rest:'#7b87a7',travel:'#d78b68',other:'#8e8a84'};
@@ -45,7 +46,7 @@ export async function renderScheduleCalendar(ctx, extras) {
     try {
       // Include blocks starting before the range, such as overnight events.
       const response=await fetch(`${ctx.calendarEndpoint || '/api/planner'}?from=${encodeURIComponent(shift(from,-14).toISOString())}&to=${encodeURIComponent(to.toISOString())}`,{credentials:'include'});
-      const data=await response.json(); if(!response.ok) throw new Error(data.error || 'Could not load your calendar');
+      const data=await response.json(); if(!response.ok){const error=new Error(data.error || 'Could not load your calendar');error.status=response.status;throw error;}
       if(id !== requestId) return;
       const items=(data.items || []).filter((item)=>new Date(item.starts_at)<to && endOf(item)>from && item.status !== 'cancelled');
       const category_minutes={}, conflicts=[];
@@ -55,7 +56,7 @@ export async function renderScheduleCalendar(ctx, extras) {
       payload={...data,items,summary:{category_minutes,conflicts}}; ctx.setScheduleItems?.(data.items || []);draw();
     } catch(error) {
       if(id !== requestId) return;
-      root.replaceChildren(node('p','calerror',error.message),button('Try again',load));
+      root.replaceChildren(node('p','calerror',friendlyError(error,{action:'load',subject:'your calendar'})),button('Try again',load));
     } finally {if(id === requestId) root.removeAttribute('aria-busy');}
   }
   function draw() {

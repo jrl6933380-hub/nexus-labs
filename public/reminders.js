@@ -1,3 +1,4 @@
+import { friendlyError, showFeedback } from './ux.js';
 import { calendarKey } from './schedule-calendar.js';
 import { occupiedStart } from './schedule-availability.js';
 const state={filter:'today'};
@@ -12,12 +13,12 @@ export function reminderMatches(item,filter,today){
 }
 async function api(action,input={}){
   const response=await fetch('/api/reminders',{credentials:'include',...(action ? {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...input})} : {})});
-  const data=await response.json();if(!response.ok)throw new Error(data.error || 'Could not save reminders');return data;
+  const data=await response.json();if(!response.ok){const error=new Error(data.error || 'Could not save reminders');error.status=response.status;throw error;}return data;
 }
 export async function renderReminders(ctx){
   const root=node('section',undefined,'nexreminders');let items=[];
-  async function load(){try{items=(await api()).items || [];draw();}catch(error){root.replaceChildren(node('p',error.message),button('Try again',load));}}
-  function header(){root.replaceChildren();const bar=node('div',undefined,'reminderhead');bar.append(node('h2','Reminders'),button('+ Add',()=>form()));root.append(bar);}
+  async function load(message){try{items=(await api()).items || [];draw();if(typeof message==='string')showFeedback(root,message);}catch(error){root.replaceChildren(node('p',friendlyError(error,{action:'load',subject:'your reminders'})),button('Try again',load));}}
+  function header(){root.replaceChildren();const bar=node('div',undefined,'reminderhead');bar.append(node('h2','Reminders'));root.append(bar);}
   function draw(){
     header();const today=calendarKey(new Date()),tabs=node('div',undefined,'reminderfilters');
     for(const [filter,label] of [['today','Today'],['upcoming','Upcoming'],['all','All'],['completed','Completed']]){
@@ -26,14 +27,15 @@ export async function renderReminders(ctx){
     }
     root.append(tabs);
     const quick=document.createElement('form');quick.className='reminderquick';const title=node('input');title.placeholder='Something to remember…';title.required=true;title.maxLength=160;title.setAttribute('aria-label','New reminder title');
-    const add=node('button','Add');add.type='submit';const status=node('p',undefined,'reminderstatus');status.setAttribute('role','status');quick.append(title,add);
-    quick.onsubmit=async(event)=>{event.preventDefault();add.disabled=true;try{await api('create',{title:title.value});state.filter='all';await load();}catch(error){status.textContent=error.message;add.disabled=false;}};
-    root.append(quick,button('✦ Organize with Nex',()=>ctx.ask('Read my reminders and schedule. Help me choose what matters today with relevant clickable choices. Offer to find time for a reminder; get my approval before changing anything.')),status);
+    const add=node('button','Add reminder');add.className='uxprimary';add.type='submit';const status=node('p',undefined,'reminderstatus');status.setAttribute('role','status');quick.append(title,add);
+    quick.onsubmit=async(event)=>{event.preventDefault();add.disabled=true;try{await api('create',{title:title.value});state.filter='all';await load(`Added reminder: ${title.value}.`);}catch(error){status.textContent=friendlyError(error,{subject:'your reminders',keepDraft:true});add.disabled=false;}};
+    const details=node('details',undefined,'uxsecondary');details.append(node('summary','Add a date or notes'),button('New reminder with details',()=>form()));
+    root.append(quick,details,button('✦ Organize with Nex',()=>ctx.ask('Read my reminders and schedule. Help me choose what matters today with relevant clickable choices. Offer to find time for a reminder; get my approval before changing anything.')),status);
     const visible=items.filter(item=>reminderMatches(item,state.filter,today));
     if(!visible.length)root.append(node('p',state.filter==='today' ? 'Nothing due today. Capture a reminder or ask Nex to help.' : 'Nothing here yet. Add something you want to remember.','reminderempty'));
     for(const item of visible){
       const row=node('div',undefined,'reminderrow');
-      const done=button(item.status==='done' ? '✓' : '○',async()=>{done.disabled=true;try{await api('update',{id:item.id,status:item.status==='done' ? 'planned' : 'done'});await load();}catch(error){status.textContent=error.message;done.disabled=false;}});done.setAttribute('aria-label',`${item.status==='done' ? 'Reopen' : 'Complete'} ${item.title}`);
+      const done=button(item.status==='done' ? '✓' : '○',async()=>{done.disabled=true;try{await api('update',{id:item.id,status:item.status==='done' ? 'planned' : 'done'});await load();}catch(error){status.textContent=friendlyError(error,{subject:'your reminders',keepDraft:true});done.disabled=false;}});done.setAttribute('aria-label',`${item.status==='done' ? 'Reopen' : 'Complete'} ${item.title}`);
       const content=node('div',undefined,'remindercontent');content.append(button(item.title,()=>form(item)));
       if(item.notes)content.append(node('p',item.notes));
       const when=item.due_at ? new Date(item.due_at).toLocaleString('en-US',{dateStyle:'medium',timeStyle:'short'}) : item.due_date || 'No date';
@@ -62,14 +64,14 @@ export async function renderReminders(ctx){
     form.append(save,button('Back',draw));
     if(item)form.append(button('Delete reminder',async()=>{
       if(!confirm(`Delete “${item.title}”${item.schedule_id ? ' and its reserved Schedule block' : ''}?`))return;
-      try{await api('delete',{id:item.id});await load();}catch(error){status.textContent=error.message;}
+      try{await api('delete',{id:item.id});await load();}catch(error){status.textContent=friendlyError(error,{subject:'your reminders',keepDraft:true});}
     }));
     form.append(status);root.append(form);
     form.onsubmit=async(event)=>{event.preventDefault();save.disabled=true;
       try{if(time.value && !date.value && !notesOnly)throw new Error('Choose a date for this time.');
         await api(item ? 'update' : 'create',notesOnly ? {id:item.id,notes:notes.value} : {id:item?.id,title:title.value,notes:notes.value,due_date:date.value || null,due_at:date.value && time.value!=='' ? at(date.value,Number(time.value)).toISOString() : null});
-        if(!item)state.filter='all';await load();
-      }catch(error){status.textContent=error.message;save.disabled=false;}
+        if(!item)state.filter='all';await load(`${notesOnly ? 'Notes saved for' : item ? 'Saved reminder:' : 'Added reminder:'} ${title.value}.`);
+      }catch(error){status.textContent=friendlyError(error,{subject:'your reminders',keepDraft:true});save.disabled=false;}
     };(notesOnly ? notes : title).focus();
   }
   async function schedule(item){
@@ -89,8 +91,8 @@ export async function renderReminders(ctx){
       const start=at(date.value,Number(time.value));guide.textContent=`Planned end: ${new Date(+start+Number(duration.value)*60000).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true})}`;
     }
     date.onchange=time.onchange=duration.onchange=refresh;
-    try{const response=await fetch('/api/planner',{credentials:'include'});const data=await response.json();if(!response.ok)throw new Error(data.error || 'Could not read Schedule');blocks=data.items || [];loaded=true;time.disabled=false;refresh();}catch(error){status.textContent=error.message;}
-    form.onsubmit=async(event)=>{event.preventDefault();save.disabled=true;try{const start=at(date.value,Number(time.value));await api('schedule',{id:item.id,starts_at:start.toISOString(),ends_at:new Date(+start+Number(duration.value)*60000).toISOString(),apply:true});await load();}catch(error){status.textContent=error.message;refresh();}};
+    try{const response=await fetch('/api/planner',{credentials:'include'});const data=await response.json();if(!response.ok)throw new Error(data.error || 'Could not read Schedule');blocks=data.items || [];loaded=true;time.disabled=false;refresh();}catch(error){status.textContent=friendlyError(error,{subject:'your reminders',keepDraft:true});}
+    form.onsubmit=async(event)=>{event.preventDefault();save.disabled=true;try{const start=at(date.value,Number(time.value));await api('schedule',{id:item.id,starts_at:start.toISOString(),ends_at:new Date(+start+Number(duration.value)*60000).toISOString(),apply:true});await load(`Time reserved for ${item.title}.`);}catch(error){status.textContent=friendlyError(error,{subject:'your reminders',keepDraft:true});refresh();}};
   }
   await load();return root;
 }

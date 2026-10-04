@@ -241,6 +241,7 @@
     .workbench-stack-toggle{font-size:10.5px;padding:7px 8px}.workbench-stack-part{flex-basis:112px;min-height:78px}
   }
 </style>
+<link rel="stylesheet" href="/ux.css" />
 </head>
 <body>
 
@@ -300,7 +301,8 @@
 </div>
 
 <script type="module">
-import { FORGE_VIEWS, matchForgeView, featureUnlocked, loadConnection, connectionSnapshot } from '/forge-views.js';
+import { friendlyError, showFeedback } from '/ux.js';
+import { FORGE_VIEWS, matchForgeView, featureUnlocked, loadConnection, connectionSnapshot, primaryAction, secondaryActions } from '/forge-views.js';
 import { say, chips, esc } from '/workspace-views.js';
 
 // Guest-first entry. A visitor can walk in, look around, and talk to Nex
@@ -410,7 +412,7 @@ async function submitAuth(action, info, card) {
     location.replace(isWorkbench ? '/forge.html?surface=workbench&view=chat' : '/forge.html?view=brain');
   } catch (error) {
     info.password = ''; info.securityAnswer = '';
-    status.textContent = error.message;
+    status.textContent = friendlyError(error);
     card.appendChild(chips([{ label:'Try again', run:() => showAuthCard(action === 'signup' ? 'signup' : 'login') }]));
   }
 }
@@ -525,6 +527,7 @@ const ctx = {
   answerBrief: async (questionId, values, comment) => {
     await briefAction('answer', { questionId, values, comment });
     await showView('brief');
+    showFeedback(thread, 'Answer saved. Your next step is below.');
   },
   resetBrief: async () => {
     await briefAction('reset');
@@ -535,7 +538,7 @@ const ctx = {
     const plannedProjectId = currentProjectId;
     let approvedPlan;
     try { approvedPlan = await briefAction('approve'); }
-    catch (error) { bubble('sys', esc(error.message)); return; }
+    catch (error) { bubble('sys', esc(friendlyError(error))); return; }
     if (plannedProjectId !== currentProjectId) { bubble('sys', 'Return to the planned project before building this addition.'); return; }
     if (addon) pendingStackItem = { id: `part-${Date.now().toString(36)}`, kind: approvedPlan.addition_kind || pendingStackItem?.kind || 'tool' };
     await showView('chat');
@@ -577,7 +580,7 @@ const ctx = {
       }
       opened = true;
     } catch (error) {
-      notice.textContent = error.message;
+      notice.textContent = friendlyError(error);
       return;
     } finally {
       if (opened) notice.closest('.msg')?.remove();
@@ -600,7 +603,7 @@ const ctx = {
       notice.textContent = 'Taking you to checkout…';
       window.location.href = data.url;
     } catch (error) {
-      notice.textContent = error.message;
+      notice.textContent = friendlyError(error);
     }
   },
   deleteProject: async (projectId, label) => {
@@ -624,7 +627,7 @@ const ctx = {
       }
       await showView(currentView === 'pages' ? 'pages' : 'project');
     } catch (error) {
-      notice.textContent = error.message;
+      notice.textContent = friendlyError(error);
     }
   },
   runStackAction: async (slotId, operation) => {
@@ -640,7 +643,7 @@ const ctx = {
         await showView('stack');
       }
     } catch (error) {
-      notice.textContent = error.message;
+      notice.textContent = friendlyError(error);
     }
   },
   hasScopedConnection: (slotId) => scopedConnections.has(`${currentProjectId}:${slotId}`),
@@ -656,7 +659,7 @@ const ctx = {
       notice.closest('.msg')?.remove();
       await ctx.ask(data.message);
       if (currentProjectId === projectId && history.at(-2)?.content === data.message && history.at(-1)?.role === 'assistant') scopedConnections.add(`${projectId}:${slotId}`);
-    } catch (error) { notice.textContent = error.message; }
+    } catch (error) { notice.textContent = friendlyError(error); }
   },
   setupStack: async () => {
     const notice = bubble('sys', 'Setting up the managed parts of your project…');
@@ -666,7 +669,7 @@ const ctx = {
       notice.textContent = outcome.message || 'Managed setup finished.';
       await showView('stack');
     } catch (error) {
-      notice.textContent = error.message;
+      notice.textContent = friendlyError(error);
     }
   },
   signOut: async () => {
@@ -692,7 +695,7 @@ const ctx = {
       notice.textContent = 'Taking you over to authorize…';
       location.href = data.redirectUrl;
     } catch (error) {
-      notice.textContent = error.message;
+      notice.textContent = friendlyError(error);
     }
   },
 
@@ -715,7 +718,7 @@ const ctx = {
         }
       }
     } catch (error) {
-      notice.textContent = error.message;
+      notice.textContent = friendlyError(error);
     }
   },
 
@@ -730,7 +733,7 @@ const ctx = {
       drawNav();
       showView('brain');
     } catch (error) {
-      notice.textContent = error.message;
+      notice.textContent = friendlyError(error);
     }
   },
 
@@ -741,7 +744,7 @@ const ctx = {
       notice.textContent = 'Disconnected. Connect a Builder Brain again before your next build.';
       showView('brain');
     } catch (error) {
-      notice.textContent = error.message;
+      notice.textContent = friendlyError(error);
     }
   },
 };
@@ -995,7 +998,7 @@ function renderWorkbenchPreview(){
       }, 1800);
     } catch (error) {
       share.disabled = false;
-      status.textContent = error.message;
+      status.textContent = friendlyError(error);
     }
   };
   bar.append(back, title, status, edit, share, openLive);
@@ -1007,7 +1010,7 @@ function renderWorkbenchPreview(){
   frame.srcdoc = currentBuild;
   const publishNote = document.createElement('p');
   publishNote.className = 'workbench-publish-note';
-  publishNote.textContent = 'One stack, one live site. Pages and tools are built into this project as you add them. Publishing shares the latest combined site; the cards are visual guides to its pieces.';
+  publishNote.textContent = 'Your pages and tools become one complete site at one link. These cards help you organize its parts.';
   shell.append(bar, publishNote, frame);
   document.body.appendChild(shell);
   return true;
@@ -1195,7 +1198,7 @@ async function askNex(raw, { displayMessage = raw } = {}){
     busy = false; el('send').disabled = false;
     await runBuild(decision.instruction, raw, false);
   } catch (error) {
-    pending.innerHTML = `<p style="color:#d09a82">${esc(error.message)}</p>`;
+    pending.innerHTML = `<p style="color:#d09a82">${esc(friendlyError(error))}</p>`;
   } finally {
     busy = false; el('send').disabled = false;
   }
@@ -1359,7 +1362,7 @@ async function runBuild(raw, displayMessage = raw, showUser = true, planMode = u
       if (jobId) void recoverPendingBuild();
     }
   } catch (error) {
-    pending.innerHTML = `<p style="color:#d09a82">${esc(error.message)}</p>`;
+    pending.innerHTML = `<p style="color:#d09a82">${esc(friendlyError(error))}</p>`;
     void recoverPendingBuild();
   } finally { busy = false; el('send').disabled = false; }
 }
@@ -1378,33 +1381,19 @@ el('newBtn').onclick = el('newTop').onclick = () => {
 };
 
 function greet(){
-  if (isWorkbench) {
-    thread.appendChild(say(`This Workbench project can become a complete website, app, business system, or intelligence. Build the main experience here, then add supporting pages, tools, automations, and connections into the same stack.`));
-    const workbenchOptions = [
-      { label: 'Describe what to build', run: () => { el('input').focus(); } },
-      { label: 'Projects', run: () => showView('project') },
-    ];
-    if (featureUnlocked(connectionSnapshot(), 'brief')) workbenchOptions.push({ label: 'Project Plan', run: () => showView('brief') });
-    if (currentBuild && featureUnlocked(connectionSnapshot(), 'stack')) workbenchOptions.push({ label: 'Connections', run: () => showView('stack') });
-    thread.appendChild(chips(workbenchOptions));
-    return;
-  }
-  // The greeting only promises what this customer's brain can actually do.
-  // Offering the Project Brief to someone on the free router sets up a long
-  // wait and a rate limit instead of a built page.
   const briefReady = featureUnlocked(connectionSnapshot(), 'brief');
   const stackReady = Boolean(currentBuild) && featureUnlocked(connectionSnapshot(), 'stack');
-
-  thread.appendChild(say(briefReady
-    ? `Hey, I'm Nex. Welcome to Forge.\n\nTell me what you want to create. I'll ask a few focused questions, save your answers into a Project Brief, and then build the first version from what you actually want.`
-    : `Hey, I'm Nex. Welcome to Forge.\n\nTell me what you want to build and I'll build it. Describe it like you'd describe it to a person — you don't need to know how any of it works.`));
-
-  const options = [];
-  if (briefReady) options.push({ label: 'Start my Project Brief', run: () => showView('brief') });
-  if (stackReady) options.push({ label: 'See my build plan', run: () => showView('stack') });
-  options.push({ label: 'What can you build', run: () => showView('help') });
-  options.push({ label: 'Features', run: () => showView('features') });
-  thread.appendChild(chips(options));
+  thread.appendChild(say(currentBuild
+    ? `What would you like to change in ${currentProjectLabel}? Nex can help you choose the next step.`
+    : 'What would you like to build? Start with a website, app, or tool. Nex will help you choose what it needs, one step at a time.'));
+  thread.appendChild(primaryAction(currentBuild ? 'Choose a change with Nex' : briefReady ? 'Plan what to build' : 'Describe what to build', () => {
+    if (currentBuild) { ctx.ask('Help me choose the next change for this project. Offer relevant clickable choices and ask one short question at a time. Do not change anything until I choose.'); }
+    else if (briefReady) showView('brief');
+    else el('input').focus();
+  }));
+  const options = [{label:'My projects',run:()=>showView('project')},{label:'What can Nex build?',run:()=>showView('help')}];
+  if (stackReady) options.push({label:'Project connections',run:()=>showView('stack')});
+  thread.appendChild(secondaryActions('More options', [chips(options)]));
 }
 
 // Nex head — same behaviour as the operator shell.
@@ -1492,7 +1481,7 @@ async function dockAsk(text){
       if (data.command === 'open_project' && data.target) await ctx.openBuild(data.target);
       else if (commandViews[data.command]) await showView(commandViews[data.command]);
     }
-  } catch (error) { body.textContent = error.message; }
+  } catch (error) { body.textContent = friendlyError(error); }
 }
 el('dockSend').onclick = () => {
   const value = el('dockInput').value.trim();

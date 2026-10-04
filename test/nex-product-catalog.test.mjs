@@ -29,11 +29,11 @@ test('the owner shell leads with Nex Chat and separates products from operations
   assert.match(workspace, /<title>Nex Chat<\/title>/u);
   assert.match(workspace, /id="productNav"/u);
   assert.match(workspace, /Founder operations/u);
-  assert.match(workspace, /What's on your mind, Justin\?/u);
+  assert.match(workspace, /renderWelcome\(ctx\)/u);
   assert.match(workspace, /Ask Nex anything/u);
 });
 
-test('the mobile welcome keeps all four starters in a compact two-column grid', () => {
+test('the mobile welcome keeps goal choices in a compact two-column grid', () => {
   assert.match(workspace, /grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/u);
   assert.doesNotMatch(workspace, /startergrid\{grid-template-columns:1fr/u);
   assert.doesNotMatch(workspace, /When you are ready to build/u);
@@ -56,8 +56,7 @@ test('Nex Chat composer exposes customer actions instead of founder visual contr
 });
 
 test('the public home card introduces Schedule while the system briefing stays private', () => {
-  assert.match(workspace, /Open Schedule/u);
-  assert.match(workspace, /Time blocks, weeks, and routines/u);
+  assert.match(workspace, /renderWelcome\(ctx\)/u);
   assert.match(workspace, /id="ownerBriefBtn"/u);
   assert.match(workspace, /Founder operations/u);
 });

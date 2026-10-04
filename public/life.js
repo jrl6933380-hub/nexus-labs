@@ -1,3 +1,4 @@
+import { friendlyError, showFeedback } from './ux.js';
 import {calendarKey,calendarDayItems,renderScheduleCalendar} from './schedule-calendar.js';
 const PILLARS=[['work','Work','#6f9ce8'],['sleep','Sleep','#879ade'],['social','Social','#df7fa4'],['health','Health','#65b8b2'],['personal','Personal','#bd91d9']];
 const state={tab:'today',date:new Date(),mode:'month',rhythmDate:new Date(),historyDate:calendarKey(new Date())};
@@ -15,13 +16,13 @@ export function lifeExperience(item){
   return parts.join(' · ');
 }
 function select(values,value){const el=node('select');for(const [key,label] of values){const option=node('option',label);option.value=String(key);el.append(option);}el.value=String(value);return el;}
-async function api(action,input={}){const response=await fetch('/api/life',{credentials:'include',...(action ? {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...input})} : {})});const data=await response.json();if(!response.ok)throw new Error(data.error || 'Could not save Life');return data;}
+async function api(action,input={}){const response=await fetch('/api/life',{credentials:'include',...(action ? {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...input})} : {})});const data=await response.json();if(!response.ok){const error=new Error(data.error || 'Could not save Life');error.status=response.status;throw error;}return data;}
 export function lifeWeekItems(items,day){const from=new Date(day);from.setHours(0,0,0,0);from.setDate(from.getDate()-((from.getDay()+6)%7));const to=new Date(from);to.setDate(to.getDate()+7);return items.filter(item=>item.starts_at && Date.parse(item.starts_at)<+to && Date.parse(item.ends_at)>+from);}
 function weekStart(day){const start=new Date(day);start.setHours(0,0,0,0);start.setDate(start.getDate()-((start.getDay()+6)%7));return start;}
 export function copyLifeTimes(item,target,source){const start=new Date(item.starts_at),from=weekStart(source),to=weekStart(target);const days=Math.round((new Date(start.getFullYear(),start.getMonth(),start.getDate())-from)/86400000);const next=new Date(to);next.setDate(next.getDate()+days);next.setHours(start.getHours(),start.getMinutes(),0,0);const end=new Date(+next+Date.parse(item.ends_at)-Date.parse(item.starts_at));return {starts_at:next.toISOString(),ends_at:end.toISOString()};}
 export async function renderLife(ctx){
   const root=node('section',undefined,'nexuslife');let data={items:[],profile:{focus:[],goals:''}};let drawId=0;
-  async function load(){try{data=await api();await draw();}catch(error){root.replaceChildren(node('p',error.message),button('Try again',load));}}
+  async function load(message){try{data=await api();await draw();if(typeof message==='string')showFeedback(root,message);}catch(error){root.replaceChildren(node('p',friendlyError(error,{action:'load',subject:'Life'})),button('Try again',load));}}
   function heading(){root.replaceChildren();const head=node('div',undefined,'lifehead');head.append(node('div','NEXUS LIFE','lifeeyebrow'),node('h2','Make room for your life.'),node('p','Plan your time. Notice how it feels. Shape what comes next.'));root.append(head);}
   async function draw(){
     const generation=++drawId;heading();
@@ -30,7 +31,7 @@ export async function renderLife(ctx){
     const explore=node('details',undefined,'lifeexplore');explore.open=state.tab!=='today';explore.append(node('summary','Explore Life'));
     const tabs=node('div',undefined,'lifetabs');
     for(const [key,label] of [['calendar','Life calendar'],['reminders','Life reminders'],['insights','Your rhythm'],['history','Life history'],['reset','Weekly reset']]){const tab=button(label,()=>{state.tab=key;return draw();});tab.setAttribute('aria-pressed',String(state.tab===key));tabs.append(tab);}explore.append(tabs);navigation.append(home,explore);root.append(navigation);
-    const actions=node('div',undefined,'lifeactions lifeprimary');actions.append(button('✦ Plan with Nex',()=>askNex('Help me design my Life week around my priorities. Read Life and Nex Schedule. Ask only the decisions you need, using relevant clickable options. Preview each linked change and get my approval.')),button('+ Plan an activity',()=>form()));root.append(actions);const more=node('details',undefined,'lifemore');more.append(node('summary','More options'),button('+ Remember something',()=>form(null,'reminder')),button('My priorities',preferences),button('My day changed',dayChanged));root.append(more);
+    const actions=node('div',undefined,'lifeactions lifeprimary');const plan=button('✦ Plan with Nex',()=>askNex('Help me design my Life week around my priorities. Read Life and Nex Schedule. Ask only the decisions you need, using relevant clickable options. Preview each linked change and get my approval.'));plan.className='uxprimary';actions.append(plan);root.append(actions);const more=node('details',undefined,'lifemore');more.append(node('summary','More options'),button('+ Plan an activity',()=>form()),button('+ Remember something',()=>form(null,'reminder')),button('My priorities',preferences),button('My day changed',dayChanged));root.append(more);
     if(!data.profile.onboarded){const welcome=node('div',undefined,'lifewelcome');welcome.append(node('h3','Start with what matters to you.'),node('p','Choose a few priorities, or jump straight into your day. You can change them anytime.'),button('Choose my priorities',preferences),button('Skip for now',async()=>{await api('profile',{focus:[]});await load();}));root.append(welcome);}
     if(state.tab==='calendar'){
       const calendar=await renderScheduleCalendar({calendarState:state,calendarEndpoint:'/api/life',calendarSubject:'Life plan',detailsLabel:'Check in',balanceLabel:'Your rhythm',weekLabel:'Design next week',
@@ -68,7 +69,7 @@ export async function renderLife(ctx){
       const choice=button(label,()=>saveQuick({energy:value},choice));choice.setAttribute('aria-pressed',String(value===item.energy));options.append(choice);
     }
     ratings.append(options);
-    async function saveQuick(values,control){control.disabled=true;try{await api('check_in',{id:item.id,...values});await load();}catch(error){control.disabled=false;errorBox(error);}}
+    async function saveQuick(values,control){control.disabled=true;try{await api('check_in',{id:item.id,...values});await load(`Check-in saved for ${item.title}.`);}catch(error){control.disabled=false;errorBox(error);}}
     return [choices,ratings];
   }
   function today(){
@@ -116,11 +117,11 @@ export async function renderLife(ctx){
     const host=node('section',undefined,'lifepulse');host.append(node('h3','How is your energy today?'),node('p',saved?.energy ? `Today: ${saved.energy}/5 · ${PULSE_LABELS[saved.energy-1]}` : 'One tap is enough. You can skip this.'));
     const choices=node('div',undefined,'lifeactions');
     for(const [index,label] of PULSE_LABELS.entries()){
-      const choice=button(`${index+1} · ${label}`,async()=>{choice.disabled=true;try{await api('pulse',{date,energy:index+1,note:saved?.note || ''});await load();}catch(error){choice.disabled=false;errorBox(error);}});
+      const choice=button(`${index+1} · ${label}`,async()=>{choice.disabled=true;try{await api('pulse',{date,energy:index+1,note:saved?.note || ''});await load('Your energy check-in is saved.');}catch(error){choice.disabled=false;errorBox(error);}});
       choice.setAttribute('aria-pressed',String(saved?.energy===index+1));choices.append(choice);
     }host.append(choices);
     const details=node('details');details.append(node('summary',saved?.note ? 'Your note' : 'Add a note (optional)'));const note=node('textarea');note.value=saved?.note || '';note.maxLength=2000;
-    details.append(field('What is on your mind?',note),button('Save note',async()=>{try{await api('pulse',{date,energy:saved?.energy ?? null,note:note.value});await load();}catch(error){errorBox(error);}}));host.append(details);return host;
+    details.append(field('What is on your mind?',note),button('Save note',async()=>{try{await api('pulse',{date,energy:saved?.energy ?? null,note:note.value});await load('Your note is saved.');}catch(error){errorBox(error);}}));host.append(details);return host;
   }
   function suggestions(){
     const host=node('section',undefined,'lifesuggestions');host.append(node('h3','A little room for you'));
@@ -193,12 +194,12 @@ export async function renderLife(ctx){
     root.append(save,button('Change or skip activities',()=>weeklyReset(sourceDay,proposed.entries)),button('Ask Nex for alternatives',()=>askNex(`Help me resolve this weekly reset without moving protected commitments. Preview: ${JSON.stringify(proposed)}. Suggest changes for me to review.`)));
   }
 
-  function errorBox(error){const status=node('p',error.message,'lifeerror');status.setAttribute('role','status');root.append(status);}
+  function errorBox(error){const status=node('p',friendlyError(error,{subject:'Life',keepDraft:true}),'lifeerror');status.setAttribute('role','status');root.append(status);}
   function preferences(){
     ++drawId;heading();root.append(node('h3','What would you like more room for?'),node('p','Choose any that matter. You can skip this.'));
     const chosen=new Set(data.profile.focus || []),choices=node('div',undefined,'lifeactions');for(const [key,label] of PILLARS){const choice=button(label,()=>{chosen.has(key) ? chosen.delete(key) : chosen.add(key);choice.setAttribute('aria-pressed',String(chosen.has(key)));});choice.setAttribute('aria-pressed',String(chosen.has(key)));choices.append(choice);}root.append(choices);
     const goals=node('textarea');goals.value=data.profile.goals || '';goals.placeholder='Something you want more of, or a rhythm you want to change…';goals.maxLength=2000;root.append(field('Anything else? (optional)',goals));
-    const save=button('Save my priorities',async()=>{save.disabled=true;try{await api('profile',{focus:[...chosen],goals:goals.value});await load();}catch(error){save.disabled=false;errorBox(error);}});root.append(save,button('Back',draw));
+    const save=button('Save my priorities',async()=>{save.disabled=true;try{await api('profile',{focus:[...chosen],goals:goals.value});await load('Your priorities are saved.');}catch(error){save.disabled=false;errorBox(error);}});root.append(save,button('Back',draw));
   }
   function form(item=null,kind='activity',day,minutes){
     ++drawId;heading();const reservation=kind==='reservation';kind=item?.kind || kind;const timed=kind==='activity' || reservation;const form=document.createElement('form');form.className='lifeform';root.append(node('h3',item?.id ? 'Edit your plan' : timed ? 'Plan an activity' : 'Remember something'),form);
@@ -222,7 +223,7 @@ export async function renderLife(ctx){
     const protect=node('input');protect.type='checkbox';protect.checked=item?.protected || false;
     more.append(field('Notes',notes));if(timed)more.append(field('Who with?',person),field('Where?',place),field('Keep this time fixed',protect));form.append(more);
     const preview=node('button','Review my plan');preview.type='submit';const status=node('p');status.setAttribute('role','status');form.append(preview,button('Back',draw),status);
-    if(item?.id)form.append(button('Delete',async()=>{if(!confirm(`Delete ${item.title}${item.link ? ' and its linked Nex item' : ''}?`))return;try{await api('delete',{id:item.id});await load();}catch(error){status.textContent=error.message;}}));
+    if(item?.id)form.append(button('Delete',async()=>{if(!confirm(`Delete ${item.title}${item.link ? ' and its linked Nex item' : ''}?`))return;try{await api('delete',{id:item.id});await load(`Removed from Life: ${item.title}.`);}catch(error){status.textContent=friendlyError(error,{subject:'Life',keepDraft:true});}}));
     function start(){if(!date.value)return null;const [y,m,d]=date.value.split('-').map(Number);return new Date(y,m-1,d,Math.floor(Number(time.value)/60),Number(time.value)%60);}
     function refresh(){if(timed && start()){const finish=new Date(+start()+Number(duration.value)*60000);end.textContent=`Planned finish: ${clock(finish)}${calendarKey(finish)!==date.value ? ' the next day' : ''}. This is a guide; you can run longer.`;}}
     date.onchange=time.onchange=duration.onchange=refresh;refresh();title.focus();
@@ -231,14 +232,14 @@ export async function renderLife(ctx){
       const payload={id:item?.id,kind,title:title.value,pillar:pillar.value,notes:notes.value,person:person.value,place:place.value,protected:protect.checked,
         ...(timed ? {starts_at:start().toISOString(),ends_at:new Date(+start()+Number(duration.value)*60000).toISOString()} : {due_date:date.value || null,due_at:date.value && time.value!=='' ? start().toISOString() : null})};
       const proposed=await api('preview',payload);review(proposed,item);
-    }catch(error){status.textContent=error.message;preview.disabled=false;}};
+    }catch(error){status.textContent=friendlyError(error,{subject:'Life',keepDraft:true});preview.disabled=false;}};
   }
   function review(proposed,old){
     ++drawId;heading();const {item,conflicts}=proposed;root.append(node('h3','Does this look right?'),node('h3',item.title),node('p',item.starts_at ? `${new Date(item.starts_at).toLocaleDateString('en-US',{dateStyle:'medium'})} · ${clock(item.starts_at)} – ${clock(item.ends_at)}` : item.due_date || 'No date'));
     if(conflicts.length){root.append(node('p','These times overlap. You can change your plan or keep it in Life without linking.','lifeerror'));for(const conflict of conflicts)root.append(node('p',`${conflict.where}: ${conflict.title} · ${clock(conflict.starts_at)} – ${clock(conflict.ends_at)}`));}
     else root.append(node('p',item.starts_at ? 'No conflicts found in Life or Nex Schedule.' : 'Linking adds this to Nex Reminders.'));
     const status=node('p');status.setAttribute('role','status');const actions=node('div',undefined,'lifeactions');
-    async function save(destination,control){control.disabled=true;try{await api('save',{...item,baseline:proposed.baseline,destination});await load();}catch(error){status.textContent=error.message;control.disabled=false;}}
+    async function save(destination,control){control.disabled=true;try{await api('save',{...item,baseline:proposed.baseline,destination});await load(`Saved in Life: ${item.title}.`);}catch(error){status.textContent=friendlyError(error,{subject:'Life',keepDraft:true});control.disabled=false;}}
     const only=button(old?.link ? 'Save in Life and remove the Nex link' : 'Keep in Life only',()=>save('life',only));actions.append(only);
     const link=button(old?.link ? 'Save and update Nex' : 'Save and link to Nex',()=>save('linked',link));link.disabled=conflicts.length>0;actions.append(link,button('Change plan',()=>form(item,item.kind==='reminder' && item.starts_at ? 'reservation' : item.kind)),button('Ask Nex for another option',()=>askNex(`Help me resolve conflicts for my Life plan: ${JSON.stringify(item)}. Conflicts: ${JSON.stringify(conflicts)}. Suggest open alternatives without moving existing commitments.`)));root.append(actions,status);
   }
@@ -253,7 +254,7 @@ export async function renderLife(ctx){
     const memory=node('input');memory.type='url';memory.value=item.memory_url || '';memory.placeholder='https://…';
     form.append(field('What happened?',outcome),field('How did it feel?',energy),field(`Use the planned times (${clock(item.starts_at)} – ${clock(item.ends_at)})`,usePlan),field('Actual start (optional)',actualStart),field('Actual finish (optional)',actualEnd),field('Reflection (optional)',reflection),field('Link to a photo, video, or memory (optional)',memory));
     const save=node('button','Save my check-in');save.type='submit';const status=node('p');status.setAttribute('role','status');form.append(save,button('Skip / Back',draw),status);
-    form.onsubmit=async(event)=>{event.preventDefault();save.disabled=true;try{await api('check_in',{id:item.id,outcome:outcome.value,energy:energy.value==='' ? null : Number(energy.value),use_planned_times:usePlan.checked,...(!usePlan.checked ? {actual_starts_at:actualStart.value ? new Date(actualStart.value).toISOString() : null,actual_ends_at:actualEnd.value ? new Date(actualEnd.value).toISOString() : null} : {}),reflection:reflection.value,memory_url:memory.value});await load();}catch(error){status.textContent=error.message;save.disabled=false;}};
+    form.onsubmit=async(event)=>{event.preventDefault();save.disabled=true;try{await api('check_in',{id:item.id,outcome:outcome.value,energy:energy.value==='' ? null : Number(energy.value),use_planned_times:usePlan.checked,...(!usePlan.checked ? {actual_starts_at:actualStart.value ? new Date(actualStart.value).toISOString() : null,actual_ends_at:actualEnd.value ? new Date(actualEnd.value).toISOString() : null} : {}),reflection:reflection.value,memory_url:memory.value});await load(`Check-in saved for ${item.title}.`);}catch(error){status.textContent=friendlyError(error,{subject:'Life',keepDraft:true});save.disabled=false;}};
   }
   await load();return root;
 }

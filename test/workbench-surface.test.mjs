@@ -112,7 +112,7 @@ test('Projects loads every panel and fans recorded supporting pieces into its st
 test('Projects view shows plan usage and the backend receives the Workbench surface for limit enforcement', () => {
   assert.match(workspace, />Projects<span class="badgeplan"/u);
   assert.match(workspaceViews, /projectUsage\(projects\.length, limit, workbench\.planName\)/u);
-  assert.match(workspaceViews, /Upgrade for more projects/u);
+  assert.match(workspaceViews, /See plan options/u);
   assert.match(forge, /surface: surfaceMode/u);
   assert.match(forge, /WORKBENCH_PROJECT_LIMIT/u);
 });

@@ -207,7 +207,7 @@ test('Life home keeps extra views collapsed and returns from Explore Life withou
     let explore=all(root).find(el=>el.className==='lifeexplore');assert.equal(explore.open,false);assert.equal(explore.children[0].textContent,'Explore Life');
     assert.equal(all(explore).filter(el=>el.tagName==='button').length,5);
     assert.ok(all(root).find(el=>el.className==='lifepulse'));assert.ok(all(root).find(el=>el.className==='lifeideas' && !el.open));
-    const primary=all(root).find(el=>el.className==='lifeactions lifeprimary');assert.deepEqual(primary.children.map(el=>el.textContent),['✦ Plan with Nex','+ Plan an activity']);
+    const primary=all(root).find(el=>el.className==='lifeactions lifeprimary');assert.deepEqual(primary.children.map(el=>el.textContent),['✦ Plan with Nex']);
     primary.children[0].onclick();assert.match(prompts[0],/Read Life and Nex Schedule/);
     explore.open=true;await all(explore).find(el=>el.textContent==='Life history').onclick();
     explore=all(root).find(el=>el.className==='lifeexplore');assert.equal(explore.open,true);assert.ok(all(root).find(el=>el.textContent==='Your Life history'));
