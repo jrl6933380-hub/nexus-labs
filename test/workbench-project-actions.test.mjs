@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
+import {friendlyError} from '../public/ux.js';
 
 const viewsSource = await readFile(new URL('../public/forge-views.js', import.meta.url), 'utf8');
 const forgeSource = await readFile(new URL('../public/forge.html', import.meta.url), 'utf8');
@@ -61,7 +62,7 @@ test('without a current build the add screen asks the customer to choose a proje
 function openHarness(ok) {
   const body = forgeSource.split("openBuild: async (id, destination = 'chat', projectLabel = '') => {")[1].split('\n  },\n  buyUsagePack:')[0];
   const context = {
-    currentBuild: '<h1>Old</h1>', currentProjectId: 'old-project', latestBuildId: 'old-build', currentProjectLabel: 'Old', pendingStackItem: { kind: 'tool' }, plannerEntry: '',
+    friendlyError, currentBuild: '<h1>Old</h1>', currentProjectId: 'old-project', latestBuildId: 'old-build', currentProjectLabel: 'Old', pendingStackItem: { kind: 'tool' }, plannerEntry: '',
     currentLiveUrl: '', currentLiveNeedsUpdate: false, history: [], threadId: null, shown: [],
     bubble: () => ({ closest: () => ({ remove() {} }) }), paragraphs: text => text,
     fetch: async url => ({ ok, json: async () => url.startsWith('/api/room-history') ? { build: { id: 'build-b', projectId: 'project-b', html: '<h1>Garage</h1>', label: 'Add booking form' } } : { turns: [] } }),

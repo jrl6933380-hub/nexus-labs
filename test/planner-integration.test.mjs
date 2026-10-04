@@ -31,7 +31,7 @@ test('Nex can read and mutate the same planner as the UI', () => {
 
 test('Schedule is reachable from the sidebar and the home card', () => {
   assert.match(workspace, /data-view="planner"/u);
-  assert.match(workspace, /\['Open Schedule', 'Time blocks, weeks, and routines', null, 'planner'\]/u);
+  assert.match(workspace, /renderWelcome\(ctx\)/u);
   assert.match(workspace, /id="ownerBriefBtn"[^>]*>.*What needs me\?/u);
   assert.match(views, /planner: \{/u);
   assert.match(views, /renderScheduleCalendar\(ctx, \{balance:scheduleBalance\}\)/u);

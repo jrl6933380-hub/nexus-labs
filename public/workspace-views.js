@@ -19,6 +19,18 @@ import { NEXUS_PRODUCTS, NEX_CHAT_PLANS } from './nexus-product-catalog.js';
 import { renderLife } from './life.js';
 import { renderReminders } from './reminders.js';
 import { renderScheduleCalendar } from './schedule-calendar.js';
+import { friendlyError } from './ux.js';
+
+export function primaryAction(label,run){const button=document.createElement('button');button.type='button';button.className='uxprimary';button.textContent=label;button.onclick=run;return button;}
+export function secondaryActions(label,nodes){const details=document.createElement('details');details.className='uxsecondary';const summary=document.createElement('summary');summary.textContent=label;details.append(summary,...nodes);return details;}
+export function renderWelcome(ctx){
+  const welcome=document.createElement('section');welcome.className='welcome';
+  for(const [tag,text,cls] of [['div','N','welcome-mark'],['h1','What would you like to do?',''],['p','Nex can help you build something, plan your time, or think it through.','']]){const node=document.createElement(tag);node.className=cls;node.textContent=text;welcome.append(node);}
+  welcome.append(primaryAction('Start with Nex',()=>ctx.ask('Help me get started. Offer relevant clickable choices to build something, plan my time, or make room for life. Ask one short question and explain the next step. Do not build or change anything until I choose a goal.')));
+  const goals=document.createElement('div');goals.className='startergrid';
+  for(const [label,description,view] of [['Build something','A website, app, or tool','workbench'],['Plan my time','Activities and reminders','planner'],['Make room for life','Balance, energy, and what matters','life']]){const button=document.createElement('button');button.type='button';button.className='starter';button.textContent=label;const meta=document.createElement('span');meta.textContent=description;button.append(meta);button.onclick=()=>ctx.go(view);goals.append(button);}
+  welcome.append(secondaryActions('Choose a goal yourself',[goals]));return welcome;
+}
 
 export const pill = (text, tone = '') => {
   const span = document.createElement('span');
@@ -45,7 +57,7 @@ export function pick(payload, ...keys) {
 
 export async function getJSON(url) {
   const response = await fetch(url, { headers: { Accept: 'application/json' }, cache: 'no-store' });
-  if (!response.ok) throw new Error(`${url} returned ${response.status}`);
+  if (!response.ok) throw Object.assign(new Error('Could not load this view'),{status:response.status});
   return response.json();
 }
 
@@ -56,7 +68,7 @@ export async function postJSON(url, body) {
     body: JSON.stringify(body),
   });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.error || `${url} returned ${response.status}`);
+  if (!response.ok) throw Object.assign(new Error(payload.error || 'Could not save this change'),{status:response.status});
   return payload;
 }
 
@@ -156,7 +168,7 @@ export function deleteTaskButton({ id, title, post, onDeleted }) {
       if (ok === false) button.disabled = false;
     } catch (err) {
       button.disabled = false;
-      window.alert(`Delete failed: ${err.message}`);
+      window.alert(friendlyError(err,{action:'delete'}));
     }
   };
   return button;
@@ -367,24 +379,20 @@ export const VIEWS = {
       const canCreate = workbench.canCreate !== false && projects.length < limit;
       ctx.setProjectUsage?.(projects.length, limit);
       return [
-        say(projects.length
-          ? 'Choose a project to open its full preview. Use Edit when you want the live project pinned beside your conversation with Nex.'
-          : 'Each project is one complete website, app, business system, or intelligence. Start one here, then add supporting pages, tools, workflows, and intelligences into its stack.'),
+        say(projects.length ? 'Open a project to see it, or edit it with Nex.' : 'Build a website, app, or tool. Nex will guide you one step at a time.'),
         projectUsage(projects.length, limit, workbench.planName),
-        chips([
-          canCreate
-            ? { label: 'New project', run: () => ctx.newWorkbenchPanel() }
-            : { label: 'Upgrade for more projects', run: () => ctx.ask(`I have used all ${limit} Workbench project slots. Show me which Nex Chat plan gives me more projects.`) },
+        primaryAction(canCreate ? 'Build something' : 'See plan options',canCreate ? () => ctx.newWorkbenchPanel() : () => ctx.ask(`I have used all ${limit} Workbench project slots. Show me which Nex Chat plan gives me more projects.`)),
+        secondaryActions('More project options',[chips([
           { label: 'Map a project', run: () => ctx.ask('Help me map a new website, app, business system, or intelligence before we open its Workbench project.') },
           { label: 'Refresh', run: () => ctx.go('workbench') },
-        ]),
-        projects.length ? await projectGallery(projects.slice(0, 10), ctx) : empty('No projects yet. Start one here and it will become its own complete Workbench space.'),
-        group('Plans', Object.values(NEX_CHAT_PLANS).map((plan) => row({
+        ])]),
+        projects.length ? await projectGallery(projects.slice(0, 10), ctx) : empty('Your projects will appear here after you build the first one.'),
+        secondaryActions('Compare plans',[group('Plans', Object.values(NEX_CHAT_PLANS).map((plan) => row({
           title: `${plan.name}${plan.price ? ` · $${plan.price}/month` : ''}`,
           meta: plan.description,
           tone: plan.name === 'Plus' ? { label: '10 projects', kind: 'f' }
             : plan.name === 'Pro' ? { label: '3 projects' } : { label: 'chat' },
-        }))),
+        })))]),
       ];
     },
   },
