@@ -3,10 +3,23 @@ import {friendlyError,showFeedback} from './ux.js';
 const node=(tag,text,cls='')=>{const el=document.createElement(tag);if(text!==undefined)el.textContent=text;el.className=cls;return el;};
 const button=(text,run,cls='')=>{const el=node('button',text,cls);el.type='button';el.onclick=run;return el;};
 const SYSTEMS=[
-  {id:'planner',name:'Schedule',icon:'▤',description:'Plan time and adjust your day'},
-  {id:'reminders',name:'Reminders',icon:'◉',description:'Remember things and reserve time'},
-  {id:'life',name:'Nexus Life',icon:'◇',description:'Energy, balance, and what matters'},
-  {id:'workbench',name:'Projects',icon:'▦',description:'Build, improve, and maintain projects'},
+  {id:'planner',name:'Schedule',icon:'◷',tone:'schedule',section:'Your Nexus',description:'Plan time and adjust your day'},
+  {id:'reminders',name:'Reminders',icon:'✓',tone:'reminders',section:'Your Nexus',description:'Remember things and reserve time'},
+  {id:'life',name:'Nexus Life',icon:'✦',tone:'life',section:'Your Nexus',description:'Energy, balance, and what matters'},
+  {id:'workbench',name:'Projects',icon:'◫',tone:'projects',section:'Your Nexus',description:'Build, improve, and maintain projects'},
+  {id:'legacy',name:'Nexus Legacy',icon:'◇',tone:'legacy',section:'Connected Nexus',description:'Keep memories, people, and lessons close'},
+  {id:'teams',name:'Nexus Teams',icon:'⬡',tone:'teams',section:'Connected Nexus',description:'People and agents working together'},
+  {id:'deck',name:'Command Deck',icon:'⌁',tone:'operations',section:'Founder operations',description:'See what needs your attention'},
+  {id:'approvals',name:'Approvals',icon:'✓',tone:'operations',section:'Founder operations',description:'Review consequential actions before they happen'},
+  {id:'forge',name:'Forge',icon:'F',tone:'forge',section:'Founder operations',description:'Run and support the builder'},
+  {id:'story',name:'Story Studio',icon:'S',tone:'story',section:'Founder operations',description:'Direct stories, scenes, and characters'},
+  {id:'agents',name:'AI Team',icon:'A',tone:'teams',section:'Founder operations',description:'See agents and the work they own'},
+  {id:'memory',name:'Memory',icon:'M',tone:'memory',section:'Founder operations',description:'What Nexus knows and carries forward'},
+  {id:'ventures',name:'Ventures',icon:'V',tone:'ventures',section:'Founder operations',description:'Shape and manage new businesses'},
+  {id:'pod',name:'Pod Room',icon:'P',tone:'pod',section:'Founder operations',description:'Your connected intelligence workspace'},
+  {id:'skills',name:'Capabilities',icon:'C',tone:'skills',section:'Founder operations',description:'What Nex knows how to do'},
+  {action:'openSecurity',name:'Security',icon:'⌁',tone:'memory',section:'Account',description:'Manage how you unlock Nexus'},
+  {action:'lockNex',name:'Lock Nexus',icon:'L',tone:'legacy',section:'Account',description:'Secure this workspace on this device'},
 ];
 const SCOPE_LABELS={conversation:'This conversation',projects:'Projects',schedule:'Schedule',reminders:'Reminders',life:'Nexus Life'};
 export function conversationThreadId(conversation){return conversation?.kind==='specialist'||conversation?.kind==='group'?conversation.id:'nex-main';}
@@ -17,7 +30,7 @@ async function api(action,input={}){
   const data=await response.json().catch(()=>({}));if(!response.ok){const error=new Error(data.error || 'Messages could not save that change');error.status=response.status;throw error;}return data;
 }
 function avatar(label,tone=''){const el=node('span',String(label || 'N').slice(0,1).toUpperCase(),`messageavatar ${tone}`);return el;}
-function row({name,meta,preview,icon='N',tone='',status='',run}){const item=button('',run,'messageitem');item.append(avatar(icon,tone));const copy=node('span',undefined,'messagecopy');const top=node('span',undefined,'messagetop');top.append(node('strong',name),status?node('small',status,'messagestatus'):node('span'));copy.append(top,node('span',meta,'messagemeta'),node('span',preview,'messagepreview'));item.append(copy);return item;}
+function row({name,meta,preview,icon='N',tone='',status='',run}){const item=button('',run,`messageitem tone-${tone || 'plain'}`);item.append(avatar(icon,tone));const copy=node('span',undefined,'messagecopy');const top=node('span',undefined,'messagetop');top.append(node('strong',name),status?node('small',status,'messagestatus'):node('span'));copy.append(top,node('span',meta,'messagemeta'),node('span',preview,'messagepreview'));item.append(copy);return item;}
 function heading(root,title,copy){root.replaceChildren(node('p','NEXUS MESSAGES','messageeyebrow'),node('h2',title),node('p',copy,'messageintro'));}
 
 export async function renderMessages(ctx){
@@ -28,12 +41,12 @@ export async function renderMessages(ctx){
     const search=node('input');search.type='search';search.placeholder='Search conversations';search.setAttribute('aria-label','Search conversations');root.append(search);
     const list=node('div',undefined,'messagelist');root.append(list);
     const entries=[];
-    entries.push({element:row({name:'Nex',meta:'Your main intelligence',preview:'Talk about anything in Nexus.',icon:'N',tone:'nex',run:()=>ctx.openConversation({kind:'nex',name:'Nex'})}),search:'nex main intelligence'});
-    for(const system of SYSTEMS)entries.push({element:row({name:system.name,meta:'Nexus system',preview:system.description,icon:system.icon,tone:'system',run:()=>ctx.openSystem(system.id)}),search:`${system.name} ${system.description}`});
-    for(const specialist of state.specialists)entries.push({element:row({name:specialist.name,meta:state.roles[specialist.role]?.label || 'Specialist',preview:specialist.job,icon:specialist.name,tone:specialist.role,status:'Ready',run:()=>ctx.openConversation({kind:'specialist',...specialist})}),search:`${specialist.name} ${specialist.job}`});
-    for(const group of state.groups){const members=group.member_ids.map(id=>state.specialists.find(item=>item.id===id)?.name).filter(Boolean);entries.push({element:row({name:group.title,meta:['Nex',...members].join(' + '),preview:'A shared conversation coordinated by Nex.',icon:'+',tone:'group',run:()=>ctx.openConversation({kind:'group',...group,members})}),search:`${group.title} ${members.join(' ')}`});}
-    for(const thread of ctx.recentThreads().filter(item=>!/^agent-|^group-|^nex-main$/u.test(item.id)))entries.push({element:row({name:thread.title,meta:'Nex conversation',preview:`${thread.message_count || 0} messages`,icon:'N',run:()=>ctx.openThread(thread)}),search:thread.title});
-    const paint=(query='')=>{list.replaceChildren();const needle=query.toLowerCase().trim();for(const entry of entries)if(!needle || entry.search.toLowerCase().includes(needle))list.append(entry.element);if(!list.children.length)list.append(node('p','No conversations match that search.','messageempty'));};paint();search.oninput=()=>paint(search.value);
+    entries.push({section:'Conversations',element:row({name:'Nex',meta:'Your main intelligence',preview:'Talk about anything—ideas, problems, plans, or life.',icon:'N',tone:'nex',run:()=>ctx.openConversation({kind:'nex',name:'Nex'})}),search:'nex main intelligence talk anything ideas problems plans life'});
+    for(const system of SYSTEMS){const run=system.action?()=>ctx[system.action]?.():()=>ctx.openSystem(system.id);entries.push({section:system.section,element:row({name:system.name,meta:system.action?'Nexus account':'Nexus conversation',preview:system.description,icon:system.icon,tone:system.tone,run}),search:`${system.name} ${system.description}`});}
+    for(const specialist of state.specialists)entries.push({section:'Specialists',element:row({name:specialist.name,meta:state.roles[specialist.role]?.label || 'Specialist',preview:specialist.job,icon:specialist.name,tone:specialist.role,status:'Ready',run:()=>ctx.openConversation({kind:'specialist',...specialist})}),search:`${specialist.name} ${specialist.job}`});
+    for(const group of state.groups){const members=group.member_ids.map(id=>state.specialists.find(item=>item.id===id)?.name).filter(Boolean);entries.push({section:'Groups',element:row({name:group.title,meta:['Nex',...members].join(' + '),preview:'A shared conversation coordinated by Nex.',icon:'+',tone:'group',run:()=>ctx.openConversation({kind:'group',...group,members})}),search:`${group.title} ${members.join(' ')}`});}
+    for(const thread of ctx.recentThreads().filter(item=>!/^agent-|^group-|^nex-main$/u.test(item.id)))entries.push({section:'Recent conversations',element:row({name:thread.title,meta:'Nex conversation',preview:`${thread.message_count || 0} messages`,icon:'N',tone:'recent',run:()=>ctx.openThread(thread)}),search:thread.title});
+    const paint=(query='')=>{list.replaceChildren();const needle=query.toLowerCase().trim();let previous='';for(const entry of entries){if(needle && !entry.search.toLowerCase().includes(needle))continue;if(!needle && entry.section!==previous){list.append(node('p',entry.section,'messagesection'));previous=entry.section;}list.append(entry.element);}if(!list.querySelector('.messageitem'))list.append(node('p','No conversations match that search.','messageempty'));};paint();search.oninput=()=>paint(search.value);
     root.append(button('New conversation',newConversation,'uxprimary messageprimary'));
   }
   function newConversation(){
@@ -42,7 +55,7 @@ export async function renderMessages(ctx){
     choices.append(row({name:'Talk with Nex',meta:'Open conversation',preview:'Ask anything or start something new.',icon:'N',tone:'nex',run:()=>ctx.openConversation({kind:'nex',name:'Nex'},true)}));
     choices.append(row({name:'Create a specialist',meta:'Give an agent a clear job',preview:'Choose its role, name, and access.',icon:'+',tone:'specialist',run:createSpecialist}));
     if(state.specialists.length)choices.append(row({name:'Start a group',meta:'Nex coordinates the work',preview:'Bring specialists into one shared conversation.',icon:'+',tone:'group',run:createGroup}));
-    for(const system of SYSTEMS)choices.append(row({name:system.name,meta:'Open system conversation',preview:system.description,icon:system.icon,tone:'system',run:()=>ctx.openSystem(system.id)}));
+    for(const system of SYSTEMS.filter(item=>item.section==='Your Nexus'||item.section==='Connected Nexus'))choices.append(row({name:system.name,meta:'Open Nexus conversation',preview:system.description,icon:system.icon,tone:system.tone,run:()=>ctx.openSystem(system.id)}));
     root.append(choices,button('Back to Messages',draw,'messagesecondary'));
   }
   function createSpecialist(){

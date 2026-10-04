@@ -2,13 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const [boardApi, brain, categories, config, workspace, views] = await Promise.all([
+const [boardApi, brain, categories, config, workspace, views, messages] = await Promise.all([
   readFile(new URL('../api/board.js', import.meta.url), 'utf8'),
   readFile(new URL('../lib/nexBrain.js', import.meta.url), 'utf8'),
   readFile(new URL('../lib/nex/toolCategories.js', import.meta.url), 'utf8'),
   readFile(new URL('../vercel.json', import.meta.url), 'utf8'),
   readFile(new URL('../public/workspace.html', import.meta.url), 'utf8'),
   readFile(new URL('../public/workspace-views.js', import.meta.url), 'utf8'),
+  readFile(new URL('../public/nexus-messages.js', import.meta.url), 'utf8'),
 ]);
 
 test('the authenticated planner API is routed through the shared function', () => {
@@ -29,10 +30,10 @@ test('Nex can read and mutate the same planner as the UI', () => {
   assert.match(categories, /'read_planner'/u);
 });
 
-test('Schedule is reachable from the sidebar and the home card', () => {
-  assert.match(workspace, /data-view="planner"/u);
+test('Schedule is reachable from Messages and the home card', () => {
+  assert.match(messages, /id:'planner',name:'Schedule'/u);
   assert.match(workspace, /renderWelcome\(ctx\)/u);
-  assert.match(workspace, /id="ownerBriefBtn"[^>]*>.*What needs me\?/u);
+  assert.match(messages, /id:'deck',name:'Command Deck'/u);
   assert.match(views, /planner: \{/u);
   assert.match(views, /renderScheduleCalendar\(ctx, \{balance:scheduleBalance\}\)/u);
 });

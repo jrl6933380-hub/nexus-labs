@@ -4,15 +4,13 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#0e0e0e" />
-<title>Nex Chat</title>
+<title>Nexus Messages</title>
 <!--
   /workspace.html — the whole system as one conversation.
 
-  Rooms are views inside this shell, not pages you get sent to. One tap from the
-  hamburger reaches any of them and there is no second level of navigation
-  anywhere; if something needs a sub-page it belongs in the thread as an answer
-  instead. The legacy pages still exist and still work, but nothing here links
-  to them — this is meant to replace the flow, not wrap it.
+  Rooms are conversations inside Nexus Messages, not a second navigation
+  system. The inbox is the one home for Nex, products, specialists, and owner
+  operations; each row opens the real connected workspace.
 
   Two paths out of the composer:
     - a known room name switches the view locally, with no model call
@@ -31,44 +29,15 @@
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%}
-  body{background:var(--rail);color:var(--tx);overflow:hidden;
+  body{background:var(--bg);color:var(--tx);overflow:hidden;
     font-family:-apple-system,"SF Pro Text",Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
   button{cursor:pointer;border:0;background:none;color:inherit;font:inherit;text-align:left}
 
-  .rail{position:fixed;inset:0 auto 0 0;width:var(--rw);display:flex;flex-direction:column;
-    padding:calc(env(safe-area-inset-top) + 16px) 12px 14px;background:linear-gradient(180deg,#151515,#111)}
-  .brand{display:flex;align-items:center;gap:11px;padding:0 9px 18px}
-  .brandmark{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;color:#081322;
-    background:linear-gradient(145deg,#94bbff,#5488e8);font:700 18px ui-serif,Georgia,serif;box-shadow:0 8px 24px rgba(64,116,204,.22)}
-  .brandcopy{min-width:0}.brandname{display:block;font:500 18px/1.1 ui-serif,Georgia,"Times New Roman",serif;color:var(--tx)}
-  .brandmeta{display:block;font-size:11px;color:var(--dm);margin-top:4px;letter-spacing:.02em}
-  .item{display:flex;align-items:center;gap:13px;width:100%;padding:10px;border-radius:10px;
-    font-size:15px;color:#e4e1dd;transition:background .13s}
-  .item:hover{background:#1e1e1e}
-  .item.on{background:#2a2a2a}
-  .ic{width:17px;text-align:center;font-size:14px;color:#a5a09a;flex-shrink:0}
-  .grp{font-size:11px;color:#77736d;padding:0 10px;margin:17px 0 6px;text-transform:uppercase;letter-spacing:.08em}
-  .badgeplan{margin-left:auto;font-size:10px;color:#9fbcf3;background:#1c2a42;border:1px solid #293b59;
-    border-radius:12px;padding:3px 7px;text-transform:uppercase;letter-spacing:.05em}
-  .ops summary{list-style:none;cursor:pointer}.ops summary::-webkit-details-marker{display:none}
-  .ops summary::after{content:'›';float:right;font-size:17px;line-height:11px;transition:transform .15s}
-  .ops[open] summary::after{transform:rotate(90deg)}
-  .scrollpart{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0}
-  .scrollpart .item{font-size:14.5px;color:#cfcbc5;padding:9px 10px}
-  .dot{width:6px;height:6px;border-radius:50%;background:#4a4a4a;flex-shrink:0;margin-left:5px}
-  .tr{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .new{margin:0 0 10px;display:flex;align-items:center;justify-content:center;gap:8px;
-    background:#f2f0ed;color:#0e0e0e;border-radius:24px;padding:12px;font-size:15px;font-weight:500}
-
-  .screen{position:fixed;inset:0;background:var(--bg);z-index:5;display:flex;flex-direction:column;
-    transition:transform .32s cubic-bezier(.32,.72,0,1);will-change:transform;
-    box-shadow:-16px 0 44px rgba(0,0,0,.65)}
-  .screen.open{transform:translateX(var(--rw))}
+  .screen{position:fixed;inset:0;background:var(--bg);z-index:5;display:flex;flex-direction:column}
 
   .top{display:flex;align-items:center;gap:14px;padding:calc(env(safe-area-inset-top) + 14px) 16px 10px}
-  .burger{width:21px;display:flex;flex-direction:column;gap:4.5px;flex-shrink:0;padding:6px 0}
-  .burger i{display:block;height:1.8px;background:#d8d4cf;border-radius:2px}
-  .burger i:nth-child(2){width:14px}.burger i:nth-child(3){width:17px}
+  .backmessages{width:30px;height:30px;display:grid;place-items:center;flex-shrink:0;color:#d8d4cf;font-size:28px;line-height:1}
+  body[data-view="messages"] .backmessages{visibility:hidden;pointer-events:none}
   .viewcopy{min-width:0}.vt{font-size:15px;color:#e4e1dd}.vsub{font-size:11px;color:#77736d;margin-top:2px}
   .grow{flex:1}
   .ticon{font-size:17px;color:#d8d4cf;opacity:.85;padding:4px}
@@ -214,8 +183,6 @@
     display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
 
   @media (min-width:900px){
-    .screen{left:var(--rw);transform:none!important;box-shadow:none;border-left:1px solid var(--ln)}
-    .burger{display:none}
     .thread,.foot,.disc{max-width:780px;margin-left:auto;margin-right:auto;width:100%}
   }
   @media (max-width:520px){
@@ -237,33 +204,9 @@
 </head>
 <body>
 
-<nav class="rail" id="rail">
-  <div class="brand"><span class="brandmark">N</span><span class="brandcopy"><span class="brandname">Nexus Messages</span><span class="brandmeta">Your intelligent workspace</span></span></div>
-  <button class="new" id="newBtn">＋&nbsp; New conversation</button>
-  <button class="item on" data-view="messages"><span class="ic">✦</span>Messages</button>
-  <div class="grp">Nexus spaces</div>
-  <button class="item" data-view="reminders"><span class="ic">◉</span>Reminders</button>
-  <button class="item" data-view="planner"><span class="ic">▤</span>Schedule</button>
-  <button class="item" data-view="workbench"><span class="ic">▦</span>Projects<span class="badgeplan" id="projectPlanBadge">10 projects</span></button>
-  <div class="grp">Connected Nexus</div>
-  <div id="productNav"></div>
-  <div class="grp">Recents</div>
-  <div class="scrollpart" id="recents"></div>
-  <details class="ops">
-    <summary class="grp">Founder operations</summary>
-    <button class="item" id="ownerBriefBtn"><span class="ic">◉</span>What needs me?</button>
-    <div id="opsNav"></div>
-    <div class="grp">Pinned visuals</div>
-    <div id="pinned"></div>
-  </details>
-  <button class="item" data-view="skills"><span class="ic">◫</span>Capabilities</button>
-  <button class="item" id="pinSetupBtn"><span class="ic">⌁</span>Security</button>
-  <button class="item" id="lockBtn"><span class="ic">◇</span>Lock Nex</button>
-</nav>
-
 <div class="screen" id="screen">
   <div class="top">
-    <button class="burger" id="burger" aria-label="Menu"><i></i><i></i><i></i></button>
+    <button class="backmessages" id="backMessages" aria-label="Back to Messages">‹</button>
     <div class="viewcopy"><div class="vt" id="viewTitle">Messages</div><div class="vsub" id="viewSubtitle">One intelligence. A team when you need one.</div></div>
     <div class="grow"></div>
     <button class="ticon" id="headBtn" aria-label="Nex">◉</button>
@@ -280,7 +223,7 @@
         <div class="composer-actions" aria-label="Nex Chat actions">
           <button class="quickaction" id="plannerQuickBtn">Schedule</button>
           <button class="quickaction" id="projectsQuickBtn">Projects</button>
-          <button class="quickaction" id="connectedQuickBtn">Connected</button>
+          <button class="quickaction" id="connectedQuickBtn">Messages</button>
         </div>
         <div class="grow"></div>
         <button class="send" id="send" aria-label="Send">↑</button>
@@ -330,13 +273,7 @@ if (!session?.ok) {
 }
 
 const el = (id) => document.getElementById(id);
-el('pinSetupBtn').onclick = () => location.assign('/nexus-login.html?pin-setup=1&next=%2Fworkspace.html');
-el('lockBtn').onclick = async () => {
-  await fetch('/api/nexus-auth', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ action:'lock' }) });
-  location.replace('/nexus-login.html?next=%2Fworkspace.html');
-};
 const thread = el('thread');
-const screenEl = el('screen');
 
 // ---------------------------------------------------------------------------
 // Shell state
@@ -358,6 +295,13 @@ const ctx = {
   openThread: (record) => openThread(record),
   recentThreads: () => recentThreads,
   consumeMessagesNew: () => { const value=messagesStartNew;messagesStartNew=false;return value; },
+  focusComposer: () => { el('input').focus(); },
+  openSecurity: () => location.assign('/nexus-login.html?pin-setup=1&next=%2Fworkspace.html'),
+  lockNex: async () => {
+    if (!confirm('Lock Nexus on this device?')) return;
+    await fetch('/api/nexus-auth', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ action:'lock' }) });
+    location.replace('/nexus-login.html?next=%2Fworkspace.html');
+  },
   openWorkbenchPanel: (buildId, mode = 'preview') => location.assign(`/forge.html?surface=workbench&view=${mode === 'edit' ? 'chat' : 'preview'}&build=${encodeURIComponent(buildId)}`),
   newWorkbenchPanel: () => location.assign('/forge.html?surface=workbench&view=chat&new=1'),
   setProjectUsage: (count, limit) => {
@@ -393,7 +337,6 @@ async function postPlanner(action, extra = {}) {
 function detail(title, description, actions, back = currentView) {
   thread.replaceChildren(say(title), say(description || 'No further details saved.'));
   thread.appendChild(chips([{ label:'Back', run:() => showView(back) }, ...actions]));
-  railOpen(false);
 }
 function actionError(error) { thread.appendChild(say(friendlyError(error) || 'That action failed.')); }
 function formCard(title, placeholder, submitLabel, onSubmit, { secret = false } = {}) {
@@ -926,35 +869,6 @@ async function returnToOwner() {
   catch (error) { actionError(error); }
 }
 
-function railOpen(open){ screenEl.classList.toggle('open', open); }
-el('burger').onclick = () => railOpen(!screenEl.classList.contains('open'));
-screenEl.addEventListener('click', (e) => {
-  if (screenEl.classList.contains('open') && !e.target.closest('#burger')) railOpen(false);
-}, true);
-
-// Rail entries are generated from the view table, so the menu can never offer
-// somewhere that doesn't exist or miss somewhere that does.
-const productViews = new Set(['life', 'legacy', 'teams']);
-const hiddenViews = new Set(['messages','workbench', 'planner', 'reminders', 'skills']);
-const makeNav = (id, view, host) => {
-  const button = document.createElement('button');
-  button.className = 'item';
-  button.dataset.view = id;
-  button.innerHTML = `<span class="ic">${view.icon}</span>${esc(view.label)}`;
-  button.onclick = () => showView(id);
-  host.appendChild(button);
-};
-for (const [id, view] of Object.entries(VIEWS)) {
-  if (hiddenViews.has(id)) continue;
-  makeNav(id, view, productViews.has(id) ? el('productNav') : el('opsNav'));
-}
-// Workbench and Capabilities are fixed shell controls rather than generated
-// navigation entries. Bind any fixed data-view button through the same router
-// so it cannot silently become a dead control when the menu is reorganized.
-for (const button of document.querySelectorAll('[data-view]')) {
-  button.onclick ||= () => showView(button.dataset.view);
-}
-
 function bubble(role, html){
   const wrap = document.createElement('div');
   wrap.className = `msg ${role}`;
@@ -978,16 +892,9 @@ function paragraphs(text){
 async function showView(id){
   currentView = id;
   document.body.dataset.view = id;
-  el('input').placeholder = id === 'planner' ? 'Ask Nex about your schedule…' : id === 'reminders' ? 'Ask Nex about your reminders…' : id === 'life' ? 'Talk with Nex about your life…' : 'Ask Nex anything…';
-  railOpen(false);
-  if (!['messages','chat', 'workbench', 'planner', 'reminders', 'life', 'legacy', 'teams', 'skills'].includes(id)) {
-    document.querySelector('.ops').open = true;
-  }
-  for (const button of document.querySelectorAll('[data-view]')) {
-    button.classList.toggle('on', button.dataset.view === id);
-  }
+  el('input').placeholder = id === 'planner' ? 'Ask Nex about your schedule…' : id === 'reminders' ? 'Ask Nex about your reminders…' : id === 'life' ? 'Talk with Nex about your life…' : 'Message Nex…';
   el('viewTitle').textContent = id === 'chat' ? (activeConversation?.name || activeConversation?.title || 'Nex') : VIEWS[id].label;
-  el('viewSubtitle').textContent = id === 'workbench' ? 'Your websites, apps, and tools' : id === 'messages' ? 'One intelligence. A team when you need one.' : id === 'chat' ? conversationSubtitle() : 'Nex can help you here';
+  el('viewSubtitle').textContent = id === 'workbench' ? 'Your websites, apps, and tools' : id === 'messages' ? 'One intelligence. A team when you need one.' : id === 'chat' ? conversationSubtitle() : 'Connected through Messages';
 
   if (id === 'chat') { replayThread(); return; }
 
@@ -1017,7 +924,7 @@ function replayThread(){
 function conversationSubtitle(){
   if(activeConversation?.kind==='specialist')return `${activeConversation.role || 'Specialist'} · ${activeConversation.scopes?.map(scope=>scope==='conversation'?'this chat':scope).join(', ') || 'this chat'}`;
   if(activeConversation?.kind==='group')return `Nex + ${(activeConversation.members || []).map(member=>typeof member==='string'?member:member.name).join(' + ')}`;
-  return 'Your main intelligence';
+  return 'Talk about anything';
 }
 function renderConversationBanner(){
   if(!activeConversation || activeConversation.kind==='nex')return;
@@ -1160,6 +1067,7 @@ async function openMessagesConversation(conversation,fresh=false){
 }
 function drawRecents(){
   const threads = recentThreads, host = el('recents');
+  if (!host) return;
   if (!threads.length) { host.innerHTML = '<div style="font-size:13px;color:#5f5b56;padding:8px 10px">Nothing yet</div>'; return; }
   host.innerHTML = '';
   for (const record of threads) {
@@ -1179,6 +1087,7 @@ function pinVisual(code, title){
 }
 function drawPins(){
   const pins = readStore(PINS_KEY), host = el('pinned');
+  if (!host) return;
   if (!pins.length) { host.innerHTML = '<div style="font-size:13px;color:#5f5b56;padding:8px 10px">Nothing pinned</div>'; return; }
   host.innerHTML = '';
   for (const pin of pins) {
@@ -1248,35 +1157,13 @@ function askFromView(text) {
   head.classList.add('show'); dock.classList.add('show'); place();
   dockAsk(text);
 }
-function showConnectedActions(){
-  currentView = 'chat';
-  document.body.dataset.view = 'chat';
-  el('input').placeholder = 'Ask Nex anything…';
-  railOpen(false);
-  for (const button of document.querySelectorAll('[data-view]')) button.classList.toggle('on', button.dataset.view === 'chat');
-  el('viewTitle').textContent = 'Nex Chat';
-  el('viewSubtitle').textContent = 'Connected through Nex';
-  thread.innerHTML = '';
-  thread.appendChild(say('Choose the part of Nexus you want to work with. Nex stays your main conversation and carries the context between them.'));
-  thread.appendChild(chips([
-    { label:'Nexus Life', run:() => showView('life') },
-    { label:'Nexus Legacy', run:() => showView('legacy') },
-    { label:'Nexus Teams', run:() => showView('teams') },
-    { label:'Back to chat', run:() => showView('chat') },
-  ]));
-}
 el('plannerQuickBtn').onclick = () => showView('planner');
 el('projectsQuickBtn').onclick = () => showView('workbench');
-el('connectedQuickBtn').onclick = showConnectedActions;
-el('newBtn').onclick = el('newTop').onclick = () => {
-  messagesStartNew=true;activeConversation=null;history.length=0;threadId=null;railOpen(false);showView('messages');
+el('connectedQuickBtn').onclick = () => showView('messages');
+el('newTop').onclick = () => {
+  messagesStartNew=true;activeConversation=null;history.length=0;threadId=null;showView('messages');
 };
-el('ownerBriefBtn').onclick = () => {
-  document.querySelector('.ops').open = true;
-  showView('chat');
-  el('input').value = 'What actually needs me right now across the whole system?';
-  submit();
-};
+el('backMessages').onclick = () => { activeConversation=null;showView('messages'); };
 
 function greet(){thread.appendChild(renderWelcome(ctx));}
 

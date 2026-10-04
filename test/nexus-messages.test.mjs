@@ -50,4 +50,13 @@ test('workspace opens on Messages and sends only a saved conversation id back to
   assert.match(source,/conversation: activeConversation.*\{kind:activeConversation\.kind,id:activeConversation\.id\}/s);
   assert.match(source,/renderResponseActions\(data\)/);
   assert.match(source,/openSystem/);
+  assert.doesNotMatch(source,/id="burger"|class="rail"/);
+  assert.match(source,/id="backMessages"/);
+});
+
+test('Messages carries the old navigation as colored connected conversation rows',()=>{
+  const source=fs.readFileSync(new URL('../public/nexus-messages.js',import.meta.url),'utf8');
+  const css=fs.readFileSync(new URL('../public/nexus-messages.css',import.meta.url),'utf8');
+  for(const name of ['Schedule','Reminders','Nexus Life','Projects','Nexus Legacy','Nexus Teams','Command Deck','Capabilities'])assert.match(source,new RegExp(`name:'${name}'`));
+  assert.match(css,/tone-schedule/);assert.match(css,/tone-reminders/);assert.match(css,/tone-life/);assert.match(css,/tone-projects/);
 });

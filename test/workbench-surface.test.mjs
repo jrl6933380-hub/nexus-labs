@@ -2,11 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const [workspace, forge, views, workspaceViews] = await Promise.all([
+const [workspace, forge, views, workspaceViews, messages] = await Promise.all([
   readFile(new URL('../public/workspace.html', import.meta.url), 'utf8'),
   readFile(new URL('../public/forge.html', import.meta.url), 'utf8'),
   readFile(new URL('../public/forge-views.js', import.meta.url), 'utf8'),
   readFile(new URL('../public/workspace-views.js', import.meta.url), 'utf8'),
+  readFile(new URL('../public/nexus-messages.js', import.meta.url), 'utf8'),
 ]);
 
 test('Nex Chat opens panels through the tailored Workbench surface', () => {
@@ -110,7 +111,7 @@ test('Projects loads every panel and fans recorded supporting pieces into its st
 });
 
 test('Projects view shows plan usage and the backend receives the Workbench surface for limit enforcement', () => {
-  assert.match(workspace, />Projects<span class="badgeplan"/u);
+  assert.match(messages, /id:'workbench',name:'Projects'/u);
   assert.match(workspaceViews, /projectUsage\(projects\.length, limit, workbench\.planName\)/u);
   assert.match(workspaceViews, /See plan options/u);
   assert.match(forge, /surface: surfaceMode/u);
