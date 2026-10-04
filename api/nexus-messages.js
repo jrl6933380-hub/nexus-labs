@@ -11,6 +11,7 @@ export function createNexusMessagesHandler({getOwner=getNexusOwner,store=nexusMe
       const action=String(req.body?.action || '');
       if(action==='create_specialist')return res.status(201).json({specialist:await store.createSpecialist(owner.id,req.body)});
       if(action==='create_group')return res.status(201).json({group:await store.createGroup(owner.id,req.body)});
+      if(action==='set_pinned_systems')return res.status(200).json({pinned_system_ids:await store.setPinnedSystems(owner.id,req.body?.pinned_system_ids)});
       if(action==='remove')return res.status(200).json({removed:await store.remove(owner.id,req.body?.type,req.body?.id)});
       return res.status(400).json({error:'Choose a supported Messages action'});
     }catch(error){

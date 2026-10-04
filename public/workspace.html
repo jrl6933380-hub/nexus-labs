@@ -159,8 +159,6 @@
   .send{width:33px;height:33px;border-radius:50%;background:#f2f0ed;color:#0e0e0e;display:flex;
     align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
   .send[disabled]{opacity:.4;cursor:default}
-  .messagenav{display:none;position:relative;z-index:20;grid-template-columns:repeat(4,1fr);gap:4px;padding:8px 14px calc(env(safe-area-inset-bottom) + 7px);border-top:1px solid #292b31;background:rgba(13,14,16,.97);backdrop-filter:blur(18px)}
-  .messagenav button{display:grid;place-items:center;gap:3px;min-height:48px;color:#858b96;font-size:10px;text-align:center}.messagenav button span{font-size:20px;line-height:1}.messagenav button.active{color:#e1bd72}.messagenav button.active span{filter:drop-shadow(0 0 8px rgba(225,189,114,.28))}
 
   /* --- Nex head: drag anywhere, tap to work with him over the current view --- */
   .head{position:fixed;z-index:40;width:52px;height:52px;border-radius:50%;
@@ -210,8 +208,7 @@
   body[data-view="messages"] .vsub{display:none}
   body[data-view="messages"] #newTop{display:grid;place-items:center;width:42px;height:42px;padding:0;border-radius:50%;background:linear-gradient(145deg,#f2d58f,#cf9f43);color:#181207;font-size:25px;opacity:1;box-shadow:0 8px 24px rgba(211,169,84,.22)}
   body[data-view="messages"] #headBtn{display:none}
-  body[data-view="messages"] .messagenav{display:grid}
-  body.messages-panel[data-view="messages"] .top,body.messages-panel[data-view="messages"] .messagenav{display:none}
+  body.messages-panel[data-view="messages"] .top{display:none}
   body.messages-panel[data-view="messages"] .thread{padding-top:calc(env(safe-area-inset-top) + 14px);padding-bottom:calc(env(safe-area-inset-bottom) + 14px)}
   body[data-view="chat"] .top{border-bottom:1px solid #242830;background:rgba(14,15,18,.96)}
   body[data-view="chat"] .viewcopy{position:absolute;left:54px;right:54px;text-align:center;pointer-events:none}
@@ -263,12 +260,6 @@
       </div>
     </div>
   </div>
-  <nav class="messagenav" id="messageNav" aria-label="Primary Nexus navigation">
-    <button class="active" id="navMessages"><span>▢</span>Messages</button>
-    <button id="navProjects"><span>▣</span>Projects</button>
-    <button id="navLife"><span>☼</span>Life</button>
-    <button id="navMore"><span>•••</span>More</button>
-  </nav>
 </div>
 
 <button class="head" id="head">N<span class="badge" id="headBadge"></span></button>
@@ -322,7 +313,6 @@ let busy = false;
 let threadId = null;
 let activeConversation = null;
 let messagesStartNew = false;
-let messagesStartMore = false;
 const history = [];
 let activeScheduleItems = [];
 const deliveredScheduleReminders = new Set();
@@ -336,7 +326,6 @@ const ctx = {
   recentThreads: () => recentThreads,
   clearRecentThreads: (keepThreadIds) => clearRecentConversationThreads(keepThreadIds),
   consumeMessagesNew: () => { const value=messagesStartNew;messagesStartNew=false;return value; },
-  consumeMessagesMore: () => { const value=messagesStartMore;messagesStartMore=false;return value; },
   focusComposer: () => { el('input').focus(); },
   openSecurity: () => location.assign('/nexus-login.html?pin-setup=1&next=%2Fworkspace.html'),
   lockNex: async () => {
@@ -940,10 +929,6 @@ async function showView(id){
   document.body.classList.remove('messages-panel');
   currentView = id;
   document.body.dataset.view = id;
-  for(const button of el('messageNav').querySelectorAll('button'))button.classList.remove('active');
-  if(id==='messages')el(messagesStartMore?'navMore':'navMessages').classList.add('active');
-  else if(id==='workbench')el('navProjects').classList.add('active');
-  else if(id==='life')el('navLife').classList.add('active');
   el('input').placeholder = id === 'planner' ? 'Ask Nex about your schedule…' : id === 'reminders' ? 'Ask Nex about your reminders…' : id === 'life' ? 'Talk with Nex about your life…' : 'Message Nex…';
   el('viewTitle').textContent = id === 'chat' ? (activeConversation?.name || activeConversation?.title || 'Nex') : VIEWS[id].label;
   el('viewSubtitle').textContent = id === 'workbench' ? 'Your websites, apps, and tools' : id === 'messages' ? 'One intelligence. A team when you need one.' : id === 'chat' ? conversationSubtitle() : 'Connected through Messages';
@@ -1224,10 +1209,6 @@ function askFromView(text) {
 el('plannerQuickBtn').onclick = () => showView('planner');
 el('projectsQuickBtn').onclick = () => showView('workbench');
 el('connectedQuickBtn').onclick = () => showView('messages');
-el('navMessages').onclick = () => showView('messages');
-el('navProjects').onclick = () => showView('workbench');
-el('navLife').onclick = () => showView('life');
-el('navMore').onclick = () => { messagesStartMore=true;showView('messages'); };
 el('newTop').onclick = () => {
   if(currentView==='chat'){
     document.getElementById('conversationMenu')?.remove();

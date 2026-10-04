@@ -36,8 +36,8 @@ function heading(root,title,copy,back){document.body.classList.add('messages-pan
 function wizardHeading(root,title,step,back){heading(root,title,step,back);const progress=node('span',undefined,'messageprogress');progress.append(node('i'));if(step.includes('2 of 2'))progress.classList.add('complete');root.append(progress);}
 
 export async function renderMessages(ctx){
-  const root=node('section',undefined,'nexusmessages');let state={specialists:[],groups:[],roles:{},scopes:[]};
-  async function load(message){try{state=await api();if(ctx.consumeMessagesNew?.())newConversation();else if(ctx.consumeMessagesMore?.())moreView();else draw();if(message)showFeedback(root,message);}catch(error){root.replaceChildren(node('p',friendlyError(error,{action:'load',subject:'Messages'})),button('Try again',()=>load()));}}
+  const root=node('section',undefined,'nexusmessages');let state={specialists:[],groups:[],roles:{},scopes:[],pinned_system_ids:[]};
+  async function load(message){try{state=await api();if(ctx.consumeMessagesNew?.())newConversation();else draw();if(message)showFeedback(root,message);}catch(error){root.replaceChildren(node('p',friendlyError(error,{action:'load',subject:'Messages'})),button('Try again',()=>load()));}}
   function draw(){
     document.body.classList.remove('messages-panel');
     root.replaceChildren();
@@ -49,12 +49,31 @@ export async function renderMessages(ctx){
     for(const group of state.groups){const saved=threads.get(group.id),members=group.member_ids.map(id=>state.specialists.find(item=>item.id===id)?.name).filter(Boolean);entries.push({section:'Conversations',element:row({name:group.title,meta:['Nex',...members].join(' + '),preview:saved?.title || 'A shared conversation coordinated by Nex.',icon:'+',tone:'group',status:saved?.message_count?'Active':'Ready',when:timeLabel(saved?.updated_at),run:()=>ctx.openConversation({kind:'group',...group,members})}),search:`${group.title} ${members.join(' ')}`});}
     const recent=ctx.recentThreads().filter(item=>!/^agent-|^group-|^nex-main$/u.test(item.id));
     for(const thread of recent)entries.push({section:'Recent',element:row({name:thread.title,meta:'Nex conversation',preview:`${thread.message_count || 0} messages`,icon:'N',tone:'recent',when:timeLabel(thread.updated_at || thread.ts),run:()=>ctx.openThread(thread)}),search:thread.title});
-    for(const system of SYSTEMS.filter(item=>['planner','reminders'].includes(item.id))){const run=()=>ctx.openSystem(system.id);entries.push({section:'Nexus spaces',element:row({name:system.name,meta:'Nexus conversation',preview:system.description,icon:system.icon,tone:system.tone,run}),search:`${system.name} ${system.description}`});}
+    const pinned=new Set(state.pinned_system_ids || []);
+    for(const system of SYSTEMS.filter(item=>item.id && pinned.has(item.id))){const run=()=>ctx.openSystem(system.id);entries.push({section:'Nexus spaces',element:row({name:system.name,meta:'Nexus space',preview:system.description,icon:system.icon,tone:system.tone,run}),search:`${system.name} ${system.description}`});}
+    entries.push({section:'Nexus spaces',element:row({name:'More',meta:'Customize Messages',preview:'Pin the Nexus spaces you want on this screen.',icon:'…',tone:'more',run:moreView}),search:'more customize pin nexus spaces'});
     const paint=(query='')=>{list.replaceChildren();const needle=query.toLowerCase().trim();let previous='';for(const entry of entries){if(needle && !entry.search.toLowerCase().includes(needle))continue;if(!needle && entry.section!==previous){if(previous && entry.section!=='Conversations')list.append(node('p',entry.section,'messagesection'));previous=entry.section;}list.append(entry.element);}if(!list.querySelector('.messageitem'))list.append(node('p','No conversations match that search.','messageempty'));};paint();search.oninput=()=>paint(search.value);
     root.append(button('New conversation',newConversation,'uxprimary messageprimary'));
     if(recent.length)root.append(button('Clear recent conversations',()=>clearConversations(recent),'messageclear'));
   }
-  function moreView(){heading(root,'More','Open any connected part of Nexus.',()=>ctx.go('messages'));const list=node('div',undefined,'messagechoices');for(const system of SYSTEMS.filter(item=>!['planner','reminders','life','workbench'].includes(item.id))){const run=system.action?()=>ctx[system.action]?.():()=>ctx.openSystem(system.id);list.append(row({name:system.name,meta:system.action?'Nexus account':system.section,preview:system.description,icon:system.icon,tone:system.tone,run}));}root.append(list);}
+  function moreView(message=''){
+    heading(root,'More','Choose which Nexus spaces stay on your Messages screen.',draw);
+    const pinned=new Set(state.pinned_system_ids || []),list=node('div',undefined,'pinmanager');
+    for(const system of SYSTEMS.filter(item=>item.id)){
+      const item=node('div',undefined,`pinmanagerrow${pinned.has(system.id)?' is-pinned':''}`);
+      item.append(row({name:system.name,meta:system.section,preview:system.description,icon:system.icon,tone:system.tone,run:()=>ctx.openSystem(system.id)}));
+      const toggle=button(pinned.has(system.id)?'Pinned':'Pin',async()=>{
+        toggle.disabled=true;
+        const next=new Set(state.pinned_system_ids || []);if(next.has(system.id))next.delete(system.id);else next.add(system.id);
+        try{const data=await api('set_pinned_systems',{pinned_system_ids:[...next]});state.pinned_system_ids=data.pinned_system_ids;moreView(`${system.name} ${next.has(system.id)?'pinned to':'removed from'} Messages.`);}catch(error){toggle.disabled=false;showFeedback(root,friendlyError(error,{action:'save',subject:'your pinned spaces'}));}
+      },'pinbutton');
+      toggle.setAttribute('aria-pressed',String(pinned.has(system.id)));toggle.setAttribute('aria-label',`${pinned.has(system.id)?'Unpin':'Pin'} ${system.name}`);item.append(toggle);list.append(item);
+    }
+    root.append(list);
+    const account=node('div',undefined,'messagechoices');account.append(node('p','Account','messagesection'));
+    for(const system of SYSTEMS.filter(item=>item.action)){account.append(row({name:system.name,meta:'Nexus account',preview:system.description,icon:system.icon,tone:system.tone,run:()=>ctx[system.action]?.()}));}
+    root.append(account);if(message)showFeedback(root,message);
+  }
   function clearConversations(recent){
     const kept=new Set();heading(root,'Clear conversations','Saved Memory, projects, schedules, reminders, Life, specialists, and groups stay safe. Choose Keep on any recent chat you still want.',draw);
     const summary=node('p',`${recent.length} recent conversation${recent.length===1?'':'s'} selected to clear.`,'clearsummary');root.append(summary);
