@@ -294,6 +294,7 @@ const ctx = {
   openSystem: (id) => { activeConversation=null; showView(id); },
   openThread: (record) => openThread(record),
   recentThreads: () => recentThreads,
+  clearRecentThreads: (keepThreadIds) => clearRecentConversationThreads(keepThreadIds),
   consumeMessagesNew: () => { const value=messagesStartNew;messagesStartNew=false;return value; },
   focusComposer: () => { el('input').focus(); },
   openSecurity: () => location.assign('/nexus-login.html?pin-setup=1&next=%2Fworkspace.html'),
@@ -1055,6 +1056,20 @@ async function openThread(record){
   history.length = 0;
   for (const message of messages) history.push(message);
   showView('chat');
+}
+async function clearRecentConversationThreads(keepThreadIds=[]){
+  const keep=new Set(Array.isArray(keepThreadIds)?keepThreadIds:[]);
+  const clearable=(item)=>item?.id && !/^(agent-|group-|nex-main$)/u.test(item.id) && !keep.has(item.id);
+  const targets=recentThreads.filter(clearable).map(item=>item.id);
+  if(!targets.length)return {deleted:0};
+  const response=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'clear_threads',keepThreadIds:[...keep]})});
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(data.error || 'Those conversations could not be cleared');
+  const removed=new Set(targets);
+  writeStore(THREADS_KEY,readStore(THREADS_KEY).filter(item=>!removed.has(item?.id)));
+  recentThreads=recentThreads.filter(item=>!removed.has(item?.id));
+  drawRecents();
+  return {...data,deleted:removed.size};
 }
 async function openMessagesConversation(conversation,fresh=false){
   activeConversation=conversation?.kind==='nex'?{kind:'nex',name:'Nex'}:conversation;

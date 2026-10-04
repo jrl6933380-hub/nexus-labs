@@ -16,6 +16,7 @@ import { getNexChatMode, disengageNex, engageNex } from '../lib/nexMode.js';
 import { detectHyperfocusTrigger, buildHyperfocusDirective } from '../lib/hyperfocusTriggers.js';
 import { getNexusOwner } from '../lib/nexusOwnerAuth.js';
 import {
+  clearConversationThreads,
   deleteConversationThread,
   listConversationThreads,
   loadConversationThread,
@@ -174,6 +175,14 @@ export default async function handler(req, res) {
     if (!threadId) return res.status(400).json({ error: 'A thread id is required' });
     const deleted = await deleteConversationThread(operatorUser, threadId);
     return res.status(200).json({ deleted });
+  }
+  if (action === 'clear_threads') {
+    try {
+      const result = await clearConversationThreads(operatorUser, req.body?.keepThreadIds);
+      return res.status(200).json(result);
+    } catch {
+      return res.status(503).json({ error:'Those conversations could not be cleared. Please try again.' });
+    }
   }
   if (action === 'save_thread') {
     if (!threadId) return res.status(400).json({ error: 'A thread id is required' });

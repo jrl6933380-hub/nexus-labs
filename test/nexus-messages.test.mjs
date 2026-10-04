@@ -4,6 +4,7 @@ import {createNexusMessagesStore} from '../lib/nexusMessagesStore.js';
 import {createNexusMessagesHandler} from '../api/nexus-messages.js';
 import {conversationThreadId,conversationPreview} from '../public/nexus-messages.js';
 import {formatLiveWorkspaceContext} from '../lib/nexBrain.js';
+import {isProtectedConversationThreadId} from '../lib/nexConversationStore.js';
 import fs from 'node:fs';
 
 function fixture(){
@@ -59,4 +60,13 @@ test('Messages carries the old navigation as colored connected conversation rows
   const css=fs.readFileSync(new URL('../public/nexus-messages.css',import.meta.url),'utf8');
   for(const name of ['Schedule','Reminders','Nexus Life','Projects','Nexus Legacy','Nexus Teams','Command Deck','Capabilities'])assert.match(source,new RegExp(`name:'${name}'`));
   assert.match(css,/tone-schedule/);assert.match(css,/tone-reminders/);assert.match(css,/tone-life/);assert.match(css,/tone-projects/);
+});
+
+test('conversation cleanup protects permanent and shared Nexus threads',()=>{
+  for(const id of ['nex-main','agent-maya','group-launch'])assert.equal(isProtectedConversationThreadId(id),true);
+  for(const id of ['tnewidea','chat-123'])assert.equal(isProtectedConversationThreadId(id),false);
+  const source=fs.readFileSync(new URL('../public/nexus-messages.js',import.meta.url),'utf8');
+  assert.match(source,/Clear recent conversations/);
+  assert.match(source,/Choose Keep on any recent chat you still want/);
+  assert.match(source,/clearRecentThreads/);
 });
