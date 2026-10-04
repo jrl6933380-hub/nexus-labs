@@ -25,6 +25,7 @@ import {
   saveConversationThread,
   saveRecentConversation,
 } from '../lib/nexConversationStore.js';
+import { nexusMessagesStore } from '../lib/nexusMessagesStore.js';
 
 // ============================================================
 // SHORT-TERM ROLLING BUFFER — just enough for mid-conversation
@@ -76,13 +77,28 @@ function normalizeVisualFrame(input) {
 
 function normalizeClientContext(input) {
   const activeView = typeof input?.active_view === 'string' ? input.active_view.trim() : '';
+  const conversationKind = ['specialist','group'].includes(input?.conversation?.kind) ? input.conversation.kind : null;
+  const conversationId = /^[a-zA-Z0-9_-]{1,80}$/u.test(String(input?.conversation?.id || '')) ? String(input.conversation.id) : null;
   return {
     active_view: activeView.startsWith('/') && !activeView.startsWith('//')
       ? activeView.slice(0, 160)
       : null,
     screen: normalizeScreenSnapshot(input?.screen),
     visual: normalizeVisualFrame(input?.visual),
+    conversation: conversationKind && conversationId ? { kind:conversationKind, id:conversationId } : null,
   };
+}
+
+async function resolveConversationContext(owner, requested) {
+  if (!requested) return null;
+  const state = await nexusMessagesStore.overview(owner);
+  if (requested.kind === 'specialist') {
+    const specialist = state.specialists.find((item) => item.id === requested.id);
+    return specialist ? { kind:'specialist', ...specialist } : null;
+  }
+  const group = state.groups.find((item) => item.id === requested.id);
+  if (!group) return null;
+  return { kind:'group', ...group, members:group.member_ids.map((id) => state.specialists.find((item) => item.id === id)).filter(Boolean) };
 }
 
 
@@ -277,6 +293,18 @@ export default async function handler(req, res) {
       });
     }
 
+    // A specialist or group is an owner-scoped server record, not a persona
+    // supplied by the browser. Fail clearly when an old conversation points
+    // at a record that was removed instead of silently turning it into Nex.
+    const clientContext = normalizeClientContext(workspace);
+    const requestedConversation = clientContext.conversation;
+    clientContext.conversation = await resolveConversationContext(operatorUser, requestedConversation).catch(() => null);
+    if (requestedConversation && !clientContext.conversation) {
+      return res.status(404).json({
+        error: 'This specialist or group is no longer available. Start a new conversation from Messages.',
+      });
+    }
+
     // Do not start the stream until every command/mode response that uses
     // normal JSON has returned. Starting it earlier made a disengaged Nex try
     // to send JSON after SSE headers, producing ERR_HTTP_HEADERS_SENT.
@@ -310,7 +338,6 @@ export default async function handler(req, res) {
       ? `${message}\n\n${buildHyperfocusDirective(hyperfocusTrigger)}`
       : message;
 
-    const clientContext = normalizeClientContext(workspace);
     const {
       reply,
       updatedHistory,
