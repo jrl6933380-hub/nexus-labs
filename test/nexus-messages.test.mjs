@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createNexusMessagesStore} from '../lib/nexusMessagesStore.js';
+import {createNexusMessagesStore,MESSAGE_SYSTEM_IDS} from '../lib/nexusMessagesStore.js';
 import {createNexusMessagesHandler} from '../api/nexus-messages.js';
 import {conversationThreadId,conversationPreview} from '../public/nexus-messages.js';
 import {formatLiveWorkspaceContext} from '../lib/nexBrain.js';
@@ -29,6 +29,15 @@ test('Messages API derives owner scope and refuses empty groups',async()=>{
   const created=response();await handler({method:'POST',body:{action:'create_specialist',name:'Maya',role:'research'}},created);assert.equal(created.code,201);
   const rejected=response();await handler({method:'POST',body:{action:'create_group',title:'Empty',member_ids:[]}},rejected);assert.equal(rejected.code,400);assert.match(rejected.data.error,/Choose at least one/);
   const listed=response();await handler({method:'GET'},listed);assert.equal(listed.data.specialists[0].name,'Maya');assert.ok(listed.data.roles.build);
+  const pins=response();await handler({method:'POST',body:{action:'set_pinned_systems',pinned_system_ids:['life','workbench']}},pins);assert.deepEqual(pins.data.pinned_system_ids,['life','workbench']);
+});
+
+test('pinned Nexus spaces have useful defaults and persist an account choice',async()=>{
+  const store=fixture();
+  assert.deepEqual((await store.overview('Mrlopez')).pinned_system_ids,['planner','reminders','workbench','life']);
+  assert.deepEqual(await store.setPinnedSystems('Mrlopez',['life','workbench','not-a-space','life']),['life','workbench']);
+  assert.deepEqual((await store.overview('Mrlopez')).pinned_system_ids,['life','workbench']);
+  assert.ok(MESSAGE_SYSTEM_IDS.includes('teams'));
 });
 
 test('specialist and group threads stay isolated and previews are compact',()=>{
@@ -54,7 +63,7 @@ test('workspace opens on Messages and sends only a saved conversation id back to
   assert.doesNotMatch(source,/id="burger"|class="rail"/);
   assert.match(source,/id="backMessages"/);
   assert.match(source,/class="messagebrand"/);
-  for(const id of ['navMessages','navProjects','navLife','navMore'])assert.match(source,new RegExp(`id="${id}"`));
+  assert.doesNotMatch(source,/id="navMessages"|class="messagenav"/);
 });
 
 test('Messages carries the old navigation as colored connected conversation rows',()=>{
@@ -64,6 +73,7 @@ test('Messages carries the old navigation as colored connected conversation rows
   assert.match(css,/tone-schedule/);assert.match(css,/tone-reminders/);assert.match(css,/tone-life/);assert.match(css,/tone-projects/);
   assert.match(css,/messageitem\.pinned/);assert.match(css,/rolechoice/);assert.match(css,/messageprimary/);
   assert.match(source,/Create a specialist/);assert.match(source,/Step 1 of 2/);assert.match(source,/You choose what this agent can access/);
+  assert.match(source,/Customize Messages/);assert.match(source,/set_pinned_systems/);assert.match(css,/pinmanager/);
 });
 
 test('conversation cleanup protects permanent and shared Nexus threads',()=>{
