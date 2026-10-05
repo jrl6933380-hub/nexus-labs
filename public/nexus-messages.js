@@ -1,6 +1,6 @@
 import {friendlyError,showFeedback} from './ux.js';
 import {installNexus,nexusInstallState} from './app-install.js';
-import {disableNotifications,enableNotifications,notificationState,pushSupport} from './push-notifications.js';
+import {disableNotifications,enableNotifications,notificationState,pushSupport,notificationError} from './push-notifications.js';
 
 const node=(tag,text,cls='')=>{const el=document.createElement(tag);if(text!==undefined)el.textContent=text;el.className=cls;return el;};
 const button=(text,run,cls='')=>{const el=node('button',text,cls);el.type='button';el.onclick=run;return el;};
@@ -107,9 +107,9 @@ export async function renderMessages(ctx){
       if(state.support!=='supported'){status.textContent=state.support==='insecure'?'Open the secure Nexus app to turn on alerts.':'This device or browser does not support Nexus phone alerts yet.';root.append(button('Back to More',moreView,'uxprimary messagecontinue'));return;}
       if(!state.configured){status.textContent='Phone alerts are being connected. Everything else in Nexus still works.';root.append(button('Back to More',moreView,'uxprimary messagecontinue'));return;}
       status.textContent=state.enabled?'Notifications are on for this device.':'Notifications are off for this device.';
-      const toggle=button(state.enabled?'Turn off notifications':'Turn on notifications',async()=>{toggle.disabled=true;try{if(state.enabled)await disableNotifications();else await enableNotifications();notificationView(state.enabled?'Notifications turned off.':'Notifications are on. A test alert was sent.');}catch(error){toggle.disabled=false;showFeedback(root,friendlyError(error,{action:'update',subject:'phone notifications'}));}},'uxprimary messagecontinue');
+      const toggle=button(state.enabled?'Turn off notifications':'Turn on notifications',async()=>{toggle.disabled=true;try{if(state.enabled)await disableNotifications();else await enableNotifications();notificationView(state.enabled?'Notifications turned off.':'Notifications are on. A test alert was sent.');}catch(error){toggle.disabled=false;showFeedback(root,notificationError(error));}},'uxprimary messagecontinue');
       root.append(toggle,button('Back to More',moreView,'messagesecondary'));if(typeof message==='string' && message.trim())showFeedback(root,message);
-    }catch(error){status.textContent=friendlyError(error,{action:'load',subject:'phone notifications'});root.append(button('Try again',notificationView,'uxprimary messagecontinue'),button('Back to More',moreView,'messagesecondary'));}
+    }catch(error){status.textContent=notificationError(error);root.append(button('Try again',notificationView,'uxprimary messagecontinue'),button('Back to More',moreView,'messagesecondary'));}
   }
   function installView(){
     const state=nexusInstallState();heading(root,state==='installed'?'Nexus is installed':'Install Nexus',state==='installed'?'Open Nexus from your Home Screen whenever you need it.':'Give Nexus its own icon and full-screen home on this device.',moreView);

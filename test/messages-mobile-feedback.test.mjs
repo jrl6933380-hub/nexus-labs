@@ -36,7 +36,7 @@ test('notification permission is requested before the first network await',async
  const subscription={toJSON:()=>({endpoint:'https://web.push.apple.com/device'})};
  const registration={pushManager:{getSubscription:async()=>subscription}};
  Object.defineProperty(globalThis,'window',{configurable:true,value:{isSecureContext:true,Notification:{},PushManager:{}}});
- Object.defineProperty(globalThis,'navigator',{configurable:true,value:{userAgent:'iPhone',standalone:true,serviceWorker:{ready:Promise.resolve(registration)}}});
+ Object.defineProperty(globalThis,'navigator',{configurable:true,value:{userAgent:'iPhone',standalone:true,serviceWorker:{getRegistration:async()=>({...registration,active:{}}),ready:Promise.resolve(registration)}}});
  Object.defineProperty(globalThis,'Notification',{configurable:true,value:{requestPermission:()=>{calls.push('permission');return Promise.resolve('granted');}}});
  globalThis.fetch=async()=>{calls.push('network');return {ok:true,json:async()=>({configured:true,publicKey:'public'})};};
  try{await enableNotifications();assert.equal(calls[0],'permission');assert.equal(calls.filter(x=>x==='network').length,3);}
