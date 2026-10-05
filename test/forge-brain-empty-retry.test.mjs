@@ -24,9 +24,13 @@ const { saveConnection } = await import('../lib/forge/brainStore.js');
 const { askCustomerBrain } = await import('../lib/forge/brainStream.js');
 
 test('an empty visible free response retries once with a larger bounded budget', async () => {
-  await saveConnection('tester', { provider:'openrouter', key:'test-key', tier:'free' });
-  const result = await askCustomerBrain({ username:'tester', body:{ max_tokens:900, messages:[{ role:'user', content:'Build it' }] } });
+  // Use the configured operator identity so this unit test isolates the
+  // provider retry behavior instead of exercising the separately-tested
+  // customer usage meter.
+  await saveConnection('Mrlopez', { provider:'openrouter', key:'test-key', tier:'free' });
+  const result = await askCustomerBrain({ username:'Mrlopez', body:{ max_tokens:900, messages:[{ role:'user', content:'Build it' }] } });
   assert.match(result.text, /Building/);
   assert.deepEqual(calls.map((call) => call.max_tokens), [1800, 3000]);
-  assert.ok(calls.every((call) => call.model === 'openrouter/free'));
+  assert.ok(calls.every((call) => call.model === 'openrouter/free' || call.model.endsWith(':free')));
+  assert.notEqual(calls[0].model, calls[1].model);
 });

@@ -63,7 +63,7 @@ test('a failed delete re-enables the button and surfaces the error', async () =>
   global.window.alert = (message) => { alerted = message; };
   await button.onclick({ stopPropagation: () => {} });
   assert.equal(button.disabled, false);
-  assert.match(alerted, /Delete failed: nope/);
+  assert.equal(alerted, "We couldn't confirm the removal. Please try again.");
 });
 
 test('a clickable row keeps the ✕ a sibling, never a nested button', () => {
@@ -74,6 +74,7 @@ test('a clickable row keeps the ✕ a sibling, never a nested button', () => {
       className: '',
       children: [],
       attrs: {},
+      style: {},
       setAttribute(name, value) { this.attrs[name] = value; },
       appendChild(child) { this.children.push(child); },
     };

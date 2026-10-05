@@ -14,7 +14,7 @@ test('customer login has no operator shell or dashboard navigation', () => {
 });
 
 test('post-login redirects are restricted to customer workspaces', () => {
-  assert.match(login,/new Set\(\['\/forge\.html', '\/room\.html', '\/story-studio\.html'\]\)/);
+  assert.match(login,/const customerWorkspaces = new Set\(\[[^\]]*'\/forge\.html'[^\]]*'\/room\.html'[^\]]*'\/story-studio\.html'[^\]]*\]\)/);
   assert.match(login,/customerWorkspaces\.has\(candidate\.pathname\)/);
   assert.doesNotMatch(login,/requested\.startsWith\('\/'\)/);
 });
