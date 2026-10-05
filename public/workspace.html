@@ -1327,8 +1327,8 @@ const requestedView = new URLSearchParams(location.search).get('view');
 registerNexusApp();
 await loadThreads();
 await showView(requestedView && VIEWS[requestedView] ? requestedView : 'messages');
-startReminderAlerts(()=>showView('reminders'));
-startReminderAlerts(()=>showView('life'),{endpoint:'/api/life?alerts=1'});
+startReminderAlerts(()=>showView('reminders'),{isDestinationActive:()=>currentView==='reminders'});
+startReminderAlerts(()=>showView('life'),{endpoint:'/api/life?alerts=1',isDestinationActive:()=>currentView==='life'});
 </script>
 </body>
 </html>
