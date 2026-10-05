@@ -1108,7 +1108,7 @@ function saveThread(){
 }
 function drawRecents(){
   const all = readStore(), host = el('recents');
-  if (!all.length) { host.innerHTML = '<div style="font-size:13px;color:#61656f;padding:8px 10px">Nothing yet</div>'; return; }
+  if (!all.length) { host.innerHTML = '<div style="font-size:13px;color:#9297a2;padding:8px 10px">Nothing yet</div>'; return; }
   host.innerHTML = '';
   for (const record of all) {
     const button = document.createElement('button');
@@ -1169,7 +1169,7 @@ async function askNex(raw, { displayMessage = raw } = {}){
   if (!raw || busy) return;
   if (currentView !== 'chat') await showView('chat');
   bubble('u', esc(displayMessage));
-  const pending = bubble('a', '<p style="color:#61656f">Thinking through that…</p>');
+  const pending = bubble('a', '<p style="color:#9297a2">Thinking through that…</p>');
   busy = true; el('send').disabled = true;
   try {
     const response = await fetch('/api/room-assistant', {
@@ -1287,7 +1287,7 @@ async function runBuild(raw, displayMessage = raw, showUser = true, planMode = u
   if (showUser) bubble('u', esc(displayMessage));
   if (!threadId) threadId = `f${Date.now().toString(36)}`;
   busy = true; el('send').disabled = true;
-  const pending = bubble('a', '<p style="color:#61656f">Working on it…</p>');
+  const pending = bubble('a', '<p style="color:#9297a2">Working on it…</p>');
 
   // /api/room-chat is a BUILD endpoint and answers with an SSE stream, not
   // JSON. Calling response.json() on it throws, which is why this used to
@@ -1355,7 +1355,7 @@ async function runBuild(raw, displayMessage = raw, showUser = true, planMode = u
           jobId = data.jobId;
           rememberPendingBuild({ jobId, projectId: data.projectId, displayMessage });
         } else if (data.action === 'progress') {
-          pending.innerHTML = `<p style="color:#61656f">${esc(data.message || 'Working on it…')}</p>`;
+          pending.innerHTML = `<p style="color:#9297a2">${esc(data.message || 'Working on it…')}</p>`;
         } else if (data.action === 'html') {
           finished = true;
           currentBuild = data.html || '';
