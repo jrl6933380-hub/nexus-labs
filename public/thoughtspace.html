@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en" data-nexus-workspace="true">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <title>Nexus Thoughtspace</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/nexus-workspace.css?v=20260919-1" />
+</head>
+<body>
+  <main id="nexusWorkspace" class="nexus-workspace" aria-label="Nexus visual workspace">
+    <header class="workspace-topbar">
+      <button type="button" class="workspace-brand" data-workspace-view="overview" aria-label="Show Nexus overview">
+        <span class="workspace-brand-mark">N</span>
+        <span><b>Nexus</b><small>Thoughtspace</small></span>
+      </button>
+      <div class="workspace-view-title"><small>ACTIVE VIEW</small><strong id="workspaceViewTitle">System Overview</strong></div>
+      <nav class="workspace-actions" aria-label="Workspace views">
+        <button type="button" data-workspace-view="overview">Overview</button>
+        <button type="button" data-workspace-view="blank">Blank Canvas</button>
+        <button type="button" id="workspaceLatestVisual" hidden>Latest Visual</button>
+      </nav>
+    </header>
+    <section id="nexus-visual-stage" class="workspace-stage" aria-live="polite"></section>
+  </main>
+  <script type="module">
+    import '/browser-error-reporter.js?v=20260913-1';
+    const session = await fetch('/api/nexus-auth', {
+      credentials: 'include', headers: { Accept: 'application/json' }, cache: 'no-store',
+    }).catch(() => null);
+    if (!session?.ok) {
+      const next = encodeURIComponent(`${location.pathname}${location.search}${location.hash}`);
+      location.replace(`/nexus-login.html?next=${next}`);
+      await new Promise(() => {});
+    }
+    await import('/nexus-workspace.js?v=20260919-1');
+    await import('/nex-chat-bar.js?v=20260919-1');
+  </script>
+</body>
+</html>

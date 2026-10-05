@@ -1,0 +1,1583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0b0c0f" />
+<title>Nexus Forge</title>
+<script defer src="/_vercel/insights/script.js"></script>
+<!--
+  /forge.html — the customer's workspace.
+
+  Same shell as the operator's (/workspace.html): rail behind a hamburger that
+  pushes the screen, thread as the surface, rooms as views, draggable Nex head.
+  Different furniture and a different gate.
+
+  Nex is the same identity with a Forge tool belt and a Forge persona. He is
+  walking someone into building something, not running a business with them —
+  so no operator language anywhere in this file.
+
+  Auth is roomAuth (/api/room-auth, /room-login.html), NOT the owner gate. A
+  customer must never reach an owner surface and the owner's session must never
+  be what lets a customer in. This is the same reason the rail here links to
+  nothing outside Forge.
+-->
+<style>
+  :root{
+    --bg:#0b0c0f; --rail:#111318; --tx:#f2f0ed; --dm:#8b8f99; --ln:#232733;
+    --card:#14171e; --chip:#1d212a; --accent:#c8a86b; --rw:214px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--rail);color:var(--tx);overflow:hidden;
+    font-family:-apple-system,"SF Pro Text",Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  button{cursor:pointer;border:0;background:none;color:inherit;font:inherit;text-align:left}
+
+  .rail{position:fixed;inset:0 auto 0 0;width:var(--rw);display:flex;flex-direction:column;
+    padding:calc(env(safe-area-inset-top) + 20px) 12px 14px}
+  .brand{padding:0 10px 18px}
+  .brand b{display:block;font:400 25px ui-serif,Georgia,"Times New Roman",serif}
+  .brand small{display:block;font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--accent);margin-top:3px}
+  .item{display:flex;align-items:center;gap:13px;width:100%;padding:10px;border-radius:10px;
+    font-size:15px;color:#e2e0dc;transition:background .13s}
+  .item:hover{background:#1a1e26}
+  .item.on{background:#242935}
+  .ic{width:17px;text-align:center;font-size:14px;color:#9aa0ad;flex-shrink:0}
+  .grp{font-size:12.5px;color:var(--dm);padding:0 10px;margin:16px 0 6px}
+  .scrollpart{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0}
+  .scrollpart .item{font-size:14.5px;color:#c8ccd4;padding:9px 10px}
+  .dot{width:6px;height:6px;border-radius:50%;background:#474d5b;flex-shrink:0;margin-left:5px}
+  .tr{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .new{margin-top:10px;display:flex;align-items:center;justify-content:center;gap:8px;
+    background:var(--accent);color:#17130a;border-radius:24px;padding:12px;font-size:15px;font-weight:600}
+
+  .screen{position:fixed;inset:0;background:var(--bg);z-index:5;display:flex;flex-direction:column;
+    transition:transform .32s cubic-bezier(.32,.72,0,1);will-change:transform;
+    box-shadow:-16px 0 44px rgba(0,0,0,.65)}
+  .screen.open{transform:translateX(var(--rw))}
+
+  .top{display:flex;align-items:center;gap:16px;padding:calc(env(safe-area-inset-top) + 14px) 16px 10px}
+  .burger{width:21px;display:flex;flex-direction:column;gap:4.5px;flex-shrink:0;padding:6px 0}
+  .burger i{display:block;height:1.8px;background:#d4d2ce;border-radius:2px}
+  .burger i:nth-child(2){width:14px}.burger i:nth-child(3){width:17px}
+  .vt{font-size:15px;color:#c0c4cc}
+  .grow{flex:1}
+  .ticon{font-size:17px;color:#d4d2ce;opacity:.85;padding:4px}
+
+  .workarea{flex:1;min-height:0;display:flex}
+  .conversation-pane{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column}
+  .project-editor-preview{display:none;min-width:0;min-height:0;background:#fff;border-right:1px solid var(--ln)}
+  .project-editor-bar{height:45px;display:flex;align-items:center;gap:9px;padding:7px 10px;background:#111318;color:#f2f0ed;border-bottom:1px solid #2b3040;flex-shrink:0}
+  .project-editor-bar strong{font-size:12.5px;font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .project-editor-bar button{margin-left:auto;padding:7px 11px;border:1px solid #363c49;border-radius:16px;background:#1b2029;color:#e7e9ed;font-size:12px}
+  .project-editor-preview iframe{display:block;width:100%;height:100%;border:0;background:#fff;flex:1}
+  .screen.workbench-editing .project-editor-preview{display:flex;flex-direction:column}
+
+  .thread{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 18px 4px}
+  .msg{margin-bottom:24px}
+  .msg.u{display:flex;justify-content:flex-end}
+  .msg.u .body{background:#232833;padding:12px 17px;border-radius:20px;max-width:82%;font-size:16px;line-height:1.5}
+  .msg.a .body{font:400 16.5px/1.72 ui-serif,Georgia,"Times New Roman",serif;color:#eeece8}
+  .msg.a .body p{margin-bottom:15px}
+  .msg.a .body p:last-child{margin-bottom:0}
+  .msg.sys .body{font-size:14px;color:var(--dm);line-height:1.6}
+
+  .lgroup{margin-bottom:18px}
+  .lhead{font-size:12.5px;color:var(--dm);margin-bottom:8px}
+  .lrow{display:flex;align-items:center;gap:12px;width:100%;padding:13px 14px;border-radius:12px;
+    background:var(--card);border:1px solid var(--ln);margin-bottom:7px;transition:border-color .13s}
+  button.lrow:hover{border-color:#3b4354}
+  .lt{font-size:15px;line-height:1.35}
+  .lm{font-size:12.5px;color:var(--dm);margin-top:4px;line-height:1.4}
+  .tag{margin-left:auto;font-size:11px;padding:4px 9px;border-radius:20px;flex-shrink:0;white-space:nowrap}
+  .tag.f{background:#16281f;color:#68d9a4}
+  .tag.g{background:#2b2318;color:#e3b467}
+  .lempty{font-size:14px;color:#61656f;padding:10px 2px 18px}
+
+  .visual{margin-top:14px;border:1px solid var(--ln);border-radius:14px;overflow:hidden;background:var(--card)}
+  .visual iframe{display:block;width:100%;border:0;background:var(--card)}
+  .vbar{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--ln)}
+  .vname{font-size:12.5px;color:#c8ccd4}
+  .workbench-full-preview{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;background:#fff;color:#17130a}
+  .workbench-preview-bar{height:54px;display:flex;align-items:center;gap:10px;padding:8px 12px;
+    background:#111318;color:#f2f0ed;border-bottom:1px solid #2b3040;flex-shrink:0}
+  .workbench-preview-bar strong{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .workbench-preview-bar button{padding:8px 12px;border:1px solid #343a48;border-radius:18px;background:#1b2029;
+    color:#e7e9ed;font-size:12.5px;white-space:nowrap}
+  .workbench-preview-bar .preview-edit{margin-left:auto}
+  .workbench-preview-bar .preview-share{background:var(--accent);border-color:var(--accent);color:#17130a;font-weight:650}
+  .workbench-preview-bar button[disabled]{opacity:.55;cursor:wait}
+  .preview-status{font-size:12px;color:#aeb4c0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
+  .workbench-full-preview iframe{display:block;width:100%;height:calc(100vh - 54px);border:0;background:#fff;flex:1}
+
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 6px}
+  .chip{font-size:13.5px;padding:9px 15px;border-radius:20px;background:#191d25;
+    border:1px solid var(--ln);color:#c0c4cc;transition:.13s}
+  .chip:hover{border-color:#3b4354;color:var(--tx)}
+  .chat-checklist{margin:14px 0 4px;padding:14px;border:1px solid var(--ln);border-radius:16px;background:rgba(255,255,255,.025)}
+  .chat-checklist strong{display:block;margin-bottom:8px;font-size:13px;color:var(--mut)}
+  .chat-checklist div{display:flex;gap:9px;align-items:flex-start;padding:7px 0;border-top:1px solid rgba(255,255,255,.055);font-size:14px;line-height:1.4}
+  .chat-checklist div:first-of-type{border-top:0}.chat-checklist span{color:var(--accent);font-weight:700}
+  .workbench-project-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:16px;margin:18px 0 20px;align-items:start}
+  .workbench-project-stack{position:relative;min-width:0}
+  .workbench-project-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+  .workbench-project-actions button{flex:1;padding:9px 8px;background:#191d26;border:1px solid #303748;border-radius:12px;color:#e5e2dc;font:inherit;font-size:11px;cursor:pointer}
+  .connection-detail summary{cursor:pointer;font-size:14px;font-weight:550;color:#e5e2dc}
+  .connection-detail p{font-size:14px;line-height:1.5;color:#bfc4ce;margin:12px 0}
+  .connection-detail summary:focus-visible{outline:2px solid #d9bc80;outline-offset:4px}
+  .workbench-selected-project{padding:14px;border:1px solid #b89b60;border-radius:14px;margin:12px 0}
+  .workbench-selected-project strong{display:block;overflow-wrap:anywhere}
+  .workbench-selected-project small{display:block;color:#d9bc80;margin-bottom:7px}
+  .workbench-publish-note{margin:0;padding:9px 14px;background:#101319;border-bottom:1px solid #303748;color:#b7bbc5;font-size:12px;line-height:1.45}
+  .workbench-stack-deck{position:relative}
+  .workbench-project-stack.has-parts .workbench-stack-deck::before,.workbench-project-stack.has-parts .workbench-stack-deck::after{
+    content:'';position:absolute;inset:7px 9px -7px;border:1px solid #292e39;border-radius:17px;background:#0b0d12;z-index:0}
+  .workbench-project-stack.has-parts .workbench-stack-deck::after{inset:13px 17px -13px;background:#07080b;z-index:-1}
+  .workbench-project-tile{position:relative;aspect-ratio:1;border:1px solid #303748;border-radius:18px;overflow:hidden;
+    background:#0a0c10;color:var(--tx);text-align:left;box-shadow:0 14px 34px rgba(0,0,0,.24);z-index:1;width:100%}
+  .workbench-project-tile:hover{border-color:#566072}
+  .workbench-project-tile iframe{position:absolute;inset:0;width:500%;height:500%;border:0;background:#fff;transform:scale(.2);transform-origin:top left;pointer-events:none}
+  .workbench-project-tile .tile-label{position:absolute;inset:auto 0 0;padding:24px 12px 11px;
+    background:linear-gradient(transparent,rgba(5,6,9,.94));font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .workbench-project-tile.add-panel{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;
+    background:#050609;border-color:#242831;text-align:center}
+  .workbench-project-tile.add-panel .plus{font-size:38px;font-weight:200;line-height:1;color:#f2f0ed}
+  .workbench-project-tile.add-panel strong{font-size:14px;font-weight:550}
+  .workbench-project-tile.add-panel small{font-size:11.5px;color:#777d89}
+  .workbench-stack-toggle{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;margin-top:17px;
+    padding:8px 10px;border:1px solid #292e39;border-radius:12px;background:#10131a;color:#aeb4c0;font-size:11.5px}
+  .workbench-stack-toggle b{font-size:15px;font-weight:400;color:#d9bc80}
+  .workbench-stack-parts{display:none;gap:8px;margin-top:9px;overflow-x:auto;padding:2px 2px 8px;scrollbar-width:none}
+  .workbench-stack-parts::-webkit-scrollbar{display:none}.workbench-project-stack.open .workbench-stack-parts{display:flex}
+  .workbench-stack-part{flex:0 0 128px;min-height:86px;padding:11px;border:1px solid #303748;border-radius:13px;
+    background:linear-gradient(145deg,#171b24,#0d1015);box-shadow:0 8px 18px rgba(0,0,0,.2);transform:rotate(-1.5deg)}
+  .workbench-stack-part:nth-child(even){transform:rotate(1.5deg)}
+  .workbench-stack-part small{display:block;margin-bottom:8px;color:#d9bc80;font-size:9px;letter-spacing:.12em;text-transform:uppercase}
+  .workbench-stack-part strong{display:block;color:#d7d9df;font-size:11.5px;line-height:1.35;font-weight:550;overflow-wrap:anywhere}
+  .live-sites-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;margin:18px 0 22px}
+  .live-site-card{overflow:hidden;border:1px solid #303748;border-radius:18px;background:linear-gradient(155deg,#171b24,#101319)}
+  .live-site-preview{position:relative;display:block;width:100%;aspect-ratio:16/10;border:0;border-bottom:1px solid #303748;background:#fff;overflow:hidden}
+  .live-site-preview iframe{position:absolute;inset:0;width:500%;height:500%;border:0;background:#fff;transform:scale(.2);transform-origin:top left;pointer-events:none}
+  .live-site-badge{position:absolute;top:9px;right:9px;padding:5px 8px;border-radius:12px;background:#16372a;color:#8fe0b0;font-size:10px;font-weight:650}
+  .live-site-body{padding:13px}.live-site-body h3{margin:0 0 5px;font-size:15px;font-weight:600;color:#e3e4e8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .live-site-url{display:block;margin-bottom:11px;color:#828895;font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .live-site-actions{display:flex;gap:7px;flex-wrap:wrap}.live-site-actions button{padding:7px 10px;border:1px solid #303748;border-radius:14px;background:#151922;color:#c8ccd4;font-size:10.5px}
+  .live-site-actions button.primary{background:#d0af6d;border-color:#d0af6d;color:#17130a;font-weight:650}
+  .live-site-care{margin-top:11px;padding-top:11px;border-top:1px solid #292e39;display:flex;gap:7px;flex-wrap:wrap}
+  .live-site-care button{padding:7px 10px;border-radius:14px;background:#211d17;border:1px solid #4a402c;color:#e2c991;font-size:10.5px}
+
+  .qcard{margin:4px 0 22px;padding:18px;border:1px solid #303748;border-radius:18px;
+    background:linear-gradient(155deg,#171b24,#11141a);box-shadow:0 16px 40px rgba(0,0,0,.22)}
+  .qhead{display:flex;flex-direction:column;gap:7px;margin-bottom:16px}
+  .qhead span{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+  .qhead strong{font:500 21px/1.25 ui-serif,Georgia,serif;color:var(--tx)}
+  .qhead small{font-size:13.5px;line-height:1.5;color:var(--dm)}
+  .qoptions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+  .qoption{min-height:48px;padding:11px 13px;border:1px solid #303748;border-radius:13px;
+    background:#12161d;color:#d7d9df;font-size:14px;line-height:1.3;text-align:center;transition:.14s}
+  .qoption:hover{border-color:#586277}.qoption.picked{border-color:var(--accent);background:#2a2419;color:#f3dfb8}
+  .qcomment{width:100%;resize:vertical;margin-top:12px;padding:12px 13px;background:#0e1117;
+    border:1px solid #303748;border-radius:12px;color:var(--tx);font:14px/1.45 inherit;outline:none}
+  .qcomment:focus{border-color:var(--accent)}.qcomment::placeholder{color:#666c78}
+  .qcomment.qmain{margin-top:0;min-height:108px;font-size:15px}
+  .qactions{display:flex;align-items:center;gap:12px;margin-top:13px}
+  .qsave{padding:11px 17px;border-radius:20px;background:var(--accent);color:#17130a;font-size:14px;font-weight:650}
+  .qsave[disabled]{opacity:.5}.qerror{font-size:12.5px;color:#d09a82}
+
+  .disc{font-size:12.5px;color:#61656f;padding:6px 18px 10px}
+  .foot{padding:0 14px calc(env(safe-area-inset-bottom) + 14px)}
+  .comp{border:1px solid #2b3040;border-radius:24px;padding:14px 15px 11px;background:var(--card)}
+  .comp input{width:100%;background:none;border:0;outline:none;color:var(--tx);font-size:16px}
+  .comp input::placeholder{color:#767b87}
+  .crow{display:flex;align-items:center;gap:9px;margin-top:13px}
+  .composer-actions{display:flex;align-items:center;gap:7px;min-width:0;overflow-x:auto;scrollbar-width:none;flex:1}
+  .composer-actions::-webkit-scrollbar{display:none}
+  .toolaction{flex-shrink:0;padding:8px 11px;border-radius:17px;background:var(--chip);border:1px solid var(--ln);
+    color:#c8ccd4;font-size:12px;line-height:1;white-space:nowrap}
+  .toolaction:hover{border-color:#566072;color:var(--tx)}
+  .round{width:31px;height:31px;border-radius:50%;background:var(--chip);display:flex;
+    align-items:center;justify-content:center;font-size:17px;color:#c8ccd4;flex-shrink:0}
+  .send{width:33px;height:33px;border-radius:50%;background:var(--accent);color:#17130a;display:flex;
+    align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+  .send[disabled]{opacity:.4;cursor:default}
+
+  .head{position:fixed;z-index:40;width:52px;height:52px;border-radius:50%;
+    background:linear-gradient(160deg,#d9bc80,#a8843f);color:#17130a;display:none;
+    align-items:center;justify-content:center;font:600 17px ui-serif,Georgia,serif;
+    box-shadow:0 8px 26px rgba(0,0,0,.55);touch-action:none;user-select:none}
+  .head.show{display:flex}
+  .dock{position:fixed;z-index:41;width:min(330px,calc(100vw - 24px));background:var(--rail);
+    border:1px solid #2b3040;border-radius:16px;box-shadow:0 14px 44px rgba(0,0,0,.6);display:none;overflow:hidden}
+  .dock.show{display:block}
+  .dhead{display:flex;align-items:center;gap:9px;padding:11px 13px;border-bottom:1px solid var(--ln)}
+  .dname{font:400 15px ui-serif,Georgia,serif}
+  .dclose{margin-left:auto;color:var(--dm);font-size:17px;padding:2px 6px}
+  .dacts{display:flex;gap:7px;flex-wrap:wrap;padding:11px 13px 4px}
+  .dact{font-size:12.5px;padding:7px 12px;border-radius:16px;background:#191d25;
+    border:1px solid var(--ln);color:#c0c4cc}
+  .dbody{max-height:190px;overflow-y:auto;padding:10px 13px;font-size:14px;line-height:1.6;color:#c8ccd4}
+  .dfoot{display:flex;align-items:center;gap:8px;padding:10px 13px calc(env(safe-area-inset-bottom) + 12px);
+    border-top:1px solid var(--ln)}
+  .dfoot input{flex:1;background:#191d25;border:1px solid var(--ln);border-radius:18px;
+    padding:9px 13px;color:var(--tx);font-size:14.5px;outline:none;min-width:0}
+  .dsend{width:30px;height:30px;border-radius:50%;background:var(--accent);color:#17130a;
+    display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+
+  @media (min-width:900px){
+    .screen{left:var(--rw);transform:none!important;box-shadow:none;border-left:1px solid var(--ln)}
+    .burger{display:none}
+    .thread,.foot,.disc{max-width:780px;margin-left:auto;margin-right:auto;width:100%}
+    .screen.workbench-editing .workarea{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(360px,.75fr)}
+    .screen.workbench-editing .thread,.screen.workbench-editing .foot,.screen.workbench-editing .disc{max-width:none}
+  }
+  @media (max-width:899px){
+    .screen.workbench-editing .workarea{flex-direction:column}
+    .screen.workbench-editing .project-editor-preview{height:40vh;min-height:245px;border-right:0;border-bottom:1px solid var(--ln);flex-shrink:0}
+  }
+  @media (max-width:520px){
+    .qoptions{grid-template-columns:1fr}.qcard{padding:15px}.screen.workbench-editing .project-editor-preview{height:36vh;min-height:220px}
+    .workbench-preview-bar{gap:7px}.workbench-preview-bar strong,.preview-status,.preview-open{display:none}.workbench-preview-bar button{padding:8px 10px;font-size:12px}
+    .workbench-project-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 10px}
+    .workbench-stack-toggle{font-size:10.5px;padding:7px 8px}.workbench-stack-part{flex-basis:112px;min-height:78px}
+  }
+</style>
+<link rel="stylesheet" href="/ux.css" />
+</head>
+<body>
+
+<nav class="rail" id="rail">
+  <div class="brand"><b id="surfaceBrand">Nexus</b><small id="surfaceProduct">Forge</small></div>
+  <div id="viewNav"></div>
+  <div class="grp">Recent</div>
+  <div class="scrollpart" id="recents"></div>
+  <div id="acctSlot"></div>
+  <button class="new" id="newBtn">+&nbsp; Build something</button>
+</nav>
+
+<div class="screen" id="screen">
+  <div class="top">
+    <button class="burger" id="burger" aria-label="Menu"><i></i><i></i><i></i></button>
+    <div class="vt" id="viewTitle">Nexus Forge</div>
+    <div class="grow"></div>
+    <button class="ticon" id="headBtn" aria-label="Nex">◉</button>
+    <button class="ticon" id="newTop" aria-label="New">＋</button>
+  </div>
+  <div class="workarea">
+    <section class="project-editor-preview" id="projectEditorPreview" aria-label="Pinned project preview">
+      <div class="project-editor-bar"><strong>Live project</strong><button type="button" id="editorFullPreview">Full preview</button></div>
+      <iframe id="projectEditorFrame" title="Live project preview" sandbox="allow-scripts allow-forms" referrerpolicy="no-referrer"></iframe>
+    </section>
+    <div class="conversation-pane">
+      <div class="thread" id="thread"></div>
+      <div class="disc">Nex can make mistakes.</div>
+      <div class="foot">
+        <div class="comp">
+          <input id="input" placeholder="Tell me what you want to build…" autocomplete="off" />
+          <div class="crow">
+            <div class="composer-actions" aria-label="Project actions">
+              <button class="toolaction" id="helpBtn">Help</button>
+              <button class="toolaction" id="previewBtn">Preview</button>
+              <button class="toolaction" id="addProjectBtn" hidden>Add</button>
+              <button class="toolaction" id="planProjectBtn" hidden>Plan</button>
+              <button class="toolaction" id="connectionsProjectBtn" hidden>Connections</button>
+            </div>
+            <button class="send" id="send" aria-label="Send">↑</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<button class="head" id="head">N</button>
+<div class="dock" id="dock">
+  <div class="dhead"><span class="dname">Nex</span><button class="dclose" id="dockClose">×</button></div>
+  <div class="dacts" id="dockActs"></div>
+  <div class="dbody" id="dockBody">Ask me anything without leaving this screen.</div>
+  <div class="dfoot">
+    <input id="dockInput" placeholder="Ask Nex…" autocomplete="off" />
+    <button class="dsend" id="dockSend">↑</button>
+  </div>
+</div>
+
+<script type="module">
+import { friendlyError, showFeedback } from '/ux.js';
+import { FORGE_VIEWS, matchForgeView, featureUnlocked, loadConnection, connectionSnapshot, primaryAction, secondaryActions } from '/forge-views.js';
+import { say, chips, esc } from '/workspace-views.js';
+
+// Guest-first entry. A visitor can walk in, look around, and talk to Nex
+// without an account — the account is asked for at the moment it is actually
+// needed (a build), not at the door. This page used to bounce anyone without
+// a session straight to login, which is why guests had to be routed to the
+// old builder instead; that split is what this removes.
+//
+// This is presentation only. The real boundary is server-side and unchanged:
+// api/room-chat.js refuses a build with 402 BRAIN_REQUIRED unless the caller
+// is a signed-in account with a connected Builder Brain, and every per-account
+// endpoint still answers 401 to a guest. Softening the front door does not
+// widen what a guest can actually do.
+const session = await fetch('/api/room-auth', {
+  credentials: 'include', headers: { Accept: 'application/json' }, cache: 'no-store',
+}).catch(() => null);
+const me = session?.ok ? await session.json().catch(() => null) : null;
+const signedIn = Boolean(me?.username);
+
+function goSignIn() {
+  const draft = document.getElementById('input')?.value || '';
+  if (draft) sessionStorage.setItem('forge:login:draft', draft);
+  location.href = '/room-login.html?next=' + encodeURIComponent(`${location.pathname}${location.search}`);
+}
+
+const FORGE_ACCOUNT_CARD = 'forge:account-card:v1';
+function rememberedUsername() {
+  try { return localStorage.getItem(FORGE_ACCOUNT_CARD) || ''; } catch { return ''; }
+}
+function rememberUsername(username) {
+  try { localStorage.setItem(FORGE_ACCOUNT_CARD, username); } catch {}
+}
+function showAuthCard(mode = 'login') {
+  currentView = 'chat';
+  el('viewTitle').textContent = isWorkbench ? 'Nex Workbench' : 'Nexus Forge';
+  railOpen(false);
+  thread.replaceChildren();
+  thread.appendChild(say(isWorkbench
+    ? (mode === 'signup'
+        ? 'Create your Nexus account to save this panel and keep working across devices.'
+        : 'Sign in to continue working in your saved Workbench panels.')
+    : (mode === 'signup'
+        ? 'Let’s make your Forge account here. Fill in the card, check the summary, and confirm. Then I’ll walk you through connecting your Builder Brain.'
+        : 'Welcome back. Choose your saved account card, or enter your username and password here. Your password goes straight to sign-in.')));
+  const card = document.createElement('form'); card.className = 'qcard';
+  card.setAttribute('autocomplete', 'on');
+  const heading = document.createElement('div'); heading.className = 'qhead';
+  heading.textContent = mode === 'signup' ? 'Create your account' : (isWorkbench ? 'Sign in to Workbench' : 'Sign in to Forge');
+  card.appendChild(heading);
+  const add = (labelText, type, name, required = true) => {
+    const label = document.createElement('label'); label.textContent = labelText;
+    const input = document.createElement('input'); input.name = name; input.type = type;
+    input.required = required; input.className = 'qcomment'; input.autocomplete = name === 'username' ? 'username'
+      : name === 'password' ? (mode === 'signup' ? 'new-password' : 'current-password') : name === 'email' ? 'email' : 'off';
+    if (name === 'username') input.value = rememberedUsername();
+    if (name === 'password') input.minLength = 8;
+    label.appendChild(input); card.appendChild(label); return input;
+  };
+  let username, name;
+  if (mode === 'signup') name = add('Your name', 'text', 'name');
+  else username = add('Email or username', 'text', 'username');
+  let email;
+  if (mode === 'signup') {
+    email = add('Email', 'email', 'email');
+  }
+  const password = add(mode === 'signup' ? 'Create a password (8+ characters)' : 'Password', 'password', 'password');
+  const error = document.createElement('span'); error.className = 'qerror'; error.setAttribute('role','status');
+  const submit = document.createElement('button'); submit.type = 'submit'; submit.className = 'qsave';
+  submit.textContent = mode === 'signup' ? 'Create my account' : 'Sign in';
+  card.append(submit, error); thread.appendChild(card);
+  if (mode === 'signup') {
+    const social = document.createElement('div'); social.className = 'qcard';
+    const intro = document.createElement('p'); intro.textContent = 'Or make your account with one tap.';
+    const google = document.createElement('button'); google.type = 'button'; google.className = 'qsave'; google.textContent = 'Continue with Google'; google.disabled = true;
+    const apple = document.createElement('button'); apple.type = 'button'; apple.className = 'qsave'; apple.textContent = 'Continue with Apple'; apple.disabled = true;
+    social.append(intro, google, apple); thread.insertBefore(social, card);
+    fetch('/api/social-auth', { credentials:'include' }).then(response => response.json()).then(status => {
+      const next = encodeURIComponent('/forge.html?view=brain');
+      google.disabled = !status.google;
+      apple.disabled = !status.apple;
+      google.onclick = () => { location.href = `/api/social-auth?provider=google&next=${next}`; };
+      apple.onclick = () => { location.href = `/api/social-auth?provider=apple&next=${next}`; };
+      if (!status.google && !status.apple) intro.textContent = 'Google and Apple sign-in are being connected. You can create your account below.';
+    }).catch(() => { intro.textContent = 'Create your account below.'; });
+  }
+  thread.appendChild(chips([{ label:mode === 'signup' ? 'I have an account' : 'Create an account',
+    run:() => showAuthCard(mode === 'signup' ? 'login' : 'signup') }]));
+  card.onsubmit = async (event) => {
+    event.preventDefault(); error.textContent = '';
+    const info = { username: username?.value.trim(), name: name?.value.trim(), password: password.value,
+      email: email?.value.trim() };
+    submit.disabled = true;
+    await submitAuth(mode === 'signup' ? 'simple-signup' : 'login', info, card);
+  };
+  (username || name).focus();
+}
+async function submitAuth(action, info, card) {
+  const status = document.createElement('p'); status.setAttribute('role','status'); card.appendChild(status);
+  try {
+    const response = await fetch('/api/room-auth', { method:'POST', credentials:'include',
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify({ action, ...info }) });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || 'Account request failed.');
+    rememberUsername(data.username);
+    info.password = '';
+    location.replace(isWorkbench ? '/forge.html?surface=workbench&view=chat' : '/forge.html?view=brain');
+  } catch (error) {
+    info.password = '';
+    status.textContent = friendlyError(error);
+    card.appendChild(chips([{ label:'Try again', run:() => showAuthCard(action === 'simple-signup' ? 'signup' : 'login') }]));
+  }
+}
+
+const el = (id) => document.getElementById(id);
+const thread = el('thread');
+const screenEl = el('screen');
+let currentView = 'project';
+let busy = false;
+let threadId = null;
+// The page built so far. Sent back as currentHtml so a follow-up becomes a
+// small patch instead of a full rebuild.
+let currentBuild = '';
+const newProjectId = () => `forge-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+let currentProjectId = newProjectId();
+let latestBuildId = null;
+let currentProjectLabel = 'Your project';
+let currentLiveUrl = '';
+let currentLiveNeedsUpdate = false;
+let pendingStackItem = null;
+let plannerEntry = '';
+const scopedConnections = new Set();
+const history = [];
+const startupParams = new URLSearchParams(location.search);
+const surfaceMode = startupParams.get('surface') === 'workbench' ? 'workbench' : 'forge';
+const isWorkbench = surfaceMode === 'workbench';
+const WORKBENCH_VIEW_ORDER = ['project', 'live', 'roadmap', 'stack', 'brief'];
+const WORKBENCH_VIEWS = new Set([...WORKBENCH_VIEW_ORDER, 'preview', 'pages', 'help']);
+const WORKBENCH_LABELS = {
+  project: 'Projects', live: 'Live Sites', preview: 'Full Preview', pages: 'Add to Project',
+  roadmap: 'Project Path', stack: 'Connections', brief: 'Project Plan', help: 'How It Works',
+};
+if (isWorkbench) {
+  document.title = 'Nex Workbench';
+  el('surfaceBrand').textContent = 'Nex';
+  el('surfaceProduct').textContent = 'Workbench';
+  el('viewTitle').textContent = 'Nex Workbench';
+  el('input').placeholder = 'Tell Nex what to build or change…';
+  el('newBtn').innerHTML = '+&nbsp; New project';
+  el('newTop').setAttribute('aria-label', 'New project');
+}
+const allowedReturnPaths = new Set(['/forge.html', '/room.html', '/story-studio.html']);
+const requestedReturnPath = startupParams.get('return');
+const onboardingReturnPath = allowedReturnPaths.has(requestedReturnPath) ? requestedReturnPath : '/forge.html';
+
+function rememberOnboardingReturn(){
+  try { localStorage.setItem('forge:onboarding:return', onboardingReturnPath); } catch {}
+}
+
+function takeOnboardingReturn(){
+  try {
+    const value = localStorage.getItem('forge:onboarding:return');
+    localStorage.removeItem('forge:onboarding:return');
+    return allowedReturnPaths.has(value) ? value : null;
+  } catch { return null; }
+}
+
+function openBrainSetup(returnPath = '/forge.html'){
+  if (allowedReturnPaths.has(returnPath)) {
+    try { localStorage.setItem('forge:onboarding:return', returnPath); } catch {}
+  }
+  showView('brain');
+}
+
+async function downloadMyData(){
+  const response=await fetch('/api/account',{credentials:'include'}),data=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(data.error || 'Your data could not be downloaded.');
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),link=document.createElement('a');
+  link.href=url;link.download=`nexus-data-${new Date().toISOString().slice(0,10)}.json`;document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);
+}
+
+async function deleteMyAccount(){
+  const confirmation=window.prompt('This permanently deletes your account and saved Nexus data. Type DELETE MY ACCOUNT to continue.');
+  if(confirmation!=='DELETE MY ACCOUNT')return false;
+  const response=await fetch('/api/account',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',confirmation})});
+  const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error || 'Your account could not be deleted.');
+  try{localStorage.removeItem(FORGE_ACCOUNT_CARD);}catch{}
+  location.replace('/room-login.html?deleted=1');return true;
+}
+
+async function sendFeedback(){
+  const message=window.prompt('What should we improve, or what went wrong?');if(!message?.trim())return false;
+  const response=await fetch('/api/feedback',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({category:'other',message,page:location.pathname+location.search})});
+  const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error || 'Your feedback could not be sent.');
+  window.alert('Thanks—your feedback was sent.');return true;
+}
+
+const ctx = {
+  surface: () => surfaceMode,
+  hasCurrentBuild: () => Boolean(currentBuild),
+  currentBuild: () => currentBuild,
+  currentProjectLabel: () => currentProjectLabel,
+  plannerEntry: () => plannerEntry,
+  copyText,
+  openExternal: (url) => window.open(url, '_blank', 'noopener'),
+  projectId: () => currentProjectId,
+  signedIn: () => signedIn,
+  signIn: () => goSignIn(),
+  downloadAccount: downloadMyData,
+  deleteAccount: deleteMyAccount,
+  sendFeedback,
+  ask: (text, options = {}) => {
+    if (options.stackItem) {
+      pendingStackItem = {
+        id: options.stackItem.id || `part-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+        kind: options.stackItem.kind,
+      };
+    }
+    el('input').value = text; return submit();
+  },
+  go: (id) => showView(id),
+  beginAddPiecePlanner: async () => {
+    if (!currentBuild) return showView('project');
+    plannerEntry = 'add-piece';
+    await showView('brief');
+  },
+  chooseAdditionKind: async (additionKind) => {
+    if (plannerEntry === 'add-piece') await briefAction('reset');
+    await briefAction('choose_addition_kind', { additionKind });
+    pendingStackItem = { id: `part-${Date.now().toString(36)}`, kind: additionKind };
+    plannerEntry = 'active-addon';
+    await showView('brief');
+  },
+  openGuidedPlanner: async (additionKind = '') => {
+    plannerEntry = 'nex';
+    if (currentBuild && ['page', 'tool', 'intelligence'].includes(additionKind)) {
+      await briefAction('choose_addition_kind', { additionKind });
+      pendingStackItem = { id: `part-${Date.now().toString(36)}`, kind: additionKind };
+    }
+    await showView('brief');
+  },
+  startProject: () => {
+    history.length = 0; threadId = null; currentBuild = ''; latestBuildId = null;
+    currentProjectLabel = 'New project'; currentLiveUrl = ''; currentLiveNeedsUpdate = false; pendingStackItem = null; plannerEntry = '';
+    currentProjectId = newProjectId();
+    showView(featureUnlocked(connectionSnapshot(), 'brief') ? 'brief' : 'chat');
+  },
+  answerBrief: async (questionId, values, comment) => {
+    await briefAction('answer', { questionId, values, comment });
+    await showView('brief');
+    showFeedback(thread, 'Answer saved. Your next step is below.');
+  },
+  resetBrief: async () => {
+    await briefAction('reset');
+    await showView('brief');
+  },
+  buildFromBrief: async () => {
+    const addon = Boolean(currentBuild);
+    const plannedProjectId = currentProjectId;
+    let approvedPlan;
+    try { approvedPlan = await briefAction('approve'); }
+    catch (error) { bubble('sys', esc(friendlyError(error))); return; }
+    if (plannedProjectId !== currentProjectId) { bubble('sys', 'Return to the planned project before building this addition.'); return; }
+    if (addon) pendingStackItem = { id: `part-${Date.now().toString(36)}`, kind: approvedPlan.addition_kind || pendingStackItem?.kind || 'tool' };
+    await showView('chat');
+    await runBuild(addon ? 'Implement my approved add-on plan in this existing project. Preserve everything outside the planned change and connect the addition to the main experience.' : 'Build the first working version from my approved Project Brief.', addon ? `Add-on approved: ${String(approvedPlan.answers?.idea || 'Project addition').slice(0, 80)}` : 'Project Brief approved', true, addon ? 'addon' : 'new');
+  },
+  openBuild: async (id, destination = 'chat', projectLabel = '') => {
+    const notice = bubble('sys', 'Opening that project…');
+    let opened = false;
+    try {
+      const response = await fetch('/api/room-history?id=' + encodeURIComponent(id), {
+        credentials: 'include', headers: { Accept: 'application/json' }, cache: 'no-store',
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data?.build?.html) throw new Error(data.error || 'That project could not be opened.');
+      currentBuild = data.build.html;
+      currentProjectId = data.build.projectId || data.build.id;
+      latestBuildId = data.build.id;
+      currentProjectLabel = projectLabel || data.build.label || 'Your project';
+      pendingStackItem = null;
+      plannerEntry = destination === 'add-piece' ? 'add-piece' : '';
+      currentLiveUrl = data.build.liveUrl || '';
+      currentLiveNeedsUpdate = Boolean(currentLiveUrl && Number(data.build.createdAt) > Number(data.build.livePublishedAt || 0));
+      threadId = `project-${currentProjectId}`;
+      history.length = 0;
+      try {
+        const conversation = await fetch('/api/room-conversation?projectId=' + encodeURIComponent(currentProjectId), {
+          credentials: 'include', headers: { Accept: 'application/json' }, cache: 'no-store',
+        }).then((res) => res.ok ? res.json() : null);
+        for (const turn of conversation?.turns || []) {
+          if (turn.role === 'user' || turn.role === 'assistant') {
+            history.push({ role: turn.role, content: turn.text, guidance: turn.guidance || null });
+          }
+        }
+      } catch { /* Saved HTML remains available when conversation history is down. */ }
+      await showView(destination === 'add-piece' ? 'brief' : ['preview', 'pages', 'stack'].includes(destination) ? destination : 'chat');
+      if (destination === 'chat') {
+        bubble('a', paragraphs(`Opened “${data.build.label || 'Saved project'}”. The live project stays pinned while you tell me what to change.`));
+        await askNex('Review the project I just opened. Ask one useful editing question and give me only the most relevant clickable choices for what I could work on next.', { displayMessage: 'Show me relevant editing options' });
+      }
+      opened = true;
+    } catch (error) {
+      notice.textContent = friendlyError(error);
+      return;
+    } finally {
+      if (opened) notice.closest('.msg')?.remove();
+    }
+  },
+  buyUsagePack: async () => {
+    const notice = bubble('sys', 'Opening checkout…');
+    try {
+      const response = await fetch('/api/checkout', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        // The canonical pack price lives in lib/billingPlans.js; the id is
+        // sent by the client only so checkout can resolve it, and an
+        // unrecognised one is rejected there rather than trusted.
+        body: JSON.stringify({ priceId: 'price_1UEjoFDh5Di7LYi3DGorrLRb' }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.url) throw new Error(data.error || 'Could not open checkout.');
+      notice.textContent = 'Taking you to checkout…';
+      window.location.href = data.url;
+    } catch (error) {
+      notice.textContent = friendlyError(error);
+    }
+  },
+  deleteProject: async (projectId, label) => {
+    if (!projectId) return;
+    const confirmed = window.confirm(`Delete "${label || 'this project'}"? This removes every saved version and takes its live site down. This can't be undone.`);
+    if (!confirmed) return;
+    const notice = bubble('sys', 'Deleting…');
+    try {
+      const response = await fetch('/api/room-history?projectId=' + encodeURIComponent(projectId), {
+        method: 'DELETE', credentials: 'include',
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Could not delete that project.');
+      notice.textContent = 'Deleted.';
+      if (currentProjectId === projectId) {
+        currentBuild = '';
+        latestBuildId = null;
+        currentProjectLabel = 'Your project';
+        currentLiveUrl = '';
+        currentLiveNeedsUpdate = false;
+      }
+      await showView(currentView === 'pages' ? 'pages' : 'project');
+    } catch (error) {
+      notice.textContent = friendlyError(error);
+    }
+  },
+  runStackAction: async (slotId, operation) => {
+    const notice = bubble('sys', 'Checking the safest next step…');
+    try {
+      const data = await stackAction(slotId, operation);
+      const outcome = data?.outcome || {};
+      notice.textContent = outcome.message || (outcome.ok ? 'Ready.' : 'That piece needs another step first.');
+      if (outcome.next_view) {
+        await showView(outcome.next_view);
+        if (!outcome.ok && outcome.message) bubble('sys', esc(outcome.message));
+      } else if (outcome.ok) {
+        await showView('stack');
+      }
+    } catch (error) {
+      notice.textContent = friendlyError(error);
+    }
+  },
+  hasScopedConnection: (slotId) => scopedConnections.has(`${currentProjectId}:${slotId}`),
+  scopeConnection: async (slotId) => {
+    if (busy) { bubble('sys', 'Wait for Nex to finish this request before scoping a connection.'); return; }
+    const projectId = currentProjectId;
+    const notice = bubble('sys', 'Preparing this connection for your project…');
+    try {
+      const response = await fetch('/api/forge-stack', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'scope', projectId, slotId }) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Could not scope this connection.');
+      if (currentProjectId !== projectId || data.project?.projectId !== projectId) throw new Error('The selected project changed. Reopen its Connections card.');
+      notice.closest('.msg')?.remove();
+      await ctx.ask(data.message);
+      if (currentProjectId === projectId && history.at(-2)?.content === data.message && history.at(-1)?.role === 'assistant') scopedConnections.add(`${projectId}:${slotId}`);
+    } catch (error) { notice.textContent = friendlyError(error); }
+  },
+  setupStack: async () => {
+    const notice = bubble('sys', 'Setting up the managed parts of your project…');
+    try {
+      const data = await stackSetupAction();
+      const outcome = data?.outcome || {};
+      notice.textContent = outcome.message || 'Managed setup finished.';
+      await showView('stack');
+    } catch (error) {
+      notice.textContent = friendlyError(error);
+    }
+  },
+  signOut: async () => {
+    await fetch('/api/room-auth', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'logout' }),
+    }).catch(() => {});
+    location.replace(isWorkbench ? '/workspace.html' : '/forge.html');
+  },
+
+  // --- Builder Brain ------------------------------------------------------
+  // Authorizing does a full-page navigation rather than opening a popup:
+  // popups get blocked on mobile, and the provider has to be able to redirect
+  // back onto /forge.html with its result either way.
+  connectBrain: async (tier) => {
+    if (!signedIn) { goSignIn(); return; }
+    const notice = bubble('sys', 'Setting that up…');
+    try {
+      rememberOnboardingReturn();
+      const data = await brainAction('authorize', { tier });
+      if (!data?.redirectUrl) throw new Error('Could not start that just now.');
+      notice.textContent = 'Taking you over to authorize…';
+      location.href = data.redirectUrl;
+    } catch (error) {
+      notice.textContent = friendlyError(error);
+    }
+  },
+
+  testBrain: async () => {
+    const notice = bubble('sys', 'Checking…');
+    try {
+      const data = await brainAction('test');
+      notice.textContent = data.ok
+        ? 'Working.'
+        : (data.recovery || data.message || "That check didn't pass.");
+      if (data.ok) {
+        await stackAction('brain', 'verify').catch(() => null);
+        const returnPath = takeOnboardingReturn();
+        if (returnPath && returnPath !== '/forge.html') {
+          location.replace(returnPath);
+        } else if (returnPath === '/forge.html') {
+          showView(featureUnlocked(connectionSnapshot(), 'brief') ? 'brief' : 'chat');
+        } else {
+          showView('brain');
+        }
+      }
+    } catch (error) {
+      notice.textContent = friendlyError(error);
+    }
+  },
+
+  setTier: async (tier) => {
+    const notice = bubble('sys', 'Changing that…');
+    try {
+      await brainAction('set_tier', { tier });
+      notice.remove();
+      // Tier decides which features exist, so refresh the connection and the
+      // rail before re-rendering — an upgrade should reveal its rooms at once.
+      await loadConnection();
+      drawNav();
+      showView('brain');
+    } catch (error) {
+      notice.textContent = friendlyError(error);
+    }
+  },
+
+  disconnectBrain: async () => {
+    const notice = bubble('sys', 'Disconnecting…');
+    try {
+      await brainAction('disconnect');
+      notice.textContent = 'Disconnected. Connect a Builder Brain again before your next build.';
+      showView('brain');
+    } catch (error) {
+      notice.textContent = friendlyError(error);
+    }
+  },
+};
+
+async function brainAction(action, extra = {}) {
+  const response = await fetch('/api/forge-brain', {
+    method: 'POST', credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, ...extra }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data?.error || data?.recovery || 'That did not go through.');
+  return data;
+}
+
+async function briefAction(action, extra = {}) {
+  const response = await fetch('/api/forge-brief', {
+    method: 'POST', credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, projectId: currentProjectId, mode: currentBuild ? 'addon' : 'new', ...extra }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data?.error || 'That answer could not be saved.');
+  return data;
+}
+
+async function stackAction(slotId, operation) {
+  const response = await fetch('/api/forge-stack', {
+    method: 'POST', credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'run', projectId: currentProjectId, slotId, operation }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data?.error || 'That setup step did not go through.');
+  return data;
+}
+
+async function stackSetupAction() {
+  const response = await fetch('/api/forge-stack', {
+    method: 'POST', credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'setup', projectId: currentProjectId }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data?.error || 'Project setup did not go through.');
+  return data;
+}
+
+function railOpen(open){ screenEl.classList.toggle('open', open); }
+el('burger').onclick = () => railOpen(!screenEl.classList.contains('open'));
+screenEl.addEventListener('click', (e) => {
+  if (screenEl.classList.contains('open') && !e.target.closest('#burger')) railOpen(false);
+}, true);
+
+// Which rooms a locked feature owns, so a gated room never appears in the
+// rail at all. A visible-but-broken option is worse than an absent one: it
+// promises something the customer's connection cannot deliver.
+const VIEW_REQUIRES = { brief: 'brief', stack: 'stack' };
+
+function viewAllowed(id) {
+  return id === 'chat' || !isWorkbench || WORKBENCH_VIEWS.has(id);
+}
+
+const nav = el('viewNav');
+function drawNav(){
+  nav.innerHTML = '';
+  const entries = isWorkbench
+    ? WORKBENCH_VIEW_ORDER.map((id) => [id, FORGE_VIEWS[id]]).filter(([, view]) => view)
+    : Object.entries(FORGE_VIEWS);
+  for (const [id, view] of entries) {
+    const gate = VIEW_REQUIRES[id];
+    if (gate && !featureUnlocked(connectionSnapshot(), gate)) continue;
+    if (['stack', 'roadmap'].includes(id) && (!currentBuild || ['project', 'live'].includes(currentView))) continue;
+    const button = document.createElement('button');
+    button.className = 'item';
+    button.dataset.view = id;
+    button.innerHTML = `<span class="ic">${view.icon}</span>${esc(isWorkbench ? WORKBENCH_LABELS[id] : view.label)}`;
+    button.onclick = () => showView(id);
+    nav.appendChild(button);
+  }
+}
+
+function bubble(role, html){
+  const wrap = document.createElement('div');
+  wrap.className = `msg ${role}`;
+  const body = document.createElement('div');
+  body.className = 'body';
+  body.innerHTML = html;
+  wrap.appendChild(body);
+  thread.appendChild(wrap);
+  thread.scrollTop = thread.scrollHeight;
+  return body;
+}
+function paragraphs(text){
+  return String(text).split(/\n{2,}/).map((p) => `<p>${esc(p).replace(/\n/g,'<br>')}</p>`).join('');
+}
+
+function renderDecisionGuidance(host, decision){
+  if (decision.checklist?.items?.length) {
+    const card = document.createElement('div');
+    card.className = 'chat-checklist';
+    const title = document.createElement('strong');
+    title.textContent = decision.checklist.title || 'What Nex understands';
+    card.appendChild(title);
+    const marks = { decided: '✓', next: '→', connection: '◇' };
+    for (const item of decision.checklist.items) {
+      const row = document.createElement('div');
+      const mark = document.createElement('span');
+      mark.textContent = marks[item.state] || '•';
+      const label = document.createElement('b');
+      label.textContent = item.label;
+      row.append(mark, label);
+      card.appendChild(row);
+    }
+    host.appendChild(card);
+  }
+  const options = (decision.suggestions || []).map((suggestion) => ({
+    label: suggestion.label,
+    run: () => askNex(suggestion.prompt, { displayMessage: suggestion.label }),
+  }));
+  if (decision.planner) {
+    options.push({
+      label: decision.planner.label || (currentBuild ? 'Open addition planner' : 'Open project planner'),
+      run: () => ctx.openGuidedPlanner(decision.planner.additionKind || ''),
+    });
+  }
+  if (options.length) host.appendChild(chips(options));
+}
+
+// Renders a finished build inline in the thread.
+//
+// This was referenced by the build handler but never defined here — it existed
+// only in the operator shell — so a SUCCESSFUL build threw "Can't find
+// variable: renderVisual" at the last step and looked like a build failure.
+//
+// The page is sandboxed: allow-scripts only, no same-origin, no network. It is
+// generated HTML being shown back to the person who asked for it, but it still
+// must not be able to reach this page's session or call anything out.
+function renderVisual(html, title){
+  const card = document.createElement('div');
+  card.className = 'visual';
+  card.innerHTML = `<div class="vbar"><span class="vname">${esc(title || 'Your site')}</span>
+    <button class="vb" id="vb-${Date.now()}">Open full</button></div>`;
+
+  const frame = document.createElement('iframe');
+  frame.setAttribute('sandbox', 'allow-scripts allow-forms');
+  frame.setAttribute('referrerpolicy', 'no-referrer');
+  frame.srcdoc = html;
+  frame.style.height = '460px';
+  card.appendChild(frame);
+
+  card.querySelector('.vb').onclick = () => {
+    if (isWorkbench) { showView('preview'); return; }
+    // Blob URL rather than document.write so the preview opens in its own
+    // origin instead of inheriting this one.
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank', 'noopener');
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  };
+
+  thread.appendChild(card);
+  thread.scrollTop = thread.scrollHeight;
+  return card;
+}
+
+async function copyText(value) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+  const input = document.createElement('textarea');
+  input.value = value;
+  input.style.cssText = 'position:fixed;left:-9999px;top:-9999px';
+  document.body.appendChild(input);
+  input.select();
+  const copied = document.execCommand('copy');
+  input.remove();
+  if (!copied) throw new Error('Copy did not work. Open the live site and copy its address instead.');
+}
+
+async function publishCurrentProject() {
+  if (!latestBuildId) throw new Error('This project is still saving. Try Share again in a moment.');
+  const response = await fetch('/api/room-publish', {
+    method: 'POST', credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: latestBuildId }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.url) throw new Error(data.error || 'Could not publish this project.');
+  currentLiveUrl = data.url;
+  currentLiveNeedsUpdate = false;
+  return currentLiveUrl;
+}
+
+function syncWorkbenchEditor(){
+  const editing = Boolean(isWorkbench && currentView === 'chat' && currentBuild);
+  screenEl.classList.toggle('workbench-editing', editing);
+  if (!editing) return;
+  const frame = el('projectEditorFrame');
+  if (frame._nexusHtml !== currentBuild) {
+    frame._nexusHtml = currentBuild;
+    frame.srcdoc = currentBuild;
+  }
+}
+
+function renderWorkbenchPreview(){
+  if (!currentBuild) return false;
+  const shell = document.createElement('section');
+  shell.id = 'workbenchFullPreview';
+  shell.className = 'workbench-full-preview';
+  shell.setAttribute('aria-label', 'Full project preview');
+
+  const bar = document.createElement('div');
+  bar.className = 'workbench-preview-bar';
+  const back = document.createElement('button');
+  back.type = 'button'; back.textContent = '← Projects';
+  back.onclick = () => showView('project');
+  const title = document.createElement('strong');
+  title.textContent = currentProjectLabel || 'Full project preview';
+  const status = document.createElement('span');
+  status.className = 'preview-status';
+  status.textContent = currentLiveUrl
+    ? (currentLiveNeedsUpdate ? 'Live version needs this update' : 'Live and ready to share')
+    : 'Private preview';
+  const edit = document.createElement('button');
+  edit.type = 'button'; edit.className = 'preview-edit'; edit.textContent = 'Edit with Nex';
+  edit.onclick = () => { showView('chat'); el('input').focus(); };
+  const share = document.createElement('button');
+  share.title = 'Publish the complete project on one live link. Stack cards organize the pieces already built into this site.';
+  share.type = 'button'; share.className = 'preview-share';
+  share.textContent = !currentLiveUrl ? 'Publish & copy link' : currentLiveNeedsUpdate ? 'Update & copy link' : 'Copy live link';
+  const openLive = document.createElement('button');
+  openLive.type = 'button'; openLive.className = 'preview-open'; openLive.textContent = 'Open live ↗';
+  openLive.hidden = !currentLiveUrl;
+  openLive.onclick = () => { if (currentLiveUrl) window.open(currentLiveUrl, '_blank', 'noopener'); };
+  share.onclick = async () => {
+    share.disabled = true;
+    status.textContent = (!currentLiveUrl || currentLiveNeedsUpdate) ? 'Publishing clean live site…' : 'Copying link…';
+    try {
+      const url = (!currentLiveUrl || currentLiveNeedsUpdate) ? await publishCurrentProject() : currentLiveUrl;
+      await copyText(url);
+      share.textContent = 'Copied ✓';
+      status.textContent = 'Clean live link copied';
+      openLive.hidden = false;
+      setTimeout(() => {
+        if (!share.isConnected) return;
+        share.textContent = 'Copy live link';
+        share.disabled = false;
+        status.textContent = 'Live and ready to share';
+      }, 1800);
+    } catch (error) {
+      share.disabled = false;
+      status.textContent = friendlyError(error);
+    }
+  };
+  bar.append(back, title, status, edit, share, openLive);
+
+  const frame = document.createElement('iframe');
+  frame.title = 'Project preview';
+  frame.setAttribute('sandbox', 'allow-scripts allow-forms');
+  frame.setAttribute('referrerpolicy', 'no-referrer');
+  frame.srcdoc = currentBuild;
+  const publishNote = document.createElement('p');
+  publishNote.className = 'workbench-publish-note';
+  publishNote.textContent = 'Your pages and tools become one complete site at one link. These cards help you organize its parts.';
+  shell.append(bar, publishNote, frame);
+  document.body.appendChild(shell);
+  return true;
+}
+
+async function showView(id){
+  document.getElementById('workbenchFullPreview')?.remove();
+  if (!viewAllowed(id)) id = 'project';
+  if (id === 'stack' && !currentBuild) id = 'brief';
+  if (id === 'roadmap' && !currentBuild) id = 'project';
+  currentView = id;
+  drawNav();
+  el('planProjectBtn').textContent = currentBuild ? 'Path' : 'Plan';
+  el('connectionsProjectBtn').hidden = !isWorkbench || !currentBuild || ['project', 'live'].includes(currentView);
+  syncWorkbenchEditor();
+  railOpen(false);
+  for (const button of document.querySelectorAll('[data-view]')) {
+    button.classList.toggle('on', button.dataset.view === id);
+  }
+  el('viewTitle').textContent = id === 'chat'
+    ? (isWorkbench ? 'Nex Workbench' : 'Nexus Forge')
+    : (id === 'brief' && currentBuild ? 'Plan an addition' : isWorkbench ? WORKBENCH_LABELS[id] : FORGE_VIEWS[id].label);
+  if (id === 'chat') { replay(); return; }
+  if (id === 'preview' && isWorkbench && renderWorkbenchPreview()) return;
+  thread.innerHTML = '';
+  bubble('sys', 'One second…');
+  try {
+    const nodes = await FORGE_VIEWS[id].render(ctx);
+    thread.innerHTML = '';
+    for (const node of nodes) thread.appendChild(node);
+  } catch (error) {
+    thread.innerHTML = '';
+    bubble('sys', `Couldn't load that just now.`);
+    thread.appendChild(chips([{ label: 'Ask Nex', run: () => ctx.ask(`Something didn't load. What's going on with my ${FORGE_VIEWS[id].label}?`) }]));
+  }
+}
+
+function replay(){
+  thread.innerHTML = '';
+  if (!history.length) {
+    if (currentBuild) {
+      bubble('a', '<p>Your project is open. Tell me what you want to inspect or change.</p>');
+      if (!isWorkbench) renderVisual(currentBuild, 'Your site');
+    } else greet();
+    return;
+  }
+  for (const message of history) {
+    if (message.role === 'user') bubble('u', esc(message.content));
+    else {
+      const body = bubble('a', paragraphs(message.content));
+      if (message.guidance?.checklist) renderDecisionGuidance(body, { checklist: message.guidance.checklist });
+    }
+  }
+  if (currentBuild && !isWorkbench) renderVisual(currentBuild, 'Your site');
+  syncWorkbenchEditor();
+}
+
+const KEY = 'forge:threads:v1';
+function readStore(){
+  try { const v = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(v) ? v : []; }
+  catch { return []; }
+}
+function saveThread(){
+  if (!history.length) return;
+  const all = readStore();
+  const record = { id: threadId, title: String(history[0].content).slice(0,48), projectId: currentProjectId, latestBuildId, messages: history.slice(-40) };
+  try { localStorage.setItem(KEY, JSON.stringify([record, ...all.filter((t) => t && t.id !== threadId)].slice(0,20))); } catch {}
+  drawRecents();
+}
+function drawRecents(){
+  const all = readStore(), host = el('recents');
+  if (!all.length) { host.innerHTML = '<div style="font-size:13px;color:#61656f;padding:8px 10px">Nothing yet</div>'; return; }
+  host.innerHTML = '';
+  for (const record of all) {
+    const button = document.createElement('button');
+    button.className = 'item';
+    button.innerHTML = `<span class="dot"></span><span class="tr">${esc(record.title)}</span>`;
+    button.onclick = async () => {
+      threadId = record.id; history.length = 0;
+      for (const m of record.messages || []) history.push(m);
+      currentBuild = '';
+      currentProjectId = record.projectId || newProjectId();
+      latestBuildId = null;
+      if (record.latestBuildId) await ctx.openBuild(record.latestBuildId);
+      else await showView('chat');
+    };
+    host.appendChild(button);
+  }
+}
+drawRecents();
+
+// A guest needs a visible, permanent way to create an account — not only the
+// one that appears after a refused build. A signed-in customer sees their
+// username instead, so it is obvious which account the work is saving to.
+(function drawAccount(){
+  const host = el('acctSlot');
+  if (!host) return;
+  if (isWorkbench) {
+    host.innerHTML = '<div class="grp">Nex Chat</div>';
+    const back = document.createElement('button');
+    back.className = 'item';
+    back.innerHTML = '<span class="ic">←</span><span class="tr">All projects</span>';
+    back.onclick = () => location.assign('/workspace.html?view=workbench');
+    host.appendChild(back);
+    return;
+  }
+  host.innerHTML = '<div class="grp">Account</div>';
+  const row = document.createElement('button');
+  row.className = 'item';
+  if (signedIn) {
+    row.innerHTML = `<span class="ic">◈</span><span class="tr">${esc(me.username)}</span>`;
+    row.onclick = () => showView('billing');
+  } else {
+    row.innerHTML = '<span class="ic">○</span><span class="tr">Sign in / sign up</span>';
+    row.onclick = () => goSignIn();
+  }
+  host.appendChild(row);
+})();
+
+async function submit(){
+  const raw = el('input').value.trim();
+  if (!raw || busy) return;
+  el('input').value = '';
+  const target = matchForgeView(raw);
+  if (target && viewAllowed(target)) { showView(target); return; }
+  await askNex(raw);
+}
+
+async function askNex(raw, { displayMessage = raw } = {}){
+  if (!raw || busy) return;
+  if (currentView !== 'chat') await showView('chat');
+  bubble('u', esc(displayMessage));
+  const pending = bubble('a', '<p style="color:#61656f">Thinking through that…</p>');
+  busy = true; el('send').disabled = true;
+  try {
+    const response = await fetch('/api/room-assistant', {
+      method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: raw,
+        projectId: currentProjectId,
+        projectLabel: currentProjectLabel,
+        currentHtml: currentBuild || '',
+        viewport: 'responsive',
+      }),
+    });
+    const decision = await response.json().catch(() => ({}));
+    if (response.status === 402 && decision?.code === 'BRAIN_REQUIRED') {
+      // Same refusal shape the build path uses, so a customer gets one
+      // consistent next step whether they were chatting or building.
+      pending.innerHTML = `<p style="color:#d09a82">${esc(decision.error || 'Connect your Builder Brain to start.')}</p>`;
+      pending.appendChild(chips(signedIn
+        ? [{ label: 'Connect Builder Brain', run: () => openBrainSetup('/forge.html') }]
+        : [{ label: 'Create an account', run: () => goSignIn() }]));
+      return;
+    }
+    if (!response.ok) throw new Error(decision.error || 'Nex could not answer that right now.');
+
+    if (decision.kind === 'reply' || decision.kind === 'pitch_agent') {
+      pending.innerHTML = paragraphs(decision.message || 'What would you like to work through?');
+      renderDecisionGuidance(pending, decision);
+      history.push({ role:'user', content:displayMessage }, { role:'assistant', content:decision.message, guidance: decision.checklist ? { checklist: decision.checklist } : null });
+      if (!threadId) threadId = `f${Date.now().toString(36)}`;
+      saveThread();
+      return;
+    }
+
+    if (decision.kind === 'command') {
+      pending.innerHTML = paragraphs(decision.message || 'Opening that now.');
+      const commandViews = { open_projects:'project', open_preview:'preview', preview_phone:'preview', preview_tablet:'preview', preview_fit:'preview' };
+      if (decision.command === 'open_project' && decision.target) {
+        pending.closest('.msg')?.remove();
+        await ctx.openBuild(decision.target);
+      } else if (commandViews[decision.command]) {
+        await showView(commandViews[decision.command]);
+      }
+      return;
+    }
+
+    if (decision.kind !== 'build' || !decision.instruction) {
+      pending.innerHTML = '<p>I need a little more detail before I can help with that.</p>';
+      return;
+    }
+
+    pending.closest('.msg')?.remove();
+    busy = false; el('send').disabled = false;
+    await runBuild(decision.instruction, raw, false);
+  } catch (error) {
+    pending.innerHTML = `<p style="color:#d09a82">${esc(friendlyError(error))}</p>`;
+  } finally {
+    busy = false; el('send').disabled = false;
+  }
+}
+
+const pendingBuildKey = signedIn ? `forge:pending-build:${me.username}` : null;
+let recoveryRunning = false;
+function rememberPendingBuild(job) {
+  if (!pendingBuildKey) return;
+  try { localStorage.setItem(pendingBuildKey, JSON.stringify(job)); } catch {}
+}
+function forgetPendingBuild(jobId) {
+  if (!pendingBuildKey) return;
+  try {
+    const saved = JSON.parse(localStorage.getItem(pendingBuildKey) || 'null');
+    if (!jobId || saved?.jobId === jobId) localStorage.removeItem(pendingBuildKey);
+  } catch {}
+}
+async function recoverPendingBuild() {
+  if (!pendingBuildKey || recoveryRunning) return;
+  let pendingJob;
+  try { pendingJob = JSON.parse(localStorage.getItem(pendingBuildKey) || 'null'); } catch {}
+  if (!pendingJob?.jobId || !pendingJob.projectId) return;
+  recoveryRunning = true;
+  const notice = bubble('sys', 'Nex is still building. You can leave this page; the finished version will be saved here.');
+  try {
+    for (let check = 0; check < 90; check++) {
+      const response = await fetch(`/api/forge-build-status?projectId=${encodeURIComponent(pendingJob.projectId)}&jobId=${encodeURIComponent(pendingJob.jobId)}`, {
+        credentials: 'include', cache: 'no-store',
+      });
+      if (!response.ok) break;
+      const { job } = await response.json();
+      if (!job) { forgetPendingBuild(pendingJob.jobId); break; }
+      if (job.status === 'complete' && job.buildId) {
+        forgetPendingBuild(pendingJob.jobId);
+        notice.remove();
+        if (currentProjectId === pendingJob.projectId && !busy) await ctx.openBuild(job.buildId);
+        else {
+          bubble('sys', 'Your background build is ready.');
+          thread.appendChild(chips([{ label: 'Open finished build', run: () => ctx.openBuild(job.buildId) }]));
+        }
+        return;
+      }
+      if (job.status === 'failed') {
+        forgetPendingBuild(pendingJob.jobId);
+        notice.textContent = job.message || 'That build could not finish. Your project was not changed.';
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+    }
+    notice.textContent = 'Nex is still working. Check your saved projects when you return.';
+  } catch {
+    notice.textContent = 'Build status is temporarily unavailable. Check your saved projects when you return.';
+  } finally { recoveryRunning = false; }
+}
+
+async function runBuild(raw, displayMessage = raw, showUser = true, planMode = undefined){
+  if (!raw || busy) return;
+  if (currentView !== 'chat') showView('chat');
+  if (showUser) bubble('u', esc(displayMessage));
+  if (!threadId) threadId = `f${Date.now().toString(36)}`;
+  busy = true; el('send').disabled = true;
+  const pending = bubble('a', '<p style="color:#61656f">Working on it…</p>');
+
+  // /api/room-chat is a BUILD endpoint and answers with an SSE stream, not
+  // JSON. Calling response.json() on it throws, which is why this used to
+  // print a fallback string and look like a reply. Read the stream properly:
+  // progress lines while it works, the finished page when it lands.
+  try {
+    const response = await fetch('/api/room-chat', {
+      method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        message: raw, displayMessage, projectId: currentProjectId, planMode,
+        currentHtml: currentBuild || undefined, surface: surfaceMode,
+        stackItem: pendingStackItem ? { ...pendingStackItem, label: String(displayMessage || raw).slice(0, 80) } : undefined,
+      }),
+    });
+
+    // Refusals (no Builder Brain, bad request) come back as JSON before the
+    // stream starts, so check the content type rather than assuming.
+    const type = response.headers.get('content-type') || '';
+    if (!type.includes('text/event-stream')) {
+      const data = await response.json().catch(() => ({}));
+      if (response.status === 402 && data?.code === 'BRAIN_REQUIRED') {
+        pending.innerHTML = `<p style="color:#d09a82">${esc(data.error || 'Connect your Builder Brain before the first build.')}</p>`;
+        // A guest and a signed-in customer hit the same refusal for different
+        // reasons, so they need different next steps. Sending a guest to the
+        // Builder Brain view would dead-end them: that view is per-account and
+        // has nothing to show without a session.
+        pending.appendChild(chips(signedIn
+          ? [{ label: 'Connect Builder Brain', run: () => openBrainSetup('/forge.html') }]
+          : [
+              { label: 'Create an account', run: () => goSignIn() },
+              { label: 'What am I connecting', run: () => ctx.ask('Explain the Builder Brain in plain terms — what am I connecting and what does it cost me?') },
+            ]));
+        return;
+      }
+      if (response.status === 402 && data?.code === 'WORKBENCH_PROJECT_LIMIT') {
+        pending.innerHTML = `<p style="color:#d09a82">${esc(data.error || 'This plan has no open project slots.')}</p>`;
+        pending.appendChild(chips([
+          { label: 'View Projects', run: () => location.assign('/workspace.html?view=workbench') },
+          { label: 'Compare plans', run: () => location.assign('/workspace.html?view=workbench') },
+        ]));
+        return;
+      }
+      throw new Error(data?.error || 'That did not go through.');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let finished = false;
+    let jobId = null;
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const events = buffer.split('\n\n');
+      buffer = events.pop() || '';
+      for (const evt of events) {
+        const line = evt.split('\n').find((l) => l.startsWith('data: '));
+        if (!line) continue;
+        let data;
+        try { data = JSON.parse(line.slice(6)); } catch { continue; }
+
+        if (data.action === 'job') {
+          jobId = data.jobId;
+          rememberPendingBuild({ jobId, projectId: data.projectId, displayMessage });
+        } else if (data.action === 'progress') {
+          pending.innerHTML = `<p style="color:#61656f">${esc(data.message || 'Working on it…')}</p>`;
+        } else if (data.action === 'html') {
+          finished = true;
+          currentBuild = data.html || '';
+          if (currentLiveUrl) currentLiveNeedsUpdate = true;
+          pending.innerHTML = '<p>Here it is.</p>';
+          drawNav();
+          el('connectionsProjectBtn').hidden = !isWorkbench || !currentBuild || ['project', 'live'].includes(currentView);
+          if (isWorkbench) syncWorkbenchEditor();
+          else renderVisual(currentBuild, 'Your site');
+          history.push({ role:'user', content:displayMessage }, { role:'assistant', content:'Built it.' });
+          saveThread();
+        } else if (data.action === 'saved') {
+          currentProjectId = data.projectId || currentProjectId;
+          latestBuildId = data.id || latestBuildId;
+          pendingStackItem = null;
+          forgetPendingBuild(jobId);
+          saveThread();
+        } else if (data.action === 'build_error' || data.action === 'error') {
+          finished = true;
+          forgetPendingBuild(jobId);
+          pending.innerHTML = `<p style="color:#d09a82">${esc(data.message || 'That build did not finish.')}</p>`;
+        } else if (data.action === 'save_error') {
+          thread.appendChild(say(data.message || "Built it, but couldn't save it."));
+        }
+      }
+    }
+
+    if (!finished) {
+      pending.innerHTML = '<p>Nex is continuing in the background. The finished version will appear in your saved projects.</p>';
+      if (jobId) void recoverPendingBuild();
+    }
+  } catch (error) {
+    pending.innerHTML = `<p style="color:#d09a82">${esc(friendlyError(error))}</p>`;
+    void recoverPendingBuild();
+  } finally { busy = false; el('send').disabled = false; }
+}
+el('send').onclick = submit;
+el('input').addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+el('helpBtn').onclick = () => showView('help');
+el('previewBtn').textContent = isWorkbench ? 'Projects' : 'Preview';
+el('previewBtn').onclick = () => showView(isWorkbench ? 'project' : 'preview');
+el('addProjectBtn').onclick = () => showView('project');
+el('planProjectBtn').textContent = currentBuild ? 'Path' : 'Plan';
+el('planProjectBtn').onclick = () => { plannerEntry = ''; showView(currentBuild ? 'roadmap' : 'brief'); };
+el('connectionsProjectBtn').onclick = () => showView('stack');
+el('editorFullPreview').onclick = () => showView('preview');
+el('newBtn').onclick = el('newTop').onclick = () => {
+  railOpen(false); ctx.startProject();
+};
+
+function greet(){
+  const briefReady = featureUnlocked(connectionSnapshot(), 'brief');
+  const stackReady = Boolean(currentBuild) && featureUnlocked(connectionSnapshot(), 'stack');
+  thread.appendChild(say(currentBuild
+    ? `What would you like to change in ${currentProjectLabel}? Nex can help you choose the next step.`
+    : 'What would you like to build? Start with a website, app, or tool. Nex will help you choose what it needs, one step at a time.'));
+  thread.appendChild(primaryAction(currentBuild ? 'Choose a change with Nex' : briefReady ? 'Plan what to build' : 'Describe what to build', () => {
+    if (currentBuild) { ctx.ask('Help me choose the next change for this project. Offer relevant clickable choices and ask one short question at a time. Do not change anything until I choose.'); }
+    else if (briefReady) showView('brief');
+    else el('input').focus();
+  }));
+  const options = [{label:'My projects',run:()=>showView('project')},{label:'What can Nex build?',run:()=>showView('help')}];
+  if (stackReady) options.push({label:'Project connections',run:()=>showView('stack')});
+  thread.appendChild(secondaryActions('More options', [chips(options)]));
+}
+
+// Nex head — same behaviour as the operator shell.
+const head = el('head'), dock = el('dock');
+let pos = (() => {
+  try { return JSON.parse(localStorage.getItem('forge:head') || 'null') || { x: window.innerWidth - 72, y: window.innerHeight - 190 }; }
+  catch { return { x: window.innerWidth - 72, y: window.innerHeight - 190 }; }
+})();
+function place(){
+  const x = Math.max(8, Math.min(pos.x, window.innerWidth - 60));
+  const y = Math.max(8, Math.min(pos.y, window.innerHeight - 60));
+  pos = { x, y };
+  head.style.left = `${x}px`; head.style.top = `${y}px`;
+  const left = x < window.innerWidth / 2;
+  dock.style.left = left ? `${Math.max(8, x)}px` : 'auto';
+  dock.style.right = left ? 'auto' : `${Math.max(8, window.innerWidth - x - 52)}px`;
+  const above = y > window.innerHeight / 2;
+  dock.style.top = above ? 'auto' : `${y + 60}px`;
+  dock.style.bottom = above ? `${window.innerHeight - y + 8}px` : 'auto';
+}
+place();
+let dragging = false, moved = false, offset = { x:0, y:0 };
+head.addEventListener('pointerdown', (e) => {
+  dragging = true; moved = false;
+  offset = { x: e.clientX - pos.x, y: e.clientY - pos.y };
+  head.setPointerCapture(e.pointerId);
+});
+head.addEventListener('pointermove', (e) => {
+  if (!dragging) return;
+  const nx = e.clientX - offset.x, ny = e.clientY - offset.y;
+  if (Math.abs(nx - pos.x) > 3 || Math.abs(ny - pos.y) > 3) moved = true;
+  pos = { x: nx, y: ny }; place();
+});
+head.addEventListener('pointerup', (e) => {
+  dragging = false;
+  head.releasePointerCapture?.(e.pointerId);
+  pos.x = pos.x + 26 < window.innerWidth / 2 ? 12 : window.innerWidth - 64;
+  place();
+  try { localStorage.setItem('forge:head', JSON.stringify(pos)); } catch {}
+  if (!moved) dock.classList.toggle('show');
+});
+el('headBtn').onclick = () => {
+  head.classList.toggle('show');
+  if (!head.classList.contains('show')) dock.classList.remove('show');
+};
+el('dockClose').onclick = () => dock.classList.remove('show');
+window.addEventListener('resize', place);
+
+for (const action of [
+  { label: 'Show my site', text: 'Show me my site as it looks right now.' },
+  { label: 'Change something', text: 'I want to change something on my site.' },
+  { label: 'Preview', view: 'preview' },
+]) {
+  const button = document.createElement('button');
+  button.className = 'dact';
+  button.textContent = action.label;
+  button.onclick = () => {
+    if (action.view) { showView(action.view); dock.classList.remove('show'); return; }
+    dockAsk(action.text);
+  };
+  el('dockActs').appendChild(button);
+}
+async function dockAsk(text){
+  const body = el('dockBody');
+  body.textContent = 'Working on it…';
+  try {
+    const response = await fetch('/api/room-assistant', {
+      method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        message: text,
+        projectId: currentProjectId,
+        projectLabel: currentProjectLabel,
+        currentHtml: currentBuild || '',
+        viewport: 'responsive',
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || 'That did not go through.');
+    body.textContent = data.message || 'Done.';
+    if (data.kind === 'build' && data.instruction) {
+      dock.classList.remove('show');
+      await runBuild(data.instruction, text);
+    } else if (data.kind === 'command') {
+      const commandViews = { open_projects:'project', open_preview:'preview', preview_phone:'preview', preview_tablet:'preview', preview_fit:'preview' };
+      if (data.command === 'open_project' && data.target) await ctx.openBuild(data.target);
+      else if (commandViews[data.command]) await showView(commandViews[data.command]);
+    }
+  } catch (error) { body.textContent = friendlyError(error); }
+}
+el('dockSend').onclick = () => {
+  const value = el('dockInput').value.trim();
+  if (!value) return;
+  el('dockInput').value = '';
+  dockAsk(value);
+};
+el('dockInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') el('dockSend').click(); });
+
+// The provider redirect lands back here with ?brain=<result>. Say something
+// human about it, then strip the parameter so a refresh can't replay a stale
+// outcome. Note window.history: `history` in this module is the conversation
+// array, not the browser's.
+const BRAIN_RESULTS = {
+  connected: null,
+  cancelled: 'Looks like you backed out before finishing — nothing was connected.',
+  expired: 'That took a little too long and the link expired. Starting it again takes a second.',
+  rejected: 'That request got turned down. Trying again usually sorts it.',
+  test_failed: "It connected, but the check didn't pass. Worth reconnecting.",
+  network: "Couldn't reach the provider just now. Might be a blip — try again in a moment.",
+  unknown: "Something went sideways. Nothing's lost, and we can try again.",
+};
+
+async function handleBrainResult(){
+  const result = new URLSearchParams(location.search).get('brain');
+  if (!result) return false;
+  window.history.replaceState?.({}, '', location.pathname);
+  await showView('brain');
+  const message = result in BRAIN_RESULTS ? BRAIN_RESULTS[result] : BRAIN_RESULTS.unknown;
+  if (message) bubble('sys', esc(message));
+  else if (result === 'connected') ctx.testBrain();
+  return true;
+}
+
+if (startupParams.get('onboarding') === '1' || startupParams.get('view') === 'brain') {
+  rememberOnboardingReturn();
+}
+
+// Load the connection BEFORE the first render. The rail and the greeting both
+// decide what to offer from it, so rendering first would briefly show options
+// this customer cannot use — and then remove them, which reads as a glitch.
+await loadConnection();
+el('addProjectBtn').hidden = true;
+el('planProjectBtn').hidden = !isWorkbench;
+el('connectionsProjectBtn').hidden = !isWorkbench || !currentBuild || ['project', 'live'].includes(currentView);
+drawNav();
+
+if (!await handleBrainResult()) {
+  const requestedView = startupParams.get('view');
+  const requestedBuild = startupParams.get('build');
+  const wantsNewProject = startupParams.get('new') === '1';
+  if (signedIn && requestedBuild && /^[a-zA-Z0-9_-]{1,160}$/u.test(requestedBuild)) {
+    await ctx.openBuild(requestedBuild, requestedView === 'preview' ? 'preview' : 'chat');
+  } else if (signedIn && wantsNewProject) {
+    ctx.startProject();
+  } else if (requestedView && FORGE_VIEWS[requestedView]) {
+    await showView(requestedView);
+  } else if (startupParams.get('onboarding') === '1') {
+    await showView('brain');
+  } else if (!signedIn && rememberedUsername()) {
+    await showView('chat');
+  } else {
+    await showView(connectionSnapshot()?.connected ? 'chat' : 'brain');
+  }
+}
+if (signedIn) {
+  const draft = sessionStorage.getItem('forge:login:draft');
+  if (draft) { el('input').value = draft; sessionStorage.removeItem('forge:login:draft'); }
+  void recoverPendingBuild();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,96 @@
+{
+  "env": {
+    "NEX_QWEN_ONLY": "true"
+  },
+  "functions": {
+    "api/room-chat.js": { "maxDuration": 300 }
+  },
+  "rewrites": [
+    {
+      "source": "/api/hyperfocus",
+      "destination": "/api/board"
+    },
+    {
+      "source": "/api/agentlog",
+      "destination": "/api/board"
+    },
+    {
+      "source": "/api/vault",
+      "destination": "/api/board"
+    },
+    {
+      "source": "/api/life",
+      "destination": "/api/board"
+    },
+    {
+      "source": "/api/reminders",
+      "destination": "/api/board"
+    },
+    {
+      "source": "/api/push",
+      "destination": "/api/board"
+    },
+    {
+      "source": "/api/push-deliver",
+      "destination": "/api/board"
+    },
+    {
+      "source": "/api/social-auth",
+      "destination": "/api/board"
+    },
+    {
+      "source": "/api/social-auth/callback/:provider",
+      "destination": "/api/board"
+    },
+    {
+      "source": "/api/account",
+      "destination": "/api/board"
+    },
+    {
+      "source": "/api/feedback",
+      "destination": "/api/board"
+    },
+    {
+      "source": "/api/planner",
+      "destination": "/api/board"
+    },
+    {
+      "source": "/api/pinned-visuals",
+      "destination": "/api/board"
+    },
+    {
+      "source": "/api/nex/action",
+      "destination": "/api/board"
+    },
+    {
+      "source": "/api/sentry-webhook",
+      "destination": "/api/board"
+    },
+    {
+      "source": "/api/tenants",
+      "destination": "/api/board"
+    },
+    {
+      "source": "/api/oauth/:provider/callback",
+      "destination": "/api/board"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/cleanup",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/memory-curate",
+      "schedule": "17 6 * * *"
+    },
+    {
+      "path": "/api/forge-sweep",
+      "schedule": "23 * * * *"
+    },
+    {
+      "path": "/api/push-deliver",
+      "schedule": "* * * * *"
+    }
+  ]
+}

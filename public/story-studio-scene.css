@@ -1,0 +1,13 @@
+.nexus-space[data-scene="story"] .scene {
+  background: linear-gradient(145deg, #381531, #160d24 55%, #070a12);
+}
+
+.nexus-space[data-scene="story"] .scene-halo {
+  background: radial-gradient(circle, #ff6fbd5c, transparent 66%);
+}
+
+.nexus-space[data-scene="story"] .core {
+  border-radius: 12px;
+  background: linear-gradient(135deg, #ff6fbd5c, #46256f);
+  box-shadow: 0 0 50px #ff6fbd55, inset 0 0 40px #a879ff3d;
+}

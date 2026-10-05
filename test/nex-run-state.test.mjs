@@ -1,0 +1,70 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+import { advanceNexRunState, createNexRunState, loadNexRunState, publicRunState, shouldCheckpointNexRun } from '../lib/nexRunState.js';
+
+test('creates a scoped run with a secret-safe perception fingerprint', () => {
+  const state = createNexRunState({ clientContext: { active_view: '/room', screen: { viewport_text: ['hello'] } } });
+  assert.match(state.runId, /^nex-turn-/);
+  assert.match(state.perceptionDigest, /^[a-f0-9]{20}$/);
+  assert.doesNotMatch(JSON.stringify(publicRunState(state)), /hello/);
+});
+
+test('resumes only a real stored Nex turn id in the same operator scope', async () => {
+  const runId = 'nex-turn-12345678';
+  const seeded = createNexRunState({ scopeId: 'mrlopez' });
+  const state = await loadNexRunState({ resumeRunId: runId, scopeId: 'mrlopez' }, { getExecutionResume: async () => ({
+    run_id: runId,
+    scope_hash: seeded.scopeHash,
+    state: 'paused',
+    goal: 'Repair the login route.',
+    current_step: 'Run tests.',
+    next_safe_action: 'Run tests.',
+    acceptance_conditions: ['source_read', 'relevant_tests'],
+    loaded_capabilities: ['github'],
+    searched_capabilities: ['coding'],
+    tool_calls: 5,
+    model_steps: 2,
+    completion_replans: 1,
+    failure_counts: [['failure-key', 2]],
+    blocked_tool_calls: ['blocked-key'],
+    reasoning_started_at: 12345,
+    last_action_failed: true,
+  }) });
+  assert.equal(state.runId, runId);
+  assert.equal(state.resumed, true);
+  assert.equal(state.nextSafeAction, 'Run tests.');
+  assert.equal(state.goal, 'Repair the login route.');
+  assert.deepEqual(state.acceptanceConditions, ['source_read', 'relevant_tests']);
+  assert.deepEqual(state.loadedCapabilities, ['github']);
+  assert.equal(state.toolCalls, 5);
+  assert.equal(state.modelSteps, 2);
+  assert.equal(state.completionReplans, 1);
+  assert.deepEqual(state.failureCounts, [['failure-key', 2]]);
+  assert.deepEqual(state.blockedToolCalls, ['blocked-key']);
+  assert.equal(state.startedAt, 12345);
+  assert.equal(state.lastActionFailed, true);
+});
+
+test('rejects a resume pointer from another operator scope', async () => {
+  const runId = 'nex-turn-12345678';
+  const other = createNexRunState({ scopeId: 'other-user' });
+  const state = await loadNexRunState({ resumeRunId: runId, scopeId: 'mrlopez' }, { getExecutionResume: async () => ({ run_id: runId, scope_hash: other.scopeHash }) });
+  assert.equal(state.resumed, false);
+  assert.notEqual(state.runId, runId);
+});
+
+test('meaningful tools advance branch and file checkpoints', () => {
+  const start = createNexRunState();
+  const next = advanceNexRunState(start, { name: 'patch_repo_file', input: { branch: 'feature/x', path: 'lib/x.js' } }, { content: 'patched' });
+  assert.equal(next.workingBranch, 'feature/x');
+  assert.deepEqual(next.filesTouched, ['lib/x.js']);
+  assert.equal(shouldCheckpointNexRun({ name: 'patch_repo_file' }, { content: 'ok' }), true);
+});
+
+test('a failed tool blocks the run and forces inspection before retry', () => {
+  const next = advanceNexRunState(createNexRunState(), { name: 'update_repo_file' }, { content: 'timeout', is_error: true });
+  assert.equal(next.state, 'blocked');
+  assert.match(next.nextSafeAction, /Inspect/);
+  assert.equal(shouldCheckpointNexRun({ name: 'anything' }, { is_error: true }), true);
+});

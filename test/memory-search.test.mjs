@@ -22,7 +22,7 @@ globalThis.fetch = async (_url, options) => {
   };
 };
 
-const { searchMemories } = await import('../lib/memory.js');
+const { rankMemories, searchMemories } = await import('../lib/memory.js');
 
 test('returns relevant tagged memories and excludes unrelated memories', async () => {
   const results = await searchMemories('Fix the Vercel deployment', 8);
@@ -41,4 +41,17 @@ test('supports existing memories without tags', async () => {
   const existing = results.find((memory) => memory.id === '4');
   assert.ok(existing);
   assert.deepEqual(existing.tags, []);
+});
+
+test('Nex does not load Claude-only inbox memories into normal reasoning', () => {
+  const results = rankMemories(stored, 'connector capability', 8, { agent: 'nex' });
+  assert.ok(!results.some((memory) => memory.id === '3'));
+});
+
+test('matching project scope outranks unrelated project memories', () => {
+  const results = rankMemories([
+    { id: 'other', content: 'Use the deployment checklist', category: 'project', scope: 'project', project: 'other' },
+    { id: 'nexus', content: 'Use the deployment checklist', category: 'project', scope: 'project', project: 'nexus-labs' },
+  ], 'deployment checklist', 5, { agent: 'nex', project: 'nexus-labs' });
+  assert.equal(results[0].id, 'nexus');
 });

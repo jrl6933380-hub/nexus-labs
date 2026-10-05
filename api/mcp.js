@@ -8,6 +8,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
 import { createOrUpdateFile, deleteFile, listFiles, readFile } from '../lib/github.js';
+import { authorizeCapability } from '../lib/capabilityGateway.js';
 
 // Safety nets — log anything that would otherwise fail completely
 // silently (errors thrown inside async callbacks, outside any try/catch).
@@ -31,6 +32,12 @@ export default async function handler(req, res) {
   }
 
   console.log('MCP body:', JSON.stringify(req.body));
+  const authorize = (tool, action, args, read_write) => authorizeCapability(req, {
+    tool,
+    action,
+    resource: args?.owner && args?.repo ? `${args.owner}/${args.repo}:${args.path || '*'}` : '*',
+    read_write,
+  });
 
   try {
     console.log('MCP step: creating server');
@@ -52,6 +59,7 @@ export default async function handler(req, res) {
         branch: z.string().optional().describe('Branch name. Defaults to the repo default branch.'),
       },
       async (args) => {
+        await authorize('create_file', 'create_file', args, 'write');
         const result = await createOrUpdateFile(args);
         return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
       }
@@ -67,6 +75,7 @@ export default async function handler(req, res) {
         branch: z.string().optional(),
       },
       async (args) => {
+        await authorize('update_file', 'update_file', args, 'write');
         const result = await createOrUpdateFile(args);
         return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
       }
@@ -81,6 +90,7 @@ export default async function handler(req, res) {
         branch: z.string().optional(),
       },
       async (args) => {
+        await authorize('delete_file', 'delete_file', args, 'write');
         const result = await deleteFile(args);
         return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
       }
@@ -96,6 +106,7 @@ export default async function handler(req, res) {
         branch: z.string().optional(),
       },
       async (args) => {
+        await authorize('list_files', 'list_files', args, 'read');
         const result = await listFiles(args);
         return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
       }
@@ -111,6 +122,7 @@ export default async function handler(req, res) {
         branch: z.string().optional().describe('Branch name. Defaults to the repo default branch.'),
       },
       async (args) => {
+        await authorize('read_file', 'read_file', args, 'read');
         const result = await readFile(args);
         return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
       }

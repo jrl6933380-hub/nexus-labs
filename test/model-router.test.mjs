@@ -2,18 +2,154 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   AllProvidersUnavailableError,
+  DEFAULT_GATEWAY_MODELS,
   routeMessage,
+  routeMessageStream,
+  routeToModel,
 } from '../lib/modelRouter.js';
+import { _resetPodCacheForTests } from '../lib/forge/podBrain.js';
 
 function response({ ok = true, status = 200, json = {}, text = '' } = {}) {
   return {
     ok,
     status,
+    body: {},
     headers: { get: () => 'application/json' },
     json: async () => json,
     text: async () => text,
   };
 }
+
+test('customer streaming can use AI Gateway as the primary with no Anthropic key', async () => {
+  const calls = [];
+  const result = await routeMessageStream({
+    tier: 'heavy',
+    claudeModel: 'claude-direct-unused',
+    body: { messages: [{ role: 'user', content: 'build it' }], max_tokens: 16000 },
+    gatewayOnly: true,
+    env: {
+      AI_GATEWAY_API_KEY: 'gateway-key',
+      NEX_GATEWAY_HEAVY_MODEL: 'anthropic/claude-sonnet-5',
+    },
+    fetchFn: async (url, options) => {
+      calls.push({ url, body: JSON.parse(options.body) });
+      return response();
+    },
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, 'https://ai-gateway.vercel.sh/v1/messages');
+  assert.equal(calls[0].body.model, 'anthropic/claude-sonnet-5');
+  assert.equal(calls[0].body.stream, true);
+  assert.equal(result.provider, 'vercel-ai-gateway');
+});
+
+test('customer streaming fails clearly when the centralized Gateway is unavailable', async () => {
+  await assert.rejects(
+    routeMessageStream({
+      body: { messages: [] },
+      gatewayOnly: true,
+      env: {},
+      fetchFn: async () => { throw new Error('should not be called'); },
+    }),
+    (error) => error instanceof AllProvidersUnavailableError
+      && error.attempts.some((attempt) => attempt.provider === 'vercel-ai-gateway' && attempt.error === 'not configured')
+  );
+});
+
+test('customer streaming retries one transient Gateway failure inside the caller deadline', async () => {
+  const calls = [];
+  const controller = new AbortController();
+  const result = await routeMessageStream({
+    tier: 'heavy',
+    claudeModel: 'claude-direct-unused',
+    body: { messages: [{ role: 'user', content: 'build it' }] },
+    gatewayOnly: true,
+    signal: controller.signal,
+    env: { AI_GATEWAY_API_KEY: 'gateway-key', NEX_PROVIDER_RETRY_DELAY_MS: '0' },
+    fetchFn: async (url) => {
+      calls.push(url);
+      if (calls.length === 1) return response({ ok: false, status: 503, text: 'temporary outage' });
+      return response();
+    },
+  });
+
+  assert.equal(calls.length, 2);
+  assert.equal(result.provider, 'vercel-ai-gateway');
+});
+
+test('customer streaming never retries after its caller-owned signal aborts', async () => {
+  const calls = [];
+  const controller = new AbortController();
+  await assert.rejects(
+    routeMessageStream({
+      body: { messages: [] },
+      gatewayOnly: true,
+      signal: controller.signal,
+      env: { AI_GATEWAY_API_KEY: 'gateway-key', NEX_PROVIDER_RETRY_DELAY_MS: '0' },
+      fetchFn: async (url) => {
+        calls.push(url);
+        controller.abort();
+        const error = new Error('caller deadline reached');
+        error.name = 'AbortError';
+        throw error;
+      },
+    }),
+    AllProvidersUnavailableError
+  );
+  assert.equal(calls.length, 1);
+});
+
+test('Qwen-only mode fails closed without calling hosted providers', async () => {
+  _resetPodCacheForTests();
+  const calls = [];
+  await assert.rejects(
+    routeMessage({
+      body: { messages: [{ role: 'user', content: 'hi' }] },
+      env: {
+        NEX_QWEN_ONLY: 'true',
+        RUNPOD_API_KEY: 'rp',
+        NEX_POD_KEY: 'pk',
+        ANTHROPIC_API_KEY: 'anthropic-key',
+        AI_GATEWAY_API_KEY: 'gateway-key',
+      },
+      fetchFn: async (url) => {
+        calls.push(url);
+        if (url === 'https://rest.runpod.io/v1/pods') return response({ json: [] });
+        throw new Error(`hosted provider must not be called: ${url}`);
+      },
+    }),
+    (error) => error instanceof AllProvidersUnavailableError
+      && error.attempts.length === 1
+      && error.attempts[0].provider === 'nex-pod'
+  );
+  assert.equal(calls.some((url) => url.includes('api.anthropic.com')), false);
+  assert.equal(calls.some((url) => url.includes('ai-gateway.vercel.sh')), false);
+});
+
+test('Qwen-only named delegation stays on the pod', async () => {
+  _resetPodCacheForTests();
+  const calls = [];
+  const result = await routeToModel({
+    model: 'openai/gpt-5.6-sol',
+    body: { messages: [{ role: 'user', content: 'review this' }] },
+    env: { NEX_QWEN_ONLY: 'true', RUNPOD_API_KEY: 'rp', NEX_POD_KEY: 'pk' },
+    fetchFn: async (url) => {
+      calls.push(url);
+      if (url === 'https://rest.runpod.io/v1/pods') {
+        return response({ json: [{ id: 'pod-1', name: 'nex-pod', desiredStatus: 'RUNNING' }] });
+      }
+      if (url.endsWith('/v1/models')) return response();
+      if (url.endsWith('/v1/chat/completions')) {
+        return response({ json: { model: 'nex-base', choices: [{ message: { content: 'Qwen review' } }] } });
+      }
+      throw new Error(`unexpected ${url}`);
+    },
+  });
+  assert.equal(result.provider, 'nex-pod');
+  assert.equal(result.model, 'nex-base');
+  assert.equal(calls.some((url) => url.includes('ai-gateway.vercel.sh')), false);
+});
 
 test('uses direct Anthropic first when it is healthy', async () => {
   const calls = [];
@@ -33,6 +169,63 @@ test('uses direct Anthropic first when it is healthy', async () => {
   assert.equal(result.provider, 'anthropic');
 });
 
+test('private Nex chat uses the healthy pod first and keeps tool calls intact', async () => {
+  _resetPodCacheForTests();
+  const calls = [];
+  const result = await routeMessage({
+    claudeModel: 'claude-fallback',
+    preferPod: true,
+    body: {
+      system: 'You are Nex.',
+      messages: [{ role: 'user', content: 'Read the board' }],
+      tools: [{ name: 'read_board', description: 'Read it', input_schema: { type: 'object', properties: {} } }],
+    },
+    env: { RUNPOD_API_KEY: 'rp', NEX_POD_KEY: 'pk', AI_GATEWAY_API_KEY: 'gateway' },
+    fetchFn: async (url, options = {}) => {
+      calls.push(url);
+      if (url === 'https://rest.runpod.io/v1/pods') {
+        return response({ json: [{ id: 'pod-1', name: 'nex-pod', desiredStatus: 'RUNNING' }] });
+      }
+      if (url.endsWith('/v1/models')) return response();
+      if (url.endsWith('/v1/chat/completions')) {
+        const body = JSON.parse(options.body);
+        assert.equal(body.tools[0].function.name, 'read_board');
+        return response({ json: { model: 'nex-base', choices: [{ message: {
+          content: null,
+          tool_calls: [{ id: 'call-1', function: { name: 'read_board', arguments: '{}' } }],
+        } }] } });
+      }
+      throw new Error(`unexpected ${url}`);
+    },
+  });
+  assert.equal(result.provider, 'nex-pod');
+  assert.equal(result.data.content[0].type, 'tool_use');
+  assert.equal(calls.some((url) => url.includes('ai-gateway')), false);
+});
+
+test('direct Anthropic prefers native server tools without duplicate names', async () => {
+  const calls = [];
+  await routeMessage({
+    claudeModel: 'claude-test',
+    body: {
+      messages: [],
+      tools: [
+        { name: 'web_search', description: 'Gateway-compatible search', input_schema: { type: 'object' } },
+        { name: 'read_board', description: 'Read the board', input_schema: { type: 'object' } },
+      ],
+    },
+    anthropicServerTools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }],
+    env: { ANTHROPIC_API_KEY: 'anthropic-key' },
+    fetchFn: async (_url, options) => {
+      calls.push(JSON.parse(options.body));
+      return response({ json: { model: 'claude-test', content: [] } });
+    },
+  });
+
+  assert.deepEqual(calls[0].tools.map((tool) => tool.name), ['read_board', 'web_search']);
+  assert.equal(calls[0].tools.at(-1).type, 'web_search_20250305');
+});
+
 test('falls back to Vercel AI Gateway when Anthropic fails', async () => {
   const calls = [];
   const result = await routeMessage({
@@ -45,13 +238,120 @@ test('falls back to Vercel AI Gateway when Anthropic fails', async () => {
       if (url.includes('api.anthropic.com')) {
         return response({ ok: false, status: 429, text: 'rate limited' });
       }
-      return response({ json: { model: 'openai/gpt-5.6-sol', content: [] } });
+      return response({ json: { model: DEFAULT_GATEWAY_MODELS.standard, content: [] } });
     },
   });
 
+  // Rate limits fail over immediately. Retrying the same provider 600ms
+  // later only delays the customer and ignores the provider's real backoff.
   assert.equal(calls.length, 2);
+  assert.equal(calls[0].url, 'https://api.anthropic.com/v1/messages');
   assert.equal(calls[1].url, 'https://ai-gateway.vercel.sh/v1/messages');
-  assert.equal(calls[1].body.model, 'openai/gpt-5.6-sol');
+  // Assert against the configured tier rather than a hardcoded name. This
+  // previously pinned 'openai/gpt-5.4-nano' — the exact nano-class fallback
+  // that caused the real incident described in lib/modelRouter.js (any
+  // Anthropic hiccup silently dropped every request onto a weak model and
+  // Nex went vague mid-session). Hardcoding it meant the test would have
+  // gone green again on a regression back to it.
+  assert.equal(calls[1].body.model, DEFAULT_GATEWAY_MODELS.standard);
+  assert.doesNotMatch(calls[1].body.model, /nano/, 'the standard tier must not fall back to a nano-class model');
+  assert.equal(result.provider, 'vercel-ai-gateway');
+});
+
+test('a single transient Anthropic failure is recovered by the bounce-back retry, with no fallback message shown', async () => {
+  const calls = [];
+  let anthropicAttempt = 0;
+  const result = await routeMessage({
+    tier: 'standard',
+    claudeModel: 'claude-test',
+    body: { messages: [] },
+    env: { ANTHROPIC_API_KEY: 'anthropic-key', AI_GATEWAY_API_KEY: 'gateway-key', NEX_PROVIDER_RETRY_DELAY_MS: '0' },
+    fetchFn: async (url, options) => {
+      calls.push(url);
+      if (url.includes('api.anthropic.com')) {
+        anthropicAttempt += 1;
+        if (anthropicAttempt === 1) {
+          return response({ ok: false, status: 503, text: 'temporary blip' });
+        }
+      }
+      return response({ json: { model: 'claude-test', content: [] } });
+    },
+  });
+
+  assert.equal(calls.length, 2, 'one failed attempt then one successful retry, no fallback needed');
+  assert.equal(result.provider, 'anthropic');
+  assert.equal(result.degraded, false);
+});
+
+test('permanent provider errors fail over without a same-provider retry', async () => {
+  const calls = [];
+  const result = await routeMessage({
+    tier: 'standard',
+    claudeModel: 'claude-test',
+    body: { messages: [] },
+    env: { ANTHROPIC_API_KEY: 'bad-key', AI_GATEWAY_API_KEY: 'gateway-key', NEX_PROVIDER_RETRY_DELAY_MS: '0' },
+    fetchFn: async (url) => {
+      calls.push(url);
+      if (url.includes('api.anthropic.com')) return response({ ok: false, status: 401, text: 'invalid key' });
+      return response({ json: { model: DEFAULT_GATEWAY_MODELS.standard, content: [] } });
+    },
+  });
+
+  assert.deepEqual(calls, [
+    'https://api.anthropic.com/v1/messages',
+    'https://ai-gateway.vercel.sh/v1/messages',
+  ]);
+  assert.equal(result.provider, 'vercel-ai-gateway');
+});
+
+test('an aborted provider request is never restarted', async () => {
+  const calls = [];
+  const result = await routeMessage({
+    tier: 'standard',
+    claudeModel: 'claude-test',
+    body: { messages: [] },
+    env: { ANTHROPIC_API_KEY: 'anthropic-key', AI_GATEWAY_API_KEY: 'gateway-key', NEX_PROVIDER_RETRY_DELAY_MS: '0' },
+    fetchFn: async (url) => {
+      calls.push(url);
+      if (url.includes('api.anthropic.com')) {
+        const error = new Error('request timed out');
+        error.name = 'AbortError';
+        throw error;
+      }
+      return response({ json: { model: DEFAULT_GATEWAY_MODELS.standard, content: [] } });
+    },
+  });
+
+  assert.deepEqual(calls, [
+    'https://api.anthropic.com/v1/messages',
+    'https://ai-gateway.vercel.sh/v1/messages',
+  ]);
+  assert.equal(result.provider, 'vercel-ai-gateway');
+});
+
+test('a retry is skipped when its delay would exceed the original provider timeout budget', async () => {
+  const calls = [];
+  const result = await routeMessage({
+    tier: 'standard',
+    claudeModel: 'claude-test',
+    body: { messages: [] },
+    env: {
+      ANTHROPIC_API_KEY: 'anthropic-key',
+      AI_GATEWAY_API_KEY: 'gateway-key',
+      NEX_PROVIDER_TIMEOUT_MS: '5000',
+      NEX_PROVIDER_RETRY_DELAY_MS: '5000',
+    },
+    fetchFn: async (url) => {
+      calls.push(url);
+      if (url.includes('api.anthropic.com')) return response({ ok: false, status: 503, text: 'temporary outage' });
+      return response({ json: { model: DEFAULT_GATEWAY_MODELS.standard, content: [] } });
+    },
+  });
+
+  assert.deepEqual(calls, [
+    'https://api.anthropic.com/v1/messages',
+    'https://ai-gateway.vercel.sh/v1/messages',
+  ]);
   assert.equal(result.provider, 'vercel-ai-gateway');
 });
 
@@ -90,4 +390,161 @@ test('reports safe-mode condition when every provider is unavailable', async () 
       error instanceof AllProvidersUnavailableError &&
       error.attempts.length === 2
   );
+});
+
+test('REGRESSION: routeToModel sends the exact named model to Gateway, skipping Anthropic entirely', async () => {
+  const calls = [];
+  const result = await routeToModel({
+    model: 'meta/llama-3.3-70b-instruct',
+    body: { messages: [{ role: 'user', content: 'hi' }], max_tokens: 512 },
+    env: { ANTHROPIC_API_KEY: 'anthropic-key', AI_GATEWAY_API_KEY: 'gateway-key' },
+    fetchFn: async (url, options) => {
+      calls.push({ url, body: JSON.parse(options.body) });
+      return response({ json: { model: 'meta/llama-3.3-70b-instruct', content: [{ type: 'text', text: 'hello' }] } });
+    },
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, 'https://ai-gateway.vercel.sh/v1/messages');
+  assert.equal(calls[0].body.model, 'meta/llama-3.3-70b-instruct');
+  assert.equal(result.provider, 'vercel-ai-gateway');
+  assert.equal(result.model, 'meta/llama-3.3-70b-instruct');
+});
+
+test('routeToModel fails loudly instead of falling back when the named model errors', async () => {
+  await assert.rejects(
+    routeToModel({
+      model: 'google/gemini-2.5-flash',
+      body: { messages: [] },
+      env: { AI_GATEWAY_API_KEY: 'gateway-key' },
+      fetchFn: async () => response({ ok: false, status: 404, text: 'model not found' }),
+    }),
+    /HTTP 404/
+  );
+});
+
+test('routeToModel requires a model name', async () => {
+  await assert.rejects(
+    routeToModel({ body: {}, env: { AI_GATEWAY_API_KEY: 'gateway-key' }, fetchFn: async () => response() }),
+    /model is required/
+  );
+});
+
+test('routeToModel requires Gateway to be configured', async () => {
+  await assert.rejects(
+    routeToModel({ model: 'google/gemini-2.5-flash', body: {}, env: {}, fetchFn: async () => response() }),
+    /AI_GATEWAY_API_KEY is not configured/
+  );
+});
+
+// --- Coverage for the gateway fallback-chain and per-tier overrides —
+// the exact mechanism involved in the real incident where the
+// standard/heavy emergency fallback had to be switched off a
+// rate-limited gpt-5.6-sol. Neither knob had any test coverage before
+// this, despite being load-bearing during a real outage. ---
+
+test('NEX_GATEWAY_FALLBACK_MODELS reaches the Gateway request as providerOptions.gateway.models', async () => {
+  const calls = [];
+  await routeMessage({
+    tier: 'standard',
+    claudeModel: 'claude-test',
+    body: { messages: [] },
+    env: {
+      AI_GATEWAY_API_KEY: 'gateway-key',
+      NEX_GATEWAY_FALLBACK_MODELS: 'openai/gpt-5.4-nano, meta/llama-3.3-70b-instruct ,,',
+    },
+    fetchFn: async (url, options) => {
+      calls.push(JSON.parse(options.body));
+      return response({ json: { model: 'openai/gpt-5.4-nano', content: [] } });
+    },
+  });
+
+  assert.equal(calls.length, 1);
+  // Trims whitespace and drops empty entries from a trailing/double comma.
+  assert.deepEqual(calls[0].providerOptions, {
+    gateway: { models: ['openai/gpt-5.4-nano', 'meta/llama-3.3-70b-instruct'] },
+  });
+});
+
+test('no providerOptions field is sent when NEX_GATEWAY_FALLBACK_MODELS is unset', async () => {
+  const calls = [];
+  await routeMessage({
+    tier: 'standard',
+    claudeModel: 'claude-test',
+    body: { messages: [] },
+    env: { AI_GATEWAY_API_KEY: 'gateway-key' },
+    fetchFn: async (url, options) => {
+      calls.push(JSON.parse(options.body));
+      return response({ json: { model: 'openai/gpt-5.4-nano', content: [] } });
+    },
+  });
+
+  assert.equal('providerOptions' in calls[0], false);
+});
+
+test('an empty/whitespace-only NEX_GATEWAY_FALLBACK_MODELS is treated as unset, not an empty chain', async () => {
+  const calls = [];
+  await routeMessage({
+    tier: 'standard',
+    claudeModel: 'claude-test',
+    body: { messages: [] },
+    env: { AI_GATEWAY_API_KEY: 'gateway-key', NEX_GATEWAY_FALLBACK_MODELS: '  , , ' },
+    fetchFn: async (url, options) => {
+      calls.push(JSON.parse(options.body));
+      return response({ json: { model: 'openai/gpt-5.4-nano', content: [] } });
+    },
+  });
+
+  assert.equal('providerOptions' in calls[0], false);
+});
+
+test('a per-tier NEX_GATEWAY_*_MODEL override picks the named model over the default', async () => {
+  const calls = [];
+  await routeMessage({
+    tier: 'heavy',
+    claudeModel: 'claude-test',
+    body: { messages: [] },
+    env: { AI_GATEWAY_API_KEY: 'gateway-key', NEX_GATEWAY_HEAVY_MODEL: 'anthropic/claude-opus-5' },
+    fetchFn: async (url, options) => {
+      calls.push(JSON.parse(options.body));
+      return response({ json: { model: 'anthropic/claude-opus-5', content: [] } });
+    },
+  });
+
+  assert.equal(calls[0].model, 'anthropic/claude-opus-5');
+});
+
+test('an unrecognized tier falls back to the standard default model rather than sending undefined', async () => {
+  const calls = [];
+  await routeMessage({
+    tier: 'ultra-mega',
+    claudeModel: 'claude-test',
+    body: { messages: [] },
+    env: { AI_GATEWAY_API_KEY: 'gateway-key' },
+    fetchFn: async (url, options) => {
+      calls.push(JSON.parse(options.body));
+      return response({ json: { model: 'openai/gpt-5.4-nano', content: [] } });
+    },
+  });
+
+  assert.equal(calls[0].model, DEFAULT_GATEWAY_MODELS.standard);
+});
+
+test('REGRESSION: switching the emergency fallback model (the real gpt-5.6-sol -> gpt-5.4-nano incident) actually changes what gets sent, with no code change needed next time', async () => {
+  const calls = [];
+  // Simulates exactly what fixing that incident looked like: an env
+  // var change, not a code change. If this ever required editing
+  // modelRouter.js again to swap models, that would be a regression
+  // in the design this test locks in.
+  await routeMessage({
+    tier: 'standard',
+    claudeModel: 'claude-test',
+    body: { messages: [] },
+    env: { AI_GATEWAY_API_KEY: 'gateway-key', NEX_GATEWAY_STANDARD_MODEL: 'openai/gpt-5.4-nano' },
+    fetchFn: async (url, options) => {
+      calls.push(JSON.parse(options.body));
+      return response({ json: { model: 'openai/gpt-5.4-nano', content: [] } });
+    },
+  });
+  assert.equal(calls[0].model, 'openai/gpt-5.4-nano');
 });

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nexus // Justin + Nex Workshop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/nexus-stark.css">
+<link rel="stylesheet" href="/conference-workshop.css">
+</head>
+<body>
+<main class="workshop">
+  <header class="workshop-top">
+    <div><div class="workshop-kicker">Nexus Labs // Operational Workshop</div><h1 class="workshop-title">JUSTIN + NEX WORKSHOP</h1></div>
+    <div class="workshop-actions"><span class="work-link" id="liveBadge">● LIVE</span><a class="work-link" href="/">Board</a><button class="work-btn green" id="newTaskBtn">＋ New task</button></div>
+  </header>
+
+  <section class="focus-ribbon" aria-live="polite">
+    <div class="focus-icon">◎</div>
+    <div><div class="focus-label">One thing now</div><div class="focus-title" id="focusTitle">Choose the next thing worth finishing</div><div class="focus-next" id="focusNext">Loading the real Board…</div></div>
+    <div class="focus-meter"><div class="meter-track"><div class="meter-fill" id="focusFill"></div></div><div class="meter-copy" id="focusCopy">Connecting…</div><button class="work-btn primary" id="focusAction" style="width:100%;margin-top:8px">Do next action</button></div>
+  </section>
+
+  <div class="workshop-grid">
+    <section class="work-panel">
+      <div class="panel-head"><div><div class="panel-title">Project benches</div><div class="panel-sub" id="taskCount">Live work from the shared Board</div></div><div class="filter-row"><button class="filter-btn active" data-filter="active">Active</button><button class="filter-btn" data-filter="mine">Ours</button><button class="filter-btn" data-filter="waiting">Needs attention</button><button class="filter-btn" data-filter="all">All</button></div></div>
+      <div class="benches" id="benches"></div>
+    </section>
+
+    <aside class="side-stack">
+      <section class="work-panel"><div class="panel-head"><div><div class="panel-title">Agent toolbox</div><div class="panel-sub">Assign, then route through real capability checks</div></div></div><div class="side-body" id="agentRoster"></div></section>
+      <section class="work-panel"><div class="panel-head"><div><div class="panel-title">Safety rails</div><div class="panel-sub">Parallel without turning the repo into soup</div></div></div><div class="side-body safety-list"><div class="safety-item"><span class="safety-check">✓</span><span>Dispatcher checks availability and capability before work starts.</span></div><div class="safety-item"><span class="safety-check">✓</span><span>Task leases and idempotency prevent two workers from silently doing the same job.</span></div><div class="safety-item"><span class="safety-check">✓</span><span>Medium/high-risk actions stop for explicit approval.</span></div><div class="safety-item"><span class="safety-check">✓</span><span>Merges, live changes, and destructive actions remain gated.</span></div></div></section>
+      <section class="work-panel"><div class="panel-head"><div><div class="panel-title">Open the work</div><div class="panel-sub">Jump straight to the operational surfaces</div></div></div><div class="side-body quick-grid"><a class="work-link" href="/mission-control.html">Command</a><a class="work-link" href="/queue.html">Approvals</a><a class="work-link" href="/connectors.html">Agents</a><a class="work-link" href="/tenants.html">Projects</a></div></section>
+    </aside>
+  </div>
+</main>
+
+<dialog class="task-dialog detail-dialog" id="detailDialog">
+  <div class="detail-shell">
+    <header class="maintenance-head">
+      <div><div class="workshop-kicker">Project intelligence</div><h2 class="dialog-title" id="detailTitle">Entry breakdown</h2><div class="panel-sub" id="detailSubtitle">Live Board truth, without the fog.</div></div>
+      <button type="button" class="work-btn" id="closeDetailBtn">Close</button>
+    </header>
+    <div id="detailLiveAgent" class="detail-live" aria-live="polite"></div>
+    <div class="detail-grid">
+      <section class="detail-pane"><div class="panel-title">What this is</div><div id="detailDescription" class="detail-copy"></div></section>
+      <section class="detail-pane"><div class="panel-title">Current position</div><div id="detailPosition" class="detail-facts"></div></section>
+      <section class="detail-pane"><div class="panel-title">Progress history</div><div id="detailHistory" class="detail-history"></div></section>
+      <section class="detail-pane"><div class="panel-title">Evidence and result</div><div id="detailEvidence" class="detail-copy"></div></section>
+    </div>
+    <div class="detail-actions"><button type="button" class="work-btn primary" id="detailMaintainBtn">Open maintenance workbench</button><button type="button" class="work-link" id="detailChatBtn">Talk through this with Nex</button></div>
+  </div>
+</dialog>
+
+<dialog class="task-dialog maintenance-dialog" id="maintenanceDialog">
+  <div class="maintenance-shell">
+    <header class="maintenance-head">
+      <div><div class="workshop-kicker">Live project maintenance</div><h2 class="dialog-title" id="maintenanceTitle">Maintenance workbench</h2><div class="panel-sub" id="maintenanceStatus">Connected to the real Board</div></div>
+      <button type="button" class="work-btn" id="closeMaintenanceBtn">Close</button>
+    </header>
+    <div class="maintenance-mode" role="group" aria-label="Workbench execution mode">
+      <button type="button" class="filter-btn active" data-maintenance-mode="nex">Just Nex</button>
+      <button type="button" class="filter-btn" data-maintenance-mode="team">Bring in build team</button>
+    </div>
+    <div class="maintenance-grid">
+      <section class="maintenance-pane">
+        <div class="panel-title">Actual checklist</div>
+        <div class="panel-sub">Every item below is a real Board task, not decorative productivity confetti.</div>
+        <div id="maintenanceChecklist" class="maintenance-checklist"></div>
+        <form id="maintenanceTaskForm" class="maintenance-add">
+          <input name="title" required maxlength="160" placeholder="Add an update, fix, or improvement">
+          <button class="work-btn green" type="submit">Add task</button>
+        </form>
+      </section>
+      <section class="maintenance-pane conversation-pane">
+        <div class="conversation-head"><div><div class="panel-title">Talk with Nex here</div><div class="panel-sub">This conversation stays attached to this exact entry. Replies, dispatches, and worker progress update in one place.</div></div><div id="workbenchPresence" class="workbench-presence"><span></span><strong>Ready</strong></div></div>
+        <div id="activeContext" class="active-context"></div>
+        <div class="maintenance-stream conversation-stream" id="maintenanceStream" role="log" aria-live="polite"></div>
+        <form id="maintenanceNoteForm" class="maintenance-note contextual-chat-form">
+          <textarea name="note" required maxlength="4000" placeholder="Talk to Nex about this entry — ask a question, change direction, or tell me to dispatch work"></textarea>
+          <div class="maintenance-actions"><button class="work-btn primary" type="submit" id="sendContextMessageBtn">Send to Nex</button><button type="button" class="work-btn" id="startMaintenanceBtn">Dispatch selected work</button><button type="button" class="work-link" id="openMaintenanceChatBtn">Continue in global chat</button></div>
+        </form>
+      </section>
+    </div>
+  </div>
+</dialog>
+
+<dialog class="task-dialog" id="taskDialog">
+  <form class="dialog-body" id="taskForm">
+    <div><div class="workshop-kicker">Put work on a bench</div><h2 class="dialog-title">Create a real venture or task</h2></div>
+    <div class="field"><label for="ventureName">Venture name (optional)</label><input id="ventureName" name="venture" maxlength="100" placeholder="Name it to create a persistent venture canvas"></div>
+    <div class="field"><label for="taskTitle">Outcome</label><input id="taskTitle" name="title" required maxlength="160" placeholder="What should exist when this is done?"></div>
+    <div class="field"><label for="taskDescription">Context and definition of done</label><textarea id="taskDescription" name="description" maxlength="4000" placeholder="Constraints, acceptance checks, and what not to touch"></textarea></div>
+    <div class="field"><label for="taskOwner">First owner</label><select id="taskOwner" name="owner"><option value="nex">Nex — orchestrate and build</option><option value="">Unassigned — choose later</option></select></div>
+    <label style="display:flex;gap:8px;align-items:center;font-size:12px;color:var(--work-dim)"><input type="checkbox" name="start" value="yes"> Route it immediately after creation</label>
+    <div class="dialog-actions"><button type="button" class="work-btn" id="cancelTaskBtn">Cancel</button><button class="work-btn green" type="submit">Add to workshop</button></div>
+  </form>
+</dialog>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script type="module" src="/conference-workshop.js"></script>
+<script type="module">import '/nex-chat-bar.js?v=20260919-1';</script>
+</body>
+</html>

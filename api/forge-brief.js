@@ -1,0 +1,125 @@
+// api/forge-brief.js
+// Authenticated Project Brief endpoint for the Forge interview experience.
+
+import { getRequestUser } from '../lib/roomAuth.js';
+import { getConnection } from '../lib/forge/brainStore.js';
+import { getFeatureConnection } from '../lib/forge/featureConnection.js';
+import { canUseFeature } from '../lib/forge/features.js';
+import {
+  ensureProjectBrief,
+  saveBriefAnswer,
+  resetProjectBrief,
+  publicProjectBrief,
+  approveProjectBrief,
+  saveBriefAdditionKind,
+} from '../lib/forge/projectBrief.js';
+
+import { readProjectContext, connectionsForPlan } from '../lib/forge/projectContext.js';
+import { applyStackRecommendation } from '../lib/forgeStack.js';
+
+function projectIdFrom(req) {
+  return String((req.query || {}).projectId || (req.body || {}).projectId || 'default');
+}
+
+// A storage failure must not silently unlock a gated feature, so an
+// unreadable connection is treated as no connection.
+async function getConnectionSafely(connectionFor, username) {
+  const connection = await connectionFor(username);
+  return connection || null;
+}
+
+export function createForgeBriefHandler({
+  resolveUser = getRequestUser,
+  connectionFor = getConnection,
+  env = process.env,
+  ensure = ensureProjectBrief,
+  answer = saveBriefAnswer,
+  reset = resetProjectBrief,
+  approve = approveProjectBrief,
+  chooseAdditionKind = saveBriefAdditionKind,
+  readContext = readProjectContext,
+  recommend = applyStackRecommendation,
+} = {}) {
+  return async function handler(req, res) {
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    if (!['GET', 'POST'].includes(req.method)) {
+      res.setHeader('Allow', 'GET, POST');
+      return res.status(405).json({ error: 'Method Not Allowed' });
+    }
+
+    try {
+      const username = await resolveUser(req);
+      if (!username) return res.status(401).json({ error: 'Sign in required.' });
+
+      // The real gate. The UI also hides this feature below the required tier,
+      // but hiding is presentation — a customer can still call the endpoint
+      // directly. The configured runtime must support planning and building.
+      let connection = null;
+      try { connection = await getConnectionSafely((user) => getFeatureConnection(user, { connectionFor, env }), username); }
+      catch { connection = null; }
+      const verdict = canUseFeature(connection, 'brief');
+      if (!verdict.allowed) {
+        return res.status(402).json({
+          error: verdict.reason,
+          code: verdict.needsConnection ? 'BRAIN_REQUIRED' : 'TIER_REQUIRED',
+          requires: verdict.requires,
+          feature: 'brief',
+        });
+      }
+
+      const projectId = projectIdFrom(req);
+      const mode = (req.query?.mode || req.body?.mode) === 'addon' ? 'addon' : 'new';
+      let context = null;
+      if (mode === 'addon') {
+        context = await readContext({ ownerUsername: username, projectId, mode });
+        if (context.unavailable?.includes('projects')) return res.status(503).json({ error: 'Could not check this project. Try again shortly.' });
+        if (!context.project) return res.status(409).json({ error: 'Build or open a saved project before planning an addition.' });
+      }
+      let brief;
+
+      if (req.method === 'GET') {
+        brief = await ensure({ ownerUsername: username, projectId, mode });
+      } else {
+        const body = req.body || {};
+        if (body.action === 'answer') {
+          brief = await answer({
+            ownerUsername: username,
+            projectId,
+            mode,
+            questionId: body.questionId,
+            values: body.values,
+            comment: body.comment,
+          });
+        } else if (body.action === 'choose_addition_kind') {
+          if (mode !== 'addon') return res.status(409).json({ error: 'Choose an addition type only after opening a saved project.' });
+          brief = await chooseAdditionKind({ ownerUsername: username, projectId, additionKind: body.additionKind });
+        } else if (body.action === 'approve') {
+          if (mode === 'addon' && context.unavailable?.length) return res.status(503).json({ error: 'Could not load the saved plan and connections. Try again before approving this addition.' });
+          brief = await approve({ ownerUsername: username, projectId, mode });
+          if (mode === 'addon') {
+            await recommend({ ownerUsername: username, projectId, preserveRequired: true,
+              projectType: context.originalPlan?.answers?.project_type,
+              features: [...new Set([...(context.features || []), ...(brief.answers?.features || [])])].filter(feature => feature !== 'none'),
+            });
+          }
+        } else if (body.action === 'reset') {
+          brief = await reset({ ownerUsername: username, projectId, mode });
+        } else if (body.action === 'ensure') {
+          brief = await ensure({ ownerUsername: username, projectId, mode });
+        } else {
+          return res.status(400).json({ error: 'Unknown Project Brief action.' });
+        }
+      }
+
+      return res.status(200).json({ ...publicProjectBrief(brief), ...(context ? { project: context.project, connections: connectionsForPlan(context, brief), contextUnavailable: context.unavailable } : {}) });
+    } catch (error) {
+      const message = error?.message || 'Project Brief failed.';
+      const status = /required|invalid|unknown|choose|complete the plan/i.test(message) ? 400 : 500;
+      if (status === 500) console.error('forge-brief failed:', message);
+      return res.status(status).json({ error: status === 500 ? 'Project Brief failed.' : message });
+    }
+  };
+}
+
+export default createForgeBriefHandler();

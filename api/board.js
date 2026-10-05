@@ -1,46 +1,834 @@
+import { lifeStore } from '../lib/life.js';
+import { reminderStore } from '../lib/reminders.js';
+import { pushService } from '../lib/pushNotifications.js';
+import { socialAuth } from '../lib/socialAuth.js';
+import { accountDataService } from '../lib/accountData.js';
+import { feedbackStore } from '../lib/feedback.js';
+import { parseCookies, createOrFindSocialUser, createSession as createRoomSession, serializeSessionCookie as serializeRoomSessionCookie } from '../lib/roomAuth.js';
 // /api/board.js
 // Shared task board endpoint — read/write access for Claude, GPT, and
 // Nex to coordinate work without stepping on each other. GET reads
 // the whole board (tasks + recent messages + live agent presence);
 // POST takes an `action` field to route to the right operation.
+//
+// Also serves /api/hyperfocus, /api/agentlog, /api/vault, /api/planner,
+// /api/tenants, and /api/oauth/:provider/callback (see vercel.json
+// rewrites) — folded in here rather than as their own serverless
+// functions to stay under the Vercel Hobby plan's 12-function-per-
+// deployment cap. Routing is by req.url, not by action name, so the
+// action namespaces never collide even though they share this one
+// function. This is a deployment-cap workaround, not a design merger:
+// the feature areas stay logically separate below, and
+// lib/hyperfocus.js / lib/agentLog.js / lib/codeVault.js /
+// lib/tenantProvisioning.js (the actual storage/safety logic) are
+// completely untouched by this file.
+
+import crypto from 'node:crypto';
 
 import {
   readBoard,
+  getTaskById,
   createTask,
   claimTask,
   updateProgress,
   markBlocked,
   attachResult,
   completeTask,
+  deleteTask,
   postMessage,
 } from '../lib/board.js';
 import { listAgents } from '../lib/agents.js';
+import { getNexRoleLease, acquireNexRole, renewNexRole, releaseNexRole } from '../lib/roleLease.js';
+import {
+  startExecution,
+  finishExecution,
+  checkpointExecution,
+  getExecutionResume,
+  listExecutionEvents,
+} from '../lib/executionLedger.js';
+import {
+  openHyperfocus,
+  publishChatContext,
+  readHyperfocus,
+  appendHyperfocusDelta,
+  closeHyperfocus,
+  listActiveHyperfocus,
+} from '../lib/hyperfocus.js';
+import { logExchange, checkAgentLog } from '../lib/agentLog.js';
+import { addVaultItem, getVaultItem, searchVault, listVaultItems } from '../lib/codeVault.js';
+import { ingestSentryCrash, listCrashes, getCrash, verifySentrySignature } from '../lib/crashFeed.js';
+import { getRequestUser } from '../lib/roomAuth.js';
+import { createTenant, listTenantsForOwner, assertTenantAccess, registerConnection, unregisterConnection } from '../lib/tenantProvisioning.js';
+import { tenantMeter } from '../lib/tenantMetering.js';
+import { createOAuthState, verifyOAuthState } from '../lib/oauthState.js';
+import { requireProvider } from '../lib/oauthProviders.js';
+import { storeTenantCredential, deleteTenantCredential } from '../lib/tenantCredentials.js';
+import {
+  getCanvasState,
+  setBackdrop,
+  setPanelLayout,
+  deletePanelLayout,
+  createCanvas,
+  deleteCanvas,
+  renameCanvas,
+  setCanvasSection,
+  deleteCanvasSection,
+  listCanvases,
+} from '../lib/canvasState.js';
+import { maybeCheckSystemStatus } from '../lib/systemMonitor.js';
+import { getNexusOwner } from '../lib/nexusOwnerAuth.js';
+import { getPinnedVisual, renderPinnedVisual, restorePinnedVisual, setPinnedVisualLocked } from '../lib/pinnedVisuals.js';
+import { listQueue, approveQueueItem, rejectQueueItem, notifyQueue } from '../lib/queue.js';
+import {
+  createPlannerItem,
+  previewPlannerItem,
+  updatePlannerItem,
+  deletePlannerItem,
+  getScheduleOverview,
+  createWeekDraft,
+  generateScheduleDraft,
+  adjustScheduleOverrun,
+  applyWeekDraft,
+  discardWeekDraft,
+} from '../lib/planner.js';
 
-export default async function handler(req, res) {
+// This must exactly match the Authorization Callback URL / Redirect
+// URL registered with GitHub and Vercel — deriving it from the
+// request's Host header instead would break on any preview domain,
+// since the OAuth apps only trust this one exact origin.
+const NEXUS_PUBLIC_URL = process.env.NEXUS_PUBLIC_URL || 'https://nexus-labs-sigma.vercel.app';
+
+function internalAgentAuthorized(req) {
+  const expected = process.env.NEXUS_AGENT_API_TOKEN;
+  const header = String(req.headers?.authorization || '');
+  const supplied = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+  if (!expected || !supplied) return false;
+  const expectedHash = crypto.createHash('sha256').update(expected).digest();
+  const suppliedHash = crypto.createHash('sha256').update(supplied).digest();
+  return crypto.timingSafeEqual(expectedHash, suppliedHash);
+}
+
+function developerSource(value) {
+  const source = String(value || 'developer').trim().toLowerCase();
+  return `developer:${/^[a-z0-9_-]{1,32}$/u.test(source) ? source : 'developer'}`;
+}
+
+export function createLifeHandler({getOwner=getNexusOwner,getUser=getRequestUser,store=lifeStore}={}) {
+  return async(req,res)=>{
+    res.setHeader('Cache-Control','private, no-store');
+    const owner=await getOwner(req).catch(()=>null),roomUser=owner ? null : await getUser(req).catch(()=>null);
+    if(!owner && !roomUser)return res.status(401).json({error:'Sign in to use Life.'});
+    const user=owner ? `owner:${owner.id}` : `room:${roomUser}`;
+    try{
+      if(req.method==='GET')return res.status(200).json(req.query?.alerts==='1' ? {items:await store.alerts(user)} : await store.overview(user));
+      if(req.method!=='POST')return res.status(405).json({error:'Method Not Allowed'});
+      const {action,...input}=req.body || {};let result;
+      if(action==='profile')result=await store.profile(user,input);
+      else if(action==='preview')result=await store.preview(input,user);
+      else if(action==='save')result=await store.save(input,user);
+      else if(action==='check_in')result=await store.checkIn(input,user);
+      else if(action==='pulse')result=await store.pulse(input,user);
+      else if(action==='preview_week')result=await store.previewWeek(input,user);
+      else if(action==='save_week')result=await store.saveWeek(input,user);
+      else if(action==='delete')result=await store.remove(input.id,user);
+      else return res.status(400).json({error:'Unknown Life action'});
+      return res.status(200).json(result);
+    }catch(error){return res.status(400).json({error:error.message});}
+  };
+}
+const handleLife=createLifeHandler();
+
+export function createRemindersHandler({getOwner=getNexusOwner,getUser=getRequestUser,store=reminderStore}={}) {
+ return async function handleReminders(req,res) {
+  res.setHeader('Cache-Control','private, no-store');
+  const owner=await getOwner(req).catch(()=>null);
+  const roomUser=owner ? null : await getUser(req).catch(()=>null);
+  if(!owner && !roomUser)return res.status(401).json({error:'Sign in to use Reminders.'});
+  const user=owner ? `owner:${owner.id}` : `room:${roomUser}`;
+  try {
+    if(req.method==='GET')return res.status(200).json({items:await store.list(user)});
+    if(req.method!=='POST')return res.status(405).json({error:'Method Not Allowed'});
+    const {action,...input}=req.body || {};
+    if(action==='create')return res.status(200).json({item:await store.create(input,user)});
+    if(action==='update')return res.status(200).json({item:await store.update(input,user)});
+    if(action==='delete')return res.status(200).json({deleted:await store.remove(input.id,user)});
+    if(action==='schedule')return res.status(200).json(await store.schedule(input,user));
+    return res.status(400).json({error:'Unknown reminder action'});
+  }catch(error){return res.status(400).json({error:error.message});}
+};
+}
+const handleReminders=createRemindersHandler();
+
+export function createPushHandler({getOwner=getNexusOwner,getUser=getRequestUser,service=pushService}={}) {
+  return async function handlePush(req,res) {
+    res.setHeader('Cache-Control','private, no-store');
+    const owner=await getOwner(req).catch(()=>null);
+    const roomUser=owner ? null : await getUser(req).catch(()=>null);
+    if(!owner && !roomUser)return res.status(401).json({error:'Sign in to manage phone notifications.'});
+    const user=owner ? `owner:${owner.id}` : `room:${roomUser}`;
+    try{
+      if(req.method==='GET')return res.status(200).json(await service.status(user));
+      if(req.method!=='POST')return res.status(405).json({error:'Method Not Allowed'});
+      const {action,subscription,endpoint}=req.body || {};
+      if(action==='subscribe')return res.status(200).json(await service.subscribe(user,subscription));
+      if(action==='unsubscribe')return res.status(200).json(await service.unsubscribe(user,endpoint));
+      if(action==='test')return res.status(200).json(await service.test(user));
+      return res.status(400).json({error:'Unknown notification action'});
+    }catch(error){return res.status(400).json({error:error.message});}
+  };
+}
+const handlePush=createPushHandler();
+
+function cronAuthorized(req){
+  const expected=String(process.env.CRON_SECRET || '');
+  const supplied=String(req.headers?.authorization || '').replace(/^Bearer\s+/u,'');
+  if(!expected || !supplied)return false;
+  const left=crypto.createHash('sha256').update(expected).digest();
+  const right=crypto.createHash('sha256').update(supplied).digest();
+  return crypto.timingSafeEqual(left,right);
+}
+export function createPushDeliveryHandler({authorized=cronAuthorized,service=pushService}={}){
+  return async function handlePushDelivery(req,res){
+    res.setHeader('Cache-Control','private, no-store');
+    if(req.method!=='GET')return res.status(405).json({error:'Method Not Allowed'});
+    if(!authorized(req))return res.status(401).json({error:'Notification delivery is not authorized'});
+    try{return res.status(200).json(await service.deliverAll());}
+    catch(error){console.error('push delivery crashed:',error.message);return res.status(500).json({error:'Notifications could not be delivered'});}
+  };
+}
+const handlePushDelivery=createPushDeliveryHandler();
+
+const SOCIAL_BROWSER_COOKIE='__Host-nexus_social_browser';
+function socialBrowserCookie(value){return `${SOCIAL_BROWSER_COOKIE}=${value || ''}; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=${value ? 600 : 0}`;}
+function redirect(res,url){res.statusCode=302;res.setHeader('Location',url);return res.end();}
+export function createSocialAuthHandler({auth=socialAuth,findUser=createOrFindSocialUser,createSession=createRoomSession,serializeCookie=serializeRoomSessionCookie}={}){
+  return async function handleSocialAuth(req,res){
+    res.setHeader('Cache-Control','private, no-store');
+    const path=(req.url || '').split('?')[0],provider=path.split('/')[4] || String(req.query?.provider || '');
+    try{
+      if(path==='/api/social-auth'&&!req.query?.provider){if(req.method!=='GET')return res.status(405).json({error:'Method Not Allowed'});return res.status(200).json(auth.status());}
+      if(path==='/api/social-auth'&&req.method==='GET'){
+        const binding=crypto.randomBytes(32).toString('base64url');
+        const url=await auth.begin(provider,req.query?.next,binding);
+        res.setHeader('Set-Cookie',socialBrowserCookie(binding));
+        return redirect(res,url);
+      }
+      if(path.startsWith('/api/social-auth/callback/')&&(req.method==='GET'||req.method==='POST')){
+        const {request,identity}=await auth.finish(provider,{...(req.query || {}),...(req.body || {}),browserBinding:parseCookies(req)[SOCIAL_BROWSER_COOKIE]});
+        const account=await findUser(identity),token=await createSession(account.username);res.setHeader('Set-Cookie',[serializeCookie(token),socialBrowserCookie(null)]);return redirect(res,request.next);
+      }
+      return res.status(405).json({error:'Method Not Allowed'});
+    }catch(error){console.error('social auth:',error.message);return redirect(res,`/room-login.html?social_error=${encodeURIComponent(error.message)}`);}
+  };
+}
+const handleSocialAuth=createSocialAuthHandler();
+
+export function createAccountHandler({getOwner=getNexusOwner,getUser=getRequestUser,service=accountDataService,clearCookie=serializeRoomSessionCookie}={}){
+  return async function handleAccount(req,res){
+    res.setHeader('Cache-Control','private, no-store');
+    const owner=await getOwner(req).catch(()=>null);
+    if(owner)return res.status(403).json({error:'The private Nexus owner account cannot be removed here.'});
+    const username=await getUser(req).catch(()=>null);
+    if(!username)return res.status(401).json({error:'Sign in to manage your account.'});
+    try{
+      if(req.method==='GET')return res.status(200).json(await service.exportData(username));
+      if(req.method!=='POST')return res.status(405).json({error:'Method Not Allowed'});
+      if(req.body?.action!=='delete'||req.body?.confirmation!=='DELETE MY ACCOUNT')return res.status(400).json({error:'Type DELETE MY ACCOUNT to confirm.'});
+      const result=await service.purgeData(username);
+      res.setHeader('Set-Cookie',clearCookie(null,{clear:true}));
+      return res.status(200).json(result);
+    }catch(error){console.error('account data:',error.message);return res.status(400).json({error:'Your account request could not be completed. Try again.'});}
+  };
+}
+const handleAccount=createAccountHandler();
+
+export function createFeedbackHandler({getOwner=getNexusOwner,getUser=getRequestUser,store=feedbackStore}={}){
+  return async function handleFeedback(req,res){
+    res.setHeader('Cache-Control','private, no-store');
+    if(req.method!=='POST')return res.status(405).json({error:'Method Not Allowed'});
+    const owner=await getOwner(req).catch(()=>null),roomUser=owner ? null : await getUser(req).catch(()=>null);
+    if(!owner&&!roomUser)return res.status(401).json({error:'Sign in to send feedback.'});
+    try{const user=owner?`owner:${owner.id}`:`room:${roomUser}`;return res.status(200).json({item:await store.submit(req.body,user)});}
+    catch(error){return res.status(400).json({error:error.message});}
+  };
+}
+const handleFeedback=createFeedbackHandler();
+
+async function handlePlanner(req, res) {
+  res.setHeader('Cache-Control', 'private, no-store');
+  const owner = await getNexusOwner(req).catch(() => null);
+  const roomUser = owner ? null : await getRequestUser(req).catch(() => null);
+  if (!owner && !roomUser) return res.status(401).json({ error: 'Sign in to use Schedule.' });
+  const scheduleUserId = owner ? `owner:${owner.id}` : `room:${roomUser}`;
+  const storeOptions = { allowLegacyMigration: Boolean(owner) };
+
   try {
     if (req.method === 'GET') {
-      const [board, agents] = await Promise.all([readBoard(), listAgents()]);
-      return res.status(200).json({ ...board, agents });
+      const { from, to, status } = req.query || {};
+      return res.status(200).json(await getScheduleOverview({ from, to, status }, scheduleUserId, storeOptions));
+    }
+    if (req.method === 'POST') {
+      const { action, ...params } = req.body || {};
+      if (action === 'preview') return res.status(200).json(await previewPlannerItem(params, scheduleUserId));
+      if (action === 'create') return res.status(200).json({ item: await createPlannerItem(params, scheduleUserId) });
+      if (action === 'update') return res.status(200).json({ item: await updatePlannerItem(params, scheduleUserId) });
+      if (action === 'delete') return res.status(200).json({ deleted: await deletePlannerItem(params.id, scheduleUserId) });
+      if (action === 'create_week_draft') return res.status(200).json(await createWeekDraft(params, scheduleUserId));
+      if (action === 'adjust_overrun') return res.status(200).json(await adjustScheduleOverrun(params, scheduleUserId));
+      if (action === 'generate_schedule_draft') return res.status(200).json(await generateScheduleDraft(params, scheduleUserId));
+      if (action === 'apply_week_draft') return res.status(200).json(await applyWeekDraft(params.draft_id, scheduleUserId));
+      if (action === 'discard_week_draft') return res.status(200).json(await discardWeekDraft(params.draft_id, scheduleUserId));
+      return res.status(400).json({ error: `Unknown schedule action: ${action || '(none)'}` });
+    }
+    return res.status(405).json({ error: 'Method Not Allowed' });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+}
+
+async function handlePinnedVisuals(req, res) {
+  res.setHeader('Cache-Control', 'private, no-store');
+  const owner = await getNexusOwner(req).catch(() => null);
+  const internalAgent = internalAgentAuthorized(req);
+  if (!owner && !internalAgent) return res.status(401).json({ error: 'Nexus owner session or internal agent token required' });
+
+  try {
+    if (req.method === 'GET') {
+      const roomId = req.query?.room_id;
+      if (!roomId) return res.status(400).json({ error: 'room_id is required' });
+      return res.status(200).json({ visual: await getPinnedVisual(roomId) });
     }
 
     if (req.method === 'POST') {
       const { action, ...params } = req.body || {};
-      if (!action) return res.status(400).json({ error: 'Missing action' });
-
-      if (action === 'create_task') return res.status(200).json({ task: await createTask(params) });
-      if (action === 'claim_task') return res.status(200).json({ task: await claimTask(params) });
-      if (action === 'update_progress') return res.status(200).json({ task: await updateProgress(params) });
-      if (action === 'mark_blocked') return res.status(200).json({ task: await markBlocked(params) });
-      if (action === 'attach_result') return res.status(200).json({ task: await attachResult(params) });
-      if (action === 'complete_task') return res.status(200).json({ task: await completeTask(params) });
-      if (action === 'post_message') return res.status(200).json({ message: await postMessage(params) });
-
-      return res.status(400).json({ error: `Unknown action: ${action}` });
+      if (!owner && action !== 'render') {
+        return res.status(403).json({ error: 'Internal agents may render visuals but cannot change owner panel controls' });
+      }
+      if (action === 'render') {
+        const visual = await renderPinnedVisual({
+          ...params,
+          source: internalAgent ? developerSource(params.source_agent) : 'owner',
+        });
+        return res.status(200).json({
+          visual: {
+            room_id: visual.room_id,
+            source: visual.source,
+            locked: visual.locked,
+            rendered: visual.rendered,
+            saved_to_history: visual.saved_to_history,
+            history_count: visual.history.length,
+            updated_at: visual.updated_at,
+          },
+        });
+      }
+      if (action === 'set_lock') {
+        return res.status(200).json({ visual: await setPinnedVisualLocked(params) });
+      }
+      if (action === 'restore') {
+        return res.status(200).json({ visual: await restorePinnedVisual(params) });
+      }
+      return res.status(400).json({ error: `Unknown action: ${action || '(none)'}` });
     }
 
     return res.status(405).json({ error: 'Method Not Allowed' });
   } catch (err) {
-    console.error('board handler crashed:', err.message);
+    return res.status(400).json({ error: err.message });
+  }
+}
+
+const VISUAL_TASK_STATUSES = new Set(['idle', 'planning', 'building', 'testing', 'blocked', 'waiting_for_justin', 'complete']);
+
+function clipped(value, limit = 500) {
+  return String(value || '').replace(/\s+/gu, ' ').trim().slice(0, limit);
+}
+
+// Trusted action boundary for the visual workspace. Sandboxed widgets can
+// request these verbs through postMessage, but the parent UI owns the request,
+// confirms mutations, and this handler independently requires an owner session.
+async function handleNexAction(req, res) {
+  res.setHeader('Cache-Control', 'private, no-store');
+  const owner = await getNexusOwner(req).catch(() => null);
+  if (!owner) return res.status(401).json({ error: 'Nexus owner authentication required.' });
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
+
+  const { verb, payload = {}, room_id: roomId = 'command-center' } = req.body || {};
+  try {
+    if (verb === 'snapshot') {
+      const [board, agents, approvals] = await Promise.all([readBoard(), listAgents(), listQueue()]);
+      const tasks = board.tasks || [];
+      return res.status(200).json({
+        ok: true,
+        room_id: clipped(roomId, 80),
+        snapshot: {
+          tasks,
+          agents,
+          approvals,
+          telemetry: {
+            total_tasks: tasks.length,
+            completed_tasks: tasks.filter((task) => task.status === 'complete').length,
+            needs_approval: approvals.length,
+            active_agents: agents.filter((agent) => ['online', 'busy'].includes(agent.status)).length,
+          },
+          observed_at: Date.now(),
+        },
+      });
+    }
+
+    if (verb === 'create_task') {
+      const title = clipped(payload.title, 140);
+      if (!title) return res.status(400).json({ error: 'Task title is required.' });
+      const task = await createTask({
+        title,
+        description: clipped(payload.description, 2000),
+        owner: clipped(payload.owner, 40) || null,
+        canvas_id: clipped(payload.canvas_id, 100) || null,
+      });
+      return res.status(200).json({ ok: true, task });
+    }
+
+    if (verb === 'update_task') {
+      const id = clipped(payload.id, 120);
+      const status = clipped(payload.status, 40);
+      if (!id || !VISUAL_TASK_STATUSES.has(status)) return res.status(400).json({ error: 'A valid task id and status are required.' });
+      const task = status === 'complete'
+        ? await completeTask({ id, result: clipped(payload.note, 2000) })
+        : status === 'blocked'
+          ? await markBlocked({ id, reason: clipped(payload.note, 1000) || 'Blocked from visual workspace' })
+          : await updateProgress({ id, status, note: clipped(payload.note, 1000) });
+      return res.status(200).json({ ok: true, task });
+    }
+
+    if (verb === 'approve' || verb === 'reject') {
+      const id = clipped(payload.id, 120);
+      if (!id) return res.status(400).json({ error: 'Approval id is required.' });
+      const outcome = verb === 'approve' ? await approveQueueItem(id) : await rejectQueueItem(id);
+      await notifyQueue();
+      return res.status(200).json({ ok: true, outcome });
+    }
+
+    return res.status(400).json({ error: `Unsupported visual action: ${verb || '(none)'}` });
+  } catch (error) {
+    console.error('visual action failed:', verb, error.message);
+    return res.status(400).json({ error: error.message });
+  }
+}
+
+async function handleBoard(req, res) {
+  if (req.method === 'GET') {
+    // task_id is a lightweight single-task lookup that bypasses the
+    // full board assembly below entirely — added so a caller whose
+    // read_board dump gets cut off before reaching a task's full
+    // description/result text has a direct way to fetch just that one
+    // task's complete record instead of paging through everything.
+    if (req.query?.task_id) {
+      try {
+        const task = await getTaskById(req.query.task_id);
+        return res.status(200).json({ task });
+      } catch (err) {
+        return res.status(404).json({ error: err.message });
+      }
+    }
+
+    // canvas_id is optional — omitted defaults to the 'dashboard'
+    // canvas (the homepage), so every existing caller that doesn't
+    // know canvases are now plural keeps working unchanged.
+    const canvasId = req.query?.canvas_id;
+    const [board, agents, nex_role, crashes, canvas] = await Promise.all([readBoard(), listAgents(), getNexRoleLease(), listCrashes({ limit: 200 }), getCanvasState(canvasId)]);
+    const tasks = board.tasks || [];
+    const tasksByStatus = tasks.reduce((counts, task) => {
+      counts[task.status] = (counts[task.status] || 0) + 1;
+      return counts;
+    }, {});
+    const telemetry = {
+      tasks_by_status: tasksByStatus,
+      completed_tasks: tasksByStatus.complete || 0,
+      total_tasks: tasks.length,
+      needs_approval: tasksByStatus.waiting_for_justin || 0,
+      crash_count: crashes.length,
+      open_crash_count: crashes.filter((crash) => crash.status !== 'resolved').length,
+      active_agents: agents.filter((agent) => ['online', 'busy'].includes(agent.status)).length,
+      workspace_status: process.env.E2B_API_KEY ? 'configured' : 'not_configured',
+      observed_at: Date.now(),
+    };
+    // Non-blocking: returns whatever status is already known (possibly
+    // null on a cold start) and, at most every few minutes, kicks off a
+    // fresh background check that a later poll will pick up. Never adds
+    // latency to this response — see lib/systemMonitor.js.
+    const system_status = maybeCheckSystemStatus();
+    return res.status(200).json({ ...board, agents, nex_role, crashes, canvas, telemetry, system_status });
+  }
+
+  if (req.method === 'POST') {
+    const { action, ...params } = req.body || {};
+    if (!action) return res.status(400).json({ error: 'Missing action' });
+
+    if (action === 'create_task') return res.status(200).json({ task: await createTask(params) });
+    if (action === 'claim_task') return res.status(200).json({ task: await claimTask(params) });
+    if (action === 'update_progress') return res.status(200).json({ task: await updateProgress(params) });
+    if (action === 'mark_blocked') return res.status(200).json({ task: await markBlocked(params) });
+    if (action === 'attach_result') return res.status(200).json({ task: await attachResult(params) });
+    if (action === 'complete_task') return res.status(200).json({ task: await completeTask(params) });
+    if (action === 'delete_task') return res.status(200).json({ deleted: await deleteTask(params) });
+    if (action === 'post_message') return res.status(200).json({ message: await postMessage(params) });
+    if (action === 'acquire_nex_role') return res.status(200).json({ lease: await acquireNexRole(params) });
+    if (action === 'renew_nex_role') return res.status(200).json({ lease: await renewNexRole(params) });
+    if (action === 'release_nex_role') return res.status(200).json({ lease: await releaseNexRole(params) });
+    if (action === 'start_execution') return res.status(200).json(await startExecution(params));
+    if (action === 'finish_execution') return res.status(200).json({ event: await finishExecution(params) });
+    if (action === 'checkpoint_execution') return res.status(200).json({ pointer: await checkpointExecution(params) });
+    if (action === 'get_execution_resume') return res.status(200).json({ pointer: await getExecutionResume(params.run_id) });
+    if (action === 'list_execution_events') return res.status(200).json({ events: await listExecutionEvents(params.run_id, params.limit) });
+    if (action === 'set_canvas_backdrop') return res.status(200).json({ canvas: await setBackdrop(params) });
+    if (action === 'set_canvas_panel_layout') return res.status(200).json({ canvas: await setPanelLayout(params) });
+    if (action === 'delete_canvas_panel_layout') return res.status(200).json({ canvas: await deletePanelLayout(params) });
+    if (action === 'create_canvas') return res.status(200).json({ canvas: await createCanvas(params) });
+    if (action === 'delete_canvas') return res.status(200).json({ deleted: await deleteCanvas(params) });
+    if (action === 'rename_canvas') {
+      try {
+        return res.status(200).json({ canvas: await renameCanvas(params) });
+      } catch (err) {
+        return res.status(400).json({ error: err.message });
+      }
+    }
+    if (action === 'set_canvas_section') {
+      try {
+        return res.status(200).json({ canvas: await setCanvasSection(params) });
+      } catch (err) {
+        return res.status(400).json({ error: err.message });
+      }
+    }
+    if (action === 'delete_canvas_section') {
+      try {
+        return res.status(200).json({ canvas: await deleteCanvasSection(params) });
+      } catch (err) {
+        return res.status(400).json({ error: err.message });
+      }
+    }
+    if (action === 'list_canvases') return res.status(200).json({ canvases: await listCanvases() });
+
+    return res.status(400).json({ error: `Unknown action: ${action}` });
+  }
+
+  return res.status(405).json({ error: 'Method Not Allowed' });
+}
+
+async function handleHyperfocus(req, res) {
+  if (req.method === 'GET') {
+    const { focus_id, agent, tenant_id, project_id } = req.query || {};
+
+    if (!focus_id) {
+      const focuses = await listActiveHyperfocus();
+      return res.status(200).json({ focuses });
+    }
+
+    const result = await readHyperfocus({ focus_id, agent, tenant_id, project_id });
+    return res.status(200).json(result);
+  }
+
+  if (req.method === 'POST') {
+    const { action, ...params } = req.body || {};
+    if (!action) return res.status(400).json({ error: 'Missing action' });
+
+    if (action === 'open') return res.status(200).json(await openHyperfocus(params));
+    if (action === 'publish') return res.status(200).json(await publishChatContext(params));
+    if (action === 'append') return res.status(200).json(await appendHyperfocusDelta(params));
+    if (action === 'close') return res.status(200).json(await closeHyperfocus(params));
+
+    return res.status(400).json({ error: `Unknown action: ${action}` });
+  }
+
+  return res.status(405).json({ error: 'Method Not Allowed' });
+}
+
+async function handleAgentLog(req, res) {
+  if (req.method === 'GET') {
+    const { agent, tenant_id, project_id } = req.query || {};
+    if (!agent) return res.status(400).json({ error: 'Missing agent' });
+    const result = await checkAgentLog({ agent, tenant_id, project_id });
+    return res.status(200).json(result);
+  }
+
+  if (req.method === 'POST') {
+    const { action, ...params } = req.body || {};
+    if (action !== 'log') return res.status(400).json({ error: `Unknown action: ${action || '(none)'}` });
+    const result = await logExchange(params);
+    return res.status(200).json(result);
+  }
+
+  return res.status(405).json({ error: 'Method Not Allowed' });
+}
+
+
+async function handleSentryWebhook(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
+  const rawBody = Buffer.isBuffer(req.rawBody) ? req.rawBody.toString('utf8') : (typeof req.rawBody === 'string' ? req.rawBody : (typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {})));
+  const signature = req.headers?.['sentry-hook-signature'] || req.headers?.['Sentry-Hook-Signature'];
+  if (!verifySentrySignature(rawBody, signature)) return res.status(401).json({ error: 'Invalid Sentry signature' });
+  let event;
+  try { event = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || JSON.parse(rawBody)); } catch { return res.status(400).json({ error: 'Invalid JSON' }); }
+  const crash = await ingestSentryCrash(event);
+  return res.status(202).json({ accepted: true, crash: { id: crash.id, count: crash.count, repair_task_id: crash.repair_task_id } });
+}
+
+async function handleVault(req, res) {
+  if (req.method === 'GET') {
+    const { query, level, slug, include_deprecated, limit } = req.query || {};
+
+    if (slug) {
+      if (!level) return res.status(400).json({ error: 'level is required when reading by slug' });
+      const item = await getVaultItem({ level, slug });
+      return res.status(200).json(item || { error: 'Not found' });
+    }
+
+    if (query) {
+      const results = await searchVault({
+        query,
+        level,
+        include_deprecated: include_deprecated === 'true',
+        limit: limit ? Number(limit) : undefined,
+      });
+      return res.status(200).json({ results });
+    }
+
+    const items = await listVaultItems({ level });
+    return res.status(200).json({ items });
+  }
+
+  if (req.method === 'POST') {
+    const { action, ...params } = req.body || {};
+    if (action !== 'add') return res.status(400).json({ error: `Unknown action: ${action || '(none)'}` });
+    const result = await addVaultItem(params);
+    return res.status(200).json(result);
+  }
+
+  return res.status(405).json({ error: 'Method Not Allowed' });
+}
+
+// /api/tenants — hosted/BYO tenant provisioning (task 09). Ownership
+// always comes from the signed-in Room session, never from a
+// client-supplied field, so one account can never list, read, or
+// modify another account's tenants by passing a different owner in
+// the request body.
+export function createTenantsHandler({
+  resolveUser = getRequestUser,
+  create = createTenant,
+  listForOwner = listTenantsForOwner,
+  assertAccess = assertTenantAccess,
+  register = registerConnection,
+  meter = tenantMeter,
+  oauthState = createOAuthState,
+  providerFor = requireProvider,
+  deleteCredential = deleteTenantCredential,
+  unregister = unregisterConnection,
+} = {}) {
+  return async function handleTenants(req, res) {
+  res.setHeader('Cache-Control', 'private, no-store');
+  const ownerUsername = await resolveUser(req);
+  if (!ownerUsername) return res.status(401).json({ error: 'Sign in required' });
+
+  if (req.method === 'GET') {
+    const { action, tenant_id, provider } = req.query || {};
+
+    if (action === 'usage') {
+      if (!tenant_id) return res.status(400).json({ error: 'tenant_id is required' });
+      try {
+        const tenant = await assertAccess({ ownerUsername, tenantId: tenant_id });
+        if (!tenant.quota) {
+          return res.status(400).json({ error: 'This tenant is BYO and has no managed credit quota.' });
+        }
+        const usage = await meter.getUsageSummary({ tenantId: tenant.tenant_id, quota: tenant.quota });
+        return res.status(200).json({ usage });
+      } catch (err) {
+        return res.status(400).json({ error: err.message });
+      }
+    }
+
+    // Export: a tenant's full record (metadata, mode, quota, connection
+    // metadata — never credentials, which never live in this record to
+    // begin with) as a plain downloadable JSON file. This is the
+    // no-lock-in guarantee from task 09's acceptance criteria: nothing
+    // about a tenant lives anywhere a downloadable export can't reach.
+    // Usage is included best-effort (hosted only) — its absence never
+    // blocks the export, since the tenant record itself is the thing
+    // that must never be trapped.
+    if (action === 'export') {
+      if (!tenant_id) return res.status(400).json({ error: 'tenant_id is required' });
+      try {
+        const tenant = await assertAccess({ ownerUsername, tenantId: tenant_id });
+        let usage = null;
+        if (tenant.quota) {
+          try {
+            usage = await meter.getUsageSummary({ tenantId: tenant.tenant_id, quota: tenant.quota });
+          } catch {
+            usage = null;
+          }
+        }
+        const exportPayload = {
+          exported_at: new Date().toISOString(),
+          export_format_version: 1,
+          tenant,
+          usage,
+        };
+        const filename = `nexus-tenant-${tenant.slug}.json`;
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        return res.status(200).send(JSON.stringify(exportPayload, null, 2));
+      } catch (err) {
+        return res.status(400).json({ error: err.message });
+      }
+    }
+
+    // Start a BYO OAuth connection: returns a redirect URL the client
+    // navigates the browser to. The signed state token (not the
+    // session cookie) is what authorizes the callback that follows,
+    // since that request comes back from GitHub/Vercel's own domain.
+    if (action === 'oauth_start') {
+      if (!tenant_id || !provider) return res.status(400).json({ error: 'tenant_id and provider are required' });
+      try {
+        const tenant = await assertAccess({ ownerUsername, tenantId: tenant_id });
+        if (tenant.mode !== 'byo') {
+          return res.status(400).json({ error: 'OAuth connections are only for BYO tenants.' });
+        }
+        const adapter = providerFor(provider);
+        const state = oauthState({ tenant_id: tenant.tenant_id, owner: ownerUsername, provider });
+        const redirectUri = `${NEXUS_PUBLIC_URL}/api/oauth/${provider}/callback`;
+        const url = adapter.authorizeUrl({ redirectUri, state });
+        return res.status(200).json({ url });
+      } catch (err) {
+        return res.status(400).json({ error: err.message });
+      }
+    }
+
+    const tenants = await listForOwner({ ownerUsername });
+    return res.status(200).json({ tenants });
+  }
+
+  if (req.method === 'POST') {
+    const { action, ...params } = req.body || {};
+    if (!action) return res.status(400).json({ error: 'Missing action' });
+
+    try {
+      if (action === 'create') {
+        const tenant = await create({ ownerUsername, name: params.name, mode: params.mode });
+        return res.status(200).json({ tenant });
+      }
+      if (action === 'register_connection') {
+        const tenant = await register({
+          ownerUsername,
+          tenantId: params.tenant_id,
+          provider: params.provider,
+          metadata: params.metadata,
+        });
+        return res.status(200).json({ tenant });
+      }
+      if (action === 'get') {
+        const tenant = await assertAccess({ ownerUsername, tenantId: params.tenant_id });
+        return res.status(200).json({ tenant });
+      }
+      if (action === 'disconnect_connection') {
+        const tenant = await assertAccess({ ownerUsername, tenantId: params.tenant_id });
+        await deleteCredential({ tenantId: tenant.tenant_id, provider: params.provider });
+        const result = await unregister({ ownerUsername, tenantId: tenant.tenant_id, provider: params.provider });
+        return res.status(200).json(result);
+      }
+      return res.status(400).json({ error: `Unknown action: ${action}` });
+    } catch (err) {
+      // Validation/ownership errors here are expected client mistakes
+      // (duplicate name, wrong owner, bad mode, credential-shaped
+      // metadata) — 400, not 500, and safe to surface verbatim since
+      // tenantProvisioning.js never puts secrets in its own messages.
+      return res.status(400).json({ error: err.message });
+    }
+  }
+
+  return res.status(405).json({ error: 'Method Not Allowed' });
+  };
+}
+
+const handleTenants = createTenantsHandler();
+
+// /api/oauth/:provider/callback — GitHub/Vercel redirect back here
+// after the user approves the connection. Authorized by the signed
+// state token alone (see oauth_start above), not the session cookie,
+// since this request originates from the provider's own domain. On
+// success, the access token is encrypted and stored via
+// lib/tenantCredentials.js (never returned in this response), and
+// lib/tenantProvisioning.js's non-secret connection record is
+// updated. Always ends in a redirect back to the tenants page —
+// never a raw JSON error a browser would just show as plain text.
+async function handleOAuthCallback(req, res, provider) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method Not Allowed' });
+
+  const { code, state, error: providerError } = req.query || {};
+  const redirectBack = (params) => {
+    const url = new URL('/tenants.html', NEXUS_PUBLIC_URL);
+    for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
+    res.writeHead(302, { Location: url.pathname + url.search });
+    return res.end();
+  };
+
+  if (providerError) return redirectBack({ error: `${provider}_denied` });
+  if (!code || !state) return redirectBack({ error: 'oauth_missing_params' });
+
+  let payload;
+  try {
+    payload = verifyOAuthState(state);
+  } catch (err) {
+    return redirectBack({ error: 'oauth_invalid_state' });
+  }
+  if (payload.provider !== provider) return redirectBack({ error: 'oauth_provider_mismatch' });
+
+  try {
+    const adapter = requireProvider(provider);
+    const redirectUri = `${NEXUS_PUBLIC_URL}/api/oauth/${provider}/callback`;
+    const { accessToken, refreshToken, expiresAt, metadata } = await adapter.handleCallback({ code, redirectUri });
+
+    await storeTenantCredential({ tenantId: payload.tenant_id, provider, accessToken, refreshToken, expiresAt });
+    await registerConnection({
+      ownerUsername: payload.owner,
+      tenantId: payload.tenant_id,
+      provider,
+      metadata,
+    });
+
+    return redirectBack({ connected: provider });
+  } catch (err) {
+    console.error(`oauth callback failed for ${provider}:`, err.message);
+    return redirectBack({ error: 'oauth_exchange_failed' });
+  }
+}
+
+export default async function handler(req, res) {
+  try {
+    // req.url still reflects the ORIGINAL request path even when a
+    // vercel.json rewrite sent /api/hyperfocus, /api/agentlog,
+    // /api/vault, /api/planner, /api/pinned-visuals, /api/tenants, or /api/oauth/:provider/callback
+    // traffic to this same function — rewrites change which function
+    // runs, not what req.url reports. That's what makes routing on it
+    // safe here.
+    const path = (req.url || '').split('?')[0];
+    if (path.startsWith('/api/hyperfocus')) return await handleHyperfocus(req, res);
+    if (path.startsWith('/api/agentlog')) return await handleAgentLog(req, res);
+    if (path.startsWith('/api/vault')) return await handleVault(req, res);
+    if (path.startsWith('/api/life')) return await handleLife(req,res);
+    if (path.startsWith('/api/reminders')) return await handleReminders(req, res);
+    if (path.startsWith('/api/push-deliver')) return await handlePushDelivery(req, res);
+    if (path.startsWith('/api/push')) return await handlePush(req, res);
+    if (path.startsWith('/api/social-auth')) return await handleSocialAuth(req, res);
+    if (path.startsWith('/api/account')) return await handleAccount(req, res);
+    if (path.startsWith('/api/feedback')) return await handleFeedback(req, res);
+    if (path.startsWith('/api/planner')) return await handlePlanner(req, res);
+    if (path.startsWith('/api/pinned-visuals')) return await handlePinnedVisuals(req, res);
+    if (path.startsWith('/api/nex/action')) return await handleNexAction(req, res);
+    if (path.startsWith('/api/sentry-webhook')) return await handleSentryWebhook(req, res);
+    if (path.startsWith('/api/tenants')) return await handleTenants(req, res);
+    if (path.startsWith('/api/oauth/')) {
+      const provider = path.split('/')[3];
+      return await handleOAuthCallback(req, res, provider);
+    }
+    return await handleBoard(req, res);
+  } catch (err) {
+    console.error('board/hyperfocus/agentlog/vault/planner/pinned-visuals/tenants/oauth handler crashed:', err.message);
     return res.status(500).json({ error: err.message });
   }
 }

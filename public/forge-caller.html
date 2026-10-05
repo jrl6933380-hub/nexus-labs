@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Nexus Forge — Field</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #14100b; color: #f2e9dd; padding-bottom: 40px;
+  }
+  .topbar {
+    position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px; background: #1c150d; border-bottom: 2px solid #d97b2f;
+  }
+  .hamburger {
+    width: 40px; height: 40px; border-radius: 10px; border: 1px solid #3a2c1c; background: #241a10;
+    color: #f2e9dd; font-size: 18px; cursor: pointer;
+  }
+  .topbar h1 { font-size: 15px; margin: 0; flex: 1; }
+  .badge { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: #14100b; background: #d97b2f; padding: 3px 8px; border-radius: 999px; font-weight: 700; }
+
+  .drawer-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 40; display: none; }
+  .drawer-backdrop.open { display: block; }
+  .drawer {
+    position: fixed; top: 0; left: 0; bottom: 0; width: min(300px, 85vw); z-index: 41;
+    background: #1c150d; border-right: 1px solid #3a2c1c; transform: translateX(-100%); transition: transform .2s ease;
+    overflow-y: auto; padding: 14px 10px;
+  }
+  .drawer.open { transform: translateX(0); }
+  .drawer h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #c9a97a; margin: 6px 8px 10px; }
+  .queue-item {
+    display: block; width: 100%; text-align: left; background: #241a10; border: 1px solid #3a2c1c;
+    border-radius: 10px; padding: 10px; margin-bottom: 8px; color: #f2e9dd; cursor: pointer;
+  }
+  .queue-item.selected { border-color: #d97b2f; background: #2b1f13; }
+  .queue-item .biz { font-weight: 600; font-size: 14px; }
+  .queue-item .meta { font-size: 11px; color: #a9977d; margin-top: 2px; }
+  .queue-item .disp { display: inline-block; margin-top: 5px; font-size: 10px; padding: 2px 7px; border-radius: 999px; background: #3a2c1c; color: #d9b98a; }
+
+  main { padding: 16px 14px; max-width: 640px; margin: 0 auto; }
+  .empty-main { color: #a9977d; text-align: center; padding: 60px 20px; }
+  .lead-header h2 { font-size: 19px; margin: 0 0 2px; }
+  .lead-header .meta { color: #a9977d; font-size: 13px; margin-bottom: 14px; }
+
+  .call-btn {
+    display: block; text-align: center; background: #2e7d32; color: white; text-decoration: none;
+    padding: 13px; border-radius: 10px; font-weight: 700; font-size: 16px; margin-bottom: 8px;
+  }
+  .answered-btn {
+    display: block; width: 100%; text-align: center; background: #241a10; color: #d97b2f;
+    border: 1px solid #d97b2f; padding: 11px; border-radius: 10px; font-weight: 700; font-size: 13px; margin-bottom: 16px; cursor: pointer;
+  }
+
+  section.panel { background: #1c150d; border: 1px solid #3a2c1c; border-radius: 12px; margin-bottom: 14px; overflow: hidden; }
+  section.panel > .panel-head {
+    display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; cursor: pointer;
+    font-weight: 600; font-size: 13px; color: #f0dfc5;
+  }
+  section.panel > .panel-body { padding: 0 14px 14px; display: none; font-size: 13.5px; line-height: 1.55; }
+  section.panel.open > .panel-body { display: block; }
+  .panel-head .chev { color: #a9977d; }
+
+  .script-line { margin-bottom: 10px; }
+  .script-label { color: #d97b2f; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 2px; }
+  .obj { border-top: 1px solid #3a2c1c; padding-top: 8px; margin-top: 8px; }
+  .obj .q { color: #f0dfc5; font-weight: 600; }
+  .obj .a { color: #d9cdb8; }
+
+  .site-actions { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+  .site-actions button {
+    background: #d97b2f; color: #14100b; border: none; border-radius: 8px; padding: 9px 13px; font-weight: 700; font-size: 12px; cursor: pointer;
+  }
+  .site-actions button.secondary { background: #241a10; color: #f0dfc5; border: 1px solid #3a2c1c; }
+  .site-frame-wrap { border: 1px solid #3a2c1c; border-radius: 10px; overflow: hidden; height: 360px; margin-bottom: 10px; background: #0b0806; }
+  .site-frame-wrap iframe { width: 100%; height: 100%; border: 0; }
+  .site-status { font-size: 12px; color: #a9977d; margin-bottom: 8px; }
+  .edit-row { display: flex; gap: 8px; }
+  .edit-row input {
+    flex: 1; background: #0b0806; border: 1px solid #3a2c1c; border-radius: 8px; padding: 9px; color: #f2e9dd; font-size: 13px;
+  }
+  .edit-row button { background: #3b5bfd; color: white; border: none; border-radius: 8px; padding: 9px 14px; font-weight: 600; font-size: 13px; }
+
+  select, textarea, input[type=date] {
+    width: 100%; background: #0b0806; color: #f2e9dd; border: 1px solid #3a2c1c;
+    border-radius: 8px; padding: 8px; font-size: 14px; margin-bottom: 8px;
+  }
+  textarea { min-height: 60px; resize: vertical; }
+  .save-btn { width: 100%; background: #3b5bfd; color: white; border: none; border-radius: 8px; padding: 10px; font-weight: 600; font-size: 14px; }
+  .saved { color: #4caf50; font-size: 12px; margin-top: 6px; display: none; }
+  #state { color: #a9977d; padding: 24px 14px; }
+
+  /* Earnings strip (drawer) */
+  .earnings { background: #241a10; border: 1px solid #3a2c1c; border-radius: 12px; padding: 12px; margin: 0 0 14px; }
+  .earnings .row { display: flex; justify-content: space-between; align-items: baseline; }
+  .earnings .owed { font-size: 22px; font-weight: 800; color: #4caf50; }
+  .earnings .label { font-size: 11px; color: #a9977d; text-transform: uppercase; letter-spacing: .05em; }
+  .earnings .clients { font-size: 13px; color: #f0dfc5; margin-top: 6px; }
+
+  /* Close-the-deal panel */
+  .tier-row { display: flex; gap: 8px; margin-bottom: 10px; }
+  .tier-opt {
+    flex: 1; background: #0b0806; border: 1px solid #3a2c1c; border-radius: 10px; padding: 10px 6px;
+    color: #f2e9dd; text-align: center; cursor: pointer;
+  }
+  .tier-opt .name { font-weight: 700; font-size: 13px; }
+  .tier-opt .price { font-size: 12px; color: #a9977d; margin-top: 2px; }
+  .tier-opt.selected { border-color: #4caf50; background: #13220f; }
+  .tier-opt.selected .price { color: #8fd18c; }
+  .tier-note { font-size: 12px; color: #a9977d; margin-bottom: 10px; min-height: 16px; }
+  .signup-btn { width: 100%; background: #2e7d32; color: white; border: none; border-radius: 10px; padding: 12px; font-weight: 800; font-size: 15px; cursor: pointer; }
+  .signup-btn:disabled { opacity: .5; cursor: default; }
+  .signed-banner { background: #13220f; border: 1px solid #4caf50; color: #8fd18c; border-radius: 10px; padding: 12px; font-weight: 700; text-align: center; }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <button class="hamburger" id="menu-btn" aria-label="Open lead queue">☰</button>
+    <h1>Nexus Forge — Field</h1>
+    <span class="badge">On shift</span>
+  </div>
+
+  <div class="drawer-backdrop" id="drawer-backdrop"></div>
+  <div class="drawer" id="drawer">
+    <div class="earnings" id="earnings" hidden>
+      <div class="row"><span class="label">You're owed</span><span class="owed" id="owed-amount">&#36;0.00</span></div>
+      <div class="row"><span class="label">Paid so far</span><span id="paid-amount">&#36;0.00</span></div>
+      <div class="clients" id="client-count"></div>
+      <button type="button" class="answered-btn" id="payouts-btn" style="margin:10px 0 0" hidden>Set up payouts</button>
+    </div>
+    <h2>Your leads</h2>
+    <div id="queue-list"></div>
+  </div>
+
+  <div id="state">Loading…</div>
+  <main id="main" hidden>
+    <div class="empty-main" id="empty-main">Tap ☰ and pick a lead to get started.</div>
+    <div id="lead-view" hidden></div>
+  </main>
+
+<script>
+const DISPOSITIONS = [
+  ['', 'Log outcome…'], ['no_answer', 'No answer'], ['voicemail_left', 'Voicemail left'],
+  ['follow_up', 'Follow up'], ['interested', 'Interested'], ['demo_requested', 'Demo requested'],
+  ['appointment_booked', 'Appointment booked'], ['not_interested', 'Not interested'],
+  ['do_not_call', 'Do not call'], ['wrong_number', 'Wrong number'], ['already_has_provider', 'Already has provider'],
+];
+
+let leads = [];
+let selectedId = null;
+let signedLeads = {}; // Redis lead id -> Stripe payment link, this session
+
+// Mirrors lib/forgeProgram.js TIERS; the server is the source of truth for money.
+// (\x24 is a dollar sign.)
+const TIERS = [
+  { key: 'basic', name: 'Basic', price: '\x2429/mo', note: 'Site + hosting, 1 edit a month.' },
+  { key: 'standard', name: 'Standard', price: '\x2449/mo', note: 'Most people pick this: 3 edits a month, contact/booking form, local SEO.' },
+  { key: 'plus', name: 'Plus', price: '\x2479/mo', note: 'Unlimited small edits, priority turnaround, AI assistant on their site.' },
+];
+
+function money(cents) { return '\x24' + ((cents || 0) / 100).toFixed(2); }
+
+async function loadEarnings() {
+  try {
+    const res = await fetch('/api/forge-clients', { credentials: 'include' });
+    if (!res.ok) return;
+    const data = await res.json();
+    const active = (data.clients || []).filter(function (c) { return c.status === 'active'; }).length;
+    const waiting = (data.clients || []).filter(function (c) { return c.status === 'pending_payment'; }).length;
+    document.getElementById('owed-amount').textContent = money(data.owedCents);
+    document.getElementById('paid-amount').textContent = money(data.paidCents);
+    document.getElementById('client-count').textContent = active + (active === 1 ? ' active client' : ' active clients') +
+      (waiting ? ' \u00b7 ' + waiting + ' waiting to pay' : '');
+    document.getElementById('earnings').hidden = false;
+    // Payouts are handled by hand for now (no Stripe Connect yet), so the
+    // "Set up payouts" button stays hidden. Re-enable once Connect is on:
+    if (window.FORGE_CONNECT_PAYOUTS) loadPayoutStatus();
+  } catch (err) { /* earnings are a bonus; never block the calling flow */ }
+}
+
+async function loadPayoutStatus() {
+  const btn = document.getElementById('payouts-btn');
+  try {
+    const res = await fetch('/api/forge-connect', { credentials: 'include' });
+    if (!res.ok) return;
+    const s = await res.json();
+    if (s.payoutsEnabled) { btn.hidden = true; return; }
+    btn.textContent = s.connected ? 'Finish payout setup' : 'Set up payouts';
+    btn.hidden = false;
+  } catch (err) { /* optional */ }
+}
+
+async function startPayoutSetup() {
+  const btn = document.getElementById('payouts-btn');
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/forge-connect', { method: 'POST', credentials: 'include' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not start payout setup.');
+    window.location.href = data.url;
+  } catch (err) {
+    alert(err.message);
+    btn.disabled = false;
+  }
+}
+
+function closeDealHtml(lead) {
+  if (signedLeads[lead.id]) {
+    const url = signedLeads[lead.id];
+    if (url === 'pending') {
+      return '<div class="signed-banner">Signed. Payment link failed to generate; ask a manager to resend it from Forge Ops.</div>';
+    }
+    const smsBody = encodeURIComponent('Here is your secure link to get your new website started: ' + url);
+    return '<div class="signed-banner">Signed! Now send them the payment link while you are still on the phone.</div>' +
+      '<a class="call-btn" style="margin-top:10px" href="sms:' + escapeHtml(lead.phone) + '?&body=' + smsBody + '">Text them the payment link</a>' +
+      '<button type="button" class="answered-btn" id="copy-pay-link" data-url="' + escapeHtml(url) + '">Copy link</button>' +
+      '<div class="tier-note">Your bonus kicks in the moment they pay.</div>';
+  }
+  return '' +
+    '<div class="tier-row">' + TIERS.map(function (t) {
+      return '<button type="button" class="tier-opt' + (t.key === 'standard' ? ' selected' : '') + '" data-tier="' + t.key + '">' +
+        '<div class="name">' + t.name + '</div><div class="price">' + t.price + '</div></button>';
+    }).join('') + '</div>' +
+    '<div class="tier-note" id="tier-note">' + TIERS[1].note + '</div>' +
+    '<button type="button" class="signup-btn" id="signup-btn">Sign them up: Standard</button>';
+}
+
+function escapeHtml(s) {
+  const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+  return String(s || '').replace(/[&<>"']/g, function (c) { return map[c]; });
+}
+
+async function loadLeads() {
+  const stateEl = document.getElementById('state');
+  const main = document.getElementById('main');
+  try {
+    const res = await fetch('/api/forge-leads', { credentials: 'include' });
+    if (res.status === 401) { stateEl.textContent = 'Please sign in first.'; setTimeout(function () { window.location.href = '/room-login.html?next=' + encodeURIComponent('/forge-caller.html'); }, 800); return; }
+    if (res.status === 403) { stateEl.textContent = "This account doesn't have Forge field access yet. Ask a manager to grant it."; return; }
+    if (!res.ok) throw new Error('load failed');
+    const data = await res.json();
+    leads = (data.leads || []).filter(function (l) { return !l.suppressed; });
+    stateEl.hidden = true;
+    main.hidden = false;
+    renderQueue();
+    if (selectedId) renderLead(selectedId);
+  } catch (err) {
+    stateEl.textContent = 'Could not load leads. Pull to refresh.';
+  }
+}
+
+function renderQueue() {
+  const list = document.getElementById('queue-list');
+  if (!leads.length) { list.innerHTML = '<div style="color:#a9977d;font-size:13px;padding:10px;">No leads assigned yet.</div>'; return; }
+  list.innerHTML = leads.map(function (l) {
+    const dispLabel = l.lastDisposition ? l.lastDisposition.replace(/_/g, ' ') : 'new';
+    return '<button type="button" class="queue-item' + (l.id === selectedId ? ' selected' : '') + '" data-id="' + l.id + '">' +
+      '<div class="biz">' + escapeHtml(l.businessName) + '</div>' +
+      '<div class="meta">' + escapeHtml(l.category || '') + '</div>' +
+      '<span class="disp">' + escapeHtml(dispLabel) + '</span>' +
+    '</button>';
+  }).join('');
+  list.querySelectorAll('.queue-item').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      selectedId = btn.dataset.id;
+      closeDrawer();
+      renderLead(selectedId);
+      renderQueue();
+    });
+  });
+}
+
+function panelHtml(id, title, bodyHtml, openByDefault) {
+  return '<section class="panel' + (openByDefault ? ' open' : '') + '" id="' + id + '">' +
+    '<div class="panel-head" data-toggle="' + id + '"><span>' + title + '</span><span class="chev">▾</span></div>' +
+    '<div class="panel-body">' + bodyHtml + '</div>' +
+  '</section>';
+}
+
+function scriptBodyHtml(pitch) {
+  const weaknesses = pitch.weaknesses.map(function (w) { return '<div>• ' + escapeHtml(w) + '</div>'; }).join('');
+  const questions = pitch.discoveryQuestions.map(function (q) { return '<div>• ' + escapeHtml(q) + '</div>'; }).join('');
+  const objections = pitch.objections.map(function (o) {
+    return '<div class="obj"><div class="q">"' + escapeHtml(o.objection) + '"</div><div class="a">' + escapeHtml(o.response) + '</div></div>';
+  }).join('');
+  return '' +
+    '<div class="script-line"><div class="script-label">Opener</div>' + escapeHtml(pitch.opener) + '</div>' +
+    '<div class="script-line"><div class="script-label">Why you called</div>' + weaknesses + '</div>' +
+    '<div class="script-line"><div class="script-label">Discovery questions</div>' + questions + '</div>' +
+    '<div class="script-line"><div class="script-label">Show the demo</div>' + escapeHtml(pitch.demoLine) + '</div>' +
+    '<div class="script-line"><div class="script-label">Objections</div>' + objections + '</div>' +
+    '<div class="script-line"><div class="script-label">Upsell</div>' + escapeHtml(pitch.upsell) + '</div>' +
+    '<div class="script-line"><div class="script-label">Next step</div>' + escapeHtml(pitch.nextStep) + '</div>';
+}
+
+function siteBodyHtml(lead) {
+  let statusLine = '';
+  let frame = '';
+  let showGenerate = lead.siteStatus === 'none' || lead.siteStatus === 'error';
+  if (lead.siteStatus === 'generating') statusLine = 'Building the preview… this can take up to a minute.';
+  if (lead.siteStatus === 'error') statusLine = 'Something went wrong generating this one — try again.';
+  if (lead.siteStatus === 'ready' && lead.siteHtml) {
+    frame = '<div class="site-frame-wrap"><iframe id="site-frame" sandbox="allow-scripts allow-forms" title="Demo site preview"></iframe></div>';
+  }
+  return '' +
+    '<div class="site-actions">' +
+      (showGenerate ? '<button type="button" id="generate-site-btn">Generate site preview</button>' : '') +
+      (lead.siteStatus === 'ready' ? '<button type="button" class="secondary" id="regen-site-btn">Regenerate</button>' : '') +
+    '</div>' +
+    (statusLine ? '<div class="site-status">' + statusLine + '</div>' : '') +
+    frame +
+    (lead.siteStatus === 'ready' ? '<div class="edit-row"><input id="edit-instruction" placeholder="e.g. make it feel more upscale…" /><button type="button" id="edit-site-btn">Send</button></div>' : '');
+}
+
+function renderLead(id) {
+  const lead = leads.find(function (l) { return l.id === id; });
+  document.getElementById('empty-main').hidden = true;
+  const view = document.getElementById('lead-view');
+  view.hidden = false;
+  if (!lead) { view.innerHTML = ''; return; }
+
+  const options = DISPOSITIONS.map(function (pair) {
+    return '<option value="' + pair[0] + '"' + (lead.lastDisposition === pair[0] ? ' selected' : '') + '>' + pair[1] + '</option>';
+  }).join('');
+
+  view.innerHTML = '' +
+    '<div class="lead-header"><h2>' + escapeHtml(lead.businessName) + '</h2>' +
+      '<div class="meta">' + escapeHtml(lead.category || '') + (lead.location ? ' · ' + escapeHtml(lead.location) : '') + '</div>' +
+    '</div>' +
+    '<a class="call-btn" href="tel:' + escapeHtml(lead.phone) + '">Call ' + escapeHtml(lead.phone) + '</a>' +
+    '<button type="button" class="answered-btn" id="answered-btn">They answered — build the site now</button>' +
+    panelHtml('panel-script', 'Pitch script', scriptBodyHtml(lead.pitch), true) +
+    panelHtml('panel-site', 'Site preview', siteBodyHtml(lead), lead.siteStatus !== 'none') +
+    panelHtml('panel-close', "They're in: sign them up", closeDealHtml(lead), Boolean(signedLeads[lead.id])) +
+    panelHtml('panel-log', 'Log this call', '' +
+      '<select id="disposition">' + options + '</select>' +
+      '<textarea id="notes" placeholder="Notes from the call…">' + escapeHtml(lead.notes || '') + '</textarea>' +
+      '<input type="date" id="followup" value="' + (lead.followUpDate || '') + '" />' +
+      '<button class="save-btn" id="save-outcome">Save outcome</button>' +
+      '<div class="saved" id="saved-msg">Saved.</div>', false);
+
+  view.querySelectorAll('.panel-head').forEach(function (head) {
+    head.addEventListener('click', function () {
+      document.getElementById(head.dataset.toggle).classList.toggle('open');
+    });
+  });
+
+  const siteFrame = document.getElementById('site-frame');
+  if (siteFrame && lead.siteHtml) siteFrame.srcdoc = lead.siteHtml;
+
+  let chosenTier = 'standard';
+  view.querySelectorAll('.tier-opt').forEach(function (opt) {
+    opt.addEventListener('click', function () {
+      chosenTier = opt.dataset.tier;
+      view.querySelectorAll('.tier-opt').forEach(function (o) { o.classList.toggle('selected', o === opt); });
+      const tier = TIERS.find(function (t) { return t.key === chosenTier; });
+      document.getElementById('tier-note').textContent = tier.note;
+      document.getElementById('signup-btn').textContent = 'Sign them up: ' + tier.name;
+    });
+  });
+
+  const signupBtn = document.getElementById('signup-btn');
+  if (signupBtn) signupBtn.addEventListener('click', async function () {
+    const tier = TIERS.find(function (t) { return t.key === chosenTier; });
+    if (!confirm('Sign ' + lead.businessName + ' up for ' + tier.name + ' (' + tier.price + ')?')) return;
+    signupBtn.disabled = true;
+    signupBtn.textContent = 'Signing...';
+    try {
+      const res = await fetch('/api/forge-clients', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'convert', leadId: lead.id, tier: chosenTier }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not sign them up.');
+      signedLeads[lead.id] = data.checkoutUrl || 'pending';
+      renderLead(lead.id);
+      loadEarnings();
+    } catch (err) {
+      alert(err.message);
+      signupBtn.disabled = false;
+      signupBtn.textContent = 'Sign them up: ' + tier.name;
+    }
+  });
+
+  const copyBtn = document.getElementById('copy-pay-link');
+  if (copyBtn) copyBtn.addEventListener('click', async function () {
+    try { await navigator.clipboard.writeText(copyBtn.dataset.url); copyBtn.textContent = 'Copied'; }
+    catch (err) { prompt('Copy this link:', copyBtn.dataset.url); }
+  });
+
+  const answeredBtn = document.getElementById('answered-btn');
+  if (answeredBtn) {
+    // No way to detect a real answer through a tel: link — this is the
+    // one-tap trigger for the moment the worker hears "hello", so a
+    // generation only ever happens for a call that actually connected.
+    answeredBtn.addEventListener('click', function () {
+      document.getElementById('panel-site').classList.add('open');
+      runSiteAction(lead.id, 'generate');
+    });
+  }
+
+  const generateBtn = document.getElementById('generate-site-btn');
+  if (generateBtn) generateBtn.addEventListener('click', function () { runSiteAction(lead.id, 'generate'); });
+  const regenBtn = document.getElementById('regen-site-btn');
+  if (regenBtn) regenBtn.addEventListener('click', function () { runSiteAction(lead.id, 'generate'); });
+  const editBtn = document.getElementById('edit-site-btn');
+  if (editBtn) editBtn.addEventListener('click', function () {
+    const instruction = document.getElementById('edit-instruction').value.trim();
+    if (!instruction) return;
+    runSiteAction(lead.id, 'edit', instruction);
+  });
+
+  document.getElementById('save-outcome').addEventListener('click', async function () {
+    const disposition = document.getElementById('disposition').value;
+    const notes = document.getElementById('notes').value;
+    const followUpDate = document.getElementById('followup').value;
+    if (!disposition) { alert('Pick an outcome first.'); return; }
+    const res = await fetch('/api/forge-leads', {
+      method: 'PATCH', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: lead.id, disposition, notes, followUpDate: followUpDate || null }),
+    });
+    if (res.ok) {
+      document.getElementById('saved-msg').style.display = 'block';
+      setTimeout(loadLeads, 800);
+    } else {
+      alert('Could not save. Try again.');
+    }
+  });
+}
+
+async function runSiteAction(leadId, action, instruction) {
+  const lead = leads.find(function (l) { return l.id === leadId; });
+  if (lead) { lead.siteStatus = 'generating'; renderLead(leadId); }
+  try {
+    const res = await fetch('/api/forge-site', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leadId: leadId, action: action, instruction: instruction }),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || 'Site action failed.'); await loadLeads(); return; }
+    const idx = leads.findIndex(function (l) { return l.id === leadId; });
+    if (idx !== -1) leads[idx] = Object.assign({}, leads[idx], data.lead, { pitch: leads[idx].pitch });
+    renderLead(leadId);
+    renderQueue();
+  } catch (err) {
+    alert('Network error.');
+    await loadLeads();
+  }
+}
+
+function openDrawer() { document.getElementById('drawer').classList.add('open'); document.getElementById('drawer-backdrop').classList.add('open'); }
+function closeDrawer() { document.getElementById('drawer').classList.remove('open'); document.getElementById('drawer-backdrop').classList.remove('open'); }
+
+document.getElementById('menu-btn').addEventListener('click', openDrawer);
+document.getElementById('payouts-btn').addEventListener('click', startPayoutSetup);
+document.getElementById('drawer-backdrop').addEventListener('click', closeDrawer);
+
+loadLeads();
+loadEarnings();
+</script>
+</body>
+</html>

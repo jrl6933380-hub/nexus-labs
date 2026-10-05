@@ -3,8 +3,24 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "scripts": {
+    "dev": "vite public",
+    "test": "node --test",
+    "test:deck": "node --test test/workspace-views-delete.test.mjs",
+    "test:a11y": "playwright test",
+    "test:nex-trials": "node scripts/run-nex-trials.mjs"
+  },
   "dependencies": {
     "@sentry/node": "^8.0.0",
-    "e2b": "^1.0.0"
+    "@vercel/functions": "^3.9.8",
+    "e2b": "^1.0.0",
+    "jose": "^6.2.12",
+    "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.10.0",
+    "@playwright/test": "^1.48.0",
+    "serve": "^14.2.0",
+    "vite": "^7.3.6"
   }
 }

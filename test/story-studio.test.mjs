@@ -1,0 +1,474 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createStoryStudioHandler } from '../api/story-studio.js';
+import { createStoryStudioStore, parseComicPlan, prepareBasicComicPlan } from '../lib/storyStudio.js';
+
+function plan() {
+  return {
+    title: 'The Signal',
+    logline: 'A courier discovers the package is calling her by name.',
+    genre: 'science fiction',
+    visualStyle: 'inked cinematic panels with sharp violet light',
+    palette: ['#101525', '#7b45d6', '#58d7ff'],
+    worldBible: {
+      premise:'The signal can copy any voice it hears.',
+      era:'Near future',
+      storyRules:['The signal cannot cross running water.'],
+      locations:[{name:'Platform',visualIdentity:'wet steel and violet lamps',continuity:'clock remains stopped at midnight'}],
+      recurringProps:[{name:'Package',appearance:'black case with cyan seam',continuity:'Mara carries it in her right hand'}],
+      visualMotifs:['broken signal bars'],
+      colorScript:['violet isolation becomes red danger'],
+      animationLanguage:'Long holds and sudden electronic motion.',
+      soundLanguage:'Rain, rail hum, radio distortion, and silence.',
+    },
+    characters: [{ name: 'Mara', role: 'courier', appearance: 'cropped dark hair, red utility coat', continuity: 'coat and silver wrist band remain visible' }],
+    panels: Array.from({ length: 6 }, (_, index) => ({
+      title: `Beat ${index + 1}`,
+      beat: `The story advances at beat ${index + 1}.`,
+      shot: index % 2 ? 'close-up' : 'wide shot',
+      setting: 'rainy elevated train platform',
+      caption: index === 0 ? 'The last train was never empty.' : '',
+      dialogue: [{ speaker: 'Mara', line: `Line ${index + 1}` }],
+      artDirection: 'Keep the red coat and silver wrist band visible.',
+    })),
+  };
+}
+
+function fakeRedis() {
+  const hashes = new Map();
+  const sorted = new Map();
+  return {
+    async command([op, key, ...args]) {
+      if (op === 'HGET') return hashes.get(key)?.get(args[0]) ?? null;
+      if (op === 'HSET') { if (!hashes.has(key)) hashes.set(key, new Map()); hashes.get(key).set(args[0], args[1]); return 1; }
+      if (op === 'HDEL') { let count = 0; for (const id of args) count += hashes.get(key)?.delete(id) ? 1 : 0; return count; }
+      if (op === 'HMGET') return args.map((id) => hashes.get(key)?.get(id) ?? null);
+      if (op === 'ZADD') { if (!sorted.has(key)) sorted.set(key, new Map()); sorted.get(key).set(args[1], Number(args[0])); return 1; }
+      if (op === 'ZREVRANGE') {
+        const start = Number(args[0]); const end = Number(args[1]);
+        const ids = [...(sorted.get(key) || new Map()).entries()].sort((a,b) => b[1] - a[1]).map(([id]) => id);
+        return ids.slice(start, end < 0 ? undefined : end + 1);
+      }
+      if (op === 'ZREM') { let count = 0; for (const id of args) count += sorted.get(key)?.delete(id) ? 1 : 0; return count; }
+      throw new Error(`Unexpected command ${op}`);
+    },
+  };
+}
+
+function response() {
+  return { code:0, body:null, headers:{}, setHeader(key,value){ this.headers[key]=value; }, status(code){ this.code=code; return this; }, json(body){ this.body=body; return this; } };
+}
+
+test('comic-plan parser accepts fenced JSON and normalizes six editable panels', () => {
+  const parsed = parseComicPlan('```json\n' + JSON.stringify(plan()) + '\n```');
+  assert.equal(parsed.panels.length, 6);
+  assert.equal(parsed.directorBibleVersion,'1.2.0');
+  assert.equal(parsed.panels[0].number, 1);
+  assert.equal(parsed.characters[0].name, 'Mara');
+  assert.equal(parsed.characters[0].actorId,'mara');
+  assert.equal(parsed.panels[0].scene.directedBy,'nex');
+  assert.equal(parsed.panels[0].scene.actors[0].id,'mara');
+  assert.deepEqual(parsed.palette, ['#101525', '#7b45d6', '#58d7ff']);
+  assert.equal(parsed.worldBible.locations[0].name,'Platform');
+  assert.equal(parsed.worldBible.recurringProps[0].name,'Package');
+  assert.equal(parsed.worldBible.animationLanguage,'Long holds and sudden electronic motion.');
+  assert.equal(parsed.panels[0].dialogue[0].type, 'speech');
+  assert.equal(parsed.panels[0].durationMs,6000);
+  assert.equal(parsed.panels[0].lettering.directedBy,'nex');
+  assert.equal(parsed.panels[0].lettering.tracks[0].textCues[0].text,'Line 1');
+  assert.equal(parsed.panels[0].lettering.tracks[0].actorId,'mara');
+});
+
+test('comic dialogue supports multiple safe bubble styles and rejects unknown presentation values', () => {
+  const comic = plan();
+  comic.panels[0].dialogue = [
+    { speaker:'Mara', line:'Did you hear that?', type:'speech', side:'right', layout:{x:82,y:-5,width:40,source:'manual'} },
+    { speaker:'Mara', line:'It knows my name.', type:'thought' },
+    { speaker:'Package', line:'RUN.', type:'shout' },
+    { speaker:'Package', line:'Not a CSS injection.', type:'position:fixed' },
+  ];
+  const parsed = parseComicPlan(JSON.stringify(comic));
+  assert.deepEqual(parsed.panels[0].dialogue.map((line) => line.type), ['speech','thought','shout','speech']);
+  assert.equal(parsed.panels[0].dialogue[0].side,'right');
+  assert.deepEqual(parsed.panels[0].dialogue[0].layout,{x:58,y:3,width:40,source:'manual'});
+  assert.equal(parsed.panels[0].dialogue[1].layout,null);
+});
+
+test('Nex prepares fresh basic comics with no more than two clean speaker labels per panel', () => {
+  const comic = plan();
+  comic.panels[0].dialogue = [
+    {speaker:'Mimic (V.O.)',line:'Open the door.'},
+    {speaker:'Mara',line:'No.'},
+    {speaker:'Eli',line:'The third line would crowd the art.'},
+  ];
+  const prepared = prepareBasicComicPlan(comic);
+  assert.equal(prepared.panels[0].dialogue.length,2);
+  assert.equal(prepared.panels[0].dialogue[0].speaker,'Mimic');
+  assert.equal(prepared.panels[0].dialogue[0].layout,null);
+  assert.equal(prepared.panels[0].lettering.tracks[0].speaker,'Mimic');
+  assert.equal(prepared.panels[0].lettering.tracks[1].actorId,'mara');
+  assert.equal(prepared.panels[0].lettering.tracks[1].followsActor,true);
+});
+
+test('Story Studio projects stay isolated by signed-in account and can be deleted', async () => {
+  const redis = fakeRedis();
+  let timestamp = 1000;
+  const store = createStoryStudioStore({ command:redis.command, now:() => timestamp++ });
+  const project = await store.saveProject('alice',{ sourceTitle:'Chapter one', sourceText:'x'.repeat(150), comic:plan() });
+  assert.equal((await store.listProjects('alice')).length, 1);
+  assert.equal((await store.listProjects('bob')).length, 0);
+  assert.equal(await store.getProject('bob',project.id), null);
+  assert.equal(await store.deleteProject('alice',project.id), true);
+  assert.equal(await store.getProject('alice',project.id), null);
+});
+
+test('generation requires authentication and an explicit rights confirmation', async () => {
+  const noUser = createStoryStudioHandler({ resolveUser:async () => null });
+  const unauthenticated = response();
+  await noUser({ method:'GET', query:{} },unauthenticated);
+  assert.equal(unauthenticated.code,401);
+
+  const noRights = createStoryStudioHandler({ resolveUser:async () => 'alice' });
+  const rejected = response();
+  await noRights({ method:'POST', body:{ action:'generate', sourceText:'x'.repeat(150) } },rejected);
+  assert.equal(rejected.code,400);
+  assert.match(rejected.body.error,/right to adapt/i);
+});
+
+test('one chapter routes through Nex, saves privately, and settles creative credits', async () => {
+  const calls = { route:0, save:[], settle:[] };
+  const handler = createStoryStudioHandler({
+    resolveUser:async () => 'alice',
+    store:{
+      async saveProject(userId,input){ calls.save.push({userId,input}); return { id:'story-1', sourceTitle:input.sourceTitle, sourceText:input.sourceText, comic:input.comic }; },
+      async listProjects(){ return []; }, async getProject(){ return null; }, async deleteProject(){ return false; },
+    },
+    meter:{ async reserveBuild(){ return {ok:true,period:1,reservationId:'reservation-1'}; }, async settleBuild(input){ calls.settle.push(input); } },
+    async route(){ calls.route += 1; return { data:{ content:[{type:'text',text:JSON.stringify(plan())}] } }; },
+  });
+  const res = response();
+  await handler({ method:'POST', body:{ action:'generate', sourceTitle:'Chapter one', sourceText:'A'.repeat(180), visualStyle:'noir', rightsConfirmed:true } },res);
+  assert.equal(res.code,200);
+  assert.equal(calls.route,1);
+  assert.equal(calls.save[0].userId,'alice');
+  assert.equal(calls.save[0].input.comic.panels.length,6);
+  assert.equal(calls.settle[0].success,true);
+});
+
+test('saving edits cannot claim a project outside the current account store', async () => {
+  const handler = createStoryStudioHandler({
+    resolveUser:async () => 'alice',
+    store:{ async getProject(){ return null; } },
+  });
+  const res = response();
+  await handler({ method:'POST', body:{ action:'save', projectId:'someone-elses-project', comic:plan() } },res);
+  assert.equal(res.code,404);
+});
+
+test('a creator can re-direct one scene without deleting the comic or cast bible', async () => {
+  const current = {id:'story-1',sourceTitle:'Chapter one',sourceText:'A'.repeat(180),comic:parseComicPlan(JSON.stringify(plan()))};
+  current.comic.panels[0].image = {url:'/api/story-image?id=story-1&panel=0&v=700',layered:true};
+  current.comic.panels[0].scene.actors[0].assetUrl = '/api/story-actor?id=story-1&panel=0&actor=mara&kind=performance&v=701';
+  let saved;
+  const handler = createStoryStudioHandler({
+    resolveUser:async () => 'alice',
+    store:{async getProject(){return current;},async saveProject(userId,input){saved = input.comic; return {...current,comic:input.comic};}},
+  });
+  const res = response();
+  await handler({method:'POST',body:{action:'restage',projectId:'story-1',panelIndex:0}},res);
+  assert.equal(res.code,200);
+  assert.equal(res.body.restaged,true);
+  assert.equal(saved.panels[0].image,null);
+  assert.equal(saved.panels[0].scene.actors[0].assetUrl,null);
+  assert.equal(saved.panels[0].scene.forceRegenerateActors,true);
+  assert.equal(saved.panels[0].scene.actors[0].keyframes[0].scale,1);
+  assert.equal(saved.characters[0].visualIdentity?.assetUrl ?? null,current.comic.characters[0].visualIdentity?.assetUrl ?? null);
+});
+
+test('Nex prepares and persists one reusable transparent identity per cast member', async () => {
+  const current = {id:'story-1',sourceTitle:'Chapter one',sourceText:'A'.repeat(180),comic:plan()};
+  let savedComic;
+  const handler = createStoryStudioHandler({
+    resolveUser:async () => 'alice',
+    store:{
+      async getProject(){return current;},
+      async saveProject(userId,input){savedComic = input.comic; return {...current,comic:input.comic};},
+    },
+    visuals:{async saveIdentity(userId,projectId,actor,input){assert.equal(actor,'mara'); return {model:input.model,generationId:input.generationId,generatedAt:700};}},
+    meter:{async reserveBuild(){return {ok:true,period:1,reservationId:'cast'};},async settleBuild(){}},
+    async generateActor({panel,character}){assert.equal(panel ?? null,null); assert.equal(character.name,'Mara'); return {dataUrl:'data:image/png;base64,aWRlbnRpdHk=',model:'actor-model',generationId:'cast-1'};},
+  });
+  const res = response();
+  await handler({method:'POST',body:{action:'prepare-cast',projectId:'story-1'}},res);
+  assert.equal(res.code,200);
+  assert.equal(res.body.ready,true);
+  assert.equal(savedComic.characters[0].visualIdentity.assetUrl,'/api/story-actor?id=story-1&actor=mara&kind=identity&v=700');
+  assert.equal(savedComic.characters[0].visualIdentity.generationId,'cast-1');
+});
+
+test('staging one panel saves a private set and transparent actor performance layers', async () => {
+  const current = { id:'story-1', sourceTitle:'Chapter one', sourceText:'A'.repeat(180), comic:plan() };
+  const calls = { visual:[], setQa:[], save:[], settle:[] };
+  const handler = createStoryStudioHandler({
+    resolveUser:async () => 'alice',
+    store:{
+      async getProject(){ return current; },
+      async saveProject(userId,input){ calls.save.push({userId,input}); return {...current,comic:input.comic}; },
+    },
+    visuals:{
+      async save(userId,projectId,panelIndex,input){ calls.visual.push({userId,projectId,panelIndex,input}); return {model:input.model,generatedAt:777}; },
+      async getIdentity(){ return {mediaType:'image/png',base64:'aWRlbnRpdHk='}; },
+      async saveActor(userId,projectId,panelIndex,actor,input){ calls.visual.push({userId,projectId,panelIndex,actor,input}); return {model:input.model,generatedAt:778}; },
+    },
+    meter:{ async reserveBuild(){ return {ok:true,period:1,reservationId:'visual-reservation'}; }, async settleBuild(input){ calls.settle.push(input); } },
+    async generateBackground(input){ assert.equal(input.panelIndex,1); return {dataUrl:'data:image/png;base64,YXJ0',model:'image-model'}; },
+    async generateActor(input){ assert.equal(input.referenceImage.base64,'aWRlbnRpdHk='); return {dataUrl:'data:image/png;base64,YWN0b3I=',model:'actor-model'}; },
+    async inspectBackground(input){ calls.setQa.push(input); return {verdict:'clean',issues:[]}; },
+  });
+  const res = response();
+  await handler({method:'POST',body:{action:'illustrate',projectId:'story-1',panelIndex:1,comic:current.comic}},res);
+  assert.equal(res.code,200);
+  assert.equal(calls.visual[0].panelIndex,1);
+  assert.equal(calls.setQa[0].imageDataUrl,'data:image/png;base64,YXJ0');
+  assert.ok(calls.save[0].input.comic.panels[1].dialogue[0].layout);
+  assert.equal(calls.save[0].input.comic.panels[1].image.url,'/api/story-image?id=story-1&panel=1&v=777');
+  assert.equal(calls.save[0].input.comic.panels[1].image.layered,true);
+  assert.equal(calls.save[0].input.comic.panels[1].scene.actors[0].assetUrl,'/api/story-actor?id=story-1&panel=1&actor=mara&kind=performance&v=778');
+  assert.equal(calls.settle[0].success,true);
+});
+
+test('Nex preserves a rejected set and regenerates it in a fresh bounded request', async () => {
+  let current = { id:'story-1', sourceTitle:'Chapter one', sourceText:'A'.repeat(180), comic:plan() };
+  const generations = [];
+  let inspections = 0;
+  let savedAsset;
+  const handler = createStoryStudioHandler({
+    resolveUser:async () => 'alice',
+    store:{
+      async getProject(){ return current; },
+      async saveProject(userId,input){ current = {...current,comic:input.comic}; return current; },
+    },
+    visuals:{
+      async save(userId,projectId,panelIndex,input){ savedAsset = input; return {model:input.model,generatedAt:998 + generations.length}; },
+      async getIdentity(){ return null; },
+      async getActor(){ return null; },
+      async saveActor(){ return {model:'actor-model',generatedAt:1000}; },
+    },
+    meter:{ async reserveBuild(){ return {ok:true,period:1,reservationId:'visual-reservation'}; }, async settleBuild(){} },
+    async generateBackground(input){
+      generations.push(input);
+      return {dataUrl:`data:image/png;base64,${input.correctionIssues.length ? 'Y2xlYW4=' : 'YXJ0aWZhY3Q='}`,model:'image-model'};
+    },
+    async generateActor(){ return {dataUrl:'data:image/png;base64,YWN0b3I=',model:'actor-model'}; },
+    async inspectBackground(){
+      inspections += 1;
+      return inspections === 1
+        ? {verdict:'regenerate',issues:['generated_text','blank_lettering_box']}
+        : {verdict:'clean',issues:[]};
+    },
+  });
+  const res = response();
+  await handler({method:'POST',body:{action:'illustrate',projectId:'story-1',panelIndex:1,comic:current.comic}},res);
+  assert.equal(res.code,200);
+  assert.equal(res.body.complete,false);
+  assert.equal(res.body.needsSetRetry,true);
+  const retry = response();
+  await handler({method:'POST',body:{action:'illustrate',projectId:'story-1',panelIndex:1,comic:current.comic}},retry);
+  assert.equal(retry.code,200);
+  assert.equal(retry.body.complete,true);
+  assert.equal(retry.body.needsSetRetry,false);
+  assert.equal(generations.length,2);
+  assert.deepEqual(generations[1].correctionIssues,['generated_text','blank_lettering_box']);
+  assert.equal(savedAsset.dataUrl,'data:image/png;base64,Y2xlYW4=');
+});
+
+test('a failed set inspection keeps the generated plate quarantined for a retry', async () => {
+  const current = { id:'story-1', sourceTitle:'Chapter one', sourceText:'A'.repeat(180), comic:plan() };
+  let savedComic;
+  const handler = createStoryStudioHandler({
+    resolveUser:async () => 'alice',
+    store:{
+      async getProject(){ return current; },
+      async saveProject(userId,input){ savedComic = input.comic; return {...current,comic:input.comic}; },
+    },
+    visuals:{
+      async save(){ return {model:'image-model',generatedAt:888}; },
+      async getIdentity(){ return null; },
+      async saveActor(){ return {model:'actor-model',generatedAt:889}; },
+    },
+    meter:{ async reserveBuild(){ return {ok:true,period:1,reservationId:'visual-reservation'}; }, async settleBuild(){} },
+    async generateBackground(){ return {dataUrl:'data:image/png;base64,YXJ0',model:'image-model'}; },
+    async generateActor(){ return {dataUrl:'data:image/png;base64,YWN0b3I=',model:'actor-model'}; },
+    async inspectBackground(){ throw new Error('vision unavailable'); },
+  });
+  const originalError = console.error; console.error = () => {};
+  try {
+    const res = response();
+    await handler({method:'POST',body:{action:'illustrate',projectId:'story-1',panelIndex:1,comic:current.comic}},res);
+    assert.equal(res.code,200);
+    assert.equal(savedComic.panels[1].image.url,'/api/story-image?id=story-1&panel=1&v=888');
+    assert.equal(savedComic.panels[1].image.needsSetRetry,true);
+    assert.deepEqual(savedComic.panels[1].image.setIssues,['inspection_failed']);
+    assert.ok(savedComic.panels[1].dialogue[0].layout);
+  } finally { console.error = originalError; }
+});
+
+test('re-direct bypasses the old actor performance cache and generates a fresh layer', async () => {
+  const current = {id:'story-1',sourceTitle:'Chapter one',sourceText:'A'.repeat(180),comic:parseComicPlan(JSON.stringify(plan()))};
+  const panel = current.comic.panels[0];
+  panel.scene.forceRegenerateActors = true;
+  panel.scene.actors[0].assetUrl = null;
+  let cacheReads = 0; let actorGenerations = 0; let savedComic;
+  const handler = createStoryStudioHandler({
+    resolveUser:async () => 'alice',
+    store:{async getProject(){return current;},async saveProject(userId,input){savedComic = input.comic; return {...current,comic:input.comic};}},
+    visuals:{
+      async getActor(){cacheReads += 1; return {generatedAt:111};},
+      async getIdentity(){return null;},
+      async saveActor(){return {model:'actor-model',generatedAt:999};},
+      async save(){return {model:'set-model',generatedAt:998};},
+    },
+    meter:{async reserveBuild(){return {ok:true,period:1,reservationId:'fresh'};},async settleBuild(){}},
+    async generateActor(){actorGenerations += 1; return {dataUrl:'data:image/png;base64,ZnJlc2g=',model:'actor-model'};},
+    async generateBackground(){return {dataUrl:'data:image/png;base64,c2V0',model:'set-model'};},
+    async inspectBackground(){return {verdict:'clean',issues:[]};},
+  });
+  const res = response();
+  await handler({method:'POST',body:{action:'illustrate',projectId:'story-1',panelIndex:0,comic:current.comic}},res);
+  assert.equal(res.code,200);
+  assert.equal(cacheReads,0);
+  assert.equal(actorGenerations,1);
+  assert.match(savedComic.panels[0].scene.actors[0].assetUrl,/v=999$/);
+  assert.equal(savedComic.panels[0].scene.forceRegenerateActors,false);
+});
+
+test('Nex reviews the assembled scene and applies bounded visible-body placement', async () => {
+  const current = {id:'story-1',sourceTitle:'Chapter one',sourceText:'A'.repeat(180),comic:parseComicPlan(JSON.stringify(plan()))};
+  const panel = current.comic.panels[0];
+  panel.image = {url:'/api/story-image?id=story-1&panel=0&v=777',layered:true,compositeReviewPasses:0,compositeReviewedAt:0,needsCompositeReview:true};
+  panel.scene.actors[0].assetUrl = '/api/story-actor?id=story-1&panel=0&actor=mara&kind=performance&v=778';
+  let savedComic;
+  const handler = createStoryStudioHandler({
+    resolveUser:async () => 'alice',
+    store:{async getProject(){return current;},async saveProject(userId,input){savedComic = input.comic; return {...current,comic:input.comic};}},
+    async reviewComposite(input){
+      assert.equal(input.previewDataUrl,'data:image/jpeg;base64,Y29tcG9zaXRl');
+      return {verdict:'adjust',issues:['actor_too_large'],actors:[{actorId:'mara',desiredBounds:{x:12,y:48,width:18,height:28},confidence:.96}]};
+    },
+  });
+  const res = response();
+  await handler({method:'POST',body:{action:'review-scene',projectId:'story-1',panelIndex:0,previewDataUrl:'data:image/jpeg;base64,Y29tcG9zaXRl'}},res);
+  assert.equal(res.code,200);
+  assert.equal(res.body.needsRecheck,true);
+  assert.equal(savedComic.panels[0].scene.actors[0].bounds.height,28);
+  assert.equal(savedComic.panels[0].scene.actors[0].keyframes[0].scale,1);
+  assert.equal(savedComic.panels[0].image.compositeReviewPasses,1);
+});
+
+test('one failed actor layer does not discard the set or stop the comic queue', async () => {
+  const current = {id:'story-1',sourceTitle:'Chapter one',sourceText:'A'.repeat(180),comic:plan()};
+  let savedComic;
+  const handler = createStoryStudioHandler({
+    resolveUser:async () => 'alice',
+    store:{async getProject(){return current;},async saveProject(userId,input){savedComic = input.comic; return {...current,comic:input.comic};}},
+    visuals:{
+      async save(){return {model:'set-model',generationId:'set-1',generatedAt:900};},
+      async getIdentity(){return null;},async saveActor(){throw new Error('should not save');},
+    },
+    meter:{async reserveBuild(){return {ok:true,period:1,reservationId:'scene'};},async settleBuild(){}},
+    async generateBackground(){return {dataUrl:'data:image/png;base64,c2V0',model:'set-model',generationId:'set-1'};},
+    async inspectBackground(){return {verdict:'clean',issues:[]};},
+    async generateActor(){throw new Error('actor provider unavailable');},
+  });
+  const originalError = console.error; console.error = () => {};
+  try {
+    const res = response();
+    await handler({method:'POST',body:{action:'illustrate',projectId:'story-1',panelIndex:0,comic:current.comic}},res);
+    assert.equal(res.code,200);
+    assert.equal(res.body.complete,false);
+    assert.deepEqual(res.body.missingActors,['mara']);
+    assert.equal(savedComic.panels[0].image.url,'/api/story-image?id=story-1&panel=0&v=900');
+  } finally { console.error = originalError; }
+});
+
+test('Nex reviews the rendered bubble composite and stores a corrected layout for one recheck', async () => {
+  const current = { id:'story-1', sourceTitle:'Chapter one', sourceText:'A'.repeat(180), comic:plan() };
+  current.comic.panels[0].image = {url:'/api/story-image?id=story-1&panel=0&v=777',model:'image-model',generatedAt:777,letteringReviewPasses:0,letteringReviewedAt:0};
+  current.comic.panels[0].dialogue[0].layout = {x:60,y:10,width:26,source:'vision'};
+  let savedComic;
+  const handler = createStoryStudioHandler({
+    resolveUser:async () => 'alice',
+    store:{
+      async getProject(){ return current; },
+      async saveProject(userId,input){ savedComic = input.comic; return {...current,comic:input.comic}; },
+    },
+    async reviewVisual(input){
+      assert.equal(input.previewDataUrl,'data:image/png;base64,Y29tcG9zaXRl');
+      assert.equal(input.cleanPreviewDataUrl,'data:image/png;base64,Y2xlYW4=');
+      return {verdict:'corrected',placements:[{index:0,side:'left',layout:{x:4,y:8,width:22,source:'vision'}}]};
+    },
+  });
+  const res = response();
+  await handler({method:'POST',body:{action:'review-lettering',projectId:'story-1',panelIndex:0,cleanPreviewDataUrl:'data:image/png;base64,Y2xlYW4=',previewDataUrl:'data:image/png;base64,Y29tcG9zaXRl'}},res);
+  assert.equal(res.code,200);
+  assert.equal(res.body.needsRecheck,true);
+  assert.equal(savedComic.panels[0].image.letteringReviewPasses,1);
+  assert.equal(savedComic.panels[0].dialogue[0].layout.x,4);
+  assert.equal(savedComic.panels[0].lettering.tracks[0].keyframes[0].x,4);
+});
+
+test('Nex can privately direct timed bubble text and movement without customer controls', async () => {
+  const current = { id:'story-1', sourceTitle:'Chapter one', sourceText:'A'.repeat(180), comic:plan() };
+  let savedComic;
+  const handler = createStoryStudioHandler({
+    resolveUser:async () => 'alice',
+    store:{
+      async getProject(){ return current; },
+      async saveProject(userId,input){ savedComic = input.comic; return {...current,comic:input.comic}; },
+    },
+  });
+  const res = response();
+  await handler({method:'POST',body:{
+    action:'direct-lettering',
+    projectId:'story-1',
+    panelIndex:0,
+    operations:[
+      {type:'set-text',trackId:'bubble-1',startMs:3000,endMs:5000,text:'The words changed.'},
+      {type:'move',trackId:'bubble-1',atMs:3000,x:-25,y:20,width:30},
+      {type:'hide',trackId:'bubble-1',atMs:5000},
+    ],
+  }},res);
+  assert.equal(res.code,200);
+  assert.equal(res.body.directedBy,'nex');
+  assert.equal(savedComic.panels[0].lettering.tracks[0].textCues[1].text,'The words changed.');
+  assert.equal(savedComic.panels[0].lettering.tracks[0].keyframes[1].x,-25);
+  assert.equal(savedComic.panels[0].lettering.tracks[0].keyframes[2].opacity,0);
+});
+
+test('Nex can send a private direction to one intelligent actor and save the live scene', async () => {
+  const current = { id:'story-1', sourceTitle:'Chapter one', sourceText:'A'.repeat(180), comic:plan() };
+  let directed;
+  const settlements = [];
+  const handler = createStoryStudioHandler({
+    resolveUser:async () => 'alice',
+    store:{async getProject(){ return current; }},
+    meter:{
+      async reserveBuild(){ return {ok:true,period:1,reservationId:'actor-reservation'}; },
+      async settleBuild(value){ settlements.push(value); },
+    },
+    async actorDirector(input){
+      directed = input;
+      return {project:current,panelIndex:2,actorId:'mara',acknowledgement:'Ready.',sceneRevision:2,letteringRevision:3,directedBy:'nex'};
+    },
+  });
+  const res = response();
+  await handler({method:'POST',body:{
+    action:'direct-actor',projectId:'story-1',panelIndex:2,actor:'Mara',direction:'Move behind Eli and whisper.',atMs:1800,
+  }},res);
+  assert.equal(res.code,200);
+  assert.equal(directed.userId,'alice');
+  assert.equal(directed.store.getProject instanceof Function,true);
+  assert.equal(directed.direction,'Move behind Eli and whisper.');
+  assert.equal(res.body.actorId,'mara');
+  assert.equal(settlements[0].success,true);
+});

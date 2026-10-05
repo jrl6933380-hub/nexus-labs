@@ -1,0 +1,26 @@
+{
+  "name": "Nexus",
+  "short_name": "Nexus",
+  "description": "One intelligence for projects, time, reminders, and life.",
+  "id": "/",
+  "start_url": "/?source=app",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0e0e0e",
+  "theme_color": "#0e0e0e",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    { "name": "Messages", "url": "/workspace.html?view=messages" },
+    { "name": "Schedule", "url": "/workspace.html?view=planner" },
+    { "name": "Reminders", "url": "/workspace.html?view=reminders" },
+    { "name": "Nexus Life", "url": "/workspace.html?view=life" }
+  ]
+}

@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Nexus // Tenants</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #05070c; }
+  .tenants-panel { padding: 14px; font: 13px/1.5 Inter, -apple-system, sans-serif; color: #e8eefb; height: 100%; box-sizing: border-box; overflow-y: auto; }
+  .banner { border-radius: 8px; padding: 10px 12px; font-size: 12px; margin-bottom: 14px; font-family: 'JetBrains Mono', monospace; }
+  .banner-success { background: #58edb01c; color: #58edb0; border: 1px solid #58edb044; }
+  .banner-error { background: #ff4b4b1c; color: #ff8585; border: 1px solid #ff4b4b44; }
+  form { display: flex; flex-direction: column; gap: 10px; }
+  input, select {
+    padding: 9px 11px; border-radius: 8px; border: 1px solid #26334d; background: #ffffff08;
+    color: #e8eefb; font-size: 13px; font-family: Inter, sans-serif;
+  }
+  button[type="submit"] {
+    margin-top: 4px; padding: 9px; border-radius: 8px; border: none; background: #4b8dff;
+    color: #06090f; font: 700 11px 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer;
+  }
+  button[type="submit"]:disabled { opacity: 0.5; cursor: default; }
+  .error { font-size: 11px; color: #ff8585; min-height: 16px; }
+  .card { background: #ffffff03; border: 1px solid #26334d; border-radius: 10px; padding: 14px; margin-bottom: 10px; }
+  .card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .card-name { font: 700 13px 'JetBrains Mono', monospace; }
+  .badge { font: 700 9px 'JetBrains Mono', monospace; letter-spacing: 0.05em; text-transform: uppercase; padding: 3px 8px; border-radius: 5px; }
+  .badge-hosted { background: #58edb01c; color: #58edb0; }
+  .badge-byo { background: #4b8dff1c; color: #4b8dff; }
+  .meta { font: 400 10px 'JetBrains Mono', monospace; color: #5e6b81; line-height: 1.7; }
+  .usage-bar { height: 5px; border-radius: 3px; background: #ffffff0f; margin: 6px 0 2px; overflow: hidden; }
+  .usage-fill { height: 100%; background: #58edb0; }
+  .usage-fill.low { background: #ffc56b; }
+  .usage-fill.empty { background: #ff4b4b; }
+  .card-actions { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .export-btn, .connect-btn {
+    font: 700 10px 'JetBrains Mono', monospace; letter-spacing: 0.03em; background: none; color: #58d7ff;
+    border: 1px solid #26334d; border-radius: 6px; padding: 6px 10px; cursor: pointer;
+  }
+  .connect-btn.done { color: #58edb0; border-color: #58edb044; cursor: default; }
+  .export-btn:active, .connect-btn:active { opacity: 0.7; }
+  .empty { color: #5e6b81; font-size: 12px; }
+  h4 { margin: 0 0 10px; font: 600 9px 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.16em; color: #5e6b81; }
+
+  .canvas-title-bar {
+    position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 10000;
+    font: 700 11px 'JetBrains Mono', monospace; letter-spacing: 0.1em; text-transform: uppercase;
+    color: #58d7ff; background: #111827e8; border: 1px solid #3c5a84; border-radius: 8px;
+    padding: 7px 16px; backdrop-filter: blur(12px);
+  }
+  .return-link {
+    position: fixed; top: 12px; left: 12px; z-index: 10000;
+    font: 700 10px 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.06em;
+    color: #91a0b9; text-decoration: none; background: #111827e8; border: 1px solid #26334d;
+    border-radius: 8px; padding: 8px 12px; backdrop-filter: blur(12px);
+  }
+  .return-link:hover { color: #58d7ff; border-color: #4b8dff77; }
+</style>
+</head>
+<body>
+<script type="module">
+  import { mountCanvas } from '/canvas-engine.js?v=20260918-1';
+  import '/nex-chat-bar.js?v=20260919-1';
+
+  const nextPath = '/tenants.html';
+
+  const titleBar = document.createElement('div');
+  titleBar.className = 'canvas-title-bar';
+  titleBar.textContent = 'Tenant Hub';
+  document.body.appendChild(titleBar);
+
+  const returnLink = document.createElement('a');
+  returnLink.className = 'return-link';
+  returnLink.href = '/';
+  returnLink.textContent = '← Dashboard';
+  document.body.appendChild(returnLink);
+
+  const canvas = mountCanvas({ canvasId: 'tenants', canvasTitle: 'Tenant Hub' });
+
+  const createBody = document.createElement('div');
+  createBody.className = 'tenants-panel';
+  createBody.innerHTML = `
+    <div id="oauth-banner"></div>
+    <h4>New tenant</h4>
+    <form id="create-form">
+      <input type="text" id="tenant-name" placeholder="Tenant name" required>
+      <select id="tenant-mode" aria-label="Tenant mode">
+        <option value="hosted">Hosted (no external account needed)</option>
+        <option value="byo">Bring your own (GitHub/Vercel)</option>
+      </select>
+      <div class="error" id="create-error"></div>
+      <button type="submit" id="create-submit">Create tenant</button>
+    </form>
+  `;
+  canvas.addPanel({ id: 'tenants-create', title: 'New Tenant', content: createBody, x: 80, y: 80, w: 360, h: 300 });
+
+  const listBody = document.createElement('div');
+  listBody.className = 'tenants-panel';
+  listBody.innerHTML = '<h4>Your tenants</h4><div id="tenant-list"><div class="empty">Loading…</div></div>';
+  canvas.addPanel({ id: 'tenants-list', title: 'Your Tenants', content: listBody, x: 480, y: 80, w: 420, h: 480 });
+
+  const OAUTH_ERROR_MESSAGES = {
+    github_denied: 'GitHub connection was cancelled.',
+    vercel_denied: 'Vercel connection was cancelled.',
+    oauth_missing_params: 'The connection response was incomplete. Try again.',
+    oauth_invalid_state: 'That connection link expired or was invalid. Try again.',
+    oauth_provider_mismatch: "Something didn't match up on that connection. Try again.",
+    oauth_exchange_failed: 'Could not complete the connection. Try again.',
+  };
+
+  function showOAuthBanner() {
+    const params = new URLSearchParams(window.location.search);
+    const connected = params.get('connected');
+    const error = params.get('error');
+    const banner = document.getElementById('oauth-banner');
+    if (connected) {
+      banner.innerHTML = `<div class="banner banner-success">Connected ${connected} successfully.</div>`;
+    } else if (error) {
+      banner.innerHTML = `<div class="banner banner-error">${OAUTH_ERROR_MESSAGES[error] || 'Something went wrong connecting that provider.'}</div>`;
+    }
+    if (connected || error) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('connected');
+      url.searchParams.delete('error');
+      window.history.replaceState({}, '', url.pathname);
+    }
+  }
+
+  function usageBarHtml(usage) {
+    if (!usage) return '<div class="meta">usage unavailable</div>';
+    const pct = usage.limit > 0 ? Math.min(100, Math.round((usage.consumed / usage.limit) * 100)) : 0;
+    const remainingPct = usage.limit > 0 ? usage.remaining / usage.limit : 0;
+    const fillClass = remainingPct <= 0 ? 'empty' : remainingPct <= 0.15 ? 'low' : '';
+    return `
+      <div class="meta">${usage.remaining} / ${usage.limit} credits remaining</div>
+      <div class="usage-bar"><div class="usage-fill ${fillClass}" style="width:${pct}%"></div></div>
+      <div class="meta">resets ${new Date(usage.resetAt).toLocaleDateString()}</div>`;
+  }
+
+  async function fetchUsage(tenantId) {
+    try {
+      const res = await fetch('/api/tenants?action=usage&tenant_id=' + encodeURIComponent(tenantId), { credentials: 'include' });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.usage || null;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function exportTenant(tenantId) {
+    window.location.href = '/api/tenants?action=export&tenant_id=' + encodeURIComponent(tenantId);
+  }
+
+  async function connectProvider(tenantId, provider) {
+    try {
+      const res = await fetch(`/api/tenants?action=oauth_start&tenant_id=${encodeURIComponent(tenantId)}&provider=${encodeURIComponent(provider)}`, { credentials: 'include' });
+      const data = await res.json();
+      if (!res.ok || !data.url) {
+        alert(data.error || 'Could not start that connection.');
+        return;
+      }
+      window.location.href = data.url;
+    } catch (err) {
+      alert('Could not reach the server.');
+    }
+  }
+
+  async function renderTenants(tenants) {
+    const list = document.getElementById('tenant-list');
+    if (!tenants.length) {
+      list.innerHTML = '<div class="empty">No tenants yet — create one on the left.</div>';
+      return;
+    }
+
+    const usageByTenant = {};
+    await Promise.all(tenants.filter((t) => t.mode === 'hosted').map(async (t) => {
+      usageByTenant[t.tenant_id] = await fetchUsage(t.tenant_id);
+    }));
+
+    list.innerHTML = tenants.map((t) => {
+      const badge = t.mode === 'hosted'
+        ? '<span class="badge badge-hosted">Hosted</span>'
+        : '<span class="badge badge-byo">BYO</span>';
+      const connections = t.connections || {};
+      const connectedProviders = Object.keys(connections);
+      const connLine = connectedProviders.length ? connectedProviders.join(', ') : 'no connections yet';
+      const usageSection = t.mode === 'hosted'
+        ? usageBarHtml(usageByTenant[t.tenant_id])
+        : '<div class="meta">no managed quota (BYO)</div>';
+
+      let connectButtons = '';
+      if (t.mode === 'byo') {
+        connectButtons = ['github', 'vercel'].map((provider) => {
+          const done = connectedProviders.includes(provider);
+          const label = provider === 'github' ? 'GitHub' : 'Vercel';
+          return done
+            ? `<button class="connect-btn done" disabled>${label} connected</button>`
+            : `<button class="connect-btn" data-connect-tenant="${t.tenant_id}" data-connect-provider="${provider}">Connect ${label}</button>`;
+        }).join('');
+      }
+
+      return `
+        <div class="card">
+          <div class="card-top">
+            <span class="card-name">${t.name}</span>
+            ${badge}
+          </div>
+          ${usageSection}
+          <div class="meta">connections: ${connLine}</div>
+          <div class="meta">created ${new Date(t.created_at).toLocaleDateString()}</div>
+          <div class="card-actions">
+            ${connectButtons}
+            <button class="export-btn" data-tenant-id="${t.tenant_id}">Export data</button>
+          </div>
+        </div>`;
+    }).join('');
+
+    list.querySelectorAll('.export-btn').forEach((btn) => {
+      btn.addEventListener('click', () => exportTenant(btn.dataset.tenantId));
+    });
+    list.querySelectorAll('[data-connect-provider]').forEach((btn) => {
+      btn.addEventListener('click', () => connectProvider(btn.dataset.connectTenant, btn.dataset.connectProvider));
+    });
+  }
+
+  async function loadTenants() {
+    const list = document.getElementById('tenant-list');
+    try {
+      const res = await fetch('/api/tenants', { credentials: 'include' });
+      if (res.status === 401) {
+        window.location.href = '/room-login.html?next=' + encodeURIComponent(nextPath);
+        return;
+      }
+      const data = await res.json();
+      renderTenants(data.tenants || []);
+    } catch (err) {
+      list.innerHTML = '<div class="empty">Could not load tenants.</div>';
+    }
+  }
+
+  document.getElementById('create-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errorEl = document.getElementById('create-error');
+    const submitBtn = document.getElementById('create-submit');
+    errorEl.innerText = '';
+    submitBtn.disabled = true;
+    try {
+      const res = await fetch('/api/tenants', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'create',
+          name: document.getElementById('tenant-name').value.trim(),
+          mode: document.getElementById('tenant-mode').value,
+        }),
+      });
+      const data = await res.json();
+      if (res.status === 401) {
+        window.location.href = '/room-login.html?next=' + encodeURIComponent(nextPath);
+        return;
+      }
+      if (!res.ok) {
+        errorEl.innerText = data.error || 'Could not create tenant.';
+        submitBtn.disabled = false;
+        return;
+      }
+      document.getElementById('tenant-name').value = '';
+      submitBtn.disabled = false;
+      loadTenants();
+    } catch (err) {
+      errorEl.innerText = 'Could not reach the server.';
+      submitBtn.disabled = false;
+    }
+  });
+
+  showOAuthBanner();
+  loadTenants();
+</script>
+</body>
+</html>

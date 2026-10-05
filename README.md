@@ -1,18 +1,19 @@
 # nexus-labs
 
-## Nex reasoning-provider failover
+## Nex reasoning providers
 
-Nex keeps Anthropic as his primary reasoning provider and can fail over to
-Vercel AI Gateway without changing his identity, memory, tools, Board, or
+Nex and customer-facing generation use Vercel AI Gateway as the centralized
+funded provider route without changing identity, memory, tools, Board, or
 approval rules.
 
-Required for the existing primary route:
-
-- `ANTHROPIC_API_KEY`
-
-Required to enable the independent backup route:
+Required:
 
 - `AI_GATEWAY_API_KEY`
+
+Optional legacy direct-provider route:
+
+- `ANTHROPIC_API_KEY` (not required by Forge Builder, Site Agent, lead previews,
+  or memory compression)
 
 Optional controls:
 
@@ -23,6 +24,8 @@ Optional controls:
 - `NEX_PROVIDER_TIMEOUT_MS` (5,000–90,000; default: 45,000)
 - `NEX_FORCE_GATEWAY=true` (controlled failover test; bypasses Anthropic
   without removing its key)
+- `NEXUS_AGENT_API_TOKEN` (strong random bearer token for the private
+  agent-to-Nex endpoint; browser sessions still require the configured operator)
 
 If neither provider can answer, Nex returns a successful safe-mode response
 instead of disappearing behind a generic server error. Safe mode never runs
@@ -34,3 +37,18 @@ Run the regression suite with:
 ```sh
 node --test
 ```
+
+## Room usage guardrails
+
+Room builds reserve provider-neutral credits per signed-in account before generation, then settle or release the reservation when the request finishes. The default rolling period is 30 days with 250 credits, where a fresh build costs 10 and an edit costs 2. Configure `ROOM_CREDITS_LIMIT`, `ROOM_FRESH_BUILD_CREDITS`, `ROOM_EDIT_CREDITS`, `ROOM_METER_PERIOD_MS`, and `ROOM_RESERVATION_TTL_SECONDS` in Vercel to tune the ceiling. These are safety/metering units, not a billing statement; provider-token attribution remains a later Task 09 slice. The read-only `/api/room-usage` endpoint exposes the current signed-in account's limit, consumed, reserved, remaining, and reset time.
+
+## Capability gateway boundary
+
+The MCP tool server can enforce signed, short-lived Nexus capability grants. Set
+`NEXUS_GRANT_SIGNING_SECRET` in the server environment and enable
+`NEXUS_CAPABILITY_GATEWAY_REQUIRED=true` to require the
+`x-nexus-capability-grant` header on every MCP tool call. Grants are scoped to
+agent, tenant, project, task, tool, action, resource, read/write level, and
+expiration. Write actions also require an approval reference. The gateway logs
+sanitized actor/tool/result metadata to the server-side audit stream; provider
+credentials remain server-side.

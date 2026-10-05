@@ -1,0 +1,151 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createPublishHandler } from '../api/room-publish.js';
+
+function response() {
+  return { headers: {}, code: 0, body: null,
+    setHeader(k,v) { this.headers[k] = v; },
+    status(code) { this.code = code; return this; },
+    json(body) { this.body = body; return this; },
+  };
+}
+const request = (body = { id: 'a1' }) => ({ method: 'POST', body });
+const make = (overrides = {}) => createPublishHandler({
+  resolveUser: async () => 'alice',
+  readBuild: async (owner, id) => (owner === 'alice' && id === 'a1' ? { html: '<h1>hi</h1>', projectId: 'p1' } : null),
+  resolvePlan: async () => 'hosted',
+  publish: async () => ({ deployed: true, url: 'https://room-alice-p1.vercel.app', deployment_id: 'dpl_1' }),
+  readAgentConfig: async () => null,
+  checkAllowance: async () => ({ allowed: true, limit: 1, used: 0 }),
+  recordSite: async () => null,
+  ...overrides,
+});
+
+test('publishing a new site is refused once the plan\'s live-site cap is reached', async () => {
+  const res = response();
+  await make({
+    checkAllowance: async () => ({ allowed: false, limit: 1, used: 1 }),
+  })(request(), res);
+  assert.equal(res.code, 409);
+  assert.equal(res.body.code, 'LIVE_SITE_LIMIT_REACHED');
+  assert.match(res.body.error, /1 live site/);
+  assert.match(res.body.error, /Take one down or upgrade/);
+});
+
+test('a successful publish records the live site, a failed one does not', async () => {
+  // A failed deploy must never burn one of the customer's slots.
+  const recorded = [];
+  const recordSite = async (user, projectId, meta) => { recorded.push({ user, projectId, meta }); };
+
+  const ok = response();
+  await make({ recordSite })(request(), ok);
+  assert.equal(ok.code, 200);
+  assert.equal(recorded.length, 1);
+  assert.equal(recorded[0].projectId, 'p1');
+  assert.equal(recorded[0].meta.url, 'https://room-alice-p1.vercel.app');
+
+  recorded.length = 0;
+  const failed = response();
+  await make({ recordSite, publish: async () => ({ deployed: false, reason: 'no token' }) })(request(), failed);
+  assert.equal(failed.code, 502);
+  assert.equal(recorded.length, 0, 'a failed publish must not consume a live-site slot');
+});
+
+test('requires a session', async () => {
+  const handler = createPublishHandler({ resolveUser: async () => null });
+  const res = response(); await handler(request(), res);
+  assert.equal(res.code, 401);
+});
+
+test('free-tier accounts cannot publish', async () => {
+  const res = response();
+  await make({ resolvePlan: async () => 'free' })(request(), res);
+  assert.equal(res.code, 402);
+  assert.equal(res.body.code, 'PUBLISH_REQUIRES_PAID_PLAN');
+});
+
+test('missing/invalid build id is rejected', async () => {
+  for (const body of [{}, { id: 123 }, { id: '' }]) {
+    const res = response();
+    await make()({ method: 'POST', body }, res);
+    assert.equal(res.code, 400);
+  }
+});
+
+test('unknown build id returns 404', async () => {
+  const res = response();
+  await make({ readBuild: async () => null })(request(), res);
+  assert.equal(res.code, 404);
+});
+
+test('a build with no html cannot be published', async () => {
+  const res = response();
+  await make({ readBuild: async () => ({ html: '' }) })(request(), res);
+  assert.equal(res.code, 422);
+});
+
+test('paid accounts publish successfully and get back a real url', async () => {
+  const res = response();
+  await make()(request(), res);
+  assert.equal(res.code, 200);
+  assert.equal(res.body.url, 'https://room-alice-p1.vercel.app');
+  assert.equal(res.body.deployment_id, 'dpl_1');
+});
+
+test('the public deployment receives only project HTML, never Workbench editing chrome', async () => {
+  let publishedHtml = '';
+  const cleanProject = '<!doctype html><html><body><main>Customer site</main></body></html>';
+  const res = response();
+  await make({
+    readBuild: async () => ({ html: cleanProject, projectId: 'p1' }),
+    publish: async ({ html }) => {
+      publishedHtml = html;
+      return { deployed: true, url: 'https://room-alice-p1.vercel.app', deployment_id: 'dpl_1' };
+    },
+  })(request(), res);
+  assert.equal(res.code, 200);
+  assert.equal(publishedHtml, cleanProject);
+  assert.doesNotMatch(publishedHtml, /Edit with Nex|workbench-preview-bar|project-editor-preview/u);
+});
+
+test('a failed publish returns 502 with the reason', async () => {
+  const res = response();
+  await make({ publish: async () => ({ deployed: false, reason: 'No Vercel token configured' }) })(request(), res);
+  assert.equal(res.code, 502);
+  assert.equal(res.body.reason, 'No Vercel token configured');
+});
+
+test('an enabled site agent injects its widget before the closing body tag', async () => {
+  let publishedHtml = null;
+  const res = response();
+  await make({
+    readBuild: async () => ({ html: '<body><h1>hi</h1></body>', projectId: 'p1' }),
+    readAgentConfig: async () => ({ enabled: true }),
+    publish: async ({ html }) => {
+      publishedHtml = html;
+      return { deployed: true, url: 'https://room-alice-p1.vercel.app', deployment_id: 'dpl_1' };
+    },
+  })(request(), res);
+  assert.equal(res.code, 200);
+  assert.match(publishedHtml, /site-agent-widget\.js/);
+  assert.match(publishedHtml, /data-project="p1"/);
+  assert.ok(publishedHtml.indexOf('site-agent-widget.js') < publishedHtml.indexOf('</body>'));
+});
+
+test('non-POST requests are rejected', async () => {
+  const res = response();
+  await make()({ method: 'GET' }, res);
+  assert.equal(res.code, 405);
+});
+
+test('project name is slugged from username and project id, lowercase and hyphenated', async () => {
+  let capturedName = null;
+  const res = response();
+  await make({
+    readBuild: async () => ({ html: '<h1>hi</h1>', projectId: 'My_Project 1' }),
+    publish: async ({ projectName }) => { capturedName = projectName; return { deployed: true, url: 'https://x.vercel.app', deployment_id: 'dpl_2' }; },
+  })(request(), res);
+  assert.equal(res.code, 200);
+  assert.match(capturedName, /^[a-z0-9-]+$/);
+  assert.match(capturedName, /^room-alice-/);
+});
