@@ -9,11 +9,11 @@ export default defineConfig({
   testDir: './e2e',
   testMatch: /.*\.spec\.mjs/,
   webServer: {
-    command: 'npx serve public -l 4173',
+    command: 'npm run dev -- --host 127.0.0.1 --port 4173',
     port: 4173,
     reuseExistingServer: !process.env.CI,
   },
   use: {
-    baseURL: 'http://localhost:4173',
+    baseURL: 'http://127.0.0.1:4173',
   },
 });

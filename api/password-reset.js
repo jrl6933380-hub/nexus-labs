@@ -16,7 +16,7 @@
 // verifies the requester, so a leaked token is equivalent to a leaked
 // password until it's used or expires.
 
-import { getUserEmail, setUserPassword, getSecurityQuestion, verifySecurityAnswer } from '../lib/roomAuth.js';
+import { getUserEmail, resolveUsername, setUserPassword, getSecurityQuestion, verifySecurityAnswer } from '../lib/roomAuth.js';
 import { createResetToken, consumeResetToken } from '../lib/passwordReset.js';
 import { sendEmail } from '../lib/emailSender.js';
 
@@ -34,9 +34,10 @@ export default async function handler(req, res) {
   try {
     if (action === 'get-question') {
       if (typeof username !== 'string' || !username.trim()) {
-        return res.status(400).json({ error: 'Enter your username first.' });
+        return res.status(400).json({ error: 'Enter your email or username first.' });
       }
-      const question = await getSecurityQuestion(username.trim());
+      const resolvedUsername = await resolveUsername(username.trim());
+      const question = await getSecurityQuestion(resolvedUsername || username.trim());
       return res.status(200).json({ question });
     }
 
@@ -45,30 +46,32 @@ export default async function handler(req, res) {
       if (typeof username !== 'string' || !username.trim() || typeof answer !== 'string' || !answer.trim()) {
         return res.status(400).json({ error: 'Enter an answer.' });
       }
-      const correct = await verifySecurityAnswer(username.trim(), answer);
+      const resolvedUsername = await resolveUsername(username.trim());
+      const correct = await verifySecurityAnswer(resolvedUsername || username.trim(), answer);
       if (!correct) {
         return res.status(400).json({ error: "That answer doesn't match." });
       }
       // Correct answer issues the same kind of single-use token the
       // emailed link would — the "reset" action below doesn't care
       // which path produced it.
-      const resetToken = await createResetToken(username.trim());
+      const resetToken = await createResetToken(resolvedUsername);
       return res.status(200).json({ token: resetToken });
     }
 
     if (action === 'request') {
       if (typeof username !== 'string' || !username.trim()) {
-        return res.status(400).json({ error: 'Enter your username first.' });
+        return res.status(400).json({ error: 'Enter your email or username first.' });
       }
       try {
-        const email = await getUserEmail(username.trim());
+        const resolvedUsername = await resolveUsername(username.trim());
+        const email = resolvedUsername ? await getUserEmail(resolvedUsername) : null;
         if (email) {
-          const resetToken = await createResetToken(username.trim());
+          const resetToken = await createResetToken(resolvedUsername);
           const resetUrl = `${SITE_URL}/room-login.html?reset=${resetToken}`;
           await sendEmail({
             to: email,
             subject: 'Reset your Nexus Forge password',
-            html: `<p>Someone (hopefully you) asked to reset the password on your Nexus Forge account "${username.trim()}".</p><p><a href="${resetUrl}">Click here to set a new password</a>. This link works once and expires in 30 minutes.</p><p>If you didn't ask for this, you can ignore this email.</p>`,
+            html: `<p>Someone (hopefully you) asked to reset the password on your Nexus Forge account "${resolvedUsername}".</p><p><a href="${resetUrl}">Click here to set a new password</a>. This link works once and expires in 30 minutes.</p><p>If you didn't ask for this, you can ignore this email.</p>`,
           });
         }
       } catch (innerErr) {

@@ -1040,7 +1040,14 @@ export const FORGE_VIEWS = {
       nodes.push(chips([
         { label: "What's my plan", run: () => ctx.ask("What plan am I on and what does it include?") },
         { label: 'Upgrade', run: () => ctx.ask('I want to upgrade my plan. What are the options?') },
+        { label: 'Download my data', run: async () => { try { await ctx.downloadAccount(); } catch (error) { window.alert(error.message); } } },
+        { label: 'Report a problem', run: async () => { try { await ctx.sendFeedback(); } catch (error) { window.alert(error.message); } } },
         { label: 'Sign out', run: () => ctx.signOut() },
+      ]));
+      nodes.push(chips([
+        { label: 'Privacy', run: () => ctx.openExternal('/privacy.html') },
+        { label: 'Terms', run: () => ctx.openExternal('/terms.html') },
+        { label: 'Delete my account', run: async () => { try { await ctx.deleteAccount(); } catch (error) { window.alert(error.message); } } },
       ]));
       return nodes;
     },

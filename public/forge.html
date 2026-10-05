@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#0b0c0f" />
 <title>Nexus Forge</title>
+<script defer src="/_vercel/insights/script.js"></script>
 <!--
   /forge.html — the customer's workspace.
 
@@ -361,44 +362,43 @@ function showAuthCard(mode = 'login') {
     if (name === 'password') input.minLength = 8;
     label.appendChild(input); card.appendChild(label); return input;
   };
-  const username = add('Username', 'text', 'username');
-  const password = add('Password', 'password', 'password');
-  let email, answer, question;
+  let username, name;
+  if (mode === 'signup') name = add('Your name', 'text', 'name');
+  else username = add('Email or username', 'text', 'username');
+  let email;
   if (mode === 'signup') {
-    email = add('Email for account recovery', 'email', 'email');
-    const label = document.createElement('label'); label.textContent = 'Recovery question';
-    question = document.createElement('select'); question.className = 'qcomment';
-    for (const value of ['What was the name of your first pet?', 'What city were you born in?',
-      "What was your childhood best friend's first name?", 'What was the make of your first car?',
-      "What is your mother's maiden name?"]) {
-      const option = document.createElement('option'); option.value = value; option.textContent = value; question.appendChild(option);
-    }
-    label.appendChild(question); card.appendChild(label);
-    answer = add('Recovery answer', 'password', 'securityAnswer');
+    email = add('Email', 'email', 'email');
   }
+  const password = add(mode === 'signup' ? 'Create a password (8+ characters)' : 'Password', 'password', 'password');
   const error = document.createElement('span'); error.className = 'qerror'; error.setAttribute('role','status');
   const submit = document.createElement('button'); submit.type = 'submit'; submit.className = 'qsave';
-  submit.textContent = mode === 'signup' ? 'Review account' : 'Sign in';
+  submit.textContent = mode === 'signup' ? 'Create my account' : 'Sign in';
   card.append(submit, error); thread.appendChild(card);
+  if (mode === 'signup') {
+    const social = document.createElement('div'); social.className = 'qcard';
+    const intro = document.createElement('p'); intro.textContent = 'Or make your account with one tap.';
+    const google = document.createElement('button'); google.type = 'button'; google.className = 'qsave'; google.textContent = 'Continue with Google'; google.disabled = true;
+    const apple = document.createElement('button'); apple.type = 'button'; apple.className = 'qsave'; apple.textContent = 'Continue with Apple'; apple.disabled = true;
+    social.append(intro, google, apple); thread.insertBefore(social, card);
+    fetch('/api/social-auth', { credentials:'include' }).then(response => response.json()).then(status => {
+      const next = encodeURIComponent('/forge.html?view=brain');
+      google.disabled = !status.google;
+      apple.disabled = !status.apple;
+      google.onclick = () => { location.href = `/api/social-auth?provider=google&next=${next}`; };
+      apple.onclick = () => { location.href = `/api/social-auth?provider=apple&next=${next}`; };
+      if (!status.google && !status.apple) intro.textContent = 'Google and Apple sign-in are being connected. You can create your account below.';
+    }).catch(() => { intro.textContent = 'Create your account below.'; });
+  }
   thread.appendChild(chips([{ label:mode === 'signup' ? 'I have an account' : 'Create an account',
     run:() => showAuthCard(mode === 'signup' ? 'login' : 'signup') }]));
   card.onsubmit = async (event) => {
     event.preventDefault(); error.textContent = '';
-    const info = { username: username.value.trim(), password: password.value,
-      email: email?.value.trim(), securityQuestion: question?.value, securityAnswer: answer?.value };
-    if (mode === 'signup') {
-      const review = document.createElement('div'); review.className = 'qcard';
-      const summary = document.createElement('p');
-      summary.textContent = `Create ${info.username} · ${info.email} · Password •••••••• · Recovery answer ••••••••?`;
-      const confirm = document.createElement('button'); confirm.className = 'qsave'; confirm.textContent = 'Yes, create my account';
-      confirm.onclick = () => { confirm.disabled = true; submitAuth('signup', info, review); };
-      review.append(summary, confirm); card.replaceWith(review);
-      return;
-    }
+    const info = { username: username?.value.trim(), name: name?.value.trim(), password: password.value,
+      email: email?.value.trim() };
     submit.disabled = true;
-    await submitAuth('login', info, card);
+    await submitAuth(mode === 'signup' ? 'simple-signup' : 'login', info, card);
   };
-  username.focus();
+  (username || name).focus();
 }
 async function submitAuth(action, info, card) {
   const status = document.createElement('p'); status.setAttribute('role','status'); card.appendChild(status);
@@ -408,12 +408,12 @@ async function submitAuth(action, info, card) {
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || 'Account request failed.');
     rememberUsername(data.username);
-    info.password = ''; info.securityAnswer = '';
+    info.password = '';
     location.replace(isWorkbench ? '/forge.html?surface=workbench&view=chat' : '/forge.html?view=brain');
   } catch (error) {
-    info.password = ''; info.securityAnswer = '';
+    info.password = '';
     status.textContent = friendlyError(error);
-    card.appendChild(chips([{ label:'Try again', run:() => showAuthCard(action === 'signup' ? 'signup' : 'login') }]));
+    card.appendChild(chips([{ label:'Try again', run:() => showAuthCard(action === 'simple-signup' ? 'signup' : 'login') }]));
   }
 }
 
@@ -477,6 +477,29 @@ function openBrainSetup(returnPath = '/forge.html'){
   showView('brain');
 }
 
+async function downloadMyData(){
+  const response=await fetch('/api/account',{credentials:'include'}),data=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(data.error || 'Your data could not be downloaded.');
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),link=document.createElement('a');
+  link.href=url;link.download=`nexus-data-${new Date().toISOString().slice(0,10)}.json`;document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);
+}
+
+async function deleteMyAccount(){
+  const confirmation=window.prompt('This permanently deletes your account and saved Nexus data. Type DELETE MY ACCOUNT to continue.');
+  if(confirmation!=='DELETE MY ACCOUNT')return false;
+  const response=await fetch('/api/account',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',confirmation})});
+  const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error || 'Your account could not be deleted.');
+  try{localStorage.removeItem(FORGE_ACCOUNT_CARD);}catch{}
+  location.replace('/room-login.html?deleted=1');return true;
+}
+
+async function sendFeedback(){
+  const message=window.prompt('What should we improve, or what went wrong?');if(!message?.trim())return false;
+  const response=await fetch('/api/feedback',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({category:'other',message,page:location.pathname+location.search})});
+  const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error || 'Your feedback could not be sent.');
+  window.alert('Thanks—your feedback was sent.');return true;
+}
+
 const ctx = {
   surface: () => surfaceMode,
   hasCurrentBuild: () => Boolean(currentBuild),
@@ -488,6 +511,9 @@ const ctx = {
   projectId: () => currentProjectId,
   signedIn: () => signedIn,
   signIn: () => goSignIn(),
+  downloadAccount: downloadMyData,
+  deleteAccount: deleteMyAccount,
+  sendFeedback,
   ask: (text, options = {}) => {
     if (options.stackItem) {
       pendingStackItem = {

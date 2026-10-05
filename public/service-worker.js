@@ -43,3 +43,26 @@ self.addEventListener('fetch', (event) => {
     }).catch(() => caches.match(request)),
   );
 });
+
+self.addEventListener('push', (event) => {
+  let data = {};
+  try { data = event.data?.json?.() || {}; } catch { data = { body: event.data?.text?.() || '' }; }
+  event.waitUntil(self.registration.showNotification(data.title || 'Nexus', {
+    body: data.body || 'Something needs your attention.',
+    icon: '/api/app-icon',
+    badge: '/api/app-icon',
+    tag: data.tag || 'nexus-alert',
+    renotify: true,
+    data: { url: data.url || '/workspace.html?view=messages' },
+  }));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = new URL(event.notification.data?.url || '/workspace.html?view=messages', self.location.origin).href;
+  event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (clients) => {
+    const existing = clients.find((client) => new URL(client.url).origin === self.location.origin);
+    if (existing) { await existing.navigate(target); return existing.focus(); }
+    return self.clients.openWindow(target);
+  }));
+});

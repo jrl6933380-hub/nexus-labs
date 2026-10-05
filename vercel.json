@@ -27,6 +27,30 @@
       "destination": "/api/board"
     },
     {
+      "source": "/api/push",
+      "destination": "/api/board"
+    },
+    {
+      "source": "/api/push-deliver",
+      "destination": "/api/board"
+    },
+    {
+      "source": "/api/social-auth",
+      "destination": "/api/board"
+    },
+    {
+      "source": "/api/social-auth/callback/:provider",
+      "destination": "/api/board"
+    },
+    {
+      "source": "/api/account",
+      "destination": "/api/board"
+    },
+    {
+      "source": "/api/feedback",
+      "destination": "/api/board"
+    },
+    {
       "source": "/api/planner",
       "destination": "/api/board"
     },
@@ -63,6 +87,10 @@
     {
       "path": "/api/forge-sweep",
       "schedule": "23 * * * *"
+    },
+    {
+      "path": "/api/push-deliver",
+      "schedule": "* * * * *"
     }
   ]
 }

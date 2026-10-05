@@ -5,6 +5,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Nexus Forge — AI Website & App Builder</title>
+<script defer src="/_vercel/insights/script.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -98,6 +99,13 @@
   }
 
   .tab.active { color: var(--cyan); border-color: var(--cyan); }
+
+  .social-auth { display:grid; gap:9px; margin-bottom:15px; }
+  .social-button { width:100%; min-height:44px; border:1px solid var(--border); border-radius:9px; background:#fff; color:#111; font:700 13px var(--sans); cursor:pointer; }
+  .social-button.apple { background:#050505; color:#fff; border-color:#3a3a3a; }
+  .social-button:disabled { opacity:.45; cursor:not-allowed; }
+  .auth-divider { display:flex; align-items:center; gap:10px; color:var(--text-dim); font-size:11px; margin:2px 0 15px; }
+  .auth-divider:before,.auth-divider:after { content:""; flex:1; border-top:1px solid var(--border); }
 
   form { display: flex; flex-direction: column; gap: 10px; }
   form.hidden { display: none; }
@@ -298,9 +306,11 @@
   <div class="auth-entry" id="auth-entry">
     <div class="title">Welcome to Forge.</div>
     <div class="subtitle">Sign in or create an account. Your Builder Brain is the very next step, right here.</div>
+    <div class="social-auth"><button class="social-button" id="google-auth" type="button">Continue with Google</button><button class="social-button apple" id="apple-auth" type="button">Continue with Apple</button></div>
+    <div class="auth-divider">or use your email</div>
     <div class="tabs"><button class="tab active" id="tab-login" type="button">Sign in</button><button class="tab" id="tab-signup" type="button">Create account</button></div>
-    <form id="login-form"><input type="text" id="login-username" placeholder="Username" autocomplete="username" required><input type="password" id="login-password" placeholder="Password" autocomplete="current-password" required><div class="error" id="login-error" role="status"></div><button type="submit" id="login-submit">Sign in &amp; connect Brain →</button><button type="button" id="forgot-password-link" style="background:none;border:none;color:var(--text-dim);font:600 11px var(--mono);text-decoration:underline;cursor:pointer;padding:2px 0;">Forgot password?</button></form>
-    <form id="signup-form" class="hidden"><input type="text" id="signup-username" placeholder="Choose a username" autocomplete="username" required><input type="email" id="signup-email" placeholder="Email for account recovery" autocomplete="email" required><select id="signup-security-question" required><option value="" disabled selected>Choose a security question</option><option>What was the name of your first pet?</option><option>What city were you born in?</option><option>What was your childhood best friend's first name?</option><option>What was the make of your first car?</option><option>What is your mother's maiden name?</option></select><input type="text" id="signup-security-answer" placeholder="Your answer" autocomplete="off" required><input type="password" id="signup-password" placeholder="Choose a password (8+ characters)" autocomplete="new-password" required><div class="error" id="signup-error" role="status"></div><button type="submit" id="signup-submit">Create account &amp; connect Brain →</button></form>
+    <form id="login-form"><input type="text" id="login-username" placeholder="Email or username" autocomplete="username" required><input type="password" id="login-password" placeholder="Password" autocomplete="current-password" required><div class="error" id="login-error" role="status"></div><button type="submit" id="login-submit">Sign in &amp; connect Brain →</button><button type="button" id="forgot-password-link" style="background:none;border:none;color:var(--text-dim);font:600 11px var(--mono);text-decoration:underline;cursor:pointer;padding:2px 0;">Forgot password?</button></form>
+    <form id="signup-form" class="hidden"><input type="text" id="signup-name" placeholder="Your name" autocomplete="name" required><input type="email" id="signup-email" placeholder="Email" autocomplete="email" required><input type="password" id="signup-password" placeholder="Create a password (8+ characters)" autocomplete="new-password" required><div class="error" id="signup-error" role="status"></div><button type="submit" id="signup-submit">Create my account →</button><p class="hint">By continuing, you agree to the <a href="/terms.html">Terms</a> and acknowledge the <a href="/privacy.html">Privacy notice</a>.</p></form>
     <p class="trust"><strong>Your ideas stay yours.</strong> Your Builder Brain connects securely. No API key goes into chat.</p>
   </div>
   <div class="brain-step hidden" id="brain-step" aria-live="polite">
@@ -366,7 +376,7 @@
     </div>
     <div id="reset-chat-log" style="display:grid;gap:10px;margin:18px 0;"></div>
     <form id="reset-request-form">
-      <input type="text" id="reset-username" placeholder="Your username" autocomplete="username" required style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;font-family:var(--sans);margin-bottom:10px;box-sizing:border-box;">
+      <input type="text" id="reset-username" placeholder="Email or username" autocomplete="username" required style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;font-family:var(--sans);margin-bottom:10px;box-sizing:border-box;">
       <button type="submit" id="reset-request-submit" style="width:100%;padding:10px;border-radius:8px;border:none;background:var(--blue);color:#06090F;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;">Continue</button>
     </form>
     <form id="reset-answer-form" class="hidden">
@@ -427,6 +437,8 @@
   const signupForm = document.getElementById('signup-form');
   const tierModal = document.getElementById('tier-modal');
   const continueFree = document.getElementById('continue-free');
+  const authParams=new URLSearchParams(location.search),socialError=authParams.get('social_error');
+  if(socialError){document.getElementById('login-error').textContent=socialError;openSignin();}
 
   function showLogin() {
     tabLogin.classList.add('active');
@@ -479,6 +491,9 @@
       return null;
     }
   })();
+  const socialReturn=`/room-login.html?social=complete&next=${encodeURIComponent(nextPath)}`;
+  for(const provider of ['google','apple'])document.getElementById(`${provider}-auth`).onclick=()=>{location.href=`/api/social-auth?provider=${provider}&next=${encodeURIComponent(socialReturn)}`;};
+  fetch('/api/social-auth',{credentials:'include'}).then(response=>response.json()).then(providers=>{for(const provider of ['google','apple'])if(!providers[provider]){const control=document.getElementById(`${provider}-auth`);control.disabled=true;control.title=`${provider==='apple'?'Apple':'Google'} sign-in needs its provider keys before launch`;}}).catch(()=>{});
 
   const brainStep = document.getElementById('brain-step');
   const brainStatus = document.getElementById('brain-status');
@@ -520,7 +535,6 @@
       if (workerNextPath) { location.href = workerNextPath; return; }
       document.getElementById('login-password').value = '';
       document.getElementById('signup-password').value = '';
-      document.getElementById('signup-security-answer').value = '';
       await loadBrain();
       submitBtn.disabled = false;
     } catch { errorEl.innerText = 'Could not reach the server.'; submitBtn.disabled = false; }
@@ -543,6 +557,7 @@
   if (brainResult) {
     loadBrain().then(() => { if (brainResult !== 'connected') brainStatus.textContent = 'Connection ' + ({ cancelled:'cancelled', expired:'expired', rejected:'rejected', test_failed:'failed', network:'unavailable' }[brainResult] || 'could not be completed') + '. You can try again.'; });
   }
+  if(new URLSearchParams(location.search).get('social')==='complete')loadBrain();
 
   loginForm.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -565,13 +580,11 @@
   signupForm.addEventListener('submit', (e) => {
     e.preventDefault();
     submitAuth(
-      'signup',
+      'simple-signup',
       {
-        username: document.getElementById('signup-username').value.trim(),
+        name: document.getElementById('signup-name').value.trim(),
         password: document.getElementById('signup-password').value,
         email: document.getElementById('signup-email').value.trim(),
-        securityQuestion: document.getElementById('signup-security-question').value,
-        securityAnswer: document.getElementById('signup-security-answer').value,
       },
       document.getElementById('signup-error'),
       document.getElementById('signup-submit')
@@ -651,7 +664,7 @@
   function openResetModal({ step } = { step: 'request' }) {
     resetChatLog.innerHTML = '';
     if (step === 'request') {
-      nexSay("Hey, I'm Nex. What's the username on the account you're locked out of?");
+      nexSay("Hey, I'm Nex. What email or username is on the account you're locked out of?");
     } else {
       nexSay('Got it — pick a new password and you\'re back in.');
     }

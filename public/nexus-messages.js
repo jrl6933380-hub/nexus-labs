@@ -1,5 +1,6 @@
 import {friendlyError,showFeedback} from './ux.js';
 import {installNexus,nexusInstallState} from './app-install.js';
+import {disableNotifications,enableNotifications,notificationState,pushSupport} from './push-notifications.js';
 
 const node=(tag,text,cls='')=>{const el=document.createElement(tag);if(text!==undefined)el.textContent=text;el.className=cls;return el;};
 const button=(text,run,cls='')=>{const el=node('button',text,cls);el.type='button';el.onclick=run;return el;};
@@ -76,9 +77,38 @@ export async function renderMessages(ctx){
     const installCopy=installState==='installed'?'Nexus is installed on this device.':installState==='prompt'?'Add Nexus to this device with one tap.':installState==='ios'?'Put Nexus on your Home Screen and open it like an app.':'Get Nexus on this device for faster access.';
     app.append(row({name:installState==='installed'?'Nexus is installed':'Install Nexus',meta:installState==='installed'?'Ready from your Home Screen':'Nexus app',preview:installCopy,icon:'N',tone:'nex',run:installView}));
     root.append(app);
+    const alerts=node('div',undefined,'messagechoices notificationchoice');alerts.append(node('p','Phone alerts','messagesection'));
+    const support=pushSupport();
+    alerts.append(row({name:'Notifications',meta:support==='supported'?'Schedule + Reminders':'This device is not ready',preview:support==='supported'?'Get alerts even when Nexus is closed.':'Install Nexus on a supported phone or browser to use background alerts.',icon:'◉',tone:'reminders',run:notificationView}));
+    root.append(alerts);
     const account=node('div',undefined,'messagechoices');account.append(node('p','Account','messagesection'));
     for(const system of SYSTEMS.filter(item=>item.action)){account.append(row({name:system.name,meta:'Nexus account',preview:system.description,icon:system.icon,tone:system.tone,run:()=>ctx[system.action]?.()}));}
+    account.append(row({name:'Report a problem',meta:'Help improve Nexus',preview:'Send an idea or tell us what went wrong.',icon:'!',tone:'operations',run:feedbackView}));
+    account.append(row({name:'Privacy',meta:'Your information',preview:'See what Nexus keeps and what you control.',icon:'P',tone:'memory',run:()=>location.assign('/privacy.html')}));
+    account.append(row({name:'Terms',meta:'Using Nexus',preview:'Read the plain-English rules for Nexus.',icon:'T',tone:'legacy',run:()=>location.assign('/terms.html')}));
     root.append(account);if(message)showFeedback(root,message);
+  }
+  function feedbackView(){
+    heading(root,'Report a problem','Tell us what happened or what would make Nexus better.',moreView);
+    const form=node('form',undefined,'messageform'),category=node('select'),message=node('textarea'),status=node('p',undefined,'messageformstatus');
+    for(const [value,label] of [['problem','Something went wrong'],['idea','I have an idea'],['other','Something else']]){const option=node('option',label);option.value=value;category.append(option);}
+    message.required=true;message.maxLength=4000;message.placeholder='What happened? What did you expect?';status.setAttribute('role','status');
+    const send=button('Send feedback',null,'uxprimary messagecontinue');send.type='submit';form.append(node('label','What kind of feedback?'),category,node('label','Tell us about it'),message,send,status);root.append(form,button('Back to More',moreView,'messagesecondary'));
+    form.onsubmit=async(event)=>{event.preventDefault();send.disabled=true;try{const response=await fetch('/api/feedback',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({category:category.value,message:message.value,page:location.pathname+location.search})}),data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error || 'Feedback could not be sent');moreView('Thanks—your feedback was sent.');}catch(error){status.textContent=friendlyError(error,{action:'send',subject:'your feedback',keepDraft:true});send.disabled=false;}};
+    message.focus();
+  }
+  async function notificationView(message=''){
+    heading(root,'Phone notifications','Let Schedule and Reminders reach you when Nexus is closed.',moreView);
+    const card=node('section',undefined,'installcard');card.append(avatar('✓','reminders'));
+    const status=node('p','Checking this device…','messageformstatus');card.append(node('h3','Stay ahead of your day.'),node('p','Nexus only sends alerts you asked for. Tap one to open the right Schedule or Reminder.'),status);root.append(card);
+    try{
+      const state=await notificationState();
+      if(state.support!=='supported'){status.textContent=state.support==='insecure'?'Open the secure Nexus app to turn on alerts.':'This device or browser does not support Nexus phone alerts yet.';root.append(button('Back to More',moreView,'uxprimary messagecontinue'));return;}
+      if(!state.configured){status.textContent='Phone alerts are being connected. Everything else in Nexus still works.';root.append(button('Back to More',moreView,'uxprimary messagecontinue'));return;}
+      status.textContent=state.enabled?'Notifications are on for this device.':'Notifications are off for this device.';
+      const toggle=button(state.enabled?'Turn off notifications':'Turn on notifications',async()=>{toggle.disabled=true;try{if(state.enabled)await disableNotifications();else await enableNotifications();notificationView(state.enabled?'Notifications turned off.':'Notifications are on. A test alert was sent.');}catch(error){toggle.disabled=false;showFeedback(root,friendlyError(error,{action:'update',subject:'phone notifications'}));}},'uxprimary messagecontinue');
+      root.append(toggle,button('Back to More',moreView,'messagesecondary'));if(message)showFeedback(root,message);
+    }catch(error){status.textContent=friendlyError(error,{action:'load',subject:'phone notifications'});root.append(button('Try again',notificationView,'uxprimary messagecontinue'),button('Back to More',moreView,'messagesecondary'));}
   }
   function installView(){
     const state=nexusInstallState();heading(root,state==='installed'?'Nexus is installed':'Install Nexus',state==='installed'?'Open Nexus from your Home Screen whenever you need it.':'Give Nexus its own icon and full-screen home on this device.',moreView);
