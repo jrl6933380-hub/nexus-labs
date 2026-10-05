@@ -15,9 +15,13 @@ test('owner dashboard is one chat-first workspace instead of a stack of static r
 
 test('the static engines are hidden behind a developer fallback instead of driving the workspace', () => {
   const workspace = read('../public/nexus-workspace.js');
-  for (const route of ['mission-control', 'conference-room', 'room', 'story-studio', 'memory', 'connectors']) {
+  // The old room page was replaced by the Messages/Projects conversation
+  // surface. The remaining specialist engines stay available only as explicit
+  // developer fallbacks.
+  for (const route of ['mission-control', 'conference-room', 'story-studio', 'memory', 'connectors']) {
     assert.match(workspace, new RegExp(`/${route}\\.html`, 'u'));
   }
+  assert.doesNotMatch(workspace, /href:\s*['"]\/room\.html/u);
   assert.match(workspace, /Developer fallback/u);
   assert.match(workspace, /Open live panel/u);
   assert.match(workspace, /Change this/u);
