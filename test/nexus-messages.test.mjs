@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {createNexusMessagesStore,MESSAGE_SYSTEM_IDS} from '../lib/nexusMessagesStore.js';
 import {createNexusMessagesHandler} from '../api/nexus-messages.js';
 import {conversationThreadId,conversationPreview} from '../public/nexus-messages.js';
-import {formatLiveWorkspaceContext} from '../lib/nexBrain.js';
+import {buildActiveTools,buildConversationAccessPolicy,formatLiveWorkspaceContext} from '../lib/nexBrain.js';
 import {isProtectedConversationThreadId} from '../lib/nexConversationStore.js';
 import fs from 'node:fs';
 
@@ -51,7 +51,40 @@ test('trusted workspace context names specialist boundaries and makes Nex coordi
   const specialist=formatLiveWorkspaceContext({clientContext:{conversation:{kind:'specialist',name:'Maya',job:'Research launch angles',scopes:['conversation']}}});
   assert.match(specialist,/Reply in this specialist's name/);assert.match(specialist,/outside the allowed list/);assert.match(specialist,/Never claim work finished/);
   const group=formatLiveWorkspaceContext({clientContext:{conversation:{kind:'group',title:'Launch',scopes:['conversation','projects'],members:[{name:'Maya',job:'Research'},{name:'Atlas',job:'Build'}]}}});
-  assert.match(group,/Nex is coordinating/);assert.match(group,/Maya \(Research\)/);assert.match(group,/real Board tasks/);assert.match(group,/Do not pretend specialists completed/);
+  assert.match(group,/Nex is coordinating/);assert.match(group,/Maya \(Research\)/);assert.match(group,/handoffs and status clear/);assert.match(group,/Do not pretend specialists completed/);
+});
+
+test('specialist access is enforced as a backend tool allowlist',()=>{
+  const research=buildConversationAccessPolicy({kind:'specialist',role:'research',scopes:['conversation']});
+  assert.equal(research.restricted,true);assert.equal(research.allowNativeWeb,true);
+  assert.deepEqual([...research.allowedToolNames],['ask_user_question']);
+
+  const builder=buildConversationAccessPolicy({kind:'specialist',role:'build',scopes:['conversation','projects']});
+  assert.equal(builder.allowedToolNames.has('read_repo_file'),true);
+  assert.equal(builder.allowedToolNames.has('patch_repo_file'),true);
+  assert.equal(builder.allowedToolNames.has('delete_repo'),false);
+  assert.equal(builder.allowedToolNames.has('save_memory'),false);
+  assert.equal(builder.allowedToolNames.has('approve_pending_action'),false);
+
+  const visible=buildActiveTools(new Set(['coding','board_admin','memory_admin']),builder.allowedToolNames).map(tool=>tool.name);
+  assert.ok(visible.includes('tool_search'));assert.ok(visible.includes('patch_repo_file'));
+  assert.ok(!visible.includes('delete_repo'));assert.ok(!visible.includes('read_board'));assert.ok(!visible.includes('save_memory'));
+
+  const nex=buildConversationAccessPolicy(null);
+  assert.equal(nex.restricted,false);assert.equal(nex.allowedToolNames,null);assert.equal(nex.allowNativeWeb,true);
+});
+
+test('scoped conversations cannot inherit ambient founder workspace context',()=>{
+  const context=formatLiveWorkspaceContext({
+    board:{tasks:[{title:'Secret acquisition',status:'active'}],agents:[{display_name:'Founder bot',status:'working'}]},
+    rooms:[{name:'Private command room',url:'/command'}],
+    clientContext:{
+      screen:{title:'Founder controls',viewport_text:['Revenue and private customer list'],controls:['Delete account']},
+      conversation:{kind:'specialist',name:'Maya',role:'research',job:'Research',scopes:['conversation']},
+    },
+  });
+  for(const secret of ['Secret acquisition','Founder bot','Private command room','Revenue and private customer list','Delete account'])assert.doesNotMatch(context,new RegExp(secret));
+  assert.match(context,/hidden from this scoped conversation/);
 });
 
 test('workspace opens on Messages and sends only a saved conversation id back to the server',()=>{

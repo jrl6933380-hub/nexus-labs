@@ -1,5 +1,10 @@
 import { lifeStore } from '../lib/life.js';
 import { reminderStore } from '../lib/reminders.js';
+import { pushService } from '../lib/pushNotifications.js';
+import { socialAuth } from '../lib/socialAuth.js';
+import { accountDataService } from '../lib/accountData.js';
+import { feedbackStore } from '../lib/feedback.js';
+import { parseCookies, createOrFindSocialUser, createSession as createRoomSession, serializeSessionCookie as serializeRoomSessionCookie } from '../lib/roomAuth.js';
 // /api/board.js
 // Shared task board endpoint — read/write access for Claude, GPT, and
 // Nex to coordinate work without stepping on each other. GET reads
@@ -153,6 +158,101 @@ export function createRemindersHandler({getOwner=getNexusOwner,getUser=getReques
 };
 }
 const handleReminders=createRemindersHandler();
+
+export function createPushHandler({getOwner=getNexusOwner,getUser=getRequestUser,service=pushService}={}) {
+  return async function handlePush(req,res) {
+    res.setHeader('Cache-Control','private, no-store');
+    const owner=await getOwner(req).catch(()=>null);
+    const roomUser=owner ? null : await getUser(req).catch(()=>null);
+    if(!owner && !roomUser)return res.status(401).json({error:'Sign in to manage phone notifications.'});
+    const user=owner ? `owner:${owner.id}` : `room:${roomUser}`;
+    try{
+      if(req.method==='GET')return res.status(200).json(await service.status(user));
+      if(req.method!=='POST')return res.status(405).json({error:'Method Not Allowed'});
+      const {action,subscription,endpoint}=req.body || {};
+      if(action==='subscribe')return res.status(200).json(await service.subscribe(user,subscription));
+      if(action==='unsubscribe')return res.status(200).json(await service.unsubscribe(user,endpoint));
+      if(action==='test')return res.status(200).json(await service.test(user));
+      return res.status(400).json({error:'Unknown notification action'});
+    }catch(error){return res.status(400).json({error:error.message});}
+  };
+}
+const handlePush=createPushHandler();
+
+function cronAuthorized(req){
+  const expected=String(process.env.CRON_SECRET || '');
+  const supplied=String(req.headers?.authorization || '').replace(/^Bearer\s+/u,'');
+  if(!expected || !supplied)return false;
+  const left=crypto.createHash('sha256').update(expected).digest();
+  const right=crypto.createHash('sha256').update(supplied).digest();
+  return crypto.timingSafeEqual(left,right);
+}
+export function createPushDeliveryHandler({authorized=cronAuthorized,service=pushService}={}){
+  return async function handlePushDelivery(req,res){
+    res.setHeader('Cache-Control','private, no-store');
+    if(req.method!=='GET')return res.status(405).json({error:'Method Not Allowed'});
+    if(!authorized(req))return res.status(401).json({error:'Notification delivery is not authorized'});
+    try{return res.status(200).json(await service.deliverAll());}
+    catch(error){console.error('push delivery crashed:',error.message);return res.status(500).json({error:'Notifications could not be delivered'});}
+  };
+}
+const handlePushDelivery=createPushDeliveryHandler();
+
+const SOCIAL_BROWSER_COOKIE='__Host-nexus_social_browser';
+function socialBrowserCookie(value){return `${SOCIAL_BROWSER_COOKIE}=${value || ''}; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=${value ? 600 : 0}`;}
+function redirect(res,url){res.statusCode=302;res.setHeader('Location',url);return res.end();}
+export function createSocialAuthHandler({auth=socialAuth,findUser=createOrFindSocialUser,createSession=createRoomSession,serializeCookie=serializeRoomSessionCookie}={}){
+  return async function handleSocialAuth(req,res){
+    res.setHeader('Cache-Control','private, no-store');
+    const path=(req.url || '').split('?')[0],provider=path.split('/')[4] || String(req.query?.provider || '');
+    try{
+      if(path==='/api/social-auth'&&!req.query?.provider){if(req.method!=='GET')return res.status(405).json({error:'Method Not Allowed'});return res.status(200).json(auth.status());}
+      if(path==='/api/social-auth'&&req.method==='GET'){
+        const binding=crypto.randomBytes(32).toString('base64url');
+        const url=await auth.begin(provider,req.query?.next,binding);
+        res.setHeader('Set-Cookie',socialBrowserCookie(binding));
+        return redirect(res,url);
+      }
+      if(path.startsWith('/api/social-auth/callback/')&&(req.method==='GET'||req.method==='POST')){
+        const {request,identity}=await auth.finish(provider,{...(req.query || {}),...(req.body || {}),browserBinding:parseCookies(req)[SOCIAL_BROWSER_COOKIE]});
+        const account=await findUser(identity),token=await createSession(account.username);res.setHeader('Set-Cookie',[serializeCookie(token),socialBrowserCookie(null)]);return redirect(res,request.next);
+      }
+      return res.status(405).json({error:'Method Not Allowed'});
+    }catch(error){console.error('social auth:',error.message);return redirect(res,`/room-login.html?social_error=${encodeURIComponent(error.message)}`);}
+  };
+}
+const handleSocialAuth=createSocialAuthHandler();
+
+export function createAccountHandler({getOwner=getNexusOwner,getUser=getRequestUser,service=accountDataService,clearCookie=serializeRoomSessionCookie}={}){
+  return async function handleAccount(req,res){
+    res.setHeader('Cache-Control','private, no-store');
+    const owner=await getOwner(req).catch(()=>null);
+    if(owner)return res.status(403).json({error:'The private Nexus owner account cannot be removed here.'});
+    const username=await getUser(req).catch(()=>null);
+    if(!username)return res.status(401).json({error:'Sign in to manage your account.'});
+    try{
+      if(req.method==='GET')return res.status(200).json(await service.exportData(username));
+      if(req.method!=='POST')return res.status(405).json({error:'Method Not Allowed'});
+      if(req.body?.action!=='delete'||req.body?.confirmation!=='DELETE MY ACCOUNT')return res.status(400).json({error:'Type DELETE MY ACCOUNT to confirm.'});
+      const result=await service.purgeData(username);
+      res.setHeader('Set-Cookie',clearCookie(null,{clear:true}));
+      return res.status(200).json(result);
+    }catch(error){console.error('account data:',error.message);return res.status(400).json({error:'Your account request could not be completed. Try again.'});}
+  };
+}
+const handleAccount=createAccountHandler();
+
+export function createFeedbackHandler({getOwner=getNexusOwner,getUser=getRequestUser,store=feedbackStore}={}){
+  return async function handleFeedback(req,res){
+    res.setHeader('Cache-Control','private, no-store');
+    if(req.method!=='POST')return res.status(405).json({error:'Method Not Allowed'});
+    const owner=await getOwner(req).catch(()=>null),roomUser=owner ? null : await getUser(req).catch(()=>null);
+    if(!owner&&!roomUser)return res.status(401).json({error:'Sign in to send feedback.'});
+    try{const user=owner?`owner:${owner.id}`:`room:${roomUser}`;return res.status(200).json({item:await store.submit(req.body,user)});}
+    catch(error){return res.status(400).json({error:error.message});}
+  };
+}
+const handleFeedback=createFeedbackHandler();
 
 async function handlePlanner(req, res) {
   res.setHeader('Cache-Control', 'private, no-store');
@@ -712,6 +812,11 @@ export default async function handler(req, res) {
     if (path.startsWith('/api/vault')) return await handleVault(req, res);
     if (path.startsWith('/api/life')) return await handleLife(req,res);
     if (path.startsWith('/api/reminders')) return await handleReminders(req, res);
+    if (path.startsWith('/api/push-deliver')) return await handlePushDelivery(req, res);
+    if (path.startsWith('/api/push')) return await handlePush(req, res);
+    if (path.startsWith('/api/social-auth')) return await handleSocialAuth(req, res);
+    if (path.startsWith('/api/account')) return await handleAccount(req, res);
+    if (path.startsWith('/api/feedback')) return await handleFeedback(req, res);
     if (path.startsWith('/api/planner')) return await handlePlanner(req, res);
     if (path.startsWith('/api/pinned-visuals')) return await handlePinnedVisuals(req, res);
     if (path.startsWith('/api/nex/action')) return await handleNexAction(req, res);

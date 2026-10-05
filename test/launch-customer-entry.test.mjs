@@ -29,7 +29,7 @@ test('Builder Brain explains a 401 and offers Forge sign-in instead of an outage
 });
 
 test('customer account flow connects Builder Brain on sign-in before returning to work', () => {
-  assert.match(login, /new Set\(\['\/forge\.html', '\/room\.html', '\/story-studio\.html'\]\)/u);
+  assert.match(login, /new Set\(\['\/forge\.html', '\/room\.html', '\/story-studio\.html'/u);
   assert.match(login, /id="brain-step"/u);
   assert.match(login, /returnTo:'login'/u);
   assert.match(login, /location\.href = nextPath/u);
@@ -79,8 +79,8 @@ test('missing Builder Brain responses provide a real setup action in the custome
 });
 
 test('saved projects open directly instead of becoming a new build prompt', () => {
-  assert.match(forgeViews, /onClick: \(\) => ctx\.openBuild\(field\(build, 'latestBuildId', 'id'\)\)/u);
-  assert.match(forge, /openBuild: async \(id\)/u);
+  assert.match(forgeViews, /open\.onclick = \(\) => ctx\.openBuild\(buildId\)/u);
+  assert.match(forge, /openBuild: async \(id, destination = 'chat', projectLabel = ''\)/u);
   assert.match(forge, /\/api\/room-history\?id=/u);
   assert.match(forge, /currentBuild = data\.build\.html/u);
   assert.match(forge, /currentProjectId = data\.build\.projectId \|\| data\.build\.id/u);
