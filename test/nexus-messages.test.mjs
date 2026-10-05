@@ -57,7 +57,10 @@ test('trusted workspace context names specialist boundaries and makes Nex coordi
 test('specialist access is enforced as a backend tool allowlist',()=>{
   const research=buildConversationAccessPolicy({kind:'specialist',role:'research',scopes:['conversation']});
   assert.equal(research.restricted,true);assert.equal(research.allowNativeWeb,true);
-  assert.deepEqual([...research.allowedToolNames],['ask_user_question']);
+  assert.deepEqual([...research.allowedToolNames],['ask_user_question','web_search','web_fetch']);
+  const researchTools=buildActiveTools(new Set(['web']),research.allowedToolNames).map(tool=>tool.name);
+  // Research search must remain available through non-native provider tools.
+  assert.ok(researchTools.includes('web_search'));assert.ok(researchTools.includes('web_fetch'));
 
   const builder=buildConversationAccessPolicy({kind:'specialist',role:'build',scopes:['conversation','projects']});
   assert.equal(builder.allowedToolNames.has('read_repo_file'),true);
