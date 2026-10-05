@@ -11,7 +11,7 @@ const SYSTEMS = [
     ['Customer AI', 'Adds the optional embedded assistant without exposing the Nexus operator workspace.'],
     ['Vault Reuse', 'Pulls proven blueprints and modules before generating another version of the same structure.'],
   ] },
-  { id: 'operations', title: 'Command Deck', icon: 'OP', hue: 188, status: 'LIVE CONTROL', href: '/mission-control.html', description: 'Tasks, deployments, health signals, approvals, and active work distilled into one operational view.', sections: [
+  { id: 'operations', title: 'Command Deck', icon: 'OP', hue: 188, status: 'LIVE CONTROL', href: '/workspace.html?view=deck', description: 'Tasks, deployments, health signals, approvals, and active work distilled into one operational view.', sections: [
     ['Live Board', 'Tracks tasks, handoffs, progress, and the next item that needs operator attention.'],
     ['Deployments', 'Surfaces production and preview state without making the Vercel dashboard the workspace.'],
     ['Agent Runs', 'Shows what Nex and the AI team are doing, paused on, or waiting for.'],
@@ -23,7 +23,7 @@ const SYSTEMS = [
     ['Scene Composer', 'Combines likeness, background, action, and dialogue into editable story panels.'],
     ['Final Sequence', 'Assembles panels into a readable comic or an exportable visual sequence.'],
   ] },
-  { id: 'agents', title: 'AI Team', icon: 'AI', hue: 154, status: 'ORCHESTRATED', href: '/conference-room.html', description: 'Nex, builders, reviewers, and cleaner roles working through shared tasks and handoffs.', sections: [
+  { id: 'agents', title: 'AI Team', icon: 'AI', hue: 154, status: 'ORCHESTRATED', href: '/workspace.html?view=agents', description: 'Nex, builders, reviewers, and cleaner roles working through shared tasks and handoffs.', sections: [
     ['Nex', 'Owns intent, routing, context, tool choice, approvals, and the final operator response.'],
     ['Build Lanes', 'Splits large work into focused structure, design, research, and implementation lanes.'],
     ['Review & Clean', 'Checks collisions, tests the merged result, and packages one clean handoff.'],
@@ -35,13 +35,13 @@ const SYSTEMS = [
     ['Routing', 'Nexus and Forge use the Qwen pod directly, with hosted providers disabled for this phase.'],
     ['Guardrails', 'Creating pods, changing GPU types, scaling, and deletion remain approval-only.'],
   ] },
-  { id: 'memory', title: 'Memory & Vault', icon: 'MV', hue: 42, status: 'PERSISTENT', href: '/memory.html', description: 'Long-term memory, snapshots, reusable code, proven blueprints, and continuity across agents.', sections: [
+  { id: 'memory', title: 'Memory & Vault', icon: 'MV', hue: 42, status: 'PERSISTENT', href: '/workspace.html?view=memory', description: 'Long-term memory, snapshots, reusable code, proven blueprints, and continuity across agents.', sections: [
     ['Long-Term Memory', 'Preserves durable preferences, decisions, systems, and project context.'],
     ['Code Vault', 'Versions reusable blueprints, modules, and blocks instead of regenerating known patterns.'],
     ['Snapshots', 'Captures working system states so large edits start from a reliable checkpoint.'],
     ['Context Compiler', 'Loads only the relevant memory, files, tools, and skills for the active job.'],
   ] },
-  { id: 'access', title: 'Access & Connectors', icon: 'AC', hue: 330, status: 'CONTROLLED', href: '/connectors.html', description: 'OAuth, tool access, tenants, approvals, and guarded connections to external systems.', sections: [
+  { id: 'access', title: 'Access & Connectors', icon: 'AC', hue: 330, status: 'CONTROLLED', href: '/workspace.html?view=skills', description: 'OAuth, tool access, tenants, approvals, and guarded connections to external systems.', sections: [
     ['Connector Bay', 'Controls GitHub, Vercel, model providers, and future external capabilities.'],
     ['Approval Queue', 'Keeps consequential actions behind explicit operator review.'],
     ['Tenant Boundary', 'Separates customer products from the private Nexus operator control plane.'],

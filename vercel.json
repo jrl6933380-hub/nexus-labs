@@ -6,6 +6,17 @@
     "api/nexus-messages.js": { "maxDuration": 300 },
     "api/room-chat.js": { "maxDuration": 300 }
   },
+  "redirects": [
+    { "source": "/mission-control.html", "destination": "/workspace.html?view=deck", "permanent": true },
+    { "source": "/conference-room.html", "destination": "/workspace.html?view=agents", "permanent": true },
+    { "source": "/memory.html", "destination": "/workspace.html?view=memory", "permanent": true },
+    { "source": "/queue.html", "destination": "/workspace.html?view=approvals", "permanent": true },
+    { "source": "/connectors.html", "destination": "/workspace.html?view=skills", "permanent": true },
+    { "source": "/tenants.html", "destination": "/workspace.html?view=forge", "permanent": true },
+    { "source": "/nexus-canvas.html", "destination": "/workspace.html?view=messages", "permanent": true },
+    { "source": "/thoughtspace.html", "destination": "/workspace.html?view=messages", "permanent": true },
+    { "source": "/nexus-space.html", "destination": "/workspace.html?view=messages", "permanent": true }
+  ],
   "rewrites": [
     {
       "source": "/api/hyperfocus",
