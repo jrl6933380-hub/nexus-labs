@@ -2,8 +2,7 @@ const SHELL_CACHE = 'nexus-shell-v1';
 const SHELL_FILES = [
   '/offline.html',
   '/manifest.webmanifest',
-  '/app-icon-192.png',
-  '/app-icon-512.png',
+  '/app-icon.svg',
 ];
 
 self.addEventListener('install', (event) => {

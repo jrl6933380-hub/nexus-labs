@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const { isIosDevice, isStandalone, nexusInstallState, registerNexusApp } = await import('../public/app-install.js');
+const { default: appIcon } = await import('../api/app-icon.js');
 const read = (path) => fs.readFileSync(new URL(path, import.meta.url), 'utf8');
 
 test('iPhone and touch iPad devices receive Apple install guidance', () => {
@@ -25,6 +26,19 @@ test('service worker registration is optional and never blocks Nexus', async () 
   assert.deepEqual(calls,[['/service-worker.js',{scope:'/'}]]);
 });
 
+test('iPhone receives a cacheable PNG Home Screen icon', () => {
+  const headers={};let statusCode=null;let body=null;
+  appIcon({}, {
+    setHeader:(name,value)=>{headers[name]=value;},
+    status:(value)=>{statusCode=value;return {send:(value)=>{body=value;}};},
+  });
+  assert.equal(statusCode,200);
+  assert.equal(headers['Content-Type'],'image/png');
+  assert.match(headers['Cache-Control'],/immutable/u);
+  assert.equal(Buffer.isBuffer(body),true);
+  assert.equal(body.subarray(1,4).toString(),'PNG');
+});
+
 test('the app shell stays installable without caching private API or page data', () => {
   const workspace=read('../public/workspace.html');
   const manifest=JSON.parse(read('../public/manifest.webmanifest'));
@@ -34,7 +48,10 @@ test('the app shell stays installable without caching private API or page data',
   assert.match(workspace,/registerNexusApp\(\)/u);
   assert.equal(manifest.display,'standalone');
   assert.equal(manifest.start_url,'/?source=app');
-  assert.equal(manifest.icons.length,2);
+  assert.equal(manifest.icons.length,1);
+  assert.equal(manifest.icons[0].sizes,'any');
+  assert.equal(manifest.icons[0].type,'image/svg+xml');
+  assert.match(workspace,/rel="apple-touch-icon" href="\/api\/app-icon"/u);
   assert.match(worker,/url\.pathname\.startsWith\('\/api\/'\)/u);
   assert.match(worker,/request\.mode === 'navigate'/u);
   assert.doesNotMatch(worker,/cache\.put\(request, copy\)[\s\S]*request\.mode === 'navigate'/u);
