@@ -17,7 +17,7 @@
   // those links pointed at "/#something" that no longer does
   // anything — clicking any of them just landed back on the canvas
   // regardless of which one was clicked. One honest link instead.
-  dock.innerHTML = '<a href="/">← Return to Dashboard</a>';
+  dock.innerHTML = '<a href="/workspace.html?view=messages">← Return to Messages</a>';
   document.body.prepend(bar);
   document.body.appendChild(dock);
 

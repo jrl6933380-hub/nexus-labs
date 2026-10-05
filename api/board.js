@@ -761,7 +761,7 @@ async function handleOAuthCallback(req, res, provider) {
 
   const { code, state, error: providerError } = req.query || {};
   const redirectBack = (params) => {
-    const url = new URL('/tenants.html', NEXUS_PUBLIC_URL);
+    const url = new URL('/workspace.html?view=forge', NEXUS_PUBLIC_URL);
     for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
     res.writeHead(302, { Location: url.pathname + url.search });
     return res.end();

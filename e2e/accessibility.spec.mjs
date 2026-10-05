@@ -42,6 +42,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, '..', 'public');
 const pages = fs.readdirSync(publicDir).filter((file) => file.endsWith('.html'));
 const pageUrl = (file) => file === 'canvas.html' ? '/canvas?id=mobile-test' : `/${file}`;
+const retiredOperatorPages = new Set([
+  'conference-room.html', 'connectors.html', 'memory.html', 'mission-control.html',
+  'nexus-canvas.html', 'nexus-space.html', 'queue.html', 'tenants.html', 'thoughtspace.html',
+]);
 
 async function stubRoomAuth(page, username = 'a11y-test', { owner = true } = {}) {
   await page.route(/\/api\/room-auth(?:\?.*)?$/, (route) => route.fulfill({ json: { username } }));
@@ -49,7 +53,25 @@ async function stubRoomAuth(page, username = 'a11y-test', { owner = true } = {})
     await page.route(/\/api\/nexus-auth(?:\?.*)?$/, (route) => route.fulfill({
       json: { authenticated: true, owner: { id: username } },
     }));
+  } else {
+    await page.route(/\/api\/nexus-auth(?:\?.*)?$/, (route) => route.fulfill({
+      status: 401, json: { authenticated: false, pinAvailable: false },
+    }));
   }
+}
+
+async function stubCurrentWorkspace(page) {
+  await stubRoomAuth(page, 'mobile-test');
+  await page.route(/\/api\/chat(?:\?.*)?$/, (route) => route.fulfill({ json: { threads: [], messages: [] } }));
+  await page.route(/\/api\/nexus-messages(?:\?.*)?$/, (route) => route.fulfill({ json: {
+    specialists: [], groups: [], roles: {}, scopes: [],
+    pinned_system_ids: ['planner', 'reminders', 'workbench', 'life'],
+  } }));
+  await page.route(/\/api\/board(?:\?.*)?$/, (route) => route.fulfill({ json: { tasks: [] } }));
+  await page.route(/\/api\/status(?:\?.*)?$/, (route) => route.fulfill({ json: {} }));
+  await page.route(/\/api\/agents(?:\?.*)?$/, (route) => route.fulfill({ json: { agents: [] } }));
+  await page.route(/\/api\/memory(?:\?.*)?$/, (route) => route.fulfill({ json: { items: [] } }));
+  await page.route(/\/api\/forge-(?:metrics|customers|admin)(?:\?.*)?$/, (route) => route.fulfill({ json: {} }));
 }
 
 async function stubBoardCreate(page, canvasId = 'a11y-test') {
@@ -70,7 +92,8 @@ for (const file of pages) {
   test.describe(file, () => {
     test(`${file} has no serious/critical WCAG 2 A/AA violations`, async ({ page }) => {
       await page.emulateMedia({ reducedMotion: 'reduce' });
-      await stubRoomAuth(page, 'a11y-test', { owner: file !== 'nexus-login.html' });
+      if (retiredOperatorPages.has(file)) await stubCurrentWorkspace(page);
+      else await stubRoomAuth(page, 'a11y-test', { owner: file !== 'nexus-login.html' });
       await page.goto(pageUrl(file));
       const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
       const seriousOrWorse = results.violations.filter((v) => ['serious', 'critical'].includes(v.impact));
@@ -87,7 +110,8 @@ for (const file of pages) {
     });
 
     test(`${file} declares a mobile viewport`, async ({ page }) => {
-      await stubRoomAuth(page, 'a11y-test', { owner: file !== 'nexus-login.html' });
+      if (retiredOperatorPages.has(file)) await stubCurrentWorkspace(page);
+      else await stubRoomAuth(page, 'a11y-test', { owner: file !== 'nexus-login.html' });
       await page.goto(pageUrl(file));
       const viewport = await page.locator('meta[name="viewport"]').getAttribute('content').catch(() => null);
       expect(viewport, `${file} is missing <meta name="viewport">`).not.toBeNull();
@@ -95,7 +119,8 @@ for (const file of pages) {
 
     test(`${file} has no horizontal overflow at a 375px mobile width`, async ({ page }) => {
       await page.setViewportSize({ width: 375, height: 667 });
-      await stubRoomAuth(page, 'a11y-test', { owner: file !== 'nexus-login.html' });
+      if (retiredOperatorPages.has(file)) await stubCurrentWorkspace(page);
+      else await stubRoomAuth(page, 'a11y-test', { owner: file !== 'nexus-login.html' });
       await page.goto(pageUrl(file));
       const { scrollWidth, clientWidth } = await page.evaluate(() => ({
         scrollWidth: document.documentElement.scrollWidth,
@@ -112,9 +137,7 @@ for (const file of pages) {
 
 
 const canvasRooms = [
-  ['canvas.html', 4], ['connectors.html', 1],
-  ['memory.html', 4], ['mission-control.html', 4],
-  ['queue.html', 1], ['story-studio.html', 1], ['tenants.html', 2],
+  ['canvas.html', 4], ['story-studio.html', 1],
 ];
 
 async function expandPanelIfCollapsed(panel) {
@@ -184,42 +207,44 @@ test.describe('mobile canvas room interactions', () => {
     });
   }
 
-  test('the universal workspace keeps system views and the compact Nex dock usable on mobile', async ({ page }) => {
-    await stubRoomAuth(page, 'mobile-test');
-    await page.route(/\/api\/board(?:\?.*)?$/, (route) => route.fulfill({ json: { telemetry: { total_tasks: 8, completed_tasks: 5, needs_approval: 1, active_agents: 2 } } }));
-    await page.route(/\/api\/pinned-visuals(?:\?.*)?$/, (route) => route.fulfill({ json: { visual: null } }));
-    await page.goto('/index.html');
-    await expect(page.locator('.workspace-card')).toHaveCount(6);
-    await page.getByRole('button', { name: /AI Team/u }).click();
-    await expect(page.getByRole('heading', { name: 'AI Team' })).toBeVisible();
-    const dock = page.locator('#nexChatBar.nex-thoughtspace-dock');
-    await expect(dock).toHaveClass(/collapsed/u);
-    await expect(dock.locator('.nex-chat-input')).toBeVisible();
-    const dockBox = await dock.boundingBox();
-    expect(dockBox.height).toBeLessThanOrEqual(60);
+  test('the current Messages workspace and composer stay usable on mobile', async ({ page }) => {
+    await stubCurrentWorkspace(page);
+    await page.goto('/workspace.html');
+    await expect(page.locator('body')).toHaveAttribute('data-view', 'messages');
+    await expect(page.getByRole('heading', { name: 'One place to think, plan, remember, and create.' })).toBeVisible();
+    await expect(page.locator('.composer')).toBeVisible();
+    await expect(page.locator('.messageitem')).toHaveCount(7);
+    const composerBox = await page.locator('.composer').boundingBox();
+    expect(composerBox).not.toBeNull();
+    expect(composerBox.x).toBeGreaterThanOrEqual(0);
+    expect(composerBox.x + composerBox.width).toBeLessThanOrEqual(393);
   });
 
-  test('the blank canvas uses the full visual stage above the universal dock', async ({ page }) => {
-    await stubRoomAuth(page, 'mobile-test');
-    await page.route(/\/api\/board(?:\?.*)?$/, (route) => route.fulfill({ json: { telemetry: {} } }));
-    await page.route(/\/api\/pinned-visuals(?:\?.*)?$/, (route) => route.fulfill({ json: { visual: null } }));
-    await page.goto('/index.html');
-    await page.getByRole('button', { name: 'Blank Canvas' }).click();
-    const blank = page.locator('.workspace-blank');
-    await expect(blank).toBeVisible();
-    const box = await page.locator('#nexus-visual-stage').boundingBox();
-    expect(box.height).toBeGreaterThan(700);
+  test('retired operator URLs open their matching current workspace views without showing the old dashboard', async ({ page }) => {
+    await stubCurrentWorkspace(page);
+    const routes = [
+      ['/mission-control.html', 'deck'],
+      ['/conference-room.html', 'agents'],
+      ['/memory.html', 'memory'],
+      ['/queue.html', 'approvals'],
+      ['/connectors.html', 'skills'],
+      ['/tenants.html', 'forge'],
+    ];
+    for (const [oldPath, view] of routes) {
+      await page.goto(oldPath);
+      await page.waitForURL(`**/workspace.html?view=${view}`);
+      await expect(page.locator('body')).toHaveAttribute('data-view', view);
+      await expect(page.locator('.nexus-command-bar')).toHaveCount(0);
+    }
   });
 
-  test('Nexus home always returns from a system view to the visual overview', async ({ page }) => {
-    await stubRoomAuth(page, 'mobile-test');
-    await page.route(/\/api\/board(?:\?.*)?$/, (route) => route.fulfill({ json: { telemetry: {} } }));
-    await page.route(/\/api\/pinned-visuals(?:\?.*)?$/, (route) => route.fulfill({ json: { visual: null } }));
-    await page.goto('/index.html');
-    await page.getByRole('button', { name: /Nexus Forge/u }).click();
-    await expect(page.getByRole('heading', { name: 'Nexus Forge' })).toBeVisible();
-    await page.locator('#nexHomeButton').click();
-    await expect(page.getByRole('heading', { name: 'Your whole operation, tuned into one view.' })).toBeVisible();
+  test('Back to Messages returns from a system view to the current mobile home', async ({ page }) => {
+    await stubCurrentWorkspace(page);
+    await page.goto('/workspace.html?view=deck');
+    await expect(page.locator('#viewTitle')).toHaveText('Command Deck');
+    await page.locator('#backMessages').click();
+    await expect(page.locator('body')).toHaveAttribute('data-view', 'messages');
+    await expect(page.locator('#viewTitle')).toHaveText('Messages');
   });
 
   // Retired with public/room.html (old Room Builder), which now only forwards to /forge.html.
