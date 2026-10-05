@@ -4,6 +4,11 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#0e0e0e" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Nexus" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="apple-touch-icon" href="/app-icon-192.png" />
 <title>Nexus Messages</title>
 <!--
   /workspace.html — the whole system as one conversation.
@@ -283,6 +288,7 @@ import { NEX_CHAT_MODES } from '/nexus-product-catalog.js';
 import { startReminderAlerts } from '/reminders.js';
 import { dueScheduleReminders } from '/schedule-reminders.js';
 import { scheduleStart, scheduleEnd, occupiedStart, plannedEndLabel, updateStartOptions } from '/schedule-availability.js';
+import { registerNexusApp } from '/app-install.js';
 
 // Owner gate. The previous root page checked this before rendering anything, and
 // this shell now sits at the root, so it has to hold the same line — without it,
@@ -1317,6 +1323,7 @@ el('dockSend').onclick = () => {
 el('dockInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') el('dockSend').click(); });
 
 const requestedView = new URLSearchParams(location.search).get('view');
+registerNexusApp();
 await loadThreads();
 await showView(requestedView && VIEWS[requestedView] ? requestedView : 'messages');
 startReminderAlerts(()=>showView('reminders'));

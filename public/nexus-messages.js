@@ -1,4 +1,5 @@
 import {friendlyError,showFeedback} from './ux.js';
+import {installNexus,nexusInstallState} from './app-install.js';
 
 const node=(tag,text,cls='')=>{const el=document.createElement(tag);if(text!==undefined)el.textContent=text;el.className=cls;return el;};
 const button=(text,run,cls='')=>{const el=node('button',text,cls);el.type='button';el.onclick=run;return el;};
@@ -70,9 +71,34 @@ export async function renderMessages(ctx){
       toggle.setAttribute('aria-pressed',String(pinned.has(system.id)));toggle.setAttribute('aria-label',`${pinned.has(system.id)?'Unpin':'Pin'} ${system.name}`);item.append(toggle);list.append(item);
     }
     root.append(list);
+    const app=node('div',undefined,'messagechoices installchoice');app.append(node('p','Nexus app','messagesection'));
+    const installState=nexusInstallState();
+    const installCopy=installState==='installed'?'Nexus is installed on this device.':installState==='prompt'?'Add Nexus to this device with one tap.':installState==='ios'?'Put Nexus on your Home Screen and open it like an app.':'Get Nexus on this device for faster access.';
+    app.append(row({name:installState==='installed'?'Nexus is installed':'Install Nexus',meta:installState==='installed'?'Ready from your Home Screen':'Nexus app',preview:installCopy,icon:'N',tone:'nex',run:installView}));
+    root.append(app);
     const account=node('div',undefined,'messagechoices');account.append(node('p','Account','messagesection'));
     for(const system of SYSTEMS.filter(item=>item.action)){account.append(row({name:system.name,meta:'Nexus account',preview:system.description,icon:system.icon,tone:system.tone,run:()=>ctx[system.action]?.()}));}
     root.append(account);if(message)showFeedback(root,message);
+  }
+  function installView(){
+    const state=nexusInstallState();heading(root,state==='installed'?'Nexus is installed':'Install Nexus',state==='installed'?'Open Nexus from your Home Screen whenever you need it.':'Give Nexus its own icon and full-screen home on this device.',moreView);
+    const card=node('section',undefined,'installcard');card.append(avatar('N','nex'));
+    if(state==='installed'){
+      card.append(node('h3','You’re all set.'),node('p','Nexus already opens as an app on this device. Your projects, schedule, reminders, and Life stay connected to your account.'));
+      root.append(card,button('Back to More',moreView,'uxprimary messagecontinue'));return;
+    }
+    if(state==='prompt'){
+      card.append(node('h3','Ready to install.'),node('p','Nexus will get its own icon and open without the browser around it.'));
+      const install=button('Install Nexus',async()=>{install.disabled=true;const result=await installNexus();if(result.outcome==='accepted')installView();else{install.disabled=false;showFeedback(root,'Installation was not completed. You can try again whenever you’re ready.');}},'uxprimary messagecontinue');
+      root.append(card,install,button('Not now',moreView,'messagesecondary'));return;
+    }
+    const ios=nexusInstallState()==='ios';
+    const steps=node('ol',undefined,'installsteps');
+    const instructions=ios
+      ? [['1','Tap Share','Use the Share button in Safari.'],['2','Add to Home Screen','Scroll down and choose Add to Home Screen.'],['3','Add Nexus','Keep Open as Web App turned on, then tap Add.']]
+      : [['1','Open your browser menu','Look for Install app or Add to Home Screen.'],['2','Choose Install Nexus','Confirm the installation when your browser asks.'],['3','Open Nexus','Use the new Nexus icon on your device.']];
+    for(const [number,title,copy] of instructions){const item=node('li');item.append(node('b',number),node('span',undefined,'installstepcopy'));item.lastChild.append(node('strong',title),node('small',copy));steps.append(item);}
+    card.append(node('h3',ios?'Install from Safari':'Install from your browser'),steps);root.append(card,button('Got it',moreView,'uxprimary messagecontinue'));
   }
   function clearConversations(recent){
     const kept=new Set();heading(root,'Clear conversations','Saved Memory, projects, schedules, reminders, Life, specialists, and groups stay safe. Choose Keep on any recent chat you still want.',draw);
