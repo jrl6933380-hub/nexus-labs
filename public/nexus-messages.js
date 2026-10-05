@@ -1,3 +1,4 @@
+import {NEXUS_INTRO} from './nexus-guide.js';
 import {friendlyError,showFeedback} from './ux.js';
 import {installNexus,nexusInstallState} from './app-install.js';
 import {disableNotifications,enableNotifications,notificationState,pushSupport,notificationError} from './push-notifications.js';
@@ -9,8 +10,8 @@ const SYSTEMS=[
   {id:'reminders',name:'Reminders',icon:'✓',tone:'reminders',section:'Your Nexus',description:'Remember things and reserve time'},
   {id:'life',name:'Nexus Life',icon:'✦',tone:'life',section:'Your Nexus',description:'Energy, balance, and what matters'},
   {id:'workbench',name:'Projects',icon:'◫',tone:'projects',section:'Your Nexus',description:'Build, improve, and maintain projects'},
-  {id:'legacy',name:'Nexus Legacy',icon:'◇',tone:'legacy',section:'Connected Nexus',description:'Keep memories, people, and lessons close'},
-  {id:'teams',name:'Nexus Teams',icon:'⬡',tone:'teams',section:'Connected Nexus',description:'People and agents working together'},
+  {id:'legacy',name:'Nexus Legacy',icon:'◇',tone:'legacy',section:'Connected Nexus',description:'Planned: a dedicated home for people, memories, and lessons'},
+  {id:'teams',name:'Nexus Teams',icon:'⬡',tone:'teams',section:'Connected Nexus',description:'Planned: a workspace for multiple people and agents'},
   {id:'deck',name:'Command Deck',icon:'⌁',tone:'operations',section:'Founder operations',description:'See what needs your attention'},
   {id:'approvals',name:'Approvals',icon:'✓',tone:'operations',section:'Founder operations',description:'Review consequential actions before they happen'},
   {id:'forge',name:'Forge',icon:'F',tone:'forge',section:'Founder operations',description:'Run and support the builder'},
@@ -39,14 +40,16 @@ function wizardHeading(root,title,step,back){heading(root,title,step,back);const
 
 export async function renderMessages(ctx){
   const root=node('section',undefined,'nexusmessages');let state={specialists:[],groups:[],roles:{},scopes:[],pinned_system_ids:[]};
-  async function load(message){try{state=await api();if(ctx.consumeMessagesNew?.())newConversation();else draw();if(typeof message==='string' && message.trim())showFeedback(root,message);}catch(error){root.replaceChildren(node('p',friendlyError(error,{action:'load',subject:'Messages'})),button('Try again',()=>load()));}}
+  async function load(message){try{state=await api();if(ctx.consumeMessagesNew?.())newConversation();else draw();if(typeof message==='string' && message.trim())showFeedback(root,message);}catch(error){root.replaceChildren(node('p',friendlyError(error,{action:'load',subject:'Messages'})),button('Try again',()=>load()),button('Explore Nexus',()=>ctx.go('guide'),'guideopen'));}}
   function draw(){
     document.body.classList.remove('messages-panel');
     root.replaceChildren();
+    const intro=node('header',undefined,'messagespurpose');intro.append(node('h2',NEXUS_INTRO.title),node('p','Recipes, reminders, notes, ideas, and things you want to make. Start with a conversation.'));root.append(intro);
     const search=node('input');search.type='search';search.placeholder='Search conversations';search.setAttribute('aria-label','Search conversations');root.append(search);
     const list=node('div',undefined,'messagelist');root.append(list);
     const entries=[],threads=new Map(ctx.recentThreads().map(item=>[item.id,item])),main=threads.get('nex-main');
     entries.push({section:'Conversations',element:row({name:'Nex',meta:'Your main intelligence',preview:main?.title || 'Talk about anything—ideas, problems, plans, or life.',icon:'N',tone:'nex',when:timeLabel(main?.updated_at),pinned:true,run:()=>ctx.openConversation({kind:'nex',name:'Nex'})}),search:'nex main intelligence talk anything ideas problems plans life'});
+    entries.push({section:'Conversations',element:row({name:'Explore Nexus',meta:'Everyday life, projects, and work',preview:'See what each feature does and try a practical example.',icon:'?',tone:'more',run:()=>ctx.go('guide')}),search:'explore nexus guide help what can I do recipes notes reminders sleep birthdays research builder agents'});
     for(const specialist of state.specialists){const saved=threads.get(specialist.id);entries.push({section:'Conversations',element:row({name:specialist.name,meta:state.roles[specialist.role]?.label || 'Specialist',preview:saved?.title || specialist.job,icon:specialist.name,tone:specialist.role,status:state.specialist_status?.[specialist.id] || (saved?.message_count?'Active':'Ready'),when:timeLabel(saved?.updated_at),run:()=>ctx.openConversation({kind:'specialist',...specialist})}),search:`${specialist.name} ${specialist.job}`});}
     for(const group of state.groups){const saved=threads.get(group.id),members=group.member_ids.map(id=>state.specialists.find(item=>item.id===id)).filter(Boolean),names=members.map(member=>member.name);entries.push({section:'Conversations',element:row({name:group.title,meta:[...(group.include_nex===false?[]:['Nex']),...names].join(' + '),preview:saved?.title || 'Use @mentions to give your team a mission.',icon:'+',tone:'group',status:state.team_status?.[group.id] || (saved?.message_count?'Active':'Ready'),when:timeLabel(saved?.updated_at),run:()=>ctx.openConversation({kind:'group',...group,members})}),search:`${group.title} ${names.join(' ')}`});}
     const recent=ctx.recentThreads().filter(item=>!/^agent-|^group-|^nex-main$/u.test(item.id));
@@ -72,6 +75,7 @@ export async function renderMessages(ctx){
       toggle.setAttribute('aria-pressed',String(pinned.has(system.id)));toggle.setAttribute('aria-label',`${pinned.has(system.id)?'Unpin':'Pin'} ${system.name}`);item.append(toggle);list.append(item);
     }
     root.append(list);
+    root.append(row({name:'Explore Nexus',meta:'Your practical guide',preview:'Every feature explained, with examples you can try.',icon:'?',tone:'more',run:()=>ctx.go('guide')}));
     const app=node('div',undefined,'messagechoices installchoice');app.append(node('p','Nexus app','messagesection'));
     const installState=nexusInstallState();
     const installCopy=installState==='installed'?'Nexus is installed on this device.':installState==='prompt'?'Add Nexus to this device with one tap.':installState==='ios'?'Put Nexus on your Home Screen and open it like an app.':'Get Nexus on this device for faster access.';
