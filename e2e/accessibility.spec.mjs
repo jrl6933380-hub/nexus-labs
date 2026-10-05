@@ -212,8 +212,10 @@ test.describe('mobile canvas room interactions', () => {
     await page.goto('/workspace.html');
     await expect(page.locator('body')).toHaveAttribute('data-view', 'messages');
     await expect(page.getByRole('heading', { name: 'One place to think, plan, remember, and create.' })).toBeVisible();
-    await expect(page.locator('.comp')).toBeVisible();
     await expect(page.locator('.messageitem')).toHaveCount(7);
+    await page.locator('.messageitem').first().click();
+    await expect(page.locator('body')).toHaveAttribute('data-view', 'chat');
+    await expect(page.locator('.comp')).toBeVisible();
     const composerBox = await page.locator('.comp').boundingBox();
     expect(composerBox).not.toBeNull();
     expect(composerBox.x).toBeGreaterThanOrEqual(0);
