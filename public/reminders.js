@@ -103,13 +103,16 @@ export function dueReminderAlerts(items,now,delivered){
   return items.filter(item=>item.status!=='done' && item.due_at && Date.parse(item.due_at)<=now && now-Date.parse(item.due_at)<3600000 && !delivered.has(`${item.id}:${item.due_at}`));
 }
 // In-app delivery only. No request for browser notification permissions.
-export function startReminderAlerts(openReminders,{endpoint='/api/reminders',filter=()=>true}={}){
+export function startReminderAlerts(openReminders,{endpoint='/api/reminders',filter=()=>true,isDestinationActive=()=>false}={}){
   const delivered=new Set();let polling=false;
   async function check(){
     if(polling || document.visibilityState==='hidden' || document.querySelector('.scheduletoast'))return;
     polling=true;
     try{
-      const response=await fetch(endpoint,{credentials:'include'});if(!response.ok)return;const items=((await response.json()).items || []).filter(filter),item=dueReminderAlerts(items,Date.now(),delivered)[0];if(!item)return;
+      const response=await fetch(endpoint,{credentials:'include'});if(!response.ok)return;const items=((await response.json()).items || []).filter(filter),due=dueReminderAlerts(items,Date.now(),delivered);
+      // Already at the destination: acknowledge due items without another navigation prompt.
+      if(isDestinationActive()){for(const item of due)delivered.add(`${item.id}:${item.due_at}`);return;}
+      const item=due[0];if(!item)return;
       delivered.add(`${item.id}:${item.due_at}`);
       const toast=node('div',undefined,'scheduletoast');toast.setAttribute('role','status');
       toast.append(node('strong',item.title),node('span',item.notes || 'Your reminder is due.'));
