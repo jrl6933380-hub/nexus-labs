@@ -200,6 +200,11 @@
     .tier-grid { grid-template-columns: 1fr; }
     .tier-card { min-height: 0; }
   }
+/* Keep touch-device text fields readable without Safari focus zoom. */
+@media (max-width: 900px), (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="hidden"]),
+  textarea, select { font-size: 16px !important; }
+}
 </style>
 
 <style>

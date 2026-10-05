@@ -1,3 +1,8 @@
 .uxfeedback{padding:12px 14px;border:1px solid #617052;border-radius:12px;background:#18231a;color:#d9efd4;font:15px/1.45 system-ui;overflow-wrap:anywhere}.uxprimary{display:block;min-height:48px;padding:13px 20px;background:#dfbd79!important;color:#17120b!important;border:1px solid #dfbd79!important;border-radius:14px;font:600 16px/1.4 system-ui;text-align:center;cursor:pointer}.uxsecondary{margin:14px 0}.uxsecondary>summary{min-height:44px;padding:10px 0;color:#c6cbd4;font:15px/1.4 system-ui;cursor:pointer}.uxsecondary button{min-height:44px}.uxstep{font:13px/1.4 system-ui;color:#dfcda7;margin-bottom:8px}.uxprimary:focus-visible,.uxsecondary summary:focus-visible{outline:3px solid #e2c182;outline-offset:3px}.plannerform>details{grid-column:1/-1}.plannerform>details label{margin:12px 0}.plannerform>details summary{min-height:44px;padding:10px 0;cursor:pointer}.welcome .uxprimary{width:100%;margin-top:22px}.welcome .uxsecondary{text-align:left}.welcome .startergrid{margin-top:10px}
 
 .uxprimary:disabled{opacity:.5;cursor:wait}.reminderquick .uxprimary{flex-shrink:0}.lifemore>button{min-height:44px}
+/* Keep touch-device text fields readable without Safari focus zoom. */
+@media (max-width: 900px), (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="hidden"]),
+  textarea, select { font-size: 16px !important; }
+}
