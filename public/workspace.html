@@ -235,6 +235,7 @@
 <link rel="stylesheet" href="/reminders.css">
 <link rel="stylesheet" href="/life.css">
 <link rel="stylesheet" href="/nexus-messages.css">
+<link rel="stylesheet" href="/team-chat.css">
 <link rel="stylesheet" href="/ux.css" />
 </head>
 <body>
@@ -290,6 +291,7 @@ import { startReminderAlerts } from '/reminders.js';
 import { dueScheduleReminders } from '/schedule-reminders.js';
 import { scheduleStart, scheduleEnd, occupiedStart, plannedEndLabel, updateStartOptions } from '/schedule-availability.js';
 import { registerNexusApp } from '/app-install.js';
+import { createTeamChat } from '/team-chat.js';
 
 // Owner gate. The previous root page checked this before rendering anything, and
 // this shell now sits at the root, so it has to hold the same line — without it,
@@ -933,6 +935,7 @@ function paragraphs(text){
 // survives you looking around, which is the whole point of rooms living here.
 // ---------------------------------------------------------------------------
 async function showView(id){
+  teamChat.stop();
   document.body.classList.remove('messages-panel');
   currentView = id;
   document.body.dataset.view = id;
@@ -940,7 +943,7 @@ async function showView(id){
   el('viewTitle').textContent = id === 'chat' ? (activeConversation?.name || activeConversation?.title || 'Nex') : VIEWS[id].label;
   el('viewSubtitle').textContent = id === 'workbench' ? 'Your websites, apps, and tools' : id === 'messages' ? 'One intelligence. A team when you need one.' : id === 'chat' ? conversationSubtitle() : 'Connected through Messages';
 
-  if (id === 'chat') { replayThread(); return; }
+  if (id === 'chat') { replayThread(); teamChat.open(activeConversation); return; }
 
   thread.innerHTML = '';
   const loading = bubble('sys', 'Reading…');
@@ -1157,9 +1160,19 @@ function drawPins(){
 drawPins();
 
 // --- composer --------------------------------------------------------------
+const teamChat=createTeamChat({input:el('input'),thread,
+  onMessage:raw=>{bubble('u',esc(raw));history.push({role:'user',content:raw});saveThread();},
+  onGroup:group=>{activeConversation=group;el('viewSubtitle').textContent=conversationSubtitle();el('input').placeholder='Message Nex, or @ a teammate…';},
+  openApprovals:()=>showView('approvals'),
+});
 async function submit(){
   const raw = el('input').value.trim();
   if (!raw || busy) return;
+  if(currentView==='chat' && teamChat.handlesMessage(raw)){
+    busy=true;el('send').disabled=true;
+    try{await teamChat.submit(raw);}catch{}finally{busy=false;el('send').disabled=false;}
+    return;
+  }
   el('input').value = '';
 
   const target = matchView(raw);

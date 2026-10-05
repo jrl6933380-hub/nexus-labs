@@ -27,6 +27,7 @@ import {
   saveRecentConversation,
 } from '../lib/nexConversationStore.js';
 import { nexusMessagesStore } from '../lib/nexusMessagesStore.js';
+import { teamRunStore } from '../lib/teamRuns.js';
 
 // ============================================================
 // SHORT-TERM ROLLING BUFFER — just enough for mid-conversation
@@ -99,7 +100,9 @@ async function resolveConversationContext(owner, requested) {
   }
   const group = state.groups.find((item) => item.id === requested.id);
   if (!group) return null;
-  return { kind:'group', ...group, members:group.member_ids.map((id) => state.specialists.find((item) => item.id === id)).filter(Boolean) };
+  const recentTeam=(await teamRunStore.list(owner,group.id).catch(()=>[])).slice(0,2);
+  const team_brief=recentTeam.map(run=>JSON.stringify({goal:run.goal,state:run.state,steps:run.steps.map(step=>({name:step.name,state:step.state,result:step.result?.slice(0,1500),evidence:step.evidence}))})).join('\n');
+  return { kind:'group', ...group, team_brief, members:group.member_ids.map((id) => state.specialists.find((item) => item.id === id)).filter(Boolean) };
 }
 
 

@@ -1,0 +1,88 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createTeamRunStore,WORKER_LEASE_MS} from '../lib/teamRuns.js';
+import {createTeamRunner} from '../lib/teamRunner.js';
+import {createTeamMessagesHandler} from '../lib/teamMessagesHandler.js';
+import {parseTeamMentions,teamHandles} from '../public/team-mentions.js';
+import {buildConversationAccessPolicy} from '../lib/nexBrain.js';
+
+const members=[{id:'agent-maya',name:'Maya',role:'research',job:'Research launch ideas',scopes:['conversation']},{id:'agent-atlas',name:'Atlas',role:'build',job:'Build projects',scopes:['conversation','projects']}];
+function fixture(){
+  let clock=1000,sequence=0;const data=new Map();
+  const command=async([verb,key,...args])=>{
+    if(verb==='GET')return data.get(key) || null;
+    if(verb==='SET'){if(args.includes('NX') && data.has(key))return null;data.set(key,args[0]);return 'OK';}
+    if(verb==='EVAL'){
+      const [count,lock,...rest]=args;
+      if(Number(count)===1){if(data.get(lock)===rest[0]){data.delete(lock);return 1;}return 0;}
+      const [base,token,value]=rest;if(data.get(lock)!==token)return 0;data.set(base,value);data.delete(lock);return 1;
+    }
+    throw new Error('Unexpected Redis command '+verb);
+  };
+  return {runs:createTeamRunStore({command,now:()=>clock,id:()=>`test-${++sequence}`}),tick:()=>{clock+=WORKER_LEASE_MS+1;}};
+}
+const create=(runs,owner='justin',text='@Maya research launch ideas @Atlas build a page',request='request-one')=>runs.create(owner,'group-launch',members,text,request);
+const res=()=>({setHeader(){},status(code){this.code=code;return this;},json(body){this.body=body;return this;}});
+
+test('mentions resolve saved group members, quoted names and unique duplicate handles',()=>{
+  assert.deepEqual(parseTeamMentions('Email me a@maya.com',members),[]);
+  assert.deepEqual(parseTeamMentions('@Maya compare options @Atlas build',members).map(m=>[m.member_id,m.instruction]),[['agent-maya','compare options'],['agent-atlas','build']]);
+  const duplicate=[...members,{...members[0],id:'agent-other'}];assert.throws(()=>parseTeamMentions('@Maya go',duplicate),/unique/);
+  assert.equal(parseTeamMentions(`@${teamHandles(duplicate)[0].handle} go`,duplicate)[0].member_id,'agent-maya');
+  assert.throws(()=>parseTeamMentions('@outsider go',members),/not here/);
+  assert.equal(parseTeamMentions('@"Mary Jane" research',[{...members[0],name:'Mary Jane'}])[0].instruction,'research');
+  assert.equal(parseTeamMentions('@team compare',members)[0].instruction,'compare');
+});
+test('mission creation is idempotent, owner scoped and prevents overlapping group writes',async()=>{
+  const {runs}=fixture(),first=await create(runs);assert.equal((await create(runs)).id,first.id);
+  await assert.rejects(create(runs,'justin','@Atlas other','request-two'),/current task/);
+  assert.equal((await runs.list('another','group-launch')).length,0);
+  const other=await create(runs,'another');assert.notEqual(other.id,first.id);
+  await assert.rejects(runs.claim('another','group-launch',first.id),/no longer/);
+  assert.equal(first.steps.at(-1).role,'review');assert.equal(first.steps[1].requires_approval,true);
+});
+test('separate calls pass actual research to builder, pause for approval, then review',async()=>{
+  const {runs}=fixture(),calls=[],currentMembers=structuredClone(members);
+  const runner=createTeamRunner({runs,messages:{overview:async()=>({groups:[{id:'group-launch',member_ids:members.map(m=>m.id)}],specialists:currentMembers})},mode:async()=>({mode:'engaged'}),history:async()=>({messages:[{role:'user',content:'Our launch is a simple site.'}]}),ask:async(prompt,h,t,context)=>{calls.push({prompt,h,context});return {reply:calls.length===1?'Research finding: local gardening.':calls.length===2?'Draft PR prepared.':'Reviewed the returned draft.',provider:'gateway',model:'test-model',completionReceipt:{status:'not_required',observed:[]}};}});
+  const run=await create(runs);await runner.execute('justin','group-launch',run.id);assert.equal(calls.length,0,'unapproved plans do no work');
+  await runs.act('justin','group-launch',run.id,'start');await runner.execute('justin','group-launch',run.id);
+  assert.equal(calls[0].context.conversation.id,'agent-maya');assert.equal(calls[0].context.conversation.execution_mode,'read_only');assert.equal(calls[0].context.conversation.scopes.includes('projects'),false);
+  await runner.execute('justin','group-launch',run.id);assert.equal(calls.length,1,'builder waits for approval');
+  let [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'needs_approval');
+  await runs.act('justin','group-launch',run.id,'approve_step',saved.steps[1].id);currentMembers[1].scopes.push('life');await runner.execute('justin','group-launch',run.id);
+  assert.match(calls[1].prompt,/Research finding: local gardening/);assert.match(calls[1].prompt,/Your assignment: build a page/);assert.equal(calls[1].context.conversation.id,'agent-atlas');
+  assert.equal(calls[1].context.conversation.scopes.includes('life'),false,'approval cannot silently expand a worker’s access');
+  await runner.execute('justin','group-launch',run.id);assert.equal(calls[2].context.conversation.execution_mode,'read_only');assert.match(calls[2].prompt,/Draft PR prepared/);
+  [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'completed');assert.equal(saved.steps.every(step=>step.state==='returned'),true);assert.ok(saved.events.some(event=>event.message.includes('passed it')));
+});
+test('worker leases prevent duplicate execution and stale completions cannot change retries',async()=>{
+  const {runs,tick}=fixture(),run=await create(runs);await runs.act('justin','group-launch',run.id,'start');
+  const first=await runs.claim('justin','group-launch',run.id);assert.equal(await runs.claim('justin','group-launch',run.id),null);
+  tick();assert.equal(await runs.claim('justin','group-launch',run.id),null);let [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'blocked');assert.equal(saved.steps[0].state,'interrupted');
+  await runs.act('justin','group-launch',run.id,'retry',first.step.id);const next=await runs.claim('justin','group-launch',run.id);
+  await runs.settle('justin','group-launch',run.id,first.step.id,first.step.token,{state:'returned',result:'Stale output'});
+  [saved]=await runs.list('justin','group-launch');assert.equal(saved.steps[0].state,'working');assert.equal(saved.steps[0].result,null);
+  await runs.settle('justin','group-launch',run.id,next.step.id,next.step.token,{state:'returned',result:'Fresh output'});
+  [saved]=await runs.list('justin','group-launch');assert.equal(saved.steps[0].result,'Fresh output');
+});
+test('cancellation stops after the current assignment and preserves its result',async()=>{
+  const {runs}=fixture(),run=await create(runs);await runs.act('justin','group-launch',run.id,'start');const claim=await runs.claim('justin','group-launch',run.id);
+  assert.equal((await runs.act('justin','group-launch',run.id,'cancel')).state,'stopping');
+  await runs.settle('justin','group-launch',run.id,claim.step.id,claim.step.token,{state:'returned',result:'Saved partial research'});
+  assert.equal((await runs.list('justin','group-launch'))[0].state,'cancelled');assert.equal(await runs.claim('justin','group-launch',run.id),null);
+});
+test('provider failures block handoffs; removed members never run; scopes cannot expand after approval',async()=>{
+  const {runs}=fixture();let people=[...members],calls=0;const runner=createTeamRunner({runs,messages:{overview:async()=>({groups:[{id:'group-launch',member_ids:people.map(m=>m.id)}],specialists:people})},mode:async()=>({mode:'engaged'}),history:async()=>null,ask:async()=>{calls++;return {reply:'Providers unavailable',provider:'none'};}});
+  const run=await create(runs);await runs.act('justin','group-launch',run.id,'start');await runner.execute('justin','group-launch',run.id);await runner.execute('justin','group-launch',run.id);assert.equal(calls,1);
+  let [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'blocked');assert.equal(saved.steps[1].state,'queued');
+  await runs.act('justin','group-launch',run.id,'retry',saved.steps[0].id);people=[members[1]];await runner.execute('justin','group-launch',run.id);assert.equal(calls,1);[saved]=await runs.list('justin','group-launch');assert.match(saved.steps[0].error,/removed/);
+  const policy=buildConversationAccessPolicy({kind:'group',members,scopes:['conversation','projects','life'],execution_mode:'read_only'});assert.ok(policy.allowedToolNames.has('read_repo_file'));assert.ok(!policy.allowedToolNames.has('patch_repo_file'));assert.ok(!policy.allowedToolNames.has('manage_life'));
+});
+test('team API strips worker lease tokens, retains caller scope, and schedules approved work',async()=>{
+  const {runs}=fixture(),scheduled=[];const runner={group:async()=>({id:'group-launch',members}),execute:async()=>{}};
+  const handle=createTeamMessagesHandler({runs,runner,schedule:promise=>scheduled.push(promise)});
+  const created=res();await handle({method:'POST',body:{action:'team_create',group_id:'group-launch',message:'@Maya research',request_id:'request-one',owner:'other'}},created,{id:'justin'});
+  assert.equal(created.code,200);assert.equal((await runs.list('other','group-launch')).length,0);
+  const started=res();await handle({method:'POST',body:{action:'team_start',group_id:'group-launch',run_id:created.body.run.id}},started,{id:'justin'});assert.equal(scheduled.length,1);
+  await runs.claim('justin','group-launch',created.body.run.id);const listed=res();await handle({method:'GET',query:{group_id:'group-launch'}},listed,{id:'justin'});assert.equal(listed.body.runs[0].steps[0].token,undefined);assert.equal(listed.body.runs[0].steps[0].lease_until,undefined);
+});

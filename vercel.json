@@ -3,6 +3,7 @@
     "NEX_QWEN_ONLY": "true"
   },
   "functions": {
+    "api/nexus-messages.js": { "maxDuration": 300 },
     "api/room-chat.js": { "maxDuration": 300 }
   },
   "rewrites": [

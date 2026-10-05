@@ -263,3 +263,7 @@ test.describe('mobile build feedback', () => {
     await expect(page.locator('.nexus-build-feedback')).toHaveCount(0);
   });
 });
+
+// Exercise group missions alongside the existing mobile/browser checks.
+import {registerTeamChatChecks} from './team-chat-checks.mjs';
+registerTeamChatChecks();
