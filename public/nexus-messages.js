@@ -39,7 +39,7 @@ function wizardHeading(root,title,step,back){heading(root,title,step,back);const
 
 export async function renderMessages(ctx){
   const root=node('section',undefined,'nexusmessages');let state={specialists:[],groups:[],roles:{},scopes:[],pinned_system_ids:[]};
-  async function load(message){try{state=await api();if(ctx.consumeMessagesNew?.())newConversation();else draw();if(message)showFeedback(root,message);}catch(error){root.replaceChildren(node('p',friendlyError(error,{action:'load',subject:'Messages'})),button('Try again',()=>load()));}}
+  async function load(message){try{state=await api();if(ctx.consumeMessagesNew?.())newConversation();else draw();if(typeof message==='string' && message.trim())showFeedback(root,message);}catch(error){root.replaceChildren(node('p',friendlyError(error,{action:'load',subject:'Messages'})),button('Try again',()=>load()));}}
   function draw(){
     document.body.classList.remove('messages-panel');
     root.replaceChildren();
@@ -79,14 +79,14 @@ export async function renderMessages(ctx){
     root.append(app);
     const alerts=node('div',undefined,'messagechoices notificationchoice');alerts.append(node('p','Phone alerts','messagesection'));
     const support=pushSupport();
-    alerts.append(row({name:'Notifications',meta:support==='supported'?'Schedule + Reminders':'This device is not ready',preview:support==='supported'?'Get alerts even when Nexus is closed.':'Install Nexus on a supported phone or browser to use background alerts.',icon:'◉',tone:'reminders',run:notificationView}));
+    alerts.append(row({name:'Notifications',meta:support==='supported'?'Schedule + Reminders':'This device is not ready',preview:support==='supported'?'Get alerts even when Nexus is closed.':support==='install-required'?'Add Nexus to your Home Screen, then open the app to turn on alerts.':'Install Nexus on a supported phone or browser to use background alerts.',icon:'◉',tone:'reminders',run:notificationView}));
     root.append(alerts);
     const account=node('div',undefined,'messagechoices');account.append(node('p','Account','messagesection'));
     for(const system of SYSTEMS.filter(item=>item.action)){account.append(row({name:system.name,meta:'Nexus account',preview:system.description,icon:system.icon,tone:system.tone,run:()=>ctx[system.action]?.()}));}
     account.append(row({name:'Report a problem',meta:'Help improve Nexus',preview:'Send an idea or tell us what went wrong.',icon:'!',tone:'operations',run:feedbackView}));
     account.append(row({name:'Privacy',meta:'Your information',preview:'See what Nexus keeps and what you control.',icon:'P',tone:'memory',run:()=>location.assign('/privacy.html')}));
     account.append(row({name:'Terms',meta:'Using Nexus',preview:'Read the plain-English rules for Nexus.',icon:'T',tone:'legacy',run:()=>location.assign('/terms.html')}));
-    root.append(account);if(message)showFeedback(root,message);
+    root.append(account);if(typeof message==='string' && message.trim())showFeedback(root,message);
   }
   function feedbackView(){
     heading(root,'Report a problem','Tell us what happened or what would make Nexus better.',moreView);
@@ -103,11 +103,12 @@ export async function renderMessages(ctx){
     const status=node('p','Checking this device…','messageformstatus');card.append(node('h3','Stay ahead of your day.'),node('p','Nexus only sends alerts you asked for. Tap one to open the right Schedule or Reminder.'),status);root.append(card);
     try{
       const state=await notificationState();
+      if(state.support==='install-required'){status.textContent='On iPhone and iPad, add Nexus to your Home Screen first. Open the Nexus icon, then return here to turn on alerts.';root.append(button('Install Nexus',installView,'uxprimary messagecontinue'),button('Back to More',()=>moreView(),'messagesecondary'));return;}
       if(state.support!=='supported'){status.textContent=state.support==='insecure'?'Open the secure Nexus app to turn on alerts.':'This device or browser does not support Nexus phone alerts yet.';root.append(button('Back to More',moreView,'uxprimary messagecontinue'));return;}
       if(!state.configured){status.textContent='Phone alerts are being connected. Everything else in Nexus still works.';root.append(button('Back to More',moreView,'uxprimary messagecontinue'));return;}
       status.textContent=state.enabled?'Notifications are on for this device.':'Notifications are off for this device.';
       const toggle=button(state.enabled?'Turn off notifications':'Turn on notifications',async()=>{toggle.disabled=true;try{if(state.enabled)await disableNotifications();else await enableNotifications();notificationView(state.enabled?'Notifications turned off.':'Notifications are on. A test alert was sent.');}catch(error){toggle.disabled=false;showFeedback(root,friendlyError(error,{action:'update',subject:'phone notifications'}));}},'uxprimary messagecontinue');
-      root.append(toggle,button('Back to More',moreView,'messagesecondary'));if(message)showFeedback(root,message);
+      root.append(toggle,button('Back to More',moreView,'messagesecondary'));if(typeof message==='string' && message.trim())showFeedback(root,message);
     }catch(error){status.textContent=friendlyError(error,{action:'load',subject:'phone notifications'});root.append(button('Try again',notificationView,'uxprimary messagecontinue'),button('Back to More',moreView,'messagesecondary'));}
   }
   function installView(){

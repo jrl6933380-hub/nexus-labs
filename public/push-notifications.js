@@ -1,3 +1,5 @@
+import {isIosDevice,isStandalone} from './app-install.js';
+
 function bytes(value) {
   const padding = '='.repeat((4 - value.length % 4) % 4);
   const base64 = (value + padding).replace(/-/gu, '+').replace(/_/gu, '/');
@@ -13,6 +15,7 @@ async function api(action,input={}) {
 
 export function pushSupport({windowObject=globalThis.window,navigatorObject=globalThis.navigator}={}){
   if(!windowObject?.isSecureContext)return 'insecure';
+  if(isIosDevice(navigatorObject)&&!isStandalone(windowObject,navigatorObject))return 'install-required';
   if(!('Notification' in windowObject)||!navigatorObject?.serviceWorker||!('PushManager' in windowObject))return 'unsupported';
   return 'supported';
 }
@@ -27,10 +30,12 @@ export async function notificationState(){
 }
 
 export async function enableNotifications(){
-  const server=await api();
-  if(!server.configured||!server.publicKey)throw new Error('Phone notifications are being prepared. Try again shortly.');
+  if(pushSupport()!=='supported')throw new Error('Open Nexus from your Home Screen to turn on notifications.');
+  // Request permission while the tap still grants browser user activation.
   const permission=await Notification.requestPermission();
   if(permission!=='granted')throw new Error('Notifications are off. Allow them in your phone settings, then try again.');
+  const server=await api();
+  if(!server.configured||!server.publicKey)throw new Error('Phone notifications are being prepared. Try again shortly.');
   const registration=await navigator.serviceWorker.ready;
   let subscription=await registration.pushManager.getSubscription();
   if(!subscription)subscription=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:bytes(server.publicKey)});
