@@ -235,6 +235,7 @@
 <link rel="stylesheet" href="/reminders.css">
 <link rel="stylesheet" href="/life.css">
 <link rel="stylesheet" href="/nexus-messages.css">
+<link rel="stylesheet" href="/nexus-guide.css">
 <link rel="stylesheet" href="/team-chat.css">
 <link rel="stylesheet" href="/ux.css" />
 </head>
@@ -244,7 +245,7 @@
   <div class="top">
     <span class="messagebrand" aria-hidden="true">N</span>
     <button class="backmessages" id="backMessages" aria-label="Back to Messages">‹</button>
-    <div class="viewcopy"><div class="vt" id="viewTitle">Messages</div><div class="vsub" id="viewSubtitle">One intelligence. A team when you need one.</div></div>
+    <div class="viewcopy"><div class="vt" id="viewTitle">Messages</div><div class="vsub" id="viewSubtitle">Everyday life, projects, and work</div></div>
     <div class="grow"></div>
     <button class="ticon" id="headBtn" aria-label="Nex">◉</button>
     <button class="ticon" id="newTop" aria-label="New">＋</button>
@@ -291,6 +292,7 @@ import { startReminderAlerts } from '/reminders.js';
 import { dueScheduleReminders } from '/schedule-reminders.js';
 import { scheduleStart, scheduleEnd, occupiedStart, plannedEndLabel, updateStartOptions } from '/schedule-availability.js';
 import { registerNexusApp } from '/app-install.js';
+import { renderFeatureHelp, draftNexusExample } from '/nexus-guide.js';
 import { createTeamChat } from '/team-chat.js';
 
 // Owner gate. The previous root page checked this before rendering anything, and
@@ -336,6 +338,7 @@ const ctx = {
   clearRecentThreads: (keepThreadIds) => clearRecentConversationThreads(keepThreadIds),
   consumeMessagesNew: () => { const value=messagesStartNew;messagesStartNew=false;return value; },
   focusComposer: () => { el('input').focus(); },
+  draftPrompt: (text) => draftNexusExample({input:el('input'),openMain:()=>openMessagesConversation({kind:'nex',name:'Nex'})},text),
   openSecurity: () => location.assign('/nexus-login.html?pin-setup=1&next=%2Fworkspace.html'),
   lockNex: async () => {
     if (!confirm('Lock Nexus on this device?')) return;
@@ -942,7 +945,7 @@ async function showView(id){
   document.body.dataset.view = id;
   el('input').placeholder = id === 'planner' ? 'Ask Nex about your schedule…' : id === 'reminders' ? 'Ask Nex about your reminders…' : id === 'life' ? 'Talk with Nex about your life…' : 'Message Nex…';
   el('viewTitle').textContent = id === 'chat' ? (activeConversation?.name || activeConversation?.title || 'Nex') : VIEWS[id].label;
-  el('viewSubtitle').textContent = id === 'workbench' ? 'Your websites, apps, and tools' : id === 'messages' ? 'One intelligence. A team when you need one.' : id === 'chat' ? conversationSubtitle() : 'Connected through Messages';
+  el('viewSubtitle').textContent = id === 'workbench' ? 'Your websites, apps, and tools' : id === 'messages' ? 'Everyday life, projects, and work' : id==='guide' ? 'Practical ideas for every part of Nexus' : id === 'chat' ? conversationSubtitle() : 'Connected through Messages';
 
   if (id === 'chat') { replayThread(); teamChat.open(activeConversation,threadId); return; }
 
@@ -951,8 +954,9 @@ async function showView(id){
   try {
     const nodes = await VIEWS[id].render(ctx);
     thread.innerHTML = '';
+    const help=renderFeatureHelp(id,ctx);if(help)thread.appendChild(help);
     for (const node of nodes) thread.appendChild(node);
-    if(!['messages','approvals'].includes(id)){if(!threadId)threadId='nex-main';teamChat.open(activeConversation,threadId);}
+    if(!['messages','approvals','guide'].includes(id)){if(!threadId)threadId='nex-main';teamChat.open(activeConversation,threadId);}
   } catch (error) {
     thread.innerHTML = '';
     bubble('sys', esc(friendlyError(error,{action:'load',subject:VIEWS[id].label})));
@@ -964,6 +968,7 @@ async function showView(id){
 function replayThread(){
   thread.innerHTML = '';
   renderConversationBanner();
+  if(history.length || ['specialist','group'].includes(activeConversation?.kind)){const topic=activeConversation?.kind==='group'?'groups':activeConversation?.kind==='specialist' && ['research','build','life'].includes(activeConversation.role)?activeConversation.role:'chat';const help=renderFeatureHelp(topic,ctx);if(help)thread.appendChild(help);}
   if (!history.length) { conversationGreeting(); return; }
   for (const message of history) {
     if (message.role === 'user') bubble('u', esc(message.content));

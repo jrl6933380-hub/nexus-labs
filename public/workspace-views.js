@@ -1,3 +1,4 @@
+import {NEXUS_INTRO,QUICK_STARTS,renderExampleButtons,renderNexusGuide} from './nexus-guide.js';
 // /public/workspace-views.js
 //
 // Every room, rebuilt as a view inside the chat shell.
@@ -25,8 +26,9 @@ export function primaryAction(label,run){const button=document.createElement('bu
 export function secondaryActions(label,nodes){const details=document.createElement('details');details.className='uxsecondary';const summary=document.createElement('summary');summary.textContent=label;details.append(summary,...nodes);return details;}
 export function renderWelcome(ctx){
   const welcome=document.createElement('section');welcome.className='welcome';
-  for(const [tag,text,cls] of [['div','N','welcome-mark'],['h1',"What’s on your mind?",''],['p',"Talk with Nex about anything—an idea, a problem, your day, or something you want to make. You don’t need to know where to start.",'']]){const node=document.createElement(tag);node.className=cls;node.textContent=text;welcome.append(node);}
-  welcome.append(primaryAction('Start talking',()=>ctx.focusComposer?.()));
+  for(const [tag,text,cls] of [['div','N','welcome-mark'],['h1',NEXUS_INTRO.title,''],['p',NEXUS_INTRO.description,'']]){const node=document.createElement(tag);node.className=cls;node.textContent=text;welcome.append(node);}
+  welcome.append(primaryAction('Start talking',()=>ctx.focusComposer?.()),renderExampleButtons(QUICK_STARTS,ctx));
+  const explore=document.createElement('button');explore.type='button';explore.className='guideopen';explore.textContent='Explore everything Nexus can do';explore.onclick=()=>ctx.go('guide');welcome.append(explore);
   const goals=document.createElement('div');goals.className='startergrid';
   for(const [label,description,view] of [['Build something','A website, app, or tool','workbench'],['Plan my time','Activities and reminders','planner'],['Make room for life','Balance, energy, and what matters','life']]){const button=document.createElement('button');button.type='button';button.className='starter';button.textContent=label;const meta=document.createElement('span');meta.textContent=description;button.append(meta);button.onclick=()=>ctx.go(view);goals.append(button);}
   welcome.append(secondaryActions('Choose a goal yourself',[goals]));return welcome;
@@ -367,6 +369,7 @@ export function scheduleBalance(summary = {}, items = [], ctx) {
 // sends Nex a message in the thread, ctx.go(id) switches view.
 
 export const VIEWS = {
+  guide: {label:'Explore Nexus',icon:'?',say:['explore nexus','nexus guide','what is nexus','practical uses','help','how to use nexus'],async render(ctx){return [renderNexusGuide(ctx)];}},
   messages: {
     label:'Messages', icon:'✦', say:['messages','inbox','conversations'],
     async render(ctx){return [await renderMessages(ctx)];},
@@ -426,9 +429,9 @@ export const VIEWS = {
     say: ['nexus legacy', 'legacy'],
     async render(ctx) {
       return [
-        say(`${NEXUS_PRODUCTS.legacy.promise} This is the bridge from everyday conversation into the people, memories, lessons, and moments you never want to lose.`),
+        say(`${NEXUS_PRODUCTS.legacy.promise} Dedicated Legacy collections are in planning. For now, write about people, memories, and lessons with Nex and keep the conversation.`),
         chips([
-          { label: 'Save a memory', run: () => ctx.ask('I want to preserve a memory in Nexus Legacy. Walk me through it.') },
+          { label: 'Save a memory', run: () => ctx.ask('Help me write about a memory I want to keep in this conversation. Ask what I would like to share.') },
           { label: 'Who should I reach out to', run: () => ctx.ask('Who in my life might appreciate hearing from me right now?') },
         ]),
       ];
@@ -441,7 +444,7 @@ export const VIEWS = {
     say: ['nexus teams', 'teams'],
     async render(ctx) {
       return [
-        say(`${NEXUS_PRODUCTS.teams.promise} Bring people and agents into one shared canvas, hand off work clearly, and keep a human in control of the decisions that matter.`),
+        say(`${NEXUS_PRODUCTS.teams.promise} A workspace for multiple people is in planning. You can already mix your own saved agents in a Messages group, with Nex optional.`),
         chips([
           { label: 'Plan a team workspace', run: () => ctx.ask('Help me design a Nexus Teams workspace for a new project.') },
           { label: 'See my AI team', run: () => ctx.go('agents') },
