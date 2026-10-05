@@ -4,6 +4,8 @@ import {createTeamRunStore,WORKER_LEASE_MS} from '../lib/teamRuns.js';
 import {createTeamRunner} from '../lib/teamRunner.js';
 import {createTeamMessagesHandler} from '../lib/teamMessagesHandler.js';
 import {parseTeamMentions,teamHandles} from '../public/team-mentions.js';
+import {createAgentDelegation} from '../lib/agentDelegation.js';
+import {chatVisualDocument} from '../public/chat-visual.js';
 import {buildConversationAccessPolicy} from '../lib/nexBrain.js';
 
 const members=[{id:'agent-maya',name:'Maya',role:'research',job:'Research launch ideas',scopes:['conversation']},{id:'agent-atlas',name:'Atlas',role:'build',job:'Build projects',scopes:['conversation','projects']}];
@@ -85,4 +87,57 @@ test('team API strips worker lease tokens, retains caller scope, and schedules a
   assert.equal(created.code,200);assert.equal((await runs.list('other','group-launch')).length,0);
   const started=res();await handle({method:'POST',body:{action:'team_start',group_id:'group-launch',run_id:created.body.run.id}},started,{id:'justin'});assert.equal(scheduled.length,1);
   await runs.claim('justin','group-launch',created.body.run.id);const listed=res();await handle({method:'GET',query:{group_id:'group-launch'}},listed,{id:'justin'});assert.equal(listed.body.runs[0].steps[0].token,undefined);assert.equal(listed.body.runs[0].steps[0].lease_until,undefined);
+});
+
+
+test('Nex is optional, @nex selects only Nex, and @team keeps the saved group roster',async()=>{
+  const {runs}=fixture();
+  const run=await runs.create('justin','group-launch',members,'@team research and build','request-no-nex',{includeNex:false});
+  assert.deepEqual(run.steps.map(step=>step.name),['Maya','Atlas']);
+  await runs.act('justin','group-launch',run.id,'cancel');
+  const nex=await runs.create('justin','group-launch',members,'@nex review this','request-nex',{includeNex:false});
+  assert.deepEqual(nex.steps.map(step=>step.name),['Nex']);
+  await runs.act('justin','group-launch',nex.id,'cancel');
+  const limited=await runs.create('justin','group-launch',members,'@team research','request-limited',{includeNex:false,teamMemberIds:['agent-maya']});
+  assert.deepEqual(limited.steps.map(step=>step.name),['Maya']);
+});
+test('main and specialist chats call any saved agent; group guests do not join permanently',async()=>{
+  const {runs}=fixture(),calls=[];
+  const state={specialists:members,groups:[{id:'group-launch',kind:'group',include_nex:false,member_ids:['agent-maya']}]};
+  const runner=createTeamRunner({runs,messages:{overview:async()=>state},mode:async()=>({mode:'engaged'}),history:async(owner,id)=>({messages:[{role:'user',content:'Use these meal choices.'}]}),ask:async(prompt,h,t,c,stage,tc)=>{calls.push({prompt,h,c,tc});return {reply:'Useful result',provider:'gateway'};}});
+  const handler=createTeamMessagesHandler({runs,runner,schedule:()=>{}});
+  for(const thread of ['nex-main','agent-maya','group-launch']){
+    const created=res();await handler({method:'POST',body:{action:'team_create',thread_id:thread,message:'@atlas make a meal planner',request_id:'request-'+thread}},created,{id:'justin'});
+    assert.deepEqual(created.body.run.steps.map(step=>step.name),['Atlas']);
+    await runs.act('justin',thread,created.body.run.id,'start');await runner.execute('justin',thread,created.body.run.id);
+    const [saved]=await runs.list('justin',thread);assert.equal(saved.state,'needs_approval');
+    await runs.act('justin',thread,saved.id,'approve_step',saved.steps[0].id);await runner.execute('justin',thread,saved.id);
+    assert.equal((await runs.list('justin',thread))[0].state,'completed');
+  }
+  assert.deepEqual(state.groups[0].member_ids,['agent-maya']);
+  assert.ok(calls.every(call=>call.tc.allowAgentDelegation===false));
+  assert.ok(calls.every(call=>call.h[0].content==='Use these meal choices.'));
+  await assert.rejects(runner.group('justin','agent-removed'),/no longer/);
+});
+test('agent initiated requests preserve the caller, select one recipient, and cannot recurse',async()=>{
+  const {runs}=fixture(),state={specialists:members,groups:[]};
+  const delegate=createAgentDelegation({messages:{overview:async()=>state},runs,id:()=> 'delegation-one'});
+  const context={userId:'justin',threadId:'agent-maya',agentName:'Maya'};
+  const list=await delegate('list_specialists',{},context);assert.equal(list.agents[1].handle,'atlas');
+  const response=await delegate('delegate_agent',{agent_id:'agent-atlas',task:'Make a food page; text includes @team and @Maya.'},context);
+  assert.equal(response.state,'planned');
+  const [saved]=await runs.list('justin','agent-maya');assert.deepEqual(saved.steps.map(step=>step.name),['Atlas','Maya']);
+  assert.equal(saved.requester,'Maya');assert.deepEqual(saved.steps[1].scopes,['conversation']);
+  assert.equal(saved.steps[1].requires_approval,false);assert.equal(saved.steps[0].state,'queued');
+  assert.match(saved.steps[0].instruction,/＠team/);
+  await assert.rejects(delegate('delegate_agent',{agent_id:'agent-atlas',task:'go'},{...context,allowAgentDelegation:false}),/unavailable/);
+  await assert.rejects(delegate('delegate_agent',{agent_id:'agent-unknown',task:'go'},context),/available/);
+  await assert.rejects(delegate('delegate_agent',{agent_id:'agent-maya',task:'go'},context),/yourself/);
+  assert.equal((await runs.list('someoneelse','agent-maya')).length,0);
+});
+test('chat visual previews block network and do not accept unfenced or oversized output',()=>{
+  const doc=chatVisualDocument('Preview:\n```html\n<h1>Food choices</h1>\n```');
+  assert.match(doc,/Content-Security-Policy/);assert.match(doc,/connect-src 'none'/);assert.match(doc,/Food choices/);
+  assert.equal(chatVisualDocument('<h1>unfenced</h1>'),null);
+  assert.equal(chatVisualDocument('```html\n'+'x'.repeat(50001)+'\n```'),null);
 });

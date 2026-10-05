@@ -10,10 +10,10 @@ export function parseTeamMentions(text, members = []) {
   for (const match of String(text).matchAll(pattern)) {
     const value = (match[2] || match[3]).normalize('NFKC').toLowerCase();
     const start = match.index + match[1].length;
-    if (['team','nex'].includes(value)) mentions.push({ start, end: pattern.lastIndex || start + match[0].trimStart().length, all: true });
+    if (['team','nex'].includes(value)) mentions.push({ start, end: start + match[0].trimStart().length, ...(value==='team'?{all:true}:{nex:true}) });
     else {
       const matches = people.filter(person => person.handle === value || String(person.name).normalize('NFKC').toLowerCase() === value);
-      if (matches.length !== 1) throw new Error(matches.length ? `Choose a unique @handle for ${value}.` : `Choose a teammate from this group: @${value} is not here.`);
+      if (matches.length !== 1) throw new Error(matches.length ? `Choose a unique @handle for ${value}.` : `Choose an available agent: @${value} is not here.`);
       mentions.push({ start, end: start + match[0].trimStart().length, member_id: matches[0].id });
     }
   }

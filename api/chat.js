@@ -1,3 +1,5 @@
+import crypto from 'node:crypto';
+import { teamRunner } from '../lib/teamRunner.js';
 import { chatRequest, requestKey } from '../lib/nexChatRequests.js';
 // /pages/api/chat.js
 // Nex's visible chat endpoint — thin wrapper around the shared brain
@@ -317,6 +319,20 @@ export default async function handler(req, res) {
       });
     }
 
+    if(clientContext.conversation && threadId!==clientContext.conversation.id)return res.status(400).json({error:'Choose the matching specialist or group conversation.'});
+    const collaborationThread=clientContext.conversation?.id || threadId || 'nex-main';
+    if(/(^|\s)@[\p{L}\p{N}_"-]/u.test(message) || (clientContext.conversation?.kind==='group' && clientContext.conversation.include_nex===false)){
+      try{
+        const current=await teamRunner.group(operatorUser,collaborationThread);
+        const run=await teamRunStore.create(operatorUser,collaborationThread,current.available_members || current.members,message,requestId || `chat-${crypto.randomUUID()}`,{includeNex:current.include_nex!==false,teamMemberIds:current.kind==='group'?current.member_ids:null});
+        const response={reply:'Assignments saved in this conversation. Review the plan to start your agents.',model:'team-planner',usage:{input_tokens:0,output_tokens:0},teamRun:{id:run.id,thread_id:collaborationThread,state:run.state}};
+        await saveConversation(operatorUser,[...runningHistory,{role:'user',content:message},{role:'assistant',content:response.reply}],collaborationThread);
+        await saveStatus({state:'finished',response});
+        return res.status(200).json(response);
+      }catch(error){if(error.status)return res.status(error.status).json({error:error.message});throw error;}
+    }
+    const agentActivity=(await teamRunStore.list(operatorUser,collaborationThread).catch(()=>[])).slice(0,2).map(run=>JSON.stringify({goal:run.goal,state:run.state,steps:run.steps.map(step=>({name:step.name,state:step.state,result:step.result?.slice(0,3000)}))})).join('\n');
+
     // Do not start the stream until every command/mode response that uses
     // normal JSON has returned. Starting it earlier made a disengaged Nex try
     // to send JSON after SSE headers, producing ERR_HTTP_HEADERS_SENT.
@@ -368,7 +384,7 @@ export default async function handler(req, res) {
       runState,
       securityReceipt,
       degraded,
-    } = await askNex(messageForModel, runningHistory, forcedTier, clientContext, (stage) => sendBuildEvent('stage', stage), {userId:operatorUser,scheduleUserId:`owner:${operatorUser}`,storyProjectId:clientContext.screen?.story_project_id || null, effort:forcedEffort, deepThoughtEnabled, deepThoughtRequested, resumeRunId, forceSkill:forcedSkill});
+    } = await askNex(messageForModel, runningHistory, forcedTier, clientContext, (stage) => sendBuildEvent('stage', stage), {userId:operatorUser,threadId:collaborationThread,agentActivity,scheduleUserId:`owner:${operatorUser}`,storyProjectId:clientContext.screen?.story_project_id || null, effort:forcedEffort, deepThoughtEnabled, deepThoughtRequested, resumeRunId, forceSkill:forcedSkill});
 
     // If the message sent to the model was augmented with an internal
     // hyperfocus directive, restore Mr. Lopez's original text in the
