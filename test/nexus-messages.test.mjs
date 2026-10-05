@@ -57,7 +57,7 @@ test('trusted workspace context names specialist boundaries and makes Nex coordi
 test('specialist access is enforced as a backend tool allowlist',()=>{
   const research=buildConversationAccessPolicy({kind:'specialist',role:'research',scopes:['conversation']});
   assert.equal(research.restricted,true);assert.equal(research.allowNativeWeb,true);
-  assert.deepEqual([...research.allowedToolNames],['ask_user_question','web_search','web_fetch']);
+  assert.deepEqual([...research.allowedToolNames],['ask_user_question','list_specialists','delegate_agent','web_search','web_fetch']);
   const researchTools=buildActiveTools(new Set(['web']),research.allowedToolNames).map(tool=>tool.name);
   // Research search must remain available through non-native provider tools.
   assert.ok(researchTools.includes('web_search'));assert.ok(researchTools.includes('web_fetch'));
@@ -119,4 +119,15 @@ test('conversation cleanup protects permanent and shared Nexus threads',()=>{
   assert.match(source,/Clear recent conversations/);
   assert.match(source,/Choose Keep on any recent chat you still want/);
   assert.match(source,/clearRecentThreads/);
+});
+
+test('new groups default to no Nex and the owner can change participation',async()=>{
+  const store=fixture(),member=await store.createSpecialist('Justin',{name:'Maya',role:'research'});
+  const group=await store.createGroup('Justin',{title:'Research',member_ids:[member.id]});
+  assert.equal(group.include_nex,false);
+  const handler=createNexusMessagesHandler({getOwner:async()=>({id:'Justin'}),store}),changed=response();
+  await handler({method:'POST',body:{action:'set_group_nex',group_id:group.id,include_nex:true,owner:'Other'}},changed);
+  assert.equal(changed.data.group.include_nex,true);assert.equal((await store.overview('Other')).groups.length,0);
+  assert.equal((await store.overview('Justin')).groups[0].include_nex,true);
+  await assert.rejects(store.setGroupNex('Other',group.id,false),/available/);
 });

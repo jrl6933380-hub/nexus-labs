@@ -917,8 +917,9 @@ function bubble(role, html){
   body.className = 'body';
   body.innerHTML = html;
   if(role==='a'){
-    const mark=document.createElement('span');mark.className='msgavatar';mark.textContent=(activeConversation?.kind==='specialist'?activeConversation.name:'Nex').slice(0,1).toUpperCase();
-    const speaker=document.createElement('span');speaker.className='msgspeaker';speaker.textContent=activeConversation?.kind==='specialist'?activeConversation.name:'Nex';stack.append(speaker,body);wrap.append(mark,stack);
+    const author=activeConversation?.kind==='specialist'?activeConversation.name:activeConversation?.kind==='group' && activeConversation.include_nex===false?'Team':'Nex';
+    const mark=document.createElement('span');mark.className='msgavatar';mark.textContent=author.slice(0,1).toUpperCase();
+    const speaker=document.createElement('span');speaker.className='msgspeaker';speaker.textContent=author;stack.append(speaker,body);wrap.append(mark,stack);
   }else if(role==='u'){stack.append(body);const time=document.createElement('span');time.className='msgtime';time.textContent='You';stack.append(time);wrap.append(stack);}
   else{stack.append(body);wrap.append(stack);}
   thread.appendChild(wrap);
@@ -943,7 +944,7 @@ async function showView(id){
   el('viewTitle').textContent = id === 'chat' ? (activeConversation?.name || activeConversation?.title || 'Nex') : VIEWS[id].label;
   el('viewSubtitle').textContent = id === 'workbench' ? 'Your websites, apps, and tools' : id === 'messages' ? 'One intelligence. A team when you need one.' : id === 'chat' ? conversationSubtitle() : 'Connected through Messages';
 
-  if (id === 'chat') { replayThread(); teamChat.open(activeConversation); return; }
+  if (id === 'chat') { replayThread(); teamChat.open(activeConversation,threadId); return; }
 
   thread.innerHTML = '';
   const loading = bubble('sys', 'Reading…');
@@ -951,6 +952,7 @@ async function showView(id){
     const nodes = await VIEWS[id].render(ctx);
     thread.innerHTML = '';
     for (const node of nodes) thread.appendChild(node);
+    if(!['messages','approvals'].includes(id)){if(!threadId)threadId='nex-main';teamChat.open(activeConversation,threadId);}
   } catch (error) {
     thread.innerHTML = '';
     bubble('sys', esc(friendlyError(error,{action:'load',subject:VIEWS[id].label})));
@@ -970,13 +972,13 @@ function replayThread(){
 }
 function conversationSubtitle(){
   if(activeConversation?.kind==='specialist')return `${activeConversation.role || 'Specialist'} · ${activeConversation.scopes?.map(scope=>scope==='conversation'?'this chat':scope).join(', ') || 'this chat'}`;
-  if(activeConversation?.kind==='group')return `Nex + ${(activeConversation.members || []).map(member=>typeof member==='string'?member:member.name).join(' + ')}`;
+  if(activeConversation?.kind==='group')return `${activeConversation.include_nex===false?'':'Nex + '}${(activeConversation.members || []).map(member=>typeof member==='string'?member:member.name).join(' + ')}`;
   return 'Talk about anything';
 }
 function renderConversationBanner(){
   if(!activeConversation)return;
   const banner=document.createElement('div');banner.className='conversationbanner';
-  const participants=activeConversation.kind==='group'?['Nex',...(activeConversation.members || []).map(member=>typeof member==='string'?member:member.name)]:[activeConversation.name || 'Nex'];
+  const participants=activeConversation.kind==='group'?[...(activeConversation.include_nex===false?[]:['Nex']),...(activeConversation.members || []).map(member=>typeof member==='string'?member:member.name)]:[activeConversation.name || 'Nex'];
   const chips=document.createElement('div');chips.className='participantchips';for(const name of participants){const chip=document.createElement('i');const mark=document.createElement('b');mark.textContent=name.slice(0,1).toUpperCase();chip.append(mark,document.createTextNode(name));chips.append(chip);}banner.append(chips);thread.append(banner);
 }
 function conversationGreeting(){
@@ -988,7 +990,7 @@ function conversationGreeting(){
     ]));return;
   }
   if(activeConversation?.kind==='group'){
-    bubble('a',`<p>Nex here. I'll coordinate ${esc((activeConversation.members || []).map(member=>typeof member==='string'?member:member.name).join(' and '))} in this conversation and keep the handoffs clear.</p><p>What are we working on?</p>`);
+    bubble('a',`<p>Your team: ${esc((activeConversation.members || []).map(member=>typeof member==='string'?member:member.name).join(' and '))} in this conversation. Assign work with @mentions and follow the saved handoffs here.</p><p>What are we working on?</p>`);
     thread.appendChild(chips([
       {label:'Assign a project',run:()=>{el('input').value='I need this group to work together on ';el('input').focus();}},
       {label:'Review the team',run:()=>{el('input').value='Explain each specialist’s role in this group.';submit();}},
@@ -1162,13 +1164,13 @@ drawPins();
 // --- composer --------------------------------------------------------------
 const teamChat=createTeamChat({input:el('input'),thread,
   onMessage:raw=>{bubble('u',esc(raw));history.push({role:'user',content:raw});saveThread();},
-  onGroup:group=>{activeConversation=group;el('viewSubtitle').textContent=conversationSubtitle();el('input').placeholder='Message Nex, or @ a teammate…';},
+  onGroup:group=>{if(group.kind==='group'){activeConversation=group;el('viewSubtitle').textContent=conversationSubtitle();}el('input').placeholder='Message, or @ an agent…';},
   openApprovals:()=>showView('approvals'),
 });
 async function submit(){
   const raw = el('input').value.trim();
   if (!raw || busy) return;
-  if(currentView==='chat' && teamChat.handlesMessage(raw)){
+  if(teamChat.handlesMessage(raw)){
     busy=true;el('send').disabled=true;
     try{await teamChat.submit(raw);}catch{}finally{busy=false;el('send').disabled=false;}
     return;

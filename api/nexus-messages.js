@@ -11,7 +11,7 @@ export function createNexusMessagesHandler({getOwner=getNexusOwner,store=nexusMe
     res.setHeader('Cache-Control','private, no-store');
     const owner=await getOwner(req).catch(()=>null);if(!owner)return res.status(401).json({error:'Please sign in again'});
     try{
-      if((req.method==='GET' && req.query?.group_id) || (req.method==='POST' && String(req.body?.action || '').startsWith('team_')))return await team(req,res,owner);
+      if((req.method==='GET' && (req.query?.group_id || req.query?.thread_id)) || (req.method==='POST' && String(req.body?.action || '').startsWith('team_')))return await team(req,res,owner);
       if(req.method==='GET'){
         const state=await store.overview(owner.id),team_status={},specialist_status={},specialist_stamps={};
         const labels={planned:'Plan ready',queued:'Up next',running:'Working',needs_approval:'Needs you',blocked:'Needs attention',completed:'Result ready',stopping:'Stopping'};
@@ -28,6 +28,7 @@ export function createNexusMessagesHandler({getOwner=getNexusOwner,store=nexusMe
       const action=String(req.body?.action || '');
       if(action==='create_specialist')return res.status(201).json({specialist:await store.createSpecialist(owner.id,req.body)});
       if(action==='create_group')return res.status(201).json({group:await store.createGroup(owner.id,req.body)});
+      if(action==='set_group_nex')return res.status(200).json({group:await store.setGroupNex(owner.id,req.body?.group_id,req.body?.include_nex)});
       if(action==='set_pinned_systems')return res.status(200).json({pinned_system_ids:await store.setPinnedSystems(owner.id,req.body?.pinned_system_ids)});
       if(action==='remove')return res.status(200).json({removed:await store.remove(owner.id,req.body?.type,req.body?.id)});
       return res.status(400).json({error:'Choose a supported Messages action'});
