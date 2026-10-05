@@ -4,7 +4,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Nexus // Room — Sign in</title>
+<title>Nexus Forge — AI Website & App Builder</title>
+<script defer src="/_vercel/insights/script.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -14,6 +15,7 @@
     --border: #1F2B42;
     --blue: #2E7FFF;
     --cyan: #4DD8E8;
+    --ember: #FF8A47;
     --text: #E4E9F2;
     --text-dim: #8891A3;
     --red: #E85D5D;
@@ -31,27 +33,48 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 24px;
+    padding: 32px 24px;
+    background:
+      radial-gradient(circle at 14% 22%, rgba(255,138,71,.16), transparent 38%),
+      radial-gradient(circle at 84% 76%, rgba(77,216,232,.09), transparent 32%),
+      var(--bg);
   }
+
+  .shell {
+    width: min(920px, 100%);
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(320px, 360px);
+    gap: 56px;
+    align-items: center;
+  }
+
+  .intro { max-width: 480px; }
+  .eyebrow { color: var(--ember); font: 700 12px/1.2 var(--mono); letter-spacing: .14em; text-transform: uppercase; }
+  h1 { margin-top: 14px; font-size: clamp(34px, 5vw, 58px); line-height: .98; letter-spacing: -.045em; }
+  .lead { margin-top: 18px; color: var(--text-dim); font-size: 17px; line-height: 1.6; }
+  .steps { display: grid; gap: 11px; margin-top: 26px; }
+  .step { display: flex; align-items: center; gap: 11px; color: var(--text); font-size: 14px; }
+  .step-number { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid rgba(77,216,232,.35); border-radius: 9px; color: var(--cyan); font: 700 12px var(--mono); }
 
   .card {
     width: 100%;
     max-width: 360px;
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 12px;
+    border-radius: 18px;
     padding: 28px 24px;
+    box-shadow: 0 28px 90px rgba(0,0,0,.42);
   }
 
   .title {
     font-family: var(--mono);
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 700;
     margin-bottom: 4px;
   }
 
   .subtitle {
-    font-size: 13px;
+    font-size: 14px;
     color: var(--text-dim);
     margin-bottom: 22px;
   }
@@ -76,6 +99,13 @@
   }
 
   .tab.active { color: var(--cyan); border-color: var(--cyan); }
+
+  .social-auth { display:grid; gap:9px; margin-bottom:15px; }
+  .social-button { width:100%; min-height:44px; border:1px solid var(--border); border-radius:9px; background:#fff; color:#111; font:700 13px var(--sans); cursor:pointer; }
+  .social-button.apple { background:#050505; color:#fff; border-color:#3a3a3a; }
+  .social-button:disabled { opacity:.45; cursor:not-allowed; }
+  .auth-divider { display:flex; align-items:center; gap:10px; color:var(--text-dim); font-size:11px; margin:2px 0 15px; }
+  .auth-divider:before,.auth-divider:after { content:""; flex:1; border-top:1px solid var(--border); }
 
   form { display: flex; flex-direction: column; gap: 10px; }
   form.hidden { display: none; }
@@ -112,46 +142,309 @@
   }
 
   .hint {
-    font-size: 11px;
+    font-size: 12px;
     color: var(--text-dim);
     margin-top: 4px;
   }
+
+  .trust { margin-top: 18px; color: var(--text-dim); font-size: 12px; line-height: 1.5; }
+  .trust strong { color: var(--text); }
+
+  .tier-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: grid;
+    place-items: center;
+    padding: 22px;
+    background: rgba(4, 7, 12, .82);
+    backdrop-filter: blur(12px);
+  }
+  .tier-modal.hidden { display: none; }
+  .tier-dialog {
+    width: min(940px, 100%);
+    max-height: calc(100vh - 44px);
+    overflow: auto;
+    padding: 28px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: #0e1522;
+    box-shadow: 0 32px 110px rgba(0,0,0,.65);
+  }
+  .tier-heading { text-align: center; }
+  .tier-heading h2 { margin-top: 8px; font-size: clamp(25px, 4vw, 38px); }
+  .tier-heading p { margin: 9px auto 0; max-width: 620px; color: var(--text-dim); line-height: 1.5; }
+  .tier-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 24px; }
+  .tier-card { display: flex; min-height: 240px; flex-direction: column; padding: 18px; border: 1px solid var(--border); border-radius: 14px; background: var(--panel); }
+  .tier-card.featured { border-color: rgba(255,138,71,.7); box-shadow: 0 0 0 1px rgba(255,138,71,.16); }
+  .tier-name { font: 700 15px var(--mono); color: var(--cyan); }
+  .tier-status { margin-top: 8px; min-height: 34px; color: var(--text-dim); font-size: 12px; line-height: 1.4; }
+  .tier-features { display: grid; gap: 8px; margin: 16px 0 20px; color: var(--text); font-size: 12px; line-height: 1.4; list-style: none; }
+  .tier-features li::before { content: '✓'; margin-right: 7px; color: var(--cyan); }
+  .tier-action { width: 100%; margin-top: auto; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--text); font: 700 11px var(--mono); cursor: pointer; }
+  .tier-action.primary { border-color: var(--blue); background: var(--blue); color: #06090F; }
+  .tier-action:disabled { opacity: .5; cursor: default; }
+  .tier-note { margin-top: 16px; text-align: center; color: var(--text-dim); font-size: 11px; }
+  .tier-action-annual { width: 100%; margin-top: 6px; padding: 0; border: none; background: none; color: var(--cyan); font: 600 10px var(--mono); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+  .tier-action-annual:disabled { opacity: .5; cursor: default; text-decoration: none; }
+
+  @media (max-width: 760px) {
+    body { align-items: flex-start; padding: 28px 18px; }
+    .shell { grid-template-columns: 1fr; gap: 28px; }
+    .intro { text-align: center; margin: 0 auto; }
+    .lead { font-size: 16px; }
+    .steps { display: none; }
+    .card { max-width: 440px; margin: 0 auto; }
+    .tier-modal { align-items: end; padding: 12px; }
+    .tier-dialog { max-height: calc(100vh - 24px); padding: 22px 16px; border-radius: 18px; }
+    .tier-grid { grid-template-columns: 1fr; }
+    .tier-card { min-height: 0; }
+  }
+
+/* Keep touch-device text fields readable without Safari focus zoom. */
+@media (max-width: 900px), (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="hidden"]),
+  textarea, select { font-size: 16px !important; }
+}
 </style>
-<link rel="stylesheet" href="/nexus-stark.css">
+
+<style>
+  :root { --bg:#151615; --panel:#20221f; --border:#393b34; --blue:#edc46e; --cyan:#f3d88f; --ember:#edc46e; --text:#f6f4ec; --text-dim:#adafa5; }
+  body { display:block; padding:0; background:#151615; }
+  button, input, select { font:inherit; }
+  button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible { outline:2px solid #f1ce78; outline-offset:3px; }
+  .shell { width:100%; max-width:1480px; min-height:100vh; margin:auto; padding:30px clamp(20px,5vw,80px) 48px; grid-template-columns:minmax(0,1fr) minmax(320px,390px); gap:clamp(24px,4vw,72px); align-items:center; }
+  .intro { max-width:none; min-width:0; }
+  .brand { display:flex; gap:10px; align-items:center; font-weight:750; font-size:19px; letter-spacing:-.05em; margin-bottom:clamp(36px,8vh,90px); }
+  .brand-mark { display:grid; place-items:center; width:34px; height:34px; border-radius:11px; background:#edc46e; color:#171817; font-size:22px; }
+  .eyebrow { color:#edc46e; font-size:11px; letter-spacing:.2em; }
+  h1 { max-width:780px; margin-top:16px; font-size:clamp(48px,6vw,92px); font-weight:600; letter-spacing:-.075em; line-height:1.02; }
+  h1 em { font-style:normal; color:#edc46e; }
+  .lead { max-width:560px; margin-top:20px; font-size:clamp(16px,1.5vw,19px); line-height:1.55; }
+  .showcase-bar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:30px 0 12px; font-size:12px; color:var(--text-dim); }
+  .showcase-controls { display:flex; gap:7px; }
+  .showcase-controls button { width:36px; height:36px; border-radius:50%; background:#292b27; border:1px solid #404139; color:var(--text); cursor:pointer; font-size:19px; }
+  .showcase { display:flex; gap:15px; overflow-x:auto; scroll-snap-type:x mandatory; scroll-behavior:smooth; scrollbar-width:none; border-radius:22px; }
+  .showcase::-webkit-scrollbar { display:none; }
+  .sample { position:relative; display:flex; flex:0 0 min(74%,500px); height:clamp(270px,32vw,400px); flex-direction:column; justify-content:space-between; overflow:hidden; scroll-snap-align:start; border-radius:22px; padding:22px; color:#f8f7ef; background:#283b32; isolation:isolate; }
+  .sample::after { content:''; position:absolute; z-index:-1; inset:35% -20% -35%; border-radius:50%; filter:blur(42px); opacity:.45; background:#84ad86; }
+  .sample.s2 { background:#29263b; } .sample.s2::after { background:#bb9ef4; }
+  .sample.s3 { background:#3c2c25; } .sample.s3::after { background:#eac08c; }
+  .sample.s4 { background:#21373c; } .sample.s4::after { background:#80d7c6; }
+  .sample-kicker { font:600 10px var(--mono); text-transform:uppercase; letter-spacing:.12em; color:#e7e3d7; }
+  .sample h2 { font-size:clamp(27px,3vw,44px); line-height:1.05; letter-spacing:-.055em; margin:8px 0 4px; }
+  .sample p { font-size:12px; color:#e6e6de; }
+  .mock { align-self:center; width:82%; height:62%; margin-top:12px; padding:14px; border:1px solid rgba(255,255,255,.55); border-radius:15px; background:#f8f7ef; color:#1c2720; box-shadow:0 20px 40px #0005; transform:rotate(-2deg); }
+  .mock-top { display:flex; justify-content:space-between; font-size:10px; font-weight:700; border-bottom:1px solid #d9ddd4; padding-bottom:10px; }
+  .mock-hero { padding:18px 10px; font-size:clamp(22px,3vw,37px); font-weight:750; letter-spacing:-.06em; line-height:1; }
+  .mock-line { height:8px; margin:7px 10px; border-radius:8px; background:#d5dccf; width:70%; } .mock-line.short { width:46%; }
+  .s2 .mock { width:53%; max-width:230px; border:5px solid #171922; border-radius:28px; background:#f1ebff; color:#302452; transform:rotate(5deg); }
+  .s2 .mock-hero { font-size:23px; } .s2 .mock-line { background:#d9cbed; }
+  .s3 .mock { background:#f7e9d1; color:#443025; transform:rotate(2deg); } .s3 .mock-line { background:#dac7ac; }
+  .s4 .mock { background:#e4faf1; color:#1c3c37; transform:rotate(-3deg); } .s4 .mock-line { background:#b8dfd2; }
+  .showcase-progress { display:flex; gap:5px; margin-top:15px; }
+  .showcase-progress i { width:20px; height:3px; border-radius:4px; background:#55574f; } .showcase-progress i.active { background:#edc46e; }
+  .hero-actions { display:flex; align-items:center; gap:15px; margin-top:27px; }
+  .hero-actions button { border:0; border-radius:12px; padding:15px 24px; background:#edc46e; color:#151615; font-weight:750; cursor:pointer; }
+  .hero-actions a { color:var(--text-dim); font-size:13px; text-underline-offset:4px; }
+  .steps { display:none; }
+  .card { max-width:none; padding:28px; border-radius:23px; background:#222420; box-shadow:0 22px 80px #0005; }
+  .card .title { font:650 26px var(--sans); letter-spacing:-.045em; }
+  .card .subtitle { line-height:1.5; margin-top:8px; }
+  .tab { font:600 13px var(--sans); border-radius:10px; padding:11px; }
+  .tab.active { color:var(--text); border-color:#ba9e62; background:#34332a; }
+  form { gap:12px; } form input, form select { padding:14px; min-height:48px; border-radius:10px; background:#171917; }
+  button[type="submit"] { min-height:48px; margin-top:8px; border-radius:10px; font:700 14px var(--sans); }
+  .trust { line-height:1.5; }
+  .brain-step.hidden, .auth-entry.hidden { display:none; }
+  .brain-step h2 { font-size:26px; letter-spacing:-.05em; margin-bottom:8px; }
+  .brain-step p { color:var(--text-dim); font-size:14px; line-height:1.55; margin-bottom:14px; }
+  .brain-step .brain-note { font-size:12px; margin:13px 0; }
+  .brain-step select { width:100%; padding:14px; border:1px solid var(--border); border-radius:10px; background:#171917; color:var(--text); }
+  .brain-step button { width:100%; padding:14px; margin-top:10px; border-radius:10px; border:1px solid var(--border); background:#30322d; color:var(--text); cursor:pointer; font-weight:650; }
+  .brain-step button.primary { background:var(--blue); border-color:var(--blue); color:#171817; }
+  .brain-step button:disabled { opacity:.5; cursor:default; }
+  .brain-step .brain-status { min-height:18px; font-size:12px; color:#f3d88f; }
+  .tier-dialog { background:#20221f; }
+  @media(max-width:760px) {
+    body { padding:0; }
+    .shell { display:block; min-height:100svh; padding:22px 0 0; }
+    .intro { text-align:left; margin:0; }
+    .brand, .eyebrow, h1, .lead, .showcase-bar, .showcase-progress, .hero-actions { margin-left:22px; margin-right:22px; }
+    .brand { margin-bottom:clamp(34px,8vh,85px); }
+    h1 { font-size:clamp(48px,12vw,68px); }
+    .lead { font-size:16px; max-width:420px; }
+    .showcase-bar { margin-top:29px; }
+    .showcase { padding:0 22px; border-radius:0; scroll-padding-left:22px; }
+    .sample { flex-basis:min(76vw,360px); height:clamp(315px,48vh,430px); }
+    .sample .mock { height:62%; width:90%; }
+    .sample.s2 .mock { width:58%; }
+    .sample h2 { font-size:30px; }
+    .hero-actions { margin-top:24px; padding-bottom:calc(20px + env(safe-area-inset-bottom)); }
+    .card { display:none; position:fixed; inset:auto 0 0; z-index:10; max-height:92dvh; overflow:auto; margin:0; padding:24px 22px calc(25px + env(safe-area-inset-bottom)); border-radius:26px 26px 0 0; border-bottom:0; background:#252723; box-shadow:0 -18px 80px #000a; }
+    .card.open { display:block; }
+    .sheet-close { display:block !important; float:right; border:0; color:var(--text-dim); background:none; font-size:23px; cursor:pointer; }
+    .tier-grid { grid-template-columns:1fr; }
+  }
+  @media(prefers-reduced-motion:reduce) { .showcase { scroll-behavior:auto; } }
+</style>
 </head>
 <body>
 
-<div class="card">
-  <div class="title">NEX // ROOM</div>
-  <div class="subtitle">Sign in to start building.</div>
-
-  <div class="tabs">
-    <button class="tab active" id="tab-login" type="button">Sign in</button>
-    <button class="tab" id="tab-signup" type="button">Create account</button>
+<main class="shell">
+<section class="intro" aria-labelledby="forge-title">
+  <div class="brand"><span class="brand-mark" aria-hidden="true">✦</span> NEXUS <span style="color:var(--text-dim);font-weight:450">/ Forge</span></div>
+  <div class="eyebrow">An idea is enough to begin</div>
+  <h1 id="forge-title">Imagine it.<br><em>Make it real.</em></h1>
+  <p class="lead">Tell Nex what you're dreaming up. Shape the idea together, then build a site or app that feels like yours.</p>
+  <div class="showcase-bar"><span>Made for the ideas you can't stop thinking about</span><div class="showcase-controls"><button type="button" id="showcase-prev" aria-label="Previous example">‹</button><button type="button" id="showcase-next" aria-label="Next example">›</button></div></div>
+  <div class="showcase" id="showcase" aria-label="Examples of things you can create">
+    <article class="sample s1"><div><span class="sample-kicker">01 / Websites</span><h2>Give your idea a home.</h2><p>Launch a beautiful place to call your own.</p></div><div class="mock" aria-hidden="true"><div class="mock-top"><span>FIELDNOTES</span><span>Explore ↗</span></div><div class="mock-hero">For the places<br>that stay with us.</div><div class="mock-line"></div><div class="mock-line short"></div></div></article>
+    <article class="sample s2"><div><span class="sample-kicker">02 / Apps</span><h2>A tiny idea. A real app.</h2><p>Make something people want to open again.</p></div><div class="mock" aria-hidden="true"><div class="mock-top"><span>MONDAY</span><span>● ● ●</span></div><div class="mock-hero">A little progress<br>every day ✦</div><div class="mock-line"></div><div class="mock-line short"></div></div></article>
+    <article class="sample s3"><div><span class="sample-kicker">03 / Small businesses</span><h2>Make your next move.</h2><p>A storefront, a booking page, a new beginning.</p></div><div class="mock" aria-hidden="true"><div class="mock-top"><span>SUNDAY STUDIO</span><span>Book now ↗</span></div><div class="mock-hero">Good things<br>take shape here.</div><div class="mock-line"></div><div class="mock-line short"></div></div></article>
+    <article class="sample s4"><div><span class="sample-kicker">04 / Your own thing</span><h2>What will you make?</h2><p>Start with a thought. See where it goes.</p></div><div class="mock" aria-hidden="true"><div class="mock-top"><span>YOUR IDEA</span><span>Made with Forge</span></div><div class="mock-hero">The first page<br>of something big.</div><div class="mock-line"></div><div class="mock-line short"></div></div></article>
   </div>
+  <div class="showcase-progress" id="showcase-progress" aria-hidden="true"><i class="active"></i><i></i><i></i><i></i></div>
+  <div class="hero-actions"><button type="button" id="open-signin">Continue →</button><a href="/forge.html">Explore Forge first</a></div>
+</section>
+<section class="card" id="access-card" aria-label="Nexus Forge account access">
+  <button class="sheet-close" id="close-signin" type="button" aria-label="Close sign in" style="display:none">×</button>
+  <div class="auth-entry" id="auth-entry">
+    <div class="title">Welcome to Forge.</div>
+    <div class="subtitle">Sign in or create an account. Your Builder Brain is the very next step, right here.</div>
+    <div class="social-auth"><button class="social-button" id="google-auth" type="button">Continue with Google</button><button class="social-button apple" id="apple-auth" type="button">Continue with Apple</button></div>
+    <div class="auth-divider">or use your email</div>
+    <div class="tabs"><button class="tab active" id="tab-login" type="button">Sign in</button><button class="tab" id="tab-signup" type="button">Create account</button></div>
+    <form id="login-form"><input type="text" id="login-username" placeholder="Email or username" autocomplete="username" required><input type="password" id="login-password" placeholder="Password" autocomplete="current-password" required><div class="error" id="login-error" role="status"></div><button type="submit" id="login-submit">Sign in &amp; connect Brain →</button><button type="button" id="forgot-password-link" style="background:none;border:none;color:var(--text-dim);font:600 11px var(--mono);text-decoration:underline;cursor:pointer;padding:2px 0;">Forgot password?</button></form>
+    <form id="signup-form" class="hidden"><input type="text" id="signup-name" placeholder="Your name" autocomplete="name" required><input type="email" id="signup-email" placeholder="Email" autocomplete="email" required><input type="password" id="signup-password" placeholder="Create a password (8+ characters)" autocomplete="new-password" required><div class="error" id="signup-error" role="status"></div><button type="submit" id="signup-submit">Create my account →</button><p class="hint">By continuing, you agree to the <a href="/terms.html">Terms</a> and acknowledge the <a href="/privacy.html">Privacy notice</a>.</p></form>
+    <p class="trust"><strong>Your ideas stay yours.</strong> Your Builder Brain connects securely. No API key goes into chat.</p>
+  </div>
+  <div class="brain-step hidden" id="brain-step" aria-live="polite">
+    <div class="eyebrow">One more step</div><h2 id="brain-heading">Connect your Builder Brain</h2>
+    <p id="brain-description">Connect your OpenRouter account to power builds. You'll approve the connection on OpenRouter, then return here.</p>
+    <label for="brain-tier" class="hint">Choose how Nex builds</label>
+    <select id="brain-tier"><option value="free">Free models — availability can vary</option><option value="fast">Fast models</option><option value="strong">Strong models</option></select>
+    <p class="brain-note">Provider model usage and charges depend on your OpenRouter account. You can change this later in Forge.</p>
+    <div class="brain-status" id="brain-status" role="status"></div>
+    <button class="primary" id="connect-brain" type="button">Connect with OpenRouter ↗</button>
+    <button id="enter-forge" type="button">Continue to Forge</button>
+    <button id="view-plans" type="button">Explore Nexus plans</button>
+  </div>
+</section>
+</main>
 
-  <form id="login-form">
-    <input type="text" id="login-username" placeholder="Username" autocomplete="username" required>
-    <input type="password" id="login-password" placeholder="Password" autocomplete="current-password" required>
-    <div class="error" id="login-error"></div>
-    <button type="submit" id="login-submit">Sign in</button>
-  </form>
+<section class="tier-modal hidden" id="tier-modal" role="dialog" aria-modal="true" aria-labelledby="tier-title">
+  <div class="tier-dialog">
+    <div class="tier-heading">
+      <div class="eyebrow">Account created</div>
+      <h2 id="tier-title">Choose how you want to build</h2>
+      <p>Your account starts on Free. Pick a paid tier below to activate it now, or continue on Free and upgrade anytime.</p>
+    </div>
+    <div class="tier-grid">
+      <article class="tier-card">
+        <div class="tier-name">Free</div>
+        <div class="tier-status">Included with your new account</div>
+        <ul class="tier-features"><li>Build with your connected Brain</li><li>Save private projects</li><li>Free credits for Nex conversations</li></ul>
+        <button class="tier-action primary" id="continue-free" type="button">Continue with Free</button>
+      </article>
+      <article class="tier-card featured">
+        <div class="tier-name">Hosted</div>
+        <div class="tier-status">$12/mo · live hosting + custom domain</div>
+        <ul class="tier-features"><li>More Nex conversation credits</li><li>Nexus-managed hosting</li><li>Simple publishing flow</li></ul>
+        <button class="tier-action primary" type="button" data-checkout="price_1UEjnpDh5Di7LYi3L6SfmKOu">Go Hosted — $12/mo</button>
+        <button class="tier-action-annual" type="button" data-checkout="price_1UEjnvDh5Di7LYi3Mk6MpnmX">or $120/yr — 2 months free</button>
+      </article>
+      <article class="tier-card">
+        <div class="tier-name">Growth</div>
+        <div class="tier-status">$24/mo · higher limits, priority generation</div>
+        <ul class="tier-features"><li>Higher usage limits</li><li>More active projects</li><li>Priority generation path</li></ul>
+        <button class="tier-action" type="button" data-checkout="price_1UEjnzDh5Di7LYi3LDjvkHQY">Go Growth — $24/mo</button>
+        <button class="tier-action-annual" type="button" data-checkout="price_1UEjo3Dh5Di7LYi33tCAb4W8">or $240/yr — 2 months free</button>
+      </article>
+      <article class="tier-card">
+        <div class="tier-name">Unlimited</div>
+        <div class="tier-status">$59/mo · highest limits, for teams</div>
+        <ul class="tier-features"><li>Highest usage limits</li><li>Large project capacity</li><li>Best for teams and agencies</li></ul>
+        <button class="tier-action" type="button" data-checkout="price_1UEjo7Dh5Di7LYi3fAAwsqmy">Go Unlimited — $59/mo</button>
+        <button class="tier-action-annual" type="button" data-checkout="price_1UEjoBDh5Di7LYi3O69yUjQS">or $590/yr — 2 months free</button>
+      </article>
+    </div>
+    <p class="tier-note">Need more Nex conversations later? Usage packs add <span data-pricing="packCredits">30</span> Nex credits for $<span data-pricing="packPrice">6</span>. Builds use your connected Brain.</p>
+    <p class="tier-note"><button class="tier-action-annual" type="button" data-checkout="price_1UEjoFDh5Di7LYi3DGorrLRb" style="display:inline;width:auto;">Buy <span data-pricing="packCredits">30</span> credits now — $<span data-pricing="packPrice">6</span></button></p>
+  </div>
+</section>
 
-  <form id="signup-form" class="hidden">
-    <input type="text" id="signup-username" placeholder="Choose a username" autocomplete="username" required>
-    <input type="password" id="signup-password" placeholder="Choose a password (8+ characters)" autocomplete="new-password" required>
-    <input type="text" id="signup-invite" placeholder="Invite code" required>
-    <div class="error" id="signup-error"></div>
-    <button type="submit" id="signup-submit">Create account</button>
-    <div class="hint">Test group only — you'll need an invite code from Justin.</div>
-  </form>
-</div>
+<section class="tier-modal hidden" id="reset-modal" role="dialog" aria-modal="true" aria-labelledby="reset-title">
+  <div class="tier-dialog" style="max-width:420px;">
+    <div class="tier-heading">
+      <div class="eyebrow">Nex</div>
+      <h2 id="reset-title" style="font-size:22px;">Password reset</h2>
+    </div>
+    <div id="reset-chat-log" style="display:grid;gap:10px;margin:18px 0;"></div>
+    <form id="reset-request-form">
+      <input type="text" id="reset-username" placeholder="Email or username" autocomplete="username" required style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;font-family:var(--sans);margin-bottom:10px;box-sizing:border-box;">
+      <button type="submit" id="reset-request-submit" style="width:100%;padding:10px;border-radius:8px;border:none;background:var(--blue);color:#06090F;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;">Continue</button>
+    </form>
+    <form id="reset-answer-form" class="hidden">
+      <input type="text" id="reset-answer" placeholder="Your answer" autocomplete="off" required style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;font-family:var(--sans);margin-bottom:10px;box-sizing:border-box;">
+      <button type="submit" id="reset-answer-submit" style="width:100%;padding:10px;border-radius:8px;border:none;background:var(--blue);color:#06090F;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;">Verify answer</button>
+      <button type="button" id="reset-email-instead" style="width:100%;margin-top:8px;padding:0;border:none;background:none;color:var(--text-dim);font:600 11px var(--mono);text-decoration:underline;cursor:pointer;">Email me a link instead</button>
+    </form>
+    <form id="reset-complete-form" class="hidden">
+      <input type="password" id="reset-new-password" placeholder="New password (8+ characters)" autocomplete="new-password" required style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;font-family:var(--sans);margin-bottom:10px;box-sizing:border-box;">
+      <button type="submit" id="reset-complete-submit" style="width:100%;padding:10px;border-radius:8px;border:none;background:var(--blue);color:#06090F;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;">Set new password</button>
+    </form>
+    <button type="button" id="reset-close" style="width:100%;margin-top:12px;padding:10px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text-dim);font:700 11px var(--mono);cursor:pointer;">Close</button>
+  </div>
+</section>
 
 <script>
+  // Usage-pack figures are rendered from the canonical pricing policy
+  // (lib/forgePricing.js, served by /api/room-usage) rather than trusted
+  // from the markup. The numbers in the HTML are the correct ones and are
+  // enforced by test/forge-pricing.test.mjs, but they are a fallback: if
+  // the policy ever changes, this page follows it without an edit. This
+  // mattered — the page and the constant previously disagreed ($6 vs $4)
+  // and the builder UI advertised a cheaper pack than checkout charged.
+  (async () => {
+    const targets = document.querySelectorAll('[data-pricing]');
+    if (!targets.length) return;
+    try {
+      const res = await fetch('/api/room-usage', { credentials: 'same-origin' });
+      if (!res.ok) return;
+      const pack = (await res.json())?.pricing?.usagePack;
+      if (!pack) return;
+      const values = { packCredits: pack.credits, packPrice: pack.priceUsd };
+      for (const node of targets) {
+        const value = values[node.dataset.pricing];
+        if (value !== undefined && value !== null) node.textContent = String(value);
+      }
+    } catch {
+      // Offline or the endpoint is down: leave the markup figures in place.
+    }
+  })();
+
+  const showcase = document.getElementById('showcase');
+  const samples = [...showcase.querySelectorAll('.sample')];
+  const markers = [...document.querySelectorAll('#showcase-progress i')];
+  const activeSample = () => Math.min(samples.length - 1, Math.max(0, Math.round(showcase.scrollLeft / (samples[0].getBoundingClientRect().width + 15))));
+  function moveSample(delta) { samples[Math.max(0, Math.min(samples.length - 1, activeSample() + delta))].scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', inline: 'start', block: 'nearest' }); }
+  document.getElementById('showcase-prev').onclick = () => moveSample(-1);
+  document.getElementById('showcase-next').onclick = () => moveSample(1);
+  showcase.addEventListener('scroll', () => { const active = activeSample(); markers.forEach((dot, index) => dot.classList.toggle('active', index === active)); }, { passive: true });
+  const accessCard = document.getElementById('access-card');
+  function openSignin() { accessCard.classList.add('open'); document.getElementById('login-username').focus(); }
+  document.getElementById('open-signin').onclick = openSignin;
+  document.getElementById('close-signin').onclick = () => accessCard.classList.remove('open');
+
   const tabLogin = document.getElementById('tab-login');
   const tabSignup = document.getElementById('tab-signup');
   const loginForm = document.getElementById('login-form');
   const signupForm = document.getElementById('signup-form');
+  const tierModal = document.getElementById('tier-modal');
+  const continueFree = document.getElementById('continue-free');
+  const authParams=new URLSearchParams(location.search),socialError=authParams.get('social_error');
+  if(socialError){document.getElementById('login-error').textContent=socialError;openSignin();}
 
   function showLogin() {
     tabLogin.classList.add('active');
@@ -168,27 +461,109 @@
   tabLogin.addEventListener('click', showLogin);
   tabSignup.addEventListener('click', showSignup);
 
+  const requested = new URLSearchParams(window.location.search).get('next') || (new URLSearchParams(location.search).has('brain') ? sessionStorage.getItem('forge:login:return') : null);
+  // Callers land on Forge Field, admins on Ops / Accounts. Each page checks
+  // its own permissions server-side; this list only decides where to go.
+  const customerWorkspaces = new Set(['/forge.html', '/room.html', '/story-studio.html', '/forge-caller.html', '/forge-dashboard.html', '/forge-accounts.html']);
+  const nextPath = (() => {
+    try {
+      const candidate = new URL(requested || '/forge.html?view=chat', window.location.origin);
+      if (candidate.origin !== window.location.origin || !customerWorkspaces.has(candidate.pathname)) return '/forge.html?view=chat';
+      // Older builder links still send /room.html as their return path.
+      // Bring those customers into the current Forge chat after sign-in.
+      if (candidate.pathname === '/room.html') return '/forge.html?view=chat';
+      if (candidate.pathname === '/forge.html' && !candidate.search && !candidate.hash) return '/forge.html?view=chat';
+      return `${candidate.pathname}${candidate.search}${candidate.hash}`;
+    } catch { return '/forge.html?view=chat'; }
+  })();
+  const operatorNextPath = (() => {
+    try {
+      const candidate = new URL(requested || '/', window.location.origin);
+      if (candidate.origin !== window.location.origin || candidate.pathname === '/room-login.html') return null;
+      return `${candidate.pathname}${candidate.search}${candidate.hash}`;
+    } catch {
+      return null;
+    }
+  })();
+  // Forge Field is a work tool for callers, not a builder workspace:
+  // send anyone who came from it straight back after sign-in, skipping
+  // the Builder Brain step. The page itself enforces Forge roles.
+  const workerNextPath = (() => {
+    try {
+      const candidate = new URL(requested || '/', window.location.origin);
+      if (candidate.origin !== window.location.origin || candidate.pathname !== '/forge-caller.html') return null;
+      return candidate.pathname + candidate.search + candidate.hash;
+    } catch {
+      return null;
+    }
+  })();
+  const socialReturn=`/room-login.html?social=complete&next=${encodeURIComponent(nextPath)}`;
+  for(const provider of ['google','apple'])document.getElementById(`${provider}-auth`).onclick=()=>{location.href=`/api/social-auth?provider=${provider}&next=${encodeURIComponent(socialReturn)}`;};
+  fetch('/api/social-auth',{credentials:'include'}).then(response=>response.json()).then(providers=>{for(const provider of ['google','apple'])if(!providers[provider]){const control=document.getElementById(`${provider}-auth`);control.disabled=true;control.title=`${provider==='apple'?'Apple':'Google'} sign-in needs its provider keys before launch`;}}).catch(()=>{});
+
+  const brainStep = document.getElementById('brain-step');
+  const brainStatus = document.getElementById('brain-status');
+  const brainConnect = document.getElementById('connect-brain');
+  function showBrain() {
+    document.getElementById('auth-entry').classList.add('hidden');
+    brainStep.classList.remove('hidden');
+    accessCard.classList.add('open');
+  }
+  async function loadBrain() {
+    showBrain();
+    try {
+      const res = await fetch('/api/forge-brain', { credentials: 'include', cache: 'no-store' });
+      if (res.status === 401) { brainStatus.textContent = 'Session expired. Please sign in again.'; document.getElementById('auth-entry').classList.remove('hidden'); brainStep.classList.add('hidden'); return; }
+      if (!res.ok) throw new Error('Could not check your Builder Brain. You can retry or continue to Forge.');
+      const data = await res.json();
+      if (data.connected) {
+        document.getElementById('brain-heading').textContent = 'Your Builder Brain is connected.';
+        document.getElementById('brain-description').textContent = 'You are ready to continue creating with Nex.';
+        document.getElementById('brain-tier').value = data.tier || 'free';
+        brainConnect.textContent = 'Reconnect with OpenRouter ↗';
+        brainStatus.textContent = 'Connected' + (data.tested_at ? ' and tested.' : '. Checking connection…');
+        if (!data.tested_at) {
+          const check = await fetch('/api/forge-brain', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ action:'test' }) });
+          const result = await check.json().catch(() => ({}));
+          brainStatus.textContent = check.ok && result.ok ? 'Connected and tested.' : (result.message || 'Connected, but the test failed. Try reconnecting or continue to Forge.');
+        }
+      }
+    } catch (error) { brainStatus.textContent = error.message; }
+  }
   async function submitAuth(action, body, errorEl, submitBtn) {
     errorEl.innerText = '';
     submitBtn.disabled = true;
     try {
-      const res = await fetch('/api/room-auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, ...body }),
-      });
+      const res = await fetch('/api/room-auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ action, ...body }) });
       const data = await res.json();
-      if (!res.ok) {
-        errorEl.innerText = data.error || 'Something went wrong.';
-        submitBtn.disabled = false;
-        return;
-      }
-      window.location.href = '/room.html';
-    } catch (err) {
-      errorEl.innerText = 'Could not reach the server.';
+      if (!res.ok) { errorEl.innerText = data.error || 'Something went wrong.'; submitBtn.disabled = false; return; }
+      if (data.operator === true && operatorNextPath && !customerWorkspaces.has(new URL(operatorNextPath, location.origin).pathname)) { location.href = operatorNextPath; return; }
+      if (workerNextPath) { location.href = workerNextPath; return; }
+      document.getElementById('login-password').value = '';
+      document.getElementById('signup-password').value = '';
+      await loadBrain();
       submitBtn.disabled = false;
-    }
+    } catch { errorEl.innerText = 'Could not reach the server.'; submitBtn.disabled = false; }
   }
+  brainConnect.addEventListener('click', async () => {
+    brainConnect.disabled = true; brainStatus.textContent = 'Opening OpenRouter…';
+    try {
+      const res = await fetch('/api/forge-brain', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ action:'authorize', tier:document.getElementById('brain-tier').value, returnTo:'login' }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not start the connection.');
+      const url = new URL(data.redirectUrl);
+      if (url.protocol !== 'https:' || url.hostname !== 'openrouter.ai') throw new Error('The provider link was invalid.');
+      sessionStorage.setItem('forge:login:return', nextPath);
+      location.href = url.href;
+    } catch (error) { brainStatus.textContent = error.message; brainConnect.disabled = false; }
+  });
+  document.getElementById('enter-forge').onclick = () => { sessionStorage.removeItem('forge:login:return'); location.href = nextPath; };
+  document.getElementById('view-plans').onclick = () => { tierModal.classList.remove('hidden'); continueFree.focus(); };
+  const brainResult = new URLSearchParams(location.search).get('brain');
+  if (brainResult) {
+    loadBrain().then(() => { if (brainResult !== 'connected') brainStatus.textContent = 'Connection ' + ({ cancelled:'cancelled', expired:'expired', rejected:'rejected', test_failed:'failed', network:'unavailable' }[brainResult] || 'could not be completed') + '. You can try again.'; });
+  }
+  if(new URLSearchParams(location.search).get('social')==='complete')loadBrain();
 
   loginForm.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -203,21 +578,207 @@
     );
   });
 
+  continueFree.addEventListener('click', () => {
+    sessionStorage.removeItem('forge:login:return');
+    window.location.href = nextPath;
+  });
+
   signupForm.addEventListener('submit', (e) => {
     e.preventDefault();
     submitAuth(
-      'signup',
+      'simple-signup',
       {
-        username: document.getElementById('signup-username').value.trim(),
+        name: document.getElementById('signup-name').value.trim(),
         password: document.getElementById('signup-password').value,
-        inviteCode: document.getElementById('signup-invite').value.trim(),
+        email: document.getElementById('signup-email').value.trim(),
       },
       document.getElementById('signup-error'),
       document.getElementById('signup-submit')
     );
   });
+
+  // Paid tier buttons: reachable once signed in (the tier modal shows
+  // right after signup, and the login flow lands here too). A 401
+  // means Checkout was clicked before a session existed — send back
+  // to the signup tab rather than failing silently.
+  document.querySelectorAll('[data-checkout]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const priceId = button.dataset.checkout;
+      const original = button.textContent;
+      button.disabled = true;
+      button.textContent = 'Redirecting…';
+      try {
+        const res = await fetch('/api/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ priceId }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 401) {
+          showSignup();
+          button.disabled = false;
+          button.textContent = original;
+          return;
+        }
+        if (!res.ok || !data.url) throw new Error(data.error || 'Checkout failed');
+        window.location.href = data.url;
+      } catch (err) {
+        button.disabled = false;
+        button.textContent = original;
+        alert(err.message || 'Could not start checkout.');
+      }
+    });
+  });
 </script>
 
-<script src="/nexus-shell.js"></script>
+<script>
+  // ---- Password reset ("chat with Nex") ----
+  // Scripted, not a live model call: this is a deterministic flow
+  // (ask username, ask security question, set new password) with no
+  // branching a real conversation would need, and the reset token is
+  // the only thing that actually proves identity here — a live LLM
+  // turn would add cost and prompt-injection surface for zero
+  // functional benefit. The chat-bubble presentation is just Nex's
+  // voice on top of that. The security question is the free, no-email
+  // path; "email me a link instead" is the same request-a-link flow
+  // from before, kept as a fallback (it only reaches your own inbox
+  // until a sending domain is verified in Resend).
+  const resetModal = document.getElementById('reset-modal');
+  const resetChatLog = document.getElementById('reset-chat-log');
+  const resetRequestForm = document.getElementById('reset-request-form');
+  const resetAnswerForm = document.getElementById('reset-answer-form');
+  const resetCompleteForm = document.getElementById('reset-complete-form');
+  const forgotLink = document.getElementById('forgot-password-link');
+  const resetClose = document.getElementById('reset-close');
+  let pendingResetUsername = '';
+  let pendingResetToken = '';
+
+  function nexSay(text) {
+    const bubble = document.createElement('div');
+    bubble.style.cssText = 'padding:10px 12px;border-radius:10px;background:var(--panel);border:1px solid var(--border);font-size:13px;line-height:1.5;color:var(--text);';
+    bubble.textContent = text;
+    resetChatLog.appendChild(bubble);
+  }
+
+  function showResetStep(step) {
+    resetRequestForm.classList.toggle('hidden', step !== 'request');
+    resetAnswerForm.classList.toggle('hidden', step !== 'answer');
+    resetCompleteForm.classList.toggle('hidden', step !== 'complete');
+  }
+
+  function openResetModal({ step } = { step: 'request' }) {
+    resetChatLog.innerHTML = '';
+    if (step === 'request') {
+      nexSay("Hey, I'm Nex. What email or username is on the account you're locked out of?");
+    } else {
+      nexSay('Got it — pick a new password and you\'re back in.');
+    }
+    showResetStep(step);
+    resetModal.classList.remove('hidden');
+  }
+
+  forgotLink.addEventListener('click', () => openResetModal({ step: 'request' }));
+  resetClose.addEventListener('click', () => resetModal.classList.add('hidden'));
+
+  resetRequestForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    pendingResetUsername = document.getElementById('reset-username').value.trim();
+    const submitBtn = document.getElementById('reset-request-submit');
+    submitBtn.disabled = true;
+    try {
+      const res = await fetch('/api/password-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'get-question', username: pendingResetUsername }),
+      });
+      const data = await res.json().catch(() => ({}));
+      submitBtn.disabled = false;
+      if (!res.ok) {
+        nexSay(data.error || 'Something went wrong — try again in a moment.');
+        return;
+      }
+      nexSay(data.question);
+      showResetStep('answer');
+    } catch {
+      nexSay('Could not reach the server — try again in a moment.');
+      submitBtn.disabled = false;
+    }
+  });
+
+  resetAnswerForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const answer = document.getElementById('reset-answer').value;
+    const submitBtn = document.getElementById('reset-answer-submit');
+    submitBtn.disabled = true;
+    try {
+      const res = await fetch('/api/password-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'verify-answer', username: pendingResetUsername, answer }),
+      });
+      const data = await res.json().catch(() => ({}));
+      submitBtn.disabled = false;
+      if (!res.ok) {
+        nexSay(data.error || "That answer doesn't match — try again, or email yourself a link instead.");
+        document.getElementById('reset-answer').value = '';
+        return;
+      }
+      pendingResetToken = data.token;
+      nexSay('Got it — pick a new password and you\'re back in.');
+      showResetStep('complete');
+    } catch {
+      nexSay('Could not reach the server — try again in a moment.');
+      submitBtn.disabled = false;
+    }
+  });
+
+  document.getElementById('reset-email-instead').addEventListener('click', async () => {
+    try {
+      const res = await fetch('/api/password-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'request', username: pendingResetUsername }),
+      });
+      const data = await res.json().catch(() => ({}));
+      nexSay(data.message || data.error || 'Something went wrong — try again in a moment.');
+      showResetStep(null);
+    } catch {
+      nexSay('Could not reach the server — try again in a moment.');
+    }
+  });
+
+  resetCompleteForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const password = document.getElementById('reset-new-password').value;
+    const token = new URLSearchParams(window.location.search).get('reset') || pendingResetToken;
+    const submitBtn = document.getElementById('reset-complete-submit');
+    submitBtn.disabled = true;
+    try {
+      const res = await fetch('/api/password-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reset', token, password }),
+      });
+      const data = await res.json().catch(() => ({}));
+      nexSay(data.message || data.error || 'Something went wrong.');
+      if (res.ok) {
+        showResetStep(null);
+        history.replaceState(null, '', '/room-login.html');
+      } else {
+        submitBtn.disabled = false;
+      }
+    } catch {
+      nexSay('Could not reach the server — try again in a moment.');
+      submitBtn.disabled = false;
+    }
+  });
+
+  // A reset link lands here as ?reset=<token> — open straight to step 2.
+  if (new URLSearchParams(window.location.search).get('reset')) {
+    openResetModal({ step: 'complete' });
+  }
+</script>
+
 </body>
 </html>
