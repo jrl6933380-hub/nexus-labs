@@ -11,9 +11,21 @@ test('owner capability catalog exposes readable tools, skills, commands, and sav
   assert.ok(catalog.tools.every(tool=>tool.input_schema));
   assert.equal(catalog.skills[0].instructions,'Review memory carefully.');
   assert.equal(catalog.skills[0].source,'memory-manager/SKILL.md');
-  assert.ok(catalog.commands.some(command=>command.name==='Nex disengage'));
+  assert.ok(catalog.commands.some(command=>command.name==='Hand off to dev team'));
+  assert.ok(!catalog.commands.some(command=>/Claude|Hyperfocus|disengage/iu.test(`${command.name} ${command.description}`)));
   assert.ok(catalog.commands.some(command=>command.name==='@agent task'));
   assert.ok(catalog.commands.some(command=>command.name==='Check it' && command.type==='saved'));
+});
+
+test('owner capability catalog retires provider-specific tools and saved handoff commands',async()=>{
+  const catalog=await ownerCapabilityCatalog({owner:'justin',listSkills:async()=>[],commandStore:{list:async()=>[
+    {id:'command-old',name:'Wake Claude',description:'Old flow',trigger:'Nex disengage',instructions:'Use hyperfocus',tool_names:['wake_claude_code'],scopes:['conversation']},
+  ]}});
+  const serialized=JSON.stringify(catalog);
+  assert.ok(catalog.tools.some(tool=>tool.name==='prepare_dev_handoff'));
+  assert.ok(!catalog.tools.some(tool=>['wake_claude_code','open_hyperfocus','prepare_build_handoff'].includes(tool.name)));
+  assert.ok(!catalog.commands.some(command=>command.id==='command-old'));
+  assert.doesNotMatch(serialized,/wake_claude_code|open_hyperfocus|prepare_build_handoff/iu);
 });
 
 test('owner capability API creates validated saved command chains',async()=>{

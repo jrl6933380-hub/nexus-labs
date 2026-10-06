@@ -10,13 +10,6 @@ import { chatRequest, requestKey } from '../lib/nexChatRequests.js';
 
 import { initSentry, Sentry } from '../lib/sentry.js';
 import { askNex, MODEL_TIERS } from '../lib/nexBrain.js';
-import {
-  isDisengageCommand,
-  isEngageCommand,
-  startClaudeHandoff,
-} from '../lib/claudeHandoff.js';
-import { getNexChatMode, disengageNex, engageNex } from '../lib/nexMode.js';
-import { detectHyperfocusTrigger, buildHyperfocusDirective } from '../lib/hyperfocusTriggers.js';
 import { getNexusOwner } from '../lib/nexusOwnerAuth.js';
 import {
   clearConversationThreads,
@@ -38,7 +31,7 @@ export const config = { maxDuration: 300 };
 // SHORT-TERM ROLLING BUFFER — just enough for mid-conversation
 // continuity ("what did you just say"). Long-term facts live in
 // structured memory (lib/memory.js) instead of growing forever here.
-// Every message resends this whole window to Claude's API, so it's a
+// Every message resends this whole window to the active model API, so it's a
 // direct token/cost tradeoff, not a free knob — bumped from 12 to 24
 // (6 to 12 exchanges) since Nex sessions run long when actually
 // building something. Tune further either direction if it feels off.
@@ -205,12 +198,7 @@ export default async function handler(req, res) {
     });
   }
   if (!message) return res.status(400).json({ error: 'Missing message' });
-  // Control commands return their own immediate JSON payloads before a
-  // normal Nex turn begins. Keep them on that established contract; the
-  // live stream is only for ordinary chat/build work.
-  const wantsBuildStream = String(req.headers.accept || '').includes('text/event-stream')
-    && !isDisengageCommand(message)
-    && !isEngageCommand(message);
+  const wantsBuildStream = String(req.headers.accept || '').includes('text/event-stream');
   let buildStreamStarted = false;
   let tracked = false;
   if (requestId) {
@@ -286,61 +274,6 @@ export default async function handler(req, res) {
     const recent = await loadConversation(operatorUser, threadId);
     const runningHistory = recent.filter((msg) => msg.role !== 'system');
 
-    // Exact command-level handoff: Nex does not imitate Claude. He creates
-    // a constrained Board task and wakes a real Claude Routine session,
-    // which reads the Board + BRIDGE.md before taking over.
-    if (isDisengageCommand(message)) {
-      const { task, wake } = await startClaudeHandoff();
-      await disengageNex({ session_url: wake.session_url, task_id: task.id });
-      const reply =
-        `Nex disengaged. I’m paused while you work directly with Claude. ` +
-        `Open the direct Claude session: ${wake.session_url}`;
-      const usage = { input_tokens: 0, output_tokens: 0 };
-      await saveConversation(operatorUser, [
-        ...runningHistory,
-        { role: 'user', content: message },
-        { role: 'assistant', content: reply, model: 'claude-routine', usage },
-      ], threadId);
-      return res.status(200).json({
-        reply,
-        model: 'claude-routine',
-        usage,
-        handoff: {
-          task_id: task.id,
-          session_id: wake.session_id,
-          session_url: wake.session_url,
-          replayed: wake.replayed,
-        },
-      });
-    }
-
-    // Returning to the Nex chat does not terminate the separate Claude
-    // session, but it makes the ownership change explicit.
-    if (isEngageCommand(message)) {
-      await engageNex();
-      const reply = 'Nex engaged. I’m back in the lead.';
-      const usage = { input_tokens: 0, output_tokens: 0 };
-      await saveConversation(operatorUser, [
-        ...runningHistory,
-        { role: 'user', content: message },
-        { role: 'assistant', content: reply, model: 'nex', usage },
-      ], threadId);
-      return res.status(200).json({ reply, model: 'nex', usage });
-    }
-
-    // Disengage is an ownership switch, not just a wake shortcut. The
-    // separate Claude session retains its normal authorized connector
-    // access; Nex does not continue consuming model calls or dispatching
-    // work until Justin explicitly re-engages him.
-    const chatMode = await getNexChatMode();
-    if (chatMode.mode === 'disengaged') {
-      return res.status(423).json({
-        error: 'Nex is disengaged while you work directly with Claude.',
-        mode: chatMode,
-        instruction: 'Send “Nex engage” here when you want Nex back in the lead.',
-      });
-    }
-
     // A specialist or group is an owner-scoped server record, not a persona
     // supplied by the browser. Fail clearly when an old conversation points
     // at a record that was removed instead of silently turning it into Nex.
@@ -367,9 +300,6 @@ export default async function handler(req, res) {
     }
     const agentActivity=(await teamRunStore.list(operatorUser,collaborationThread).catch(()=>[])).slice(0,2).map(run=>JSON.stringify({goal:run.goal,state:run.state,steps:run.steps.map(step=>({name:step.name,state:step.state,result:step.result?.slice(0,3000)}))})).join('\n');
 
-    // Do not start the stream until every command/mode response that uses
-    // normal JSON has returned. Starting it earlier made a disengaged Nex try
-    // to send JSON after SSE headers, producing ERR_HTTP_HEADERS_SENT.
     tracked = true;
     await saveStatus({ state: 'running' });
     if (wantsBuildStream) {
@@ -381,24 +311,10 @@ export default async function handler(req, res) {
       sendBuildEvent('stage', { state: 'running', tool: 'planning', label: 'Planning build' });
     }
 
-    // Hyperfocus trigger phrases ("bring Claude in on this for
-    // hyperfocus", "show active hyperfocus", "hyperfocus complete") are
-    // recognized deterministically (regex, not model judgment) so they
-    // always fire regardless of which tier answers this turn. The
-    // detection only decides WHETHER to append an internal directive to
-    // what's sent to the model — the actual extraction/tool-calling
-    // (open_hyperfocus, publish_chat_context, wake_claude_code, etc.,
-    // wired in nexBrain.js) still runs through a normal Nex turn, since
-    // real context synthesis is exactly what an LLM does well and a
-    // regex can't. The directive is never shown to Mr. Lopez or saved
-    // to the visible transcript — only the message he actually typed is.
-    const hyperfocusTrigger = detectHyperfocusTrigger(message);
-    // Owner chat is direct-work-first. Handoff and pipeline tools stay
-    // available, but ordinary build verbs must not silently force Nex into a
-    // context-packaging workflow.
-    const messageForModel = hyperfocusTrigger
-      ? `${message}\n\n${buildHyperfocusDirective(hyperfocusTrigger)}`
-      : message;
+    // Owner chat is direct-work-first. A dev-team handoff remains available
+    // when explicitly requested, but ordinary build verbs do not force Nex
+    // into a context-packaging workflow.
+    const messageForModel = message;
 
     const {
       reply,
@@ -420,21 +336,11 @@ export default async function handler(req, res) {
       degraded,
     } = await askNex(messageForModel, runningHistory, forcedTier, clientContext, (stage) => sendBuildEvent('stage', stage), {userId:operatorUser,threadId:collaborationThread,agentActivity,scheduleUserId:`owner:${operatorUser}`,storyProjectId:clientContext.screen?.story_project_id || null, effort:forcedEffort, deepThoughtEnabled, deepThoughtRequested, resumeRunId, forceSkill:forcedSkill});
 
-    // If the message sent to the model was augmented with an internal
-    // hyperfocus directive, restore Mr. Lopez's original text in the
-    // saved/returned history so the transcript shows exactly what he
-    // typed, not the internal instruction appended to it.
-    const historyForStorage = hyperfocusTrigger
-      ? updatedHistory.map((entry, i) =>
-          i === updatedHistory.length - 1 ? { ...entry, content: message } : entry
-        )
-      : updatedHistory;
-
     // Store which model actually answered and token usage alongside the
     // message itself, so "who answered" and token count survive a page
     // reload — not just visible on the live response.
     const finalHistory = [
-      ...historyForStorage,
+      ...updatedHistory,
       { role: 'assistant', content: reply, model: answeredModel, usage },
     ];
     await saveConversation(operatorUser, finalHistory, threadId);
