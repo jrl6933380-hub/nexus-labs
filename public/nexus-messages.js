@@ -40,6 +40,7 @@ function wizardHeading(root,title,step,back){heading(root,title,step,back);const
 
 export async function renderMessages(ctx){
   const root=node('section',undefined,'nexusmessages');let state={specialists:[],groups:[],roles:{},scopes:[],pinned_system_ids:[]};
+  let ownerCatalog=null;
   async function load(message){try{state=await api();if(ctx.consumeMessagesNew?.())newConversation();else draw();if(typeof message==='string' && message.trim())showFeedback(root,message);}catch(error){root.replaceChildren(node('p',friendlyError(error,{action:'load',subject:'Messages'})),button('Try again',()=>load()),button('Explore Nexus',()=>ctx.go('guide'),'guideopen'));}}
   function draw(){
     document.body.classList.remove('messages-panel');
@@ -85,12 +86,41 @@ export async function renderMessages(ctx){
     const support=pushSupport();
     alerts.append(row({name:'Notifications',meta:support==='supported'?'Schedule + Reminders':'This device is not ready',preview:support==='supported'?'Get alerts even when Nexus is closed.':support==='install-required'?'Add Nexus to your Home Screen, then open the app to turn on alerts.':'Install Nexus on a supported phone or browser to use background alerts.',icon:'◉',tone:'reminders',run:notificationView}));
     root.append(alerts);
+    const owner=node('div',undefined,'messagechoices ownercontrols');owner.append(node('p','Owner controls','messagesection'));
+    owner.append(row({name:'Tools',meta:'Nex capability inventory',preview:'See every callable tool, what it accesses, and its risk level.',icon:'T',tone:'operations',run:()=>ownerCatalogView('tools')}));
+    owner.append(row({name:'Skills',meta:'Installed operating knowledge',preview:'See the procedures Nex can load and the phrases that trigger them.',icon:'S',tone:'skills',run:()=>ownerCatalogView('skills')}));
+    owner.append(row({name:'Commands',meta:'Deterministic shortcuts',preview:'See the exact commands and @mention patterns Nexus recognizes.',icon:'C',tone:'pod',run:()=>ownerCatalogView('commands')}));
+    root.append(owner);
     const account=node('div',undefined,'messagechoices');account.append(node('p','Account','messagesection'));
     for(const system of SYSTEMS.filter(item=>item.action)){account.append(row({name:system.name,meta:'Nexus account',preview:system.description,icon:system.icon,tone:system.tone,run:()=>ctx[system.action]?.()}));}
     account.append(row({name:'Report a problem',meta:'Help improve Nexus',preview:'Send an idea or tell us what went wrong.',icon:'!',tone:'operations',run:feedbackView}));
     account.append(row({name:'Privacy',meta:'Your information',preview:'See what Nexus keeps and what you control.',icon:'P',tone:'memory',run:()=>location.assign('/privacy.html')}));
     account.append(row({name:'Terms',meta:'Using Nexus',preview:'Read the plain-English rules for Nexus.',icon:'T',tone:'legacy',run:()=>location.assign('/terms.html')}));
     root.append(account);if(typeof message==='string' && message.trim())showFeedback(root,message);
+  }
+  async function readOwnerCatalog(){
+    if(ownerCatalog)return ownerCatalog;
+    const response=await fetch('/api/owner-capabilities',{credentials:'include',headers:{Accept:'application/json'},cache:'no-store'});
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok){const error=new Error(data.error || 'Owner controls could not be loaded');error.status=response.status;throw error;}
+    ownerCatalog=data;return data;
+  }
+  async function ownerCatalogView(section){
+    const titles={tools:['Tools','Every callable ability Nex can load or use.'],skills:['Skills','Installed procedures that shape how Nex works.'],commands:['Commands','Exact shortcuts you can type in a conversation.']};
+    const [title,copy]=titles[section] || titles.tools;heading(root,title,copy,moreView);root.append(node('p','Loading…','messageempty'));
+    try{
+      const data=await readOwnerCatalog();root.querySelector('.messageempty')?.remove();const items=Array.isArray(data[section])?data[section]:[];
+      if(section==='tools'){
+        const grouped=new Map();for(const tool of items){const label=tool.category_label || 'Other';if(!grouped.has(label))grouped.set(label,[]);grouped.get(label).push(tool);}
+        for(const [label,tools] of grouped)root.append(group(label,tools.map(tool=>row({name:tool.name,meta:[tool.core?'always loaded':tool.category,tool.sideEffect,`${tool.risk} risk`].filter(Boolean).join(' · '),preview:String(tool.description || '').slice(0,150),icon:tool.sideEffect==='write'?'W':'R',tone:tool.risk==='high'?'operations':'skills'}))));
+      }else if(section==='skills'){
+        root.append(group('Installed skills',items.map(skill=>row({name:skill.name,meta:Array.isArray(skill.triggers)&&skill.triggers.length?`Triggers: ${skill.triggers.slice(0,4).join(', ')}`:'Loaded when relevant',preview:String(skill.description || '').slice(0,150),icon:'S',tone:'skills'}))));
+      }else{
+        root.append(group('Available commands',items.map(command=>row({name:command.name,meta:command.description,preview:`Example: ${command.example}`,icon:'›',tone:'pod'}))));
+      }
+      if(!items.length)root.append(node('p',`No ${section} are registered yet.`,'messageempty'));
+      root.append(button('Back to More',moreView,'messagesecondary'));
+    }catch(error){root.replaceChildren();heading(root,title,copy,moreView);root.append(node('p',friendlyError(error,{action:'load',subject:section}),'messageempty'),button('Try again',()=>{ownerCatalog=null;ownerCatalogView(section);},'uxprimary messagecontinue'),button('Back to More',moreView,'messagesecondary'));}
   }
   function feedbackView(){
     heading(root,'Report a problem','Tell us what happened or what would make Nexus better.',moreView);

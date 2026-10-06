@@ -112,6 +112,14 @@ test('Messages carries the old navigation as colored connected conversation rows
   assert.match(source,/Customize Messages/);assert.match(source,/set_pinned_systems/);assert.match(css,/pinmanager/);
 });
 
+test('More contains owner-only tool, skill, and command catalogs',()=>{
+  const source=fs.readFileSync(new URL('../public/nexus-messages.js',import.meta.url),'utf8');
+  for(const name of ['Tools','Skills','Commands'])assert.match(source,new RegExp(`name:'${name}'`));
+  assert.match(source,/Owner controls/u);
+  assert.match(source,/fetch\('\/api\/owner-capabilities'/u);
+  assert.match(source,/credentials:'include'/u);
+});
+
 test('conversation cleanup protects permanent and shared Nexus threads',()=>{
   for(const id of ['nex-main','agent-maya','group-launch'])assert.equal(isProtectedConversationThreadId(id),true);
   for(const id of ['tnewidea','chat-123'])assert.equal(isProtectedConversationThreadId(id),false);
