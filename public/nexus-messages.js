@@ -35,8 +35,26 @@ async function api(action,input={}){
 function avatar(label,tone=''){const el=node('span',undefined,`messageavatar ${tone}`);el.setAttribute('aria-hidden','true');if(['research','build','life'].includes(tone))el.append(node('i'));else el.textContent=String(label || 'N').slice(0,1).toUpperCase();return el;}
 function timeLabel(value){const stamp=Number(value);if(!stamp)return '';const date=new Date(stamp),now=new Date();if(date.toDateString()===now.toDateString())return date.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});const yesterday=new Date(now);yesterday.setDate(now.getDate()-1);if(date.toDateString()===yesterday.toDateString())return 'Yesterday';return date.toLocaleDateString([],{month:'short',day:'numeric'});}
 function row({name,meta,preview,icon='N',tone='',status='',when='',pinned=false,run}){const item=button('',run,`messageitem tone-${tone || 'plain'}${pinned?' pinned':''}`);item.append(avatar(icon,tone));const copy=node('span',undefined,'messagecopy');const top=node('span',undefined,'messagetop');top.append(node('strong',name));const aside=node('span',undefined,'messageaside');if(status)aside.append(node('small',status,'messagestatus'));if(when)aside.append(node('small',when,'messagetime'));top.append(aside);copy.append(top,node('span',meta,'messagemeta'),node('span',preview,'messagepreview'));item.append(copy);return item;}
+function group(label,items=[]){const section=node('section',undefined,'messagechoices cataloggroup');section.append(node('p',label,'messagesection'),...items);return section;}
 function heading(root,title,copy,back){document.body.classList.add('messages-panel');root.replaceChildren();const top=node('div',undefined,'messagepanelhead');if(back)top.append(button('‹',back,'messageback'));top.append(node('h2',title));root.append(top);if(copy)root.append(node('p',copy,'messageintro'));}
 function wizardHeading(root,title,step,back){heading(root,title,step,back);const progress=node('span',undefined,'messageprogress');progress.append(node('i'));if(step.includes('2 of 2'))progress.classList.add('complete');root.append(progress);}
+
+const CAPABILITY_BUILDERS=Object.freeze({
+  tools:{singular:'tool',title:'Add a tool',namePlaceholder:'Tool name, like check_inventory',purposePlaceholder:'What real job should this tool complete?',behaviorPlaceholder:'What should it read or change, and what result should it return?'},
+  skills:{singular:'skill',title:'Add a skill',namePlaceholder:'Skill name, like trip-planner',purposePlaceholder:'When should Nex load this operating knowledge?',behaviorPlaceholder:'What procedure, judgment, or rules should the skill teach Nex?'},
+  commands:{singular:'command',title:'Add a command',namePlaceholder:'Command phrase, like Plan my launch',purposePlaceholder:'What should happen when you type this command?',behaviorPlaceholder:'List the exact steps, inputs, and finished result.'},
+});
+export function buildOwnerCapabilityPrompt(section,{name='',purpose='',behavior='',scopes=[]}={}){
+  const config=CAPABILITY_BUILDERS[section] || CAPABILITY_BUILDERS.tools;
+  return [
+    `I want to add a new Nexus ${config.singular} named "${String(name).trim()}".`,
+    `Purpose: ${String(purpose).trim()}`,
+    `Working scope: ${(Array.isArray(scopes)?scopes:[]).join(', ') || 'this conversation only'}`,
+    `Expected behavior: ${String(behavior).trim()}`,
+    '',
+    `Scope this ${config.singular} with me and ask only for information that is genuinely missing. Then implement it in the real ${config.singular} runtime on a non-live branch, add relevant tests, and open a pull request. Keep credentials server-side and preserve owner approvals for consequential actions. Do not list or describe it as active until the runtime wiring and tests prove it works.`,
+  ].join('\n');
+}
 
 export async function renderMessages(ctx){
   const root=node('section',undefined,'nexusmessages');let state={specialists:[],groups:[],roles:{},scopes:[],pinned_system_ids:[]};
@@ -110,6 +128,9 @@ export async function renderMessages(ctx){
     const [title,copy]=titles[section] || titles.tools;heading(root,title,copy,moreView);root.append(node('p','Loading…','messageempty'));
     try{
       const data=await readOwnerCatalog();root.querySelector('.messageempty')?.remove();const items=Array.isArray(data[section])?data[section]:[];
+      const config=CAPABILITY_BUILDERS[section] || CAPABILITY_BUILDERS.tools;
+      root.append(button(config.title,()=>ownerCapabilityBuilder(section),'uxprimary messagecontinue'));
+      root.append(node('p',`Scope it here, then Nex will wire and test the real ${config.singular} before it appears as active.`,'guidedraftnote'));
       if(section==='tools'){
         const grouped=new Map();for(const tool of items){const label=tool.category_label || 'Other';if(!grouped.has(label))grouped.set(label,[]);grouped.get(label).push(tool);}
         for(const [label,tools] of grouped)root.append(group(label,tools.map(tool=>row({name:tool.name,meta:[tool.core?'always loaded':tool.category,tool.sideEffect,`${tool.risk} risk`].filter(Boolean).join(' · '),preview:String(tool.description || '').slice(0,150),icon:tool.sideEffect==='write'?'W':'R',tone:tool.risk==='high'?'operations':'skills'}))));
@@ -121,6 +142,22 @@ export async function renderMessages(ctx){
       if(!items.length)root.append(node('p',`No ${section} are registered yet.`,'messageempty'));
       root.append(button('Back to More',moreView,'messagesecondary'));
     }catch(error){root.replaceChildren();heading(root,title,copy,moreView);root.append(node('p',friendlyError(error,{action:'load',subject:section}),'messageempty'),button('Try again',()=>{ownerCatalog=null;ownerCatalogView(section);},'uxprimary messagecontinue'),button('Back to More',moreView,'messagesecondary'));}
+  }
+  function ownerCapabilityBuilder(section){
+    const config=CAPABILITY_BUILDERS[section] || CAPABILITY_BUILDERS.tools;
+    heading(root,config.title,`Define the ${config.singular}. Nex will ask anything missing, build it, test it, and open a PR before it becomes active.`,()=>ownerCatalogView(section));
+    const form=node('form',undefined,'messageform'),name=node('input'),purpose=node('textarea'),behavior=node('textarea'),scope=node('fieldset'),status=node('p',undefined,'messageformstatus');
+    name.required=true;name.maxLength=80;name.placeholder=config.namePlaceholder;
+    purpose.required=true;purpose.maxLength=600;purpose.placeholder=config.purposePlaceholder;
+    behavior.required=true;behavior.maxLength=1200;behavior.placeholder=config.behaviorPlaceholder;
+    scope.append(node('legend','Where should it be available?'));
+    for(const [value,label,checked] of [['conversation','Nex conversations',true],['specialists','Specialist agents',false],['groups','Agent groups',false],['projects','Projects and Builder',false],['life','Nexus Life',false]]){
+      const option=node('label'),input=node('input');input.type='checkbox';input.value=value;input.checked=checked;option.append(input,node('span',label));scope.append(option);
+    }
+    const create=button('Scope with Nex',null,'uxprimary');create.type='submit';status.setAttribute('role','status');
+    form.append(node('label','Name'),name,node('label','Purpose'),purpose,node('label','What should it do?'),behavior,scope,create,status);
+    root.append(form,button(`Back to ${config.title.replace('Add a ','')}`,()=>ownerCatalogView(section),'messagesecondary'));
+    form.onsubmit=async(event)=>{event.preventDefault();create.disabled=true;status.textContent=`Opening Nex to scope this ${config.singular}…`;const scopes=[...scope.querySelectorAll('input:checked')].map(input=>input.value);const prompt=buildOwnerCapabilityPrompt(section,{name:name.value,purpose:purpose.value,behavior:behavior.value,scopes});try{if(ctx.draftPrompt)await ctx.draftPrompt(prompt);else{window.dispatchEvent(new CustomEvent('nexus:nex-prompt',{detail:{text:prompt}}));ctx.openConversation?.({kind:'nex',name:'Nex'});}}catch(error){status.textContent=friendlyError(error,{action:'save',subject:`this ${config.singular}`,keepDraft:true});create.disabled=false;}};
   }
   function feedbackView(){
     heading(root,'Report a problem','Tell us what happened or what would make Nexus better.',moreView);
