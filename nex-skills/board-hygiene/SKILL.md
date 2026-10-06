@@ -9,7 +9,7 @@ A cleanup-sweep flag is a signal to review, not an instruction to act. The sweep
 
 Never delete, reassign, or change ownership/status on a flagged task unilaterally. Only Nex or Justin should touch ownership/status per the sweep's own warning text, and outright deletion always goes through delete_board_task as a proposal — one task at a time, always with a clear reason — landing in the approval queue exactly like any other destructive action. Never assume raising the proposal is the same as approval.
 
-When a flag turns out to be a real false positive caused by stale description text Nex cannot edit (there is currently no tool to edit an existing task's title/description, only attach_task_result/update_board_task_progress/complete_board_task), don't just re-flag it silently every sweep pass — save it to memory (category "for_claude") once, and check existing memory before re-logging the same known false positive again.
+When a flag turns out to be a real false positive caused by stale description text Nex cannot edit (there is currently no tool to edit an existing task's title/description, only attach_task_result/update_board_task_progress/complete_board_task), don't just re-flag it silently every sweep pass — save it to memory (category "capability_gap") once, and check existing memory before re-logging the same known false positive again.
 
 Before creating a new task, check read_board or find_board_task first — a duplicate task is itself a hygiene problem, not just wasted effort.
 

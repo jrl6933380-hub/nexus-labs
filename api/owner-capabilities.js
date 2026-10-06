@@ -3,13 +3,12 @@ import { listAllNexSkills } from '../lib/nexSkills.js';
 import { TOOL_REGISTRY } from '../lib/nexBrain.js';
 import { NEX_TOOL_CATEGORIES } from '../lib/nex/toolCategories.js';
 import { toolRegistryManifest } from '../lib/nexToolRegistry.js';
-import { nexCommandChainStore } from '../lib/nexCommandChains.js';
+import { isRetiredProviderCommand, nexCommandChainStore } from '../lib/nexCommandChains.js';
 
 export const OWNER_COMMANDS = Object.freeze([
   { name:'@agent task', description:'Call a named specialist into the current conversation and give it a task.', example:'@Maya research the best options for this.' },
   { name:'@team task', description:'Assign work to the available specialists in the current group.', example:'@team research this, then have the builder make the page.' },
-  { name:'Nex engage', description:'Put Nex back in charge after a direct Claude handoff.', example:'Nex engage' },
-  { name:'Nex disengage', description:'Pause Nex and open the direct Claude handoff flow.', example:'Nex disengage' },
+  { name:'Hand off to dev team', description:'Have Nex clarify the request, inspect the relevant evidence, and create a provider-neutral development brief you can bring to any developer or coding agent.', example:'Hand this off to my dev team.' },
   { name:'Open a Nexus space', description:'Move to a connected space using its exact name.', example:'Open Schedule' },
 ]);
 
@@ -21,7 +20,7 @@ export async function ownerCapabilityCatalog({ owner = null, listSkills = listAl
     category_label: tool.category ? NEX_TOOL_CATEGORIES[tool.category]?.label || tool.category : 'Always available',
   }));
   const skills = (await listSkills()).map(({ name, description, triggers, instructions, sourcePath }) => ({ name, description, triggers, instructions,source:sourcePath ? String(sourcePath).split('/').slice(-2).join('/') : '' }));
-  const saved = owner ? await commandStore.list(owner) : [];
+  const saved = owner ? (await commandStore.list(owner)).filter(command=>!isRetiredProviderCommand(command)) : [];
   return { tools, skills, commands: [...OWNER_COMMANDS.map(command=>({...command,type:'built_in'})),...saved.map(command=>({...command,type:'saved'}))] };
 }
 

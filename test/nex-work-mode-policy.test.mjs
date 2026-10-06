@@ -22,7 +22,7 @@ test('Nex work-mode policy preserves approval and recovery boundaries', () => {
   assert.match(policy, /execution ledger/i);
   assert.match(policy, /before retrying any uncertain write/i);
   assert.match(policy, /Never weaken a safety boundary or route around an approval gate/i);
-  assert.match(policy, /Wake Claude only when Justin asks/i);
+  assert.match(policy, /provider-neutral packet/i);
   assert.match(policy, /credentials and sensitive authentication material out of prompts/i);
 });
 
@@ -35,12 +35,8 @@ test('ordinary owner build requests are not forced through a handoff gate', asyn
   assert.match(policy, /Direct execution is the default/i);
 });
 
-test('SSE starts only after disengaged-mode JSON responses have returned', async () => {
+test('retired provider-specific mode gates are absent from owner chat', async () => {
   const chatSource = await readFile(new URL('../api/chat.js', import.meta.url), 'utf8');
-  const modeGate = chatSource.indexOf("if (chatMode.mode === 'disengaged')");
-  const streamStart = chatSource.indexOf('buildStreamStarted = true');
-
-  assert.ok(modeGate >= 0);
-  assert.ok(streamStart > modeGate);
+  assert.doesNotMatch(chatSource, /isDisengageCommand|detectHyperfocusTrigger|startClaudeHandoff/);
   assert.match(chatSource, /if \(buildStreamStarted\) \{\n\s+sendBuildEvent\('error'/);
 });

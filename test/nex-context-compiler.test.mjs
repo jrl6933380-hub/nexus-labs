@@ -43,7 +43,7 @@ test('memory ranking is bounded and keeps urgent handoff memory first', () => {
   const memories = [
     { id: 'fact', category: 'fact', content: 'The dashboard is blue.', tags: ['dashboard'], created_at: 1 },
     { id: 'project', category: 'project', content: 'Deploy the dashboard safely.', tags: ['deployment'], created_at: 2 },
-    { id: 'handoff', category: 'for_claude', content: 'Repair the broken deployment tool.', tags: ['tool'], created_at: 3 },
+    { id: 'handoff', category: 'capability_gap', content: 'Repair the broken deployment tool.', tags: ['tool'], created_at: 3 },
   ];
   const ranked = rankMemories(memories, 'deployment', 2);
   assert.equal(ranked.length, 2);
