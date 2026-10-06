@@ -13,7 +13,7 @@ export function createNexusMessagesHandler({getOwner=getNexusOwner,store=nexusMe
     try{
       if((req.method==='GET' && (req.query?.group_id || req.query?.thread_id)) || (req.method==='POST' && String(req.body?.action || '').startsWith('team_')))return await team(req,res,owner);
       if(req.method==='GET'){
-        const state=await store.overview(owner.id),team_status={},specialist_status={},specialist_stamps={};
+        const state=store.ensureCoreSpecialists?await store.ensureCoreSpecialists(owner.id):await store.overview(owner.id),team_status={},specialist_status={},specialist_stamps={};
         const labels={planned:'Plan ready',queued:'Up next',running:'Working',needs_approval:'Needs you',blocked:'Needs attention',completed:'Result ready',stopping:'Stopping'};
         await Promise.all(state.groups.map(async group=>{try{
           const [run]=await teamRunStore.list(owner.id,group.id);if(run && labels[run.state])team_status[group.id]=labels[run.state];

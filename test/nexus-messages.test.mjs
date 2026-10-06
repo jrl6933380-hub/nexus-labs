@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createNexusMessagesStore,MESSAGE_SYSTEM_IDS} from '../lib/nexusMessagesStore.js';
+import {CORE_SPECIALISTS,createNexusMessagesStore,MESSAGE_SYSTEM_IDS} from '../lib/nexusMessagesStore.js';
 import {createNexusMessagesHandler} from '../api/nexus-messages.js';
 import {conversationThreadId,conversationPreview,buildOwnerCapabilityPrompt} from '../public/nexus-messages.js';
 import {buildActiveTools,buildConversationAccessPolicy,formatLiveWorkspaceContext} from '../lib/nexBrain.js';
@@ -24,11 +24,24 @@ test('specialists keep a clear role and least-context default while groups inher
   const overview=await store.overview('Mrlopez');assert.deepEqual(overview.specialists.map(item=>item.name),['Atlas','Maya']);assert.equal(overview.groups[0].title,'Launch');
 });
 
+test('the core specialist roster seeds once without replacing custom agents',async()=>{
+  const store=fixture();
+  const custom=await store.createSpecialist('Mrlopez',{name:'My Analyst',role:'custom'});
+  const first=await store.ensureCoreSpecialists('Mrlopez');
+  assert.deepEqual(first.specialists.map(item=>item.name),['My Analyst','Atlas','Mason','Vida','Vera']);
+  assert.deepEqual(first.specialists.find(item=>item.name==='Vera').scopes,['conversation','projects']);
+  assert.equal(first.specialists.find(item=>item.name==='Vera').role,'review');
+  const second=await store.ensureCoreSpecialists('Mrlopez');
+  assert.equal(second.specialists.length,5);
+  assert.equal(second.specialists.find(item=>item.id===custom.id).name,'My Analyst');
+  assert.deepEqual(CORE_SPECIALISTS.map(item=>item.name),['Atlas','Mason','Vida','Vera']);
+});
+
 test('Messages API derives owner scope and refuses empty groups',async()=>{
   const store=fixture(),handler=createNexusMessagesHandler({getOwner:async()=>({id:'Justin'}),store});
   const created=response();await handler({method:'POST',body:{action:'create_specialist',name:'Maya',role:'research'}},created);assert.equal(created.code,201);
   const rejected=response();await handler({method:'POST',body:{action:'create_group',title:'Empty',member_ids:[]}},rejected);assert.equal(rejected.code,400);assert.match(rejected.data.error,/Choose at least one/);
-  const listed=response();await handler({method:'GET'},listed);assert.equal(listed.data.specialists[0].name,'Maya');assert.ok(listed.data.roles.build);
+  const listed=response();await handler({method:'GET'},listed);assert.equal(listed.data.specialists[0].name,'Maya');assert.ok(listed.data.roles.build);assert.ok(listed.data.roles.review);
   const pins=response();await handler({method:'POST',body:{action:'set_pinned_systems',pinned_system_ids:['life','workbench']}},pins);assert.deepEqual(pins.data.pinned_system_ids,['life','workbench']);
 });
 
@@ -72,6 +85,11 @@ test('specialist access is enforced as a backend tool allowlist',()=>{
   const visible=buildActiveTools(new Set(['coding','board_admin','memory_admin']),builder.allowedToolNames).map(tool=>tool.name);
   assert.ok(visible.includes('tool_search'));assert.ok(visible.includes('patch_repo_file'));
   assert.ok(!visible.includes('delete_repo'));assert.ok(!visible.includes('read_board'));assert.ok(!visible.includes('save_memory'));
+
+  const reviewer=buildConversationAccessPolicy({kind:'specialist',role:'review',scopes:['conversation','projects'],execution_mode:'read_only'});
+  assert.equal(reviewer.allowedToolNames.has('read_repo_file'),true);
+  assert.equal(reviewer.allowedToolNames.has('inspect_branch_diff'),true);
+  assert.equal(reviewer.allowedToolNames.has('patch_repo_file'),false);
 
   const nex=buildConversationAccessPolicy(null);
   assert.equal(nex.restricted,false);assert.equal(nex.allowedToolNames,null);assert.equal(nex.allowNativeWeb,true);
