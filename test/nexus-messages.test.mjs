@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createNexusMessagesStore,MESSAGE_SYSTEM_IDS} from '../lib/nexusMessagesStore.js';
 import {createNexusMessagesHandler} from '../api/nexus-messages.js';
-import {conversationThreadId,conversationPreview} from '../public/nexus-messages.js';
+import {conversationThreadId,conversationPreview,buildOwnerCapabilityPrompt} from '../public/nexus-messages.js';
 import {buildActiveTools,buildConversationAccessPolicy,formatLiveWorkspaceContext} from '../lib/nexBrain.js';
 import {isProtectedConversationThreadId} from '../lib/nexConversationStore.js';
 import fs from 'node:fs';
@@ -118,6 +118,18 @@ test('More contains owner-only tool, skill, and command catalogs',()=>{
   assert.match(source,/Owner controls/u);
   assert.match(source,/fetch\('\/api\/owner-capabilities'/u);
   assert.match(source,/credentials:'include'/u);
+  assert.match(source,/function group\(/u);
+  for(const label of ['Add a tool','Add a skill','Add a command'])assert.match(source,new RegExp(label));
+});
+
+test('new owner capabilities are scoped for real runtime wiring before activation',()=>{
+  const prompt=buildOwnerCapabilityPrompt('tool',{name:'check_inventory',purpose:'Check current stock.',behavior:'Read inventory and return low items.',scopes:['conversation','projects']});
+  assert.match(prompt,/check_inventory/u);
+  assert.match(prompt,/conversation, projects/u);
+  assert.match(prompt,/implement it in the real tool runtime/u);
+  assert.match(prompt,/non-live branch/u);
+  assert.match(prompt,/add relevant tests/u);
+  assert.match(prompt,/Do not list or describe it as active until/u);
 });
 
 test('conversation cleanup protects permanent and shared Nexus threads',()=>{
