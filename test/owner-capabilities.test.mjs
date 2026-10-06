@@ -4,13 +4,22 @@ import { createOwnerCapabilitiesHandler, ownerCapabilityCatalog } from '../api/o
 
 function response(){return {headers:{},setHeader(key,value){this.headers[key]=value;return this;},status(code){this.code=code;return this;},json(body){this.body=body;return this;}};}
 
-test('owner capability catalog exposes safe tool, skill, and command summaries',async()=>{
-  const catalog=await ownerCapabilityCatalog({listSkills:async()=>[{name:'memory-manager',description:'Keeps durable memory useful.',triggers:['remember']} ]});
+test('owner capability catalog exposes readable tools, skills, commands, and saved chains',async()=>{
+  const catalog=await ownerCapabilityCatalog({owner:'justin',listSkills:async()=>[{name:'memory-manager',description:'Keeps durable memory useful.',triggers:['remember'],instructions:'Review memory carefully.',sourcePath:'/app/nex-skills/memory-manager/SKILL.md'}],commandStore:{list:async()=>[{id:'command-test',name:'Check it',description:'Check status',trigger:'When asked',instructions:'Read first',tool_names:['read_board'],scopes:['conversation']}]}});
   assert.ok(catalog.tools.length>50);
   assert.ok(catalog.tools.every(tool=>tool.name && tool.sideEffect && tool.risk && !tool.schema));
-  assert.deepEqual(catalog.skills,[{name:'memory-manager',description:'Keeps durable memory useful.',triggers:['remember']}]);
+  assert.ok(catalog.tools.every(tool=>tool.input_schema));
+  assert.equal(catalog.skills[0].instructions,'Review memory carefully.');
+  assert.equal(catalog.skills[0].source,'memory-manager/SKILL.md');
   assert.ok(catalog.commands.some(command=>command.name==='Nex disengage'));
   assert.ok(catalog.commands.some(command=>command.name==='@agent task'));
+  assert.ok(catalog.commands.some(command=>command.name==='Check it' && command.type==='saved'));
+});
+
+test('owner capability API creates validated saved command chains',async()=>{
+  let input=null;const handler=createOwnerCapabilitiesHandler({getOwner:async()=>({id:'justin'}),commandStore:{create:async(owner,value,validTools)=>{input={owner,value,validTools};return {id:'command-one',name:value.name};},remove:async()=>true,list:async()=>[]}}),res=response();
+  await handler({method:'POST',body:{action:'create_command',name:'Deploy check',instructions:'Check it',tool_names:['read_board']}},res);
+  assert.equal(res.code,201);assert.equal(input.owner,'justin');assert.ok(input.validTools.has('read_board'));assert.equal(res.body.command.name,'Deploy check');
 });
 
 test('owner capability API refuses non-owner requests',async()=>{
