@@ -57,7 +57,10 @@ test('mentions, approval, real state rendering and saved results work in the mob
   await page.getByText('Atlas’s result',{exact:true}).click();
   await expect(page.locator('.teamresult').filter({hasText:'<script>unsafe()</script>'})).toBeVisible();expect(await page.locator('.teamboard script').count()).toBe(0);
   await page.screenshot({path:'test-results/team-mobile.png',fullPage:true});
-  await page.reload();await page.getByRole('button',{name:/Launch team/}).click();
+  // Refresh restores the active group instead of returning to Messages.
+  await page.reload();
+  await expect(page.locator('body')).toHaveAttribute('data-view','chat');
+  await expect(page.locator('#viewTitle')).toHaveText('Launch team');
   await expect(page.locator('.teammission').getByText('Ready to review',{exact:true})).toBeVisible();
   await page.getByText('Nex’s result',{exact:true}).click();await expect(page.getByText(/publishing still needs a separate decision/)).toBeVisible();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth+1)).toBe(true);
