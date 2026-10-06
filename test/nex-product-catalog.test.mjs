@@ -63,7 +63,7 @@ test('the workspace uses one anchored chat sheet and the old floating control is
   assert.match(workspace, /function openChatSheet\([\s\S]*focus\(\{preventScroll:true\}\)/u);
   assert.match(workspace, /history\.filter\(\(message\)=>\['user','assistant'\]\.includes[\s\S]*\.slice\(-12\)/u);
   assert.match(workspace, /Nex is working[\s\S]*workingdots/u);
-  assert.match(workspace, /history\.push\(\{role:'user',content:text\}\);saveThread\(\);[\s\S]*fetch\('\/api\/chat'/u);
+  assert.match(workspace, /history\.push\(\{role:'user',content:text\}\);saveThread\(\);[\s\S]*await durableChatRequest\(text,threadId\)/u);
   assert.doesNotMatch(workspace, /class="head"|nexus:head|addEventListener\('pointermove'/u);
 });
 
