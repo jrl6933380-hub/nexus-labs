@@ -35,6 +35,25 @@ test('mentions resolve saved group members, quoted names and unique duplicate ha
   assert.equal(parseTeamMentions('@"Mary Jane" research',[{...members[0],name:'Mary Jane'}])[0].instruction,'research');
   assert.equal(parseTeamMentions('@team compare',members)[0].instruction,'compare');
 });
+test('core specialist names have direct mention handles',()=>{
+  const core=[
+    {id:'agent-core-atlas',name:'Atlas',role:'research'},
+    {id:'agent-core-mason',name:'Mason',role:'build'},
+    {id:'agent-core-vida',name:'Vida',role:'life'},
+    {id:'agent-core-vera',name:'Vera',role:'review'},
+  ];
+  assert.deepEqual(teamHandles(core).map(item=>item.handle),['atlas','mason','vida','vera']);
+  assert.deepEqual(parseTeamMentions('@Atlas investigate @Mason build @Vida plan @Vera verify',core).map(item=>item.member_id),core.map(item=>item.id));
+});
+test('review specialists stay read-only and do not request write approval',async()=>{
+  const {runs}=fixture(),reviewer={id:'agent-core-vera',name:'Vera',role:'review',job:'Verify work',scopes:['conversation','projects']};
+  const run=await runs.create('justin','nex-main',[reviewer],'@Vera verify this','request-reviewer');
+  assert.equal(run.steps[0].requires_approval,false);
+  const calls=[];
+  const runner=createTeamRunner({runs,messages:{overview:async()=>({groups:[],specialists:[reviewer]})},mode:async()=>({mode:'engaged'}),history:async()=>null,ask:async(...args)=>{calls.push(args);return {reply:'Reviewed',provider:'gateway'};}});
+  await runs.act('justin','nex-main',run.id,'start');await runner.execute('justin','nex-main',run.id);
+  assert.equal(calls[0][3].conversation.execution_mode,'read_only');
+});
 test('mission creation is idempotent, owner scoped and prevents overlapping group writes',async()=>{
   const {runs}=fixture(),first=await create(runs);assert.equal((await create(runs)).id,first.id);
   await assert.rejects(create(runs,'justin','@Atlas other','request-two'),/current task/);
