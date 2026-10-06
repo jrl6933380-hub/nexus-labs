@@ -45,6 +45,19 @@ test('calendar view switches load ranges and time-slot clicks carry date and hou
   } finally {globalThis.document=previousDocument;globalThis.fetch=previousFetch;globalThis.requestAnimationFrame=previousFrame;}
 });
 
+test('Plan with Nex opens the conversational composer while the guided planner stays optional',async()=>{
+  const previousDocument=globalThis.document, previousFetch=globalThis.fetch, previousFrame=globalThis.requestAnimationFrame;
+  const calls=[];
+  globalThis.document={createElement:fakeElement};globalThis.requestAnimationFrame=(callback)=>callback();
+  globalThis.fetch=async()=>({ok:true,json:async()=>({items:[],drafts:[]})});
+  try {
+    const root=await renderScheduleCalendar({planWithNex:()=>calls.push('conversation'),openScheduleStudio:(mode)=>calls.push(mode),openWeekRollover(){},ask(){},setScheduleItems(){}},{balance:()=>fakeElement('div')});
+    descendants(root).find((node)=>node.textContent==='✦ Plan with Nex').onclick();
+    descendants(root).find((node)=>node.textContent==='Guided planner').onclick();
+    assert.deepEqual(calls,['conversation','week']);
+  } finally {globalThis.document=previousDocument;globalThis.fetch=previousFetch;globalThis.requestAnimationFrame=previousFrame;}
+});
+
 test('calendar keeps events and saved draft review linked to their exact records',async()=>{
   const previousDocument=globalThis.document, previousFetch=globalThis.fetch, previousFrame=globalThis.requestAnimationFrame;
   const item=event('Work record',9,0), draft={...event('Draft record',12,0),draft_id:'auto-draft',status:'draft'};

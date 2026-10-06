@@ -353,6 +353,7 @@ const ctx = {
   },
   openTask, openApproval, newTask, openDeveloper, createDeveloper, returnToOwner,
   newPlannerItem, openPlannerItem, editScheduleNotes, openScheduleOverrun, editScheduleItem: (item) => plannerForm(item), openScheduleDay, openScheduleCategory, openScheduleStudio, openWeekRollover, reviewWeekDraft,
+  planWithNex: () => openNexScheduleComposer(),
   setScheduleItems: (items) => { activeScheduleItems = Array.isArray(items) ? items : []; checkScheduleReminders(); },
 };
 
@@ -1232,6 +1233,16 @@ function askFromView(text) {
   if (currentView === 'chat') { el('input').value = text; return submit(); }
   head.classList.add('show'); dock.classList.add('show'); place();
   dockAsk(text);
+}
+function openNexScheduleComposer() {
+  head.classList.add('show');
+  dock.classList.add('show');
+  place();
+  el('dockBody').textContent = 'Tell me what you need scheduled in your own words. I’ll read your existing schedule, ask only if something is missing, and show you the plan before I save it.';
+  const input = el('dockInput');
+  input.value = '';
+  input.placeholder = 'What do you need scheduled?';
+  requestAnimationFrame(() => input.focus());
 }
 el('plannerQuickBtn').onclick = () => showView('planner');
 el('projectsQuickBtn').onclick = () => showView('workbench');
