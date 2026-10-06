@@ -134,6 +134,7 @@ test('Messages carries the old navigation as colored connected conversation rows
   assert.match(css,/messageitem\.pinned/);assert.match(css,/rolechoice/);assert.match(css,/messageprimary/);
   assert.match(source,/Create a specialist/);assert.match(source,/Step 1 of 2/);assert.match(source,/You choose what this agent can access/);
   assert.match(source,/Customize Messages/);assert.match(source,/set_pinned_systems/);assert.match(css,/pinmanager/);
+  assert.match(source,/Name the group and choose who belongs/);assert.match(source,/placeholder='Group name'/);
 });
 
 test('More contains owner-only tool, skill, and command catalogs',()=>{

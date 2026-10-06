@@ -14,11 +14,14 @@ test('practical-use search finds everyday needs and marks future products honest
   assert.ok(findGuideEntries('workout').some(entry=>entry.id==='planner'));
   assert.ok(findGuideEntries('appointment').some(entry=>entry.id==='reminders'));
   assert.ok(findGuideEntries('family organizer').some(entry=>entry.id==='build'));
+  assert.ok(findGuideEntries('business website').some(entry=>entry.id==='build'));
+  assert.ok(findGuideEntries('code diffs').some(entry=>entry.id==='review'));
   assert.ok(QUICK_STARTS.some(item=>item.label==='Keep a recipe'));
   assert.ok(QUICK_STARTS.some(item=>item.label==='Plan a workout'));
   assert.equal(NEXUS_GUIDE.find(entry=>entry.id==='legacy').status,'Planned');
   assert.equal(NEXUS_GUIDE.find(entry=>entry.id==='teams').status,'Planned');
   assert.ok(!NEXUS_GUIDE.find(entry=>entry.id==='groups').status);
+  assert.deepEqual(NEXUS_GUIDE.find(entry=>entry.id==='groups').capabilities.map(item=>item[0]),['Atlas · Research','Mason · Build','Vida · Life','Vera · Review']);
   assert.ok(NEXUS_GUIDE.every(entry=>entry.view==='chat' || VIEWS[entry.view]));
   assert.equal(matchView('help'),'guide');assert.equal(matchView('open explore nexus'),'guide');
 });

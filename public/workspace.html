@@ -992,14 +992,15 @@ function renderConversationBanner(){
 }
 function conversationGreeting(){
   if(activeConversation?.kind==='specialist'){
-    bubble('a',`<p>I'm ${esc(activeConversation.name)}, your ${esc(activeConversation.role || 'specialist')} specialist. My job is ${esc(activeConversation.job)}.</p><p>What should I take on?</p>`);
+    const reach={research:'I can research current information, compare sources and options, check claims, study markets or competitors, and return evidence-backed findings.',build:'I can create complete business websites, landing pages, apps, dashboards, calculators, trackers, visual previews, and approved project changes with tests and pull requests.',life:'I can help with workouts, meals, sleep, routines, and goals, then put approved plans on your Nexus Schedule with reminders, alerts, and notes.',review:'I can independently inspect plans, research, websites, apps, code diffs, and test evidence, then identify risks and what still needs fixing without changing the work.'}[activeConversation.role];
+    bubble('a',`<p>I'm ${esc(activeConversation.name)}, your ${esc(activeConversation.role || 'specialist')} specialist. My job is ${esc(activeConversation.job)}.</p>${reach?`<p>${reach}</p>`:''}<p>What should I take on?</p>`);
     thread.appendChild(chips([
       {label:'Give me a task',run:()=>{el('input').value='I need you to help with ';el('input').focus();}},
       {label:'What can you help with?',run:()=>{el('input').value='Show me what you can help with in this role.';submit();}},
     ]));return;
   }
   if(activeConversation?.kind==='group'){
-    bubble('a',`<p>Your team: ${esc((activeConversation.members || []).map(member=>typeof member==='string'?member:member.name).join(' and '))} in this conversation. Assign work with @mentions and follow the saved handoffs here.</p><p>What are we working on?</p>`);
+    bubble('a',`<p>Your team: ${esc((activeConversation.members || []).map(member=>typeof member==='string'?member:member.name).join(' and '))} in this conversation. You or any teammate can call another agent with @mentions and follow the saved handoffs here.</p><p>You do not need a project picked yet. Keep this group ready, or give it a mission whenever you want.</p>`);
     thread.appendChild(chips([
       {label:'Assign a project',run:()=>{el('input').value='I need this group to work together on ';el('input').focus();}},
       {label:'Review the team',run:()=>{el('input').value='Explain each specialist’s role in this group.';submit();}},
