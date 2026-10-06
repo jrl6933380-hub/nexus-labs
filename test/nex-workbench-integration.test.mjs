@@ -10,7 +10,7 @@ const chat = await readFile(new URL('../api/chat.js', import.meta.url), 'utf8');
 test('Nex Chat sends a stable thread id and loads cloud thread summaries', () => {
   assert.match(workspace, /fetch\('\/api\/chat\?threads=1'/u);
   assert.match(workspace, /action:'save_thread'/u);
-  assert.match(workspace, /threadId, workspace: workspaceContext\(\)/u);
+  assert.match(workspace, /threadId:targetThread,requestId,respondAsync:true,workspace:workspaceContext\(\)/u);
   assert.match(chat, /listConversationThreads\(operatorUser\)/u);
   assert.match(chat, /action === 'save_thread'/u);
   assert.match(chat, /loadConversation\(operatorUser, threadId\)/u);

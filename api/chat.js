@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { waitUntil } from '@vercel/functions';
 import { teamRunner } from '../lib/teamRunner.js';
 import { chatRequest, requestKey } from '../lib/nexChatRequests.js';
 // /pages/api/chat.js
@@ -30,6 +31,8 @@ import {
 } from '../lib/nexConversationStore.js';
 import { nexusMessagesStore } from '../lib/nexusMessagesStore.js';
 import { teamRunStore } from '../lib/teamRuns.js';
+
+export const config = { maxDuration: 300 };
 
 // ============================================================
 // SHORT-TERM ROLLING BUFFER — just enough for mid-conversation
@@ -219,6 +222,37 @@ export default async function handler(req, res) {
   const sendBuildEvent = (event, payload) => {
     if (buildStreamStarted && !res.destroyed && !res.writableEnded) res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
   };
+
+  // The installed iPhone app may be suspended as soon as Mr. Lopez switches
+  // away from it. For workspace requests, acknowledge immediately and let a
+  // server-to-server invocation own the real Nex turn. The request status and
+  // final conversation are durable, so closing the app cannot sever the work.
+  if (req.body?.respondAsync === true && process.env.VERCEL_URL) {
+    if (!requestId) return res.status(400).json({ error: 'A request id is required for background work.' });
+    await saveStatus({ state: 'queued' });
+    const cookie = String(req.headers?.cookie || '');
+    const backgroundBody = { ...req.body, respondAsync: false };
+    const work = fetch(`https://${process.env.VERCEL_URL}/api/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(cookie ? { Cookie: cookie } : {}),
+      },
+      body: JSON.stringify(backgroundBody),
+    }).then(async (response) => {
+      await response.arrayBuffer();
+      if (!response.ok) throw new Error(`Background Nex request failed (${response.status})`);
+    }).catch(async (error) => {
+      console.error('Background Nex request failed:', error.message);
+      await saveStatus({
+        state: 'failed',
+        error: 'Nex could not finish that request. Your message is saved and can be retried.',
+      });
+    });
+    waitUntil(work);
+    return res.status(202).json({ requestId, state: 'queued' });
+  }
 
   // model is an optional tier override from the model picker: 'cheap',
   // 'standard', or 'heavy'. Anything else (including 'auto', missing,

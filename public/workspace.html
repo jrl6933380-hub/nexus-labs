@@ -1049,6 +1049,7 @@ window.NexusWorkspaceRenderVisual = renderVisual;
 // old local cache remains as an offline fallback and keeps pre-cloud threads
 // visible until the owner continues them, at which point they are saved.
 const THREADS_KEY='nexus:workspace:threads:v1', PINS_KEY='nexus:workspace:pins:v1';
+const PENDING_CHAT_KEY='nexus:workspace:pending-chat:v1';
 let recentThreads = [];
 function readStore(key){
   try { const v = JSON.parse(localStorage.getItem(key) || '[]'); return Array.isArray(v) ? v : []; }
@@ -1126,9 +1127,20 @@ async function openMessagesConversation(conversation,fresh=false){
   activeConversation=conversation?.kind==='nex'?{kind:'nex',name:'Nex'}:conversation;
   threadId=['specialist','group'].includes(conversation?.kind)?conversation.id:fresh?`t${Date.now().toString(36)}`:'nex-main';
   history.length=0;
+  const outstanding=pendingChat();
+  let outstandingState=null;
+  if(outstanding?.threadId===threadId){
+    try{
+      outstandingState=await chatRequestStatus(outstanding.requestId);
+      if(['finished','failed'].includes(outstandingState?.state))savePendingChat(null);
+    }catch{}
+  }
   if(!fresh){
     try{const response=await fetch(`/api/chat?threadId=${encodeURIComponent(threadId)}`,{headers:{Accept:'application/json'},cache:'no-store'});const data=await response.json().catch(()=>({}));if(response.ok)for(const message of data.messages || [])history.push(message);}catch{}
   }
+  if(outstanding?.threadId===threadId && !history.some(message=>message?.role==='user' && message.content===outstanding.message))history.push({role:'user',content:outstanding.message});
+  if(['queued','running'].includes(outstandingState?.state))history.push({role:'assistant',content:'Nex is still working in the background. You can leave Nexus and come back.'});
+  else if(outstandingState?.state==='failed')history.push({role:'assistant',content:outstandingState.error || 'Nex could not finish that request. Your message is saved and can be retried.'});
   await showView('chat');
 }
 function drawRecents(){
@@ -1167,6 +1179,52 @@ function drawPins(){
 drawPins();
 
 // --- composer --------------------------------------------------------------
+const pause=(milliseconds)=>new Promise(resolve=>setTimeout(resolve,milliseconds));
+function pendingChat(){try{return JSON.parse(localStorage.getItem(PENDING_CHAT_KEY) || 'null');}catch{return null;}}
+function savePendingChat(value){
+  if(value)localStorage.setItem(PENDING_CHAT_KEY,JSON.stringify(value));
+  else localStorage.removeItem(PENDING_CHAT_KEY);
+}
+async function chatRequestStatus(requestId){
+  const response=await fetch(`/api/chat?requestId=${encodeURIComponent(requestId)}`,{headers:{Accept:'application/json'},cache:'no-store'});
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(data?.error || `Status check failed (${response.status})`);
+  return data.request;
+}
+async function waitForChatRequest(record,{maxWaitMs=295000}={}){
+  const started=Date.now();
+  while(Date.now()-started<maxWaitMs){
+    const request=await chatRequestStatus(record.requestId);
+    if(request?.state==='finished'){
+      savePendingChat(null);
+      return request.response;
+    }
+    if(request?.state==='failed'){
+      savePendingChat(null);
+      throw new Error(request.error || 'Nex could not finish that request.');
+    }
+    await pause(document.hidden ? 4000 : 1400);
+  }
+  throw new Error('Nex is still working in the background. You can close Nexus and come back later.');
+}
+async function durableChatRequest(message,targetThread){
+  const requestId=crypto.randomUUID();
+  const record={requestId,threadId:targetThread,message,createdAt:Date.now()};
+  savePendingChat(record);
+  const response=await fetch('/api/chat',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Prefer':'respond-async'},
+    body:JSON.stringify({message,threadId:targetThread,requestId,respondAsync:true,workspace:workspaceContext()}),
+  });
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok){
+    if(response.status<500)savePendingChat(null);
+    throw new Error(data?.error || `Request failed (${response.status})`);
+  }
+  if(response.status===202 || data.state==='queued')return waitForChatRequest(record);
+  savePendingChat(null);
+  return data;
+}
 const teamChat=createTeamChat({input:el('input'),thread,
   onMessage:raw=>{bubble('u',esc(raw));history.push({role:'user',content:raw});saveThread();},
   onGroup:group=>{if(group.kind==='group'){activeConversation=group;el('viewSubtitle').textContent=conversationSubtitle();}el('input').placeholder='Message, or @ an agent…';},
@@ -1188,18 +1246,14 @@ async function submit(){
   if (currentView !== 'chat') { askFromView(raw); return; }
   bubble('u', esc(raw));
   if (!threadId) threadId = `t${Date.now().toString(36)}`;
+  history.push({role:'user',content:raw});saveThread();
   busy = true; el('send').disabled = true;
-  const pending = bubble('a', '<p style="color:#918c85">Thinking…</p>');
+  const pending = bubble('a', '<p style="color:#918c85">Nex is working… You can leave Nexus and come back.</p>');
   try {
-    const response = await fetch('/api/chat', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ message: raw, threadId, workspace: workspaceContext() }),
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data?.error || `Request failed (${response.status})`);
+    const data = await durableChatRequest(raw,threadId);
     const reply = data.reply || 'No reply came back.';
     pending.innerHTML = paragraphs(reply);
-    history.push({ role:'user', content:raw }, { role:'assistant', content:reply });
+    history.push({role:'assistant',content:reply});
     saveThread();
     renderResponseActions(data);
     // Nex asking the workspace to move is honoured as a view switch, not a page load.
@@ -1331,12 +1385,7 @@ async function dockAsk(text){
   history.push({role:'user',content:text});saveThread();
   dockIntro='';dockError='';dockBusy=true;el('dockSend').disabled=true;renderDockConversation();
   try {
-    const response = await fetch('/api/chat', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ message: text, threadId, workspace: workspaceContext() }),
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data?.error || `Request failed (${response.status})`);
+    const data=await durableChatRequest(text,threadId);
     history.push({role:'assistant',content:data.reply || 'No reply came back.'});
     saveThread();
   } catch (error) { dockError=friendlyError(error); }
