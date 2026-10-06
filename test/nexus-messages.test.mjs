@@ -119,6 +119,11 @@ test('workspace opens on Messages and sends only a saved conversation id back to
   assert.match(source,/id="backMessages"/);
   assert.match(source,/class="messagebrand"/);
   assert.doesNotMatch(source,/id="navMessages"|class="messagenav"/);
+  assert.match(source,/class="workspace-loading"/);
+  assert.match(source,/WORKSPACE_STATE_KEY='nexus:workspace:state:v1'/);
+  assert.match(source,/WORKSPACE_SCROLL_KEY='nexus:workspace:scroll:v1'/);
+  assert.match(source,/window\.history\.replaceState/);
+  assert.match(source,/savedWorkspace\?\.view==='chat'/);
 });
 
 test('Messages carries the old navigation as colored connected conversation rows',()=>{
