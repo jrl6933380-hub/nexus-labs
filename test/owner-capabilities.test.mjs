@@ -1,0 +1,30 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createOwnerCapabilitiesHandler, ownerCapabilityCatalog } from '../api/owner-capabilities.js';
+
+function response(){return {headers:{},setHeader(key,value){this.headers[key]=value;return this;},status(code){this.code=code;return this;},json(body){this.body=body;return this;}};}
+
+test('owner capability catalog exposes safe tool, skill, and command summaries',async()=>{
+  const catalog=await ownerCapabilityCatalog({listSkills:async()=>[{name:'memory-manager',description:'Keeps durable memory useful.',triggers:['remember']} ]});
+  assert.ok(catalog.tools.length>50);
+  assert.ok(catalog.tools.every(tool=>tool.name && tool.sideEffect && tool.risk && !tool.schema));
+  assert.deepEqual(catalog.skills,[{name:'memory-manager',description:'Keeps durable memory useful.',triggers:['remember']}]);
+  assert.ok(catalog.commands.some(command=>command.name==='Nex disengage'));
+  assert.ok(catalog.commands.some(command=>command.name==='@agent task'));
+});
+
+test('owner capability API refuses non-owner requests',async()=>{
+  const handler=createOwnerCapabilitiesHandler({getOwner:async()=>null,catalog:async()=>({})}),res=response();
+  await handler({method:'GET'},res);
+  assert.equal(res.code,401);
+  assert.match(res.body.error,/owner authentication required/u);
+});
+
+test('owner capability API returns the private catalog to an authenticated owner',async()=>{
+  const expected={tools:[{name:'read_planner'}],skills:[],commands:[]};
+  const handler=createOwnerCapabilitiesHandler({getOwner:async()=>({id:'justin'}),catalog:async()=>expected}),res=response();
+  await handler({method:'GET'},res);
+  assert.equal(res.code,200);
+  assert.deepEqual(res.body,expected);
+  assert.equal(res.headers['Cache-Control'],'private, no-store');
+});
