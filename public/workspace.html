@@ -180,7 +180,14 @@
   .dacts{display:flex;gap:7px;flex-wrap:wrap;padding:11px 13px 4px}
   .dact{font-size:12.5px;padding:7px 12px;border-radius:16px;background:#191919;
     border:1px solid var(--ln);color:#c4c0ba}
-  .dbody{max-height:34dvh;overflow-y:auto;padding:12px 13px;font-size:14px;line-height:1.6;color:#cfcbc5}
+  .dbody{display:flex;flex-direction:column;gap:9px;min-height:104px;max-height:34dvh;overflow-y:auto;padding:12px 13px;font-size:14px;line-height:1.5;color:#cfcbc5}
+  .dockhint{padding:8px 10px;border-left:2px solid #d8b666;color:#a8a39c;font-size:12px}
+  .dockmessage{align-self:flex-start;max-width:88%;padding:9px 12px;border:1px solid #2f3540;border-radius:14px 14px 14px 4px;background:#191d24;color:#ece9e4;white-space:pre-wrap;overflow-wrap:anywhere}
+  .dockmessage.user{align-self:flex-end;border-color:#3b4a68;border-radius:14px 14px 4px 14px;background:#29344d}
+  .dockmessage.working{display:flex;align-items:center;gap:8px;color:#b9c8e1}
+  .dockmessage.error{border-color:#69443e;background:#261b19;color:#e0aaa1}
+  .workingdots{display:flex;gap:3px}.workingdots i{width:4px;height:4px;border-radius:50%;background:#83adf1;animation:dockpulse 1s infinite ease-in-out}.workingdots i:nth-child(2){animation-delay:.15s}.workingdots i:nth-child(3){animation-delay:.3s}
+  @keyframes dockpulse{0%,70%,100%{opacity:.25;transform:translateY(0)}35%{opacity:1;transform:translateY(-2px)}}
   .dfoot{display:flex;align-items:center;gap:8px;padding:10px 13px calc(env(safe-area-inset-bottom) + 12px);
     border-top:1px solid var(--ln)}
   .dfoot input{flex:1;background:#191919;border:1px solid var(--ln);border-radius:18px;
@@ -268,7 +275,7 @@
     <button class="dclose" id="dockClose">×</button>
   </div>
   <div class="dacts" id="dockActs"></div>
-  <div class="dbody" id="dockBody">Ask me something without leaving this view.</div>
+  <div class="dbody" id="dockBody" role="log" aria-live="polite"></div>
   <div class="dfoot">
     <input id="dockInput" placeholder="Ask Nex…" autocomplete="off" />
     <button class="dsend" id="dockSend">↑</button>
@@ -1255,6 +1262,19 @@ function greet(){thread.appendChild(renderWelcome(ctx));}
 // into the visible viewport, so opening chat never throws the current page up.
 const dock = el('dock');
 let sheetBaseHeight = 0;
+let dockBusy = false;
+let dockError = '';
+let dockIntro = 'Ask me anything about what you have open.';
+function renderDockConversation(){
+  const body=el('dockBody');body.replaceChildren();
+  if(dockIntro){const hint=document.createElement('div');hint.className='dockhint';hint.textContent=dockIntro;body.appendChild(hint);}
+  const messages=history.filter((message)=>['user','assistant'].includes(message?.role) && message.content).slice(-12);
+  for(const message of messages){const bubble=document.createElement('div');bubble.className=`dockmessage${message.role==='user' ? ' user' : ''}`;bubble.textContent=message.content;body.appendChild(bubble);}
+  if(dockBusy){const working=document.createElement('div');working.className='dockmessage working';working.innerHTML='<span>Nex is working</span><span class="workingdots" aria-hidden="true"><i></i><i></i><i></i></span>';body.appendChild(working);}
+  if(dockError){const error=document.createElement('div');error.className='dockmessage error';error.textContent=dockError;body.appendChild(error);}
+  body.setAttribute('aria-busy',String(dockBusy));
+  requestAnimationFrame(()=>{body.scrollTop=body.scrollHeight;});
+}
 function positionChatSheet(){
   if(!dock.classList.contains('show'))return;
   const viewport=window.visualViewport;
@@ -1267,7 +1287,7 @@ function openChatSheet({message='Ask me anything about what you have open.',plac
   document.documentElement.style.setProperty('--sheet-base-height',`${sheetBaseHeight}px`);
   document.body.classList.add('chat-sheet-open');
   dock.classList.add('show');dock.setAttribute('aria-hidden','false');
-  el('dockBody').textContent=message;
+  dockIntro=message;renderDockConversation();
   const input=el('dockInput');input.placeholder=placeholder;
   positionChatSheet();
   if(focus)requestAnimationFrame(()=>input.focus({preventScroll:true}));
@@ -1306,9 +1326,10 @@ for (const action of DOCK_ACTIONS) {
   el('dockActs').appendChild(button);
 }
 async function dockAsk(text){
-  const body = el('dockBody');
-  body.textContent = 'Thinking…';
+  if(dockBusy)return;
   if (!threadId) threadId = `t${Date.now().toString(36)}`;
+  history.push({role:'user',content:text});saveThread();
+  dockIntro='';dockError='';dockBusy=true;el('dockSend').disabled=true;renderDockConversation();
   try {
     const response = await fetch('/api/chat', {
       method:'POST', headers:{'Content-Type':'application/json'},
@@ -1316,10 +1337,10 @@ async function dockAsk(text){
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data?.error || `Request failed (${response.status})`);
-    body.textContent = data.reply || 'No reply came back.';
-    history.push({ role:'user', content:text }, { role:'assistant', content:data.reply || '' });
+    history.push({role:'assistant',content:data.reply || 'No reply came back.'});
     saveThread();
-  } catch (error) { body.textContent = friendlyError(error); }
+  } catch (error) { dockError=friendlyError(error); }
+  finally {dockBusy=false;el('dockSend').disabled=false;renderDockConversation();}
 }
 el('dockSend').onclick = () => {
   const value = el('dockInput').value.trim();
