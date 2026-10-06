@@ -31,6 +31,7 @@ test('the core specialist roster seeds once without replacing custom agents',asy
   assert.deepEqual(first.specialists.map(item=>item.name),['My Analyst','Atlas','Mason','Vida','Vera']);
   assert.deepEqual(first.specialists.find(item=>item.name==='Vera').scopes,['conversation','projects']);
   assert.equal(first.specialists.find(item=>item.name==='Vera').role,'review');
+  assert.match(first.specialists.find(item=>item.name==='Vida').job,/Nexus Schedule with reminders and notes/u);
   const second=await store.ensureCoreSpecialists('Mrlopez');
   assert.equal(second.specialists.length,5);
   assert.equal(second.specialists.find(item=>item.id===custom.id).name,'My Analyst');
