@@ -10,6 +10,12 @@ test('practical-use search finds everyday needs and marks future products honest
   assert.ok(findGuideEntries('recipe').some(entry=>entry.id==='memory'));
   assert.ok(findGuideEntries('sleep').some(entry=>entry.id==='build'));
   assert.ok(findGuideEntries('birthday').some(entry=>entry.id==='reminders'));
+  assert.ok(findGuideEntries('workout').some(entry=>entry.id==='life'));
+  assert.ok(findGuideEntries('workout').some(entry=>entry.id==='planner'));
+  assert.ok(findGuideEntries('appointment').some(entry=>entry.id==='reminders'));
+  assert.ok(findGuideEntries('family organizer').some(entry=>entry.id==='build'));
+  assert.ok(QUICK_STARTS.some(item=>item.label==='Keep a recipe'));
+  assert.ok(QUICK_STARTS.some(item=>item.label==='Plan a workout'));
   assert.equal(NEXUS_GUIDE.find(entry=>entry.id==='legacy').status,'Planned');
   assert.equal(NEXUS_GUIDE.find(entry=>entry.id==='teams').status,'Planned');
   assert.ok(!NEXUS_GUIDE.find(entry=>entry.id==='groups').status);
