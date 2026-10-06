@@ -56,6 +56,14 @@ test('Nex Chat composer exposes customer actions instead of founder visual contr
   assert.doesNotMatch(workspace, /id="capBtn"|id="snapBtn"|id="pinBtn"/u);
 });
 
+test('the workspace uses one anchored chat sheet and the old floating control is gone', () => {
+  assert.match(workspace, /id="headBtn" aria-label="Refresh" title="Refresh">↻<\/button>/u);
+  assert.match(workspace, /body\.chat-sheet-open \.screen\{height:var\(--sheet-base-height,100%\);bottom:auto\}/u);
+  assert.match(workspace, /\.dock\{position:fixed[\s\S]*border-radius:24px 24px 0 0/u);
+  assert.match(workspace, /function openChatSheet\([\s\S]*focus\(\{preventScroll:true\}\)/u);
+  assert.doesNotMatch(workspace, /class="head"|nexus:head|addEventListener\('pointermove'/u);
+});
+
 test('the public home card introduces Schedule while owner operations stay in Messages', () => {
   assert.match(workspace, /renderWelcome\(ctx\)/u);
   assert.match(messages, /id:'planner',name:'Schedule'/u);
