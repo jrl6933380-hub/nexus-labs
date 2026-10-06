@@ -47,7 +47,7 @@ test('the app shell stays installable without caching private API or page data',
   assert.match(workspace,/rel="manifest" href="\/manifest\.webmanifest"/u);
   assert.match(workspace,/registerNexusApp\(\)/u);
   assert.equal(manifest.display,'standalone');
-  assert.equal(manifest.start_url,'/?source=app');
+  assert.equal(manifest.start_url,'/workspace.html');
   assert.equal(manifest.icons.length,1);
   assert.equal(manifest.icons[0].sizes,'any');
   assert.equal(manifest.icons[0].type,'image/svg+xml');

@@ -3,7 +3,7 @@
   "short_name": "Nexus",
   "description": "One intelligence for projects, time, reminders, and life.",
   "id": "/",
-  "start_url": "/?source=app",
+  "start_url": "/workspace.html",
   "scope": "/",
   "display": "standalone",
   "background_color": "#0e0e0e",

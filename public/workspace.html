@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="workspace-loading">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=overlays-content" />
@@ -38,6 +38,7 @@
   body{background:var(--bg);color:var(--tx);overflow:hidden;
     font-family:-apple-system,"SF Pro Text",Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
   button{cursor:pointer;border:0;background:none;color:inherit;font:inherit;text-align:left}
+  html.workspace-loading .screen,html.workspace-loading .dock{visibility:hidden!important}
 
   .screen{position:fixed;inset:0;background:var(--bg);z-index:5;display:flex;flex-direction:column}
 
@@ -322,6 +323,7 @@ let busy = false;
 let threadId = null;
 let activeConversation = null;
 let messagesStartNew = false;
+let viewMounted = false;
 const history = [];
 let activeScheduleItems = [];
 const deliveredScheduleReminders = new Set();
@@ -938,6 +940,7 @@ function paragraphs(text){
 // survives you looking around, which is the whole point of rooms living here.
 // ---------------------------------------------------------------------------
 async function showView(id){
+  if(viewMounted)rememberWorkspaceScroll();
   teamChat.stop();
   closeChatSheet();
   document.body.classList.remove('messages-panel');
@@ -947,7 +950,7 @@ async function showView(id){
   el('viewTitle').textContent = id === 'chat' ? (activeConversation?.name || activeConversation?.title || 'Nex') : VIEWS[id].label;
   el('viewSubtitle').textContent = id === 'workbench' ? 'Your websites, apps, and tools' : id === 'messages' ? 'Everyday life, projects, and work' : id==='guide' ? 'Practical ideas for every part of Nexus' : id === 'chat' ? conversationSubtitle() : 'Connected through Messages';
 
-  if (id === 'chat') { replayThread(); teamChat.open(activeConversation,threadId); return; }
+  if (id === 'chat') { replayThread(); teamChat.open(activeConversation,threadId);viewMounted=true;persistWorkspaceState();restoreWorkspaceScroll();return; }
 
   thread.innerHTML = '';
   const loading = bubble('sys', 'Reading…');
@@ -963,6 +966,7 @@ async function showView(id){
     thread.appendChild(chips([{ label:'Try again', run:() => showView(id) }, { label: 'Ask Nex instead', run: () => ctx.ask(`Tell me what's going on in ${VIEWS[id].label}.`) }]));
   }
   loading.remove?.();
+  viewMounted=true;persistWorkspaceState();restoreWorkspaceScroll();
 }
 
 function replayThread(){
@@ -1050,6 +1054,7 @@ window.NexusWorkspaceRenderVisual = renderVisual;
 // visible until the owner continues them, at which point they are saved.
 const THREADS_KEY='nexus:workspace:threads:v1', PINS_KEY='nexus:workspace:pins:v1';
 const PENDING_CHAT_KEY='nexus:workspace:pending-chat:v1';
+const WORKSPACE_STATE_KEY='nexus:workspace:state:v1', WORKSPACE_SCROLL_KEY='nexus:workspace:scroll:v1';
 let recentThreads = [];
 function readStore(key){
   try { const v = JSON.parse(localStorage.getItem(key) || '[]'); return Array.isArray(v) ? v : []; }
@@ -1057,6 +1062,24 @@ function readStore(key){
 }
 function writeStore(key, value){
   try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch { return false; }
+}
+function readWorkspaceState(){try{return JSON.parse(localStorage.getItem(WORKSPACE_STATE_KEY)||'null');}catch{return null;}}
+function workspaceScrollKey(){return currentView==='chat'?`chat:${threadId || activeConversation?.id || 'nex-main'}`:currentView;}
+function rememberWorkspaceScroll(){
+  if(!viewMounted)return;
+  let positions={};try{positions=JSON.parse(localStorage.getItem(WORKSPACE_SCROLL_KEY)||'{}')||{};}catch{}
+  positions[workspaceScrollKey()]=Math.max(0,Math.round(thread.scrollTop));
+  try{localStorage.setItem(WORKSPACE_SCROLL_KEY,JSON.stringify(positions));}catch{}
+}
+function restoreWorkspaceScroll(){
+  let positions={};try{positions=JSON.parse(localStorage.getItem(WORKSPACE_SCROLL_KEY)||'{}')||{};}catch{}
+  const top=Number(positions[workspaceScrollKey()]);if(!Number.isFinite(top))return;
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{thread.scrollTop=Math.min(top,Math.max(0,thread.scrollHeight-thread.clientHeight));}));
+}
+function persistWorkspaceState(){
+  const conversation=activeConversation?Object.fromEntries(Object.entries(activeConversation).filter(([key])=>['kind','id','name','title','role','job','scopes','include_nex','members'].includes(key))):null;
+  try{localStorage.setItem(WORKSPACE_STATE_KEY,JSON.stringify({view:currentView,thread_id:threadId,conversation}));}catch{}
+  const url=new URL(location.href);url.searchParams.set('view',currentView);window.history.replaceState(null,'',`${url.pathname}${url.search}${url.hash}`);
 }
 function saveThread(){
   if (!history.length) return;
@@ -1123,9 +1146,9 @@ async function clearRecentConversationThreads(keepThreadIds=[]){
   drawRecents();
   return {...data,deleted:removed.size};
 }
-async function openMessagesConversation(conversation,fresh=false){
+async function openMessagesConversation(conversation,fresh=false,restoredThreadId=null){
   activeConversation=conversation?.kind==='nex'?{kind:'nex',name:'Nex'}:conversation;
-  threadId=['specialist','group'].includes(conversation?.kind)?conversation.id:fresh?`t${Date.now().toString(36)}`:'nex-main';
+  threadId=restoredThreadId || (['specialist','group'].includes(conversation?.kind)?conversation.id:fresh?`t${Date.now().toString(36)}`:'nex-main');
   history.length=0;
   const outstanding=pendingChat();
   let outstandingState=null;
@@ -1399,10 +1422,15 @@ el('dockSend').onclick = () => {
 };
 el('dockInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') el('dockSend').click(); });
 
+window.addEventListener('pagehide',()=>{rememberWorkspaceScroll();persistWorkspaceState();});
 const requestedView = new URLSearchParams(location.search).get('view');
+const savedWorkspace = readWorkspaceState();
 registerNexusApp();
 await loadThreads();
-await showView(requestedView && VIEWS[requestedView] ? requestedView : 'messages');
+if(requestedView==='chat' && savedWorkspace?.conversation)await openMessagesConversation(savedWorkspace.conversation,false,savedWorkspace.thread_id);
+else if(!requestedView && savedWorkspace?.view==='chat' && savedWorkspace.conversation)await openMessagesConversation(savedWorkspace.conversation,false,savedWorkspace.thread_id);
+else await showView(requestedView && VIEWS[requestedView] ? requestedView : savedWorkspace?.view && VIEWS[savedWorkspace.view] ? savedWorkspace.view : 'messages');
+document.documentElement.classList.remove('workspace-loading');
 startReminderAlerts(()=>showView('reminders'),{isDestinationActive:()=>currentView==='reminders'});
 startReminderAlerts(()=>showView('life'),{endpoint:'/api/life?alerts=1',isDestinationActive:()=>currentView==='life'});
 </script>

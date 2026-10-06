@@ -9,7 +9,7 @@
   html,body{height:100%;margin:0;background:#0e0e0e;color:#8f8b85;
     font-family:-apple-system,"SF Pro Text",Inter,system-ui,sans-serif;
     display:flex;align-items:center;justify-content:center}
-  main{text-align:center;padding:24px}p{margin:0 0 16px}a{color:#f2f0ed;margin:0 8px}
+  main{visibility:hidden;text-align:center;padding:24px}p{margin:0 0 16px}a{color:#f2f0ed;margin:0 8px}
 </style>
 </head>
 <body>
@@ -21,15 +21,18 @@
 <script>
   // This URL is the owner's Nexus launch station. Forge has its own entry URL.
   (async () => {
+    const fallback = window.setTimeout(() => { document.querySelector('main').style.visibility = 'visible'; }, 2500);
     try {
       const owner = await fetch('/api/nexus-auth', {
         credentials: 'include', headers: { Accept: 'application/json' }, cache: 'no-store',
       });
       if (owner.ok) {
+        window.clearTimeout(fallback);
         location.replace('/workspace.html');
         return;
       }
     } catch {}
+    window.clearTimeout(fallback);
     location.replace('/nexus-login.html?next=%2Fworkspace.html');
   })();
 </script>
