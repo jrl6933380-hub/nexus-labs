@@ -120,6 +120,10 @@ test('More contains owner-only tool, skill, and command catalogs',()=>{
   assert.match(source,/credentials:'include'/u);
   assert.match(source,/function group\(/u);
   for(const label of ['Add a tool','Add a skill','Add a command'])assert.match(source,new RegExp(label));
+  assert.match(source,/Full instructions/u);
+  assert.match(source,/Your commands & tool chains/u);
+  assert.match(source,/Run with Nex/u);
+  assert.match(source,/Save command/u);
 });
 
 test('new owner capabilities are scoped for real runtime wiring before activation',()=>{

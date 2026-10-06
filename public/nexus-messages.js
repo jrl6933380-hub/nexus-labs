@@ -123,25 +123,62 @@ export async function renderMessages(ctx){
     if(!response.ok){const error=new Error(data.error || 'Owner controls could not be loaded');error.status=response.status;throw error;}
     ownerCatalog=data;return data;
   }
+  async function changeOwnerCatalog(action,input={}){
+    const response=await fetch('/api/owner-capabilities',{method:action==='delete_command'?'DELETE':'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...input})});
+    const data=await response.json().catch(()=>({}));if(!response.ok){const error=new Error(data.error || 'Owner controls could not be updated');error.status=response.status;throw error;}ownerCatalog=null;return data;
+  }
   async function ownerCatalogView(section){
     const titles={tools:['Tools','Every callable ability Nex can load or use.'],skills:['Skills','Installed procedures that shape how Nex works.'],commands:['Commands','Exact shortcuts you can type in a conversation.']};
     const [title,copy]=titles[section] || titles.tools;heading(root,title,copy,moreView);root.append(node('p','Loading…','messageempty'));
     try{
       const data=await readOwnerCatalog();root.querySelector('.messageempty')?.remove();const items=Array.isArray(data[section])?data[section]:[];
       const config=CAPABILITY_BUILDERS[section] || CAPABILITY_BUILDERS.tools;
-      root.append(button(config.title,()=>ownerCapabilityBuilder(section),'uxprimary messagecontinue'));
-      root.append(node('p',`Scope it here, then Nex will wire and test the real ${config.singular} before it appears as active.`,'guidedraftnote'));
+      root.append(button(config.title,()=>section==='commands'?commandBuilder(items):ownerCapabilityBuilder(section),'uxprimary messagecontinue'));
+      root.append(node('p',section==='commands'?'Save a reusable instruction or arrange real tools into an ordered chain Nex can select.':`Scope it here, then Nex will wire and test the real ${config.singular} before it appears as active.`,'guidedraftnote'));
       if(section==='tools'){
         const grouped=new Map();for(const tool of items){const label=tool.category_label || 'Other';if(!grouped.has(label))grouped.set(label,[]);grouped.get(label).push(tool);}
-        for(const [label,tools] of grouped)root.append(group(label,tools.map(tool=>row({name:tool.name,meta:[tool.core?'always loaded':tool.category,tool.sideEffect,`${tool.risk} risk`].filter(Boolean).join(' · '),preview:String(tool.description || '').slice(0,150),icon:tool.sideEffect==='write'?'W':'R',tone:tool.risk==='high'?'operations':'skills'}))));
+        for(const [label,tools] of grouped)root.append(group(label,tools.map(tool=>row({name:tool.name,meta:[tool.core?'always loaded':tool.category,tool.sideEffect,`${tool.risk} risk`].filter(Boolean).join(' · '),preview:String(tool.description || '').slice(0,150),icon:tool.sideEffect==='write'?'W':'R',tone:tool.risk==='high'?'operations':'skills',run:()=>ownerCatalogDetail('tools',tool)}))));
       }else if(section==='skills'){
-        root.append(group('Installed skills',items.map(skill=>row({name:skill.name,meta:Array.isArray(skill.triggers)&&skill.triggers.length?`Triggers: ${skill.triggers.slice(0,4).join(', ')}`:'Loaded when relevant',preview:String(skill.description || '').slice(0,150),icon:'S',tone:'skills'}))));
+        root.append(group('Installed skills',items.map(skill=>row({name:skill.name,meta:Array.isArray(skill.triggers)&&skill.triggers.length?`Triggers: ${skill.triggers.slice(0,4).join(', ')}`:'Loaded when relevant',preview:String(skill.description || '').slice(0,150),icon:'S',tone:'skills',run:()=>ownerCatalogDetail('skills',skill)}))));
       }else{
-        root.append(group('Available commands',items.map(command=>row({name:command.name,meta:command.description,preview:`Example: ${command.example}`,icon:'›',tone:'pod'}))));
+        const builtIn=items.filter(command=>command.type!=='saved'),saved=items.filter(command=>command.type==='saved');
+        if(saved.length)root.append(group('Your commands & tool chains',saved.map(command=>row({name:command.name,meta:command.tool_names?.length?`${command.tool_names.length} tools · ${command.scopes?.join(', ')}`:'Saved command',preview:command.description || command.instructions,icon:'⌘',tone:'pod',run:()=>ownerCatalogDetail('commands',command)}))));
+        root.append(group('Built-in commands',builtIn.map(command=>row({name:command.name,meta:command.description,preview:`Example: ${command.example}`,icon:'›',tone:'pod',run:()=>ownerCatalogDetail('commands',command)}))));
       }
       if(!items.length)root.append(node('p',`No ${section} are registered yet.`,'messageempty'));
       root.append(button('Back to More',moreView,'messagesecondary'));
     }catch(error){root.replaceChildren();heading(root,title,copy,moreView);root.append(node('p',friendlyError(error,{action:'load',subject:section}),'messageempty'),button('Try again',()=>{ownerCatalog=null;ownerCatalogView(section);},'uxprimary messagecontinue'),button('Back to More',moreView,'messagesecondary'));}
+  }
+  function ownerCatalogDetail(section,item){
+    heading(root,item.name,section==='tools'?'Callable tool details':section==='skills'?'Installed skill instructions':item.type==='saved'?'Saved command and tool chain':'Built-in command',()=>ownerCatalogView(section));
+    const card=node('section',undefined,'installcard capabilitydetail');card.append(node('p',item.description || item.trigger || 'No description saved.'));
+    if(section==='tools'){
+      card.append(node('h3','Access'),node('p',[item.category_label,item.core?'Always loaded':'Loaded when relevant',`${item.sideEffect} access`,`${item.risk} risk`].filter(Boolean).join(' · ')));
+      const fields=Object.entries(item.input_schema?.properties || {});card.append(node('h3','Inputs'));
+      if(fields.length){const list=node('ul',undefined,'capabilityfields');for(const [name,definition] of fields){const field=node('li');field.append(node('strong',name),node('span',definition.description || definition.type || 'Input'));list.append(field);}card.append(list);}else card.append(node('p','This tool does not require inputs.'));
+    }else if(section==='skills'){
+      card.append(node('h3','Triggers'),node('p',item.triggers?.length?item.triggers.join(', '):'Nex loads this when its purpose matches the request.'),node('h3','Full instructions'),node('pre',item.instructions || 'No instructions available.','capabilityinstructions'));
+    }else if(item.type==='saved'){
+      card.append(node('h3','When Nex should use it'),node('p',item.trigger || 'When you explicitly choose it.'),node('h3','Instructions'),node('p',item.instructions),node('h3','Ordered tool chain'),node('p',item.tool_names?.length?item.tool_names.join(' → '):'Instruction-only command; no fixed tools.'),node('h3','Available in'),node('p',item.scopes?.join(', ') || 'conversation'));
+    }else card.append(node('h3','Example'),node('p',item.example || ''));
+    root.append(card);
+    if(section==='commands'&&item.type==='saved'){
+      root.append(button('Run with Nex',()=>ctx.draftPrompt?.(`Use my saved command "${item.name}" (${item.id}) for this request. Load it with use_saved_command, follow its ordered tool chain, and keep every normal approval and verification step.`),'uxprimary messagecontinue'));
+      root.append(button('Delete saved command',async()=>{try{await changeOwnerCatalog('delete_command',{command_id:item.id});ownerCatalogView('commands');}catch(error){showFeedback(root,friendlyError(error,{action:'delete',subject:'this command'}));}},'messagesecondary'));
+    }
+    root.append(button(`Back to ${section[0].toUpperCase()+section.slice(1)}`,()=>ownerCatalogView(section),'messagesecondary'));
+  }
+  function commandBuilder(items){
+    const tools=(ownerCatalog?.tools || []).slice().sort((a,b)=>a.name.localeCompare(b.name)),selected=[];
+    heading(root,'Add a command','Save reusable instructions, or add tools in the order Nex should use them.',()=>ownerCatalogView('commands'));
+    const form=node('form',undefined,'messageform'),name=node('input'),description=node('textarea'),trigger=node('textarea'),instructions=node('textarea'),scope=node('fieldset'),status=node('p',undefined,'messageformstatus');
+    name.required=true;name.maxLength=80;name.placeholder='Command name, like Check and repair deployment';description.maxLength=400;description.placeholder='What this command accomplishes';trigger.maxLength=300;trigger.placeholder='When should Nex choose it?';instructions.required=true;instructions.maxLength=2400;instructions.placeholder='What should Nex do, check, and return?';
+    const chain=node('fieldset');chain.append(node('legend','Tool chain (optional, ordered)'));const picker=node('select');picker.append(node('option','Choose a tool to add'));for(const tool of tools){const option=node('option',tool.name);option.value=tool.name;picker.append(option);}const steps=node('div',undefined,'commandsteps');
+    const paintSteps=()=>{steps.replaceChildren();if(!selected.length)steps.append(node('p','No fixed tools. Nex will follow the saved instructions.','guidedraftnote'));for(const [index,tool] of selected.entries())steps.append(button(`${index+1}. ${tool}  ×`,()=>{selected.splice(index,1);paintSteps();},'commandstep'));};paintSteps();
+    chain.append(picker,button('Add tool to chain',()=>{if(picker.value&&!selected.includes(picker.value)){selected.push(picker.value);paintSteps();picker.value='';}},'messagesecondary'),steps);
+    scope.append(node('legend','Where should Nex use it?'));for(const [value,label,checked] of [['conversation','Nex conversations',true],['specialists','Specialist agents',false],['groups','Agent groups',false],['projects','Projects and Builder',false],['life','Nexus Life',false]]){const option=node('label'),input=node('input');input.type='checkbox';input.value=value;input.checked=checked;option.append(input,node('span',label));scope.append(option);}
+    const save=button('Save command',null,'uxprimary');save.type='submit';status.setAttribute('role','status');form.append(node('label','Name'),name,node('label','Description'),description,node('label','When to use it'),trigger,node('label','Instructions'),instructions,chain,scope,save,status);root.append(form,button('Back to Commands',()=>ownerCatalogView('commands'),'messagesecondary'));
+    form.onsubmit=async event=>{event.preventDefault();save.disabled=true;try{await changeOwnerCatalog('create_command',{name:name.value,description:description.value,trigger:trigger.value,instructions:instructions.value,tool_names:selected,scopes:[...scope.querySelectorAll('input:checked')].map(input=>input.value)});ownerCatalogView('commands');}catch(error){status.textContent=friendlyError(error,{action:'save',subject:'this command',keepDraft:true});save.disabled=false;}};
   }
   function ownerCapabilityBuilder(section){
     const config=CAPABILITY_BUILDERS[section] || CAPABILITY_BUILDERS.tools;
