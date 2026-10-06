@@ -73,12 +73,12 @@ export async function renderScheduleCalendar(ctx, extras) {
     }
     controls.append(modes,button('Today',()=>{state.date=new Date();return load();}));root.append(controls);
     const tools=node('div','caltools');
-    tools.append(button('✦ Plan with Nex',()=>ctx.openScheduleStudio('week')),button(ctx.balanceLabel || 'Time balance',()=>{
+    tools.append(button('✦ Plan with Nex',()=>ctx.planWithNex ? ctx.planWithNex() : ctx.openScheduleStudio('week')),button(ctx.balanceLabel || 'Time balance',()=>{
       const previous=root.querySelector('.calinsight');if(previous){previous.remove();return;}
       const host=node('div','calinsight');host.append(extras.balance(payload.summary,payload.items || [],ctx));root.append(host);host.scrollIntoView({block:'nearest'});
     }));
     const more=node('details','calmore');more.append(node('summary','','More'));
-    more.append(button(ctx.weekLabel || 'Build next week',()=>ctx.openWeekRollover()),button('Ask Nex to adjust',()=>ctx.ask(`Read my ${ctx.calendarSubject || 'schedule'} for ${calendarKey(state.date)}. Show me the tradeoffs and clickable ways to adjust it without moving protected commitments.`)));
+    more.append(button('Guided planner',()=>ctx.openScheduleStudio('week')),button(ctx.weekLabel || 'Build next week',()=>ctx.openWeekRollover()),button('Ask Nex to adjust',()=>ctx.ask(`Read my ${ctx.calendarSubject || 'schedule'} for ${calendarKey(state.date)}. Show me the tradeoffs and clickable ways to adjust it without moving protected commitments.`)));
     const find=node('input','calsearch');find.type='search';find.placeholder='Find an activity';find.setAttribute('aria-label','Search schedule');find.value=search;
     find.onchange=()=>{search=find.value;state.mode='list';return load();};more.append(find);tools.append(more);root.append(tools);
     for(const draftId of payload.drafts || []) {
