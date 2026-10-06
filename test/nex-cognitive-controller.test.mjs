@@ -25,6 +25,24 @@ test('a normal code change uses the code lane without summoning the full crew', 
   assert.ok(plan.requireEvidence.includes('relevant_tests'));
 });
 
+test('long personal actions never inherit the repository evidence gate', () => {
+  for (const message of [
+    'Create a reminder 45 minutes before tomorrow’s workout and mention that the complete calisthenics plan is saved in the workout notes.',
+    'Build me a detailed full-body workout for tomorrow, schedule the full hour, and save every exercise in the notes so I can follow it at the gym.',
+    'Update my schedule and add a reminder to start getting ready before the appointment, then tell me exactly what time both items occur.',
+  ]) {
+    const plan = planCognitiveRun({ message });
+    assert.equal(plan.lane, 'chat');
+    assert.deepEqual(plan.requireEvidence, []);
+  }
+});
+
+test('plain-language software artifacts still select the code lane', () => {
+  for (const message of ['Create a website page.', 'Build a software script.', 'Update the app UI.']) {
+    assert.equal(planCognitiveRun({ message }).lane, 'code');
+  }
+});
+
 test('complex risky work stays direct unless Crew Mode is explicitly requested', () => {
   const plan = planCognitiveRun({
     message: 'Migrate the production auth database, then update tenant permissions and deploy it.',
