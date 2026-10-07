@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My Workout Planner</title>
+<style>
+  :root {
+    --ink: #1f2933;
+    --muted: #5c6773;
+    --paper: #f4f1ea;
+    --card: #ffffff;
+    --line: #cbd2d9;
+    --push: #e05656;
+    --pull: #4a7fd4;
+    --legs: #4caf7d;
+    --core: #9b6fc3;
+    --shoulder: #d4a13c;
+    --recovery: #8a94a6;
+    --rest: #cbd2d9;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px; background: var(--paper);
+    font-family: "Segoe UI", Helvetica, Arial, sans-serif; color: var(--ink);
+  }
+  .wrap { max-width: 1240px; margin: 0 auto; }
+  header.bar {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    border-bottom: 3px solid var(--ink); padding-bottom: 12px; margin-bottom: 14px;
+    flex-wrap: wrap; gap: 12px;
+  }
+  h1 { margin: 0; font-size: 28px; letter-spacing: -0.5px; }
+  .sub { font-size: 14px; color: var(--muted); margin-top: 2px; }
+  .sub input {
+    border: none; border-bottom: 1px dashed var(--line); background: transparent;
+    font-size: 13px; padding: 1px 4px; width: 160px; color: var(--ink);
+  }
+  .strip { display: flex; gap: 6px; align-items: center; }
+  .strip span { width: 26px; height: 26px; border-radius: 6px; display: inline-block; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  .panel {
+    background: var(--card); border-radius: 12px; padding: 12px 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08); flex: 1; min-width: 280px;
+  }
+  .label { font-size: 11px; font-weight: 700; letter-spacing: 1px; color: var(--muted); margin-bottom: 8px; }
+  .legend { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; }
+  .stats div { font-size: 13px; line-height: 1.9; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .day {
+    background: var(--card); border-radius: 12px; padding: 14px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-top: 4px solid var(--recovery);
+    display: flex; flex-direction: column;
+  }
+  .day h2 { margin: 0; font-size: 15px; }
+  .focus {
+    display: inline-block; font-size: 11px; font-weight: 700; border-radius: 20px;
+    padding: 2px 10px; margin: 4px 0 10px; align-self: flex-start;
+  }
+  .ex {
+    border-left: 3px solid var(--line); padding: 2px 0 2px 8px; margin-bottom: 8px;
+  }
+  .ex .name { font-size: 13px; font-weight: 600; }
+  .ex .detail { font-size: 12px; color: var(--muted); }
+  .ex button {
+    background: none; border: none; color: var(--muted); cursor: pointer;
+    font-size: 12px; float: right; padding: 0 2px;
+  }
+  .ex button:hover { color: #b23b3b; }
+  .addrow { display: flex; gap: 6px; margin: 4px 0 8px; flex-wrap: wrap; }
+  .addrow input, .addrow select {
+    border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px;
+    font-size: 12px; background: #fff; color: var(--ink);
+  }
+  .addrow input[name=xname] { flex: 1 1 120px; }
+  .addrow input.short { width: 42px; flex: none; }
+  .addrow button {
+    border: none; border-radius: 8px; background: var(--ink); color: #fff;
+    padding: 5px 12px; font-size: 12px; cursor: pointer;
+  }
+  .addrow button:hover { background: #33414e; }
+  .notes { border-bottom: 1px dashed var(--line); height: 18px; margin-bottom: 2px; }
+  .dayfoot { display: flex; justify-content: space-between; align-items: center; margin-top: auto; }
+  .dayfoot .done { font-size: 14px; color: var(--muted); }
+  .dayfoot .clear {
+    background: none; border: none; color: var(--muted); font-size: 11px;
+    cursor: pointer; text-decoration: underline; padding: 0;
+  }
+  .dayfoot .clear:hover { color: #b23b3b; }
+  .toolbar { display: flex; gap: 8px; }
+  .toolbar button {
+    border: 1px solid var(--line); background: #fff; border-radius: 8px;
+    padding: 6px 12px; font-size: 12px; cursor: pointer; color: var(--ink);
+  }
+  .toolbar button:hover { border-color: var(--ink); }
+  .saved { font-size: 11px; color: var(--muted); align-self: center; }
+  @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="bar">
+    <div>
+      <h1>My Workout Planner</h1>
+      <div class="sub">
+        Week of: <input id="week-label" type="text" placeholder="Aug 4 – Aug 10" aria-label="Week label">
+        &nbsp;•&nbsp; Goal: <input id="goal-label" type="text" placeholder="Build strength" aria-label="Goal">
+      </div>
+    </div>
+    <div class="strip" aria-hidden="true" id="week-strip">
+      <span style="background:var(--push)" title="Monday"></span>
+      <span style="background:var(--pull)" title="Tuesday"></span>
+      <span style="background:var(--legs)" title="Wednesday"></span>
+      <span style="background:var(--recovery)" title="Thursday"></span>
+      <span style="background:var(--shoulder)" title="Friday"></span>
+      <span style="background:var(--legs)" title="Saturday"></span>
+      <span style="background:var(--rest)" title="Sunday"></span>
+    </div>
+  </header>
+
+  <div class="row">
+    <div class="panel">
+      <div class="label">LEGEND</div>
+      <div class="legend">
+        <span><i style="background:var(--push)"></i>Chest / Push</span>
+        <span><i style="background:var(--pull)"></i>Back / Pull</span>
+        <span><i style="background:var(--legs)"></i>Legs</span>
+        <span><i style="background:var(--shoulder)"></i>Shoulders</span>
+        <span><i style="background:var(--core)"></i>Core</span>
+        <span><i style="background:var(--recovery)"></i>Recovery / Rest</span>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="label">THIS WEEK AT A GLANCE</div>
+      <div class="stats">
+        <div id="stat-days">Strength days: –</div>
+        <div id="stat-exercises">Total exercises: –</div>
+        <div id="stat-unfilled">Days still empty: –</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="toolbar">
+      <button id="btn-reset" type="button">Load starter plan</button>
+      <button id="btn-clear-week" type="button">Clear week</button>
+    </div>
+    <div class="saved" id="save-status">Your plan saves automatically in this browser.</div>
+  </div>
+
+  <div class="grid" id="board" aria-label="Weekly workout board"></div>
+</div>
+
+<script>
+"use strict";
+const STORAGE_KEY = "workout-planner-week-v1";
+
+const GROUP_COLORS = {
+  Push: "var(--push)", Pull: "var(--pull)", Legs: "var(--legs)",
+  Shoulders: "var(--shoulder)", Core: "var(--core)",
+  Recovery: "var(--recovery)", Rest: "var(--rest)"
+};
+
+const STARTER = {
+  "Monday": {
+    focus: "PUSH DAY", focusGroup: "Push",
+    exercises: [
+      { name: "Push-ups", detail: "4 × 12", group: "Push" },
+      { name: "Overhead press", detail: "4 × 10", group: "Shoulders" },
+      { name: "Incline dumbbell press", detail: "3 × 10", group: "Push" },
+      { name: "Triceps dips", detail: "3 × 12", group: "Push" }
+    ]
+  },
+  "Tuesday": {
+    focus: "PULL DAY", focusGroup: "Pull",
+    exercises: [
+      { name: "Pull-ups", detail: "4 × 8", group: "Pull" },
+      { name: "Bent-over rows", detail: "4 × 10", group: "Pull" },
+      { name: "Face pulls", detail: "3 × 15", group: "Pull" },
+      { name: "Bicep curls", detail: "3 × 12", group: "Pull" }
+    ]
+  },
+  "Wednesday": {
+    focus: "LEG DAY", focusGroup: "Legs",
+    exercises: [
+      { name: "Squats", detail: "5 × 5", group: "Legs" },
+      { name: "Romanian deadlift", detail: "3 × 10", group: "Legs" },
+      { name: "Walking lunges", detail: "3 × 12 / leg", group: "Legs" },
+      { name: "Calf raises", detail: "4 × 15", group: "Legs" }
+    ]
+  },
+  "Thursday": {
+    focus: "ACTIVE RECOVERY", focusGroup: "Recovery",
+    exercises: [
+      { name: "Easy walk or bike", detail: "20 min", group: "Recovery" },
+      { name: "Mobility / stretching", detail: "10 min", group: "Recovery" },
+      { name: "Foam rolling", detail: "5 min", group: "Recovery" }
+    ]
+  },
+  "Friday": {
+    focus: "UPPER BODY", focusGroup: "Shoulders",
+    exercises: [
+      { name: "Bench press", detail: "5 × 5", group: "Push" },
+      { name: "Lat pulldown", detail: "4 × 10", group: "Pull" },
+      { name: "Lateral raises", detail: "3 × 15", group: "Shoulders" },
+      { name: "Overhead triceps ext.", detail: "3 × 12", group: "Push" }
+    ]
+  },
+  "Saturday": {
+    focus: "FULL BODY + CARDIO", focusGroup: "Legs",
+    exercises: [
+      { name: "Deadlift", detail: "4 × 6", group: "Legs" },
+      { name: "Lunges", detail: "3 × 10 / leg", group: "Legs" },
+      { name: "Plank", detail: "3 × 45s", group: "Core" },
+      { name: "Cardio finisher", detail: "15 min", group: "Recovery" }
+    ]
+  },
+  "Sunday": {
+    focus: "REST DAY", focusGroup: "Rest",
+    exercises: [
+      { name: "Full rest", detail: "No lifting", group: "Rest" },
+      { name: "Optional light walk", detail: "10–20 min", group: "Rest" }
+    ]
+  }
+};
+
+const DAYS = Object.keys(STARTER);
+
+function emptyDay(focus, focusGroup) {
+  return { focus, focusGroup, exercises: [] };
+}
+
+function blankWeek() {
+  const week = {};
+  DAYS.forEach((d) => { week[d] = emptyDay("", d === "Sunday" ? "Rest" : "Push"); });
+  return week;
+}
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return structuredClone(STARTER);
+    const parsed = JSON.parse(raw);
+    const week = blankWeek();
+    DAYS.forEach((d) => {
+      if (parsed[d] && Array.isArray(parsed[d].exercises)) {
+        week[d] = {
+          focus: String(parsed[d].focus || ""),
+          focusGroup: String(parsed[d].focusGroup || "Push"),
+          exercises: parsed[d].exercises.filter((e) => e && typeof e.name === "string")
+        };
+      }
+    });
+    return week;
+  } catch (err) {
+    return structuredClone(STARTER);
+  }
+}
+
+let saveTimer = null;
+function save(week) {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(week));
+      const s = document.getElementById("save-status");
+      s.textContent = "Saved " + new Date().toLocaleTimeString();
+    } catch (err) {
+      document.getElementById("save-status").textContent = "Could not save (storage unavailable).";
+    }
+  }, 250);
+}
+
+function esc(s) {
+  const div = document.createElement("div");
+  div.textContent = String(s);
+  return div.innerHTML;
+}
+
+function render(week) {
+  const board = document.getElementById("board");
+  board.innerHTML = "";
+  let totalEx = 0;
+  let strengthDays = 0;
+  let emptyDays = 0;
+
+  DAYS.forEach((day) => {
+    const d = week[day];
+    totalEx += d.exercises.length;
+    if (d.exercises.length === 0) emptyDays++;
+    if (d.focusGroup !== "Recovery" && d.focusGroup !== "Rest") strengthDays++;
+
+    const card = document.createElement("section");
+    card.className = "day";
+    card.style.borderTopColor = GROUP_COLORS[d.focusGroup] || "var(--recovery)";
+    card.innerHTML =
+      '<h2>' + esc(day.toUpperCase()) + '</h2>' +
+      '<span class="focus" style="background:' + (GROUP_COLORS[d.focusGroup] || "var(--recovery)") + '22;color:' + (GROUP_COLORS[d.focusGroup] || "var(--recovery)") + '">' +
+        esc(d.focus || "OPEN DAY") + '</span>';
+
+    d.exercises.forEach((ex, i) => {
+      const el = document.createElement("div");
+      el.className = "ex";
+      el.style.borderLeftColor = GROUP_COLORS[ex.group] || "var(--line)";
+      el.innerHTML =
+        '<button type="button" data-day="' + esc(day) + '" data-i="' + i + '" aria-label="Remove ' + esc(ex.name) + '">×</button>' +
+        '<div class="name">' + esc(ex.name) + '</div>' +
+        (ex.detail ? '<div class="detail">' + esc(ex.detail) + '</div>' : '');
+      card.appendChild(el);
+    });
+
+    const addrow = document.createElement("div");
+    addrow.className = "addrow";
+    addrow.innerHTML =
+      '<input name="xname" type="text" placeholder="Exercise" aria-label="Exercise name for ' + esc(day) + '">' +
+      '<input name="xsets" type="text" class="short" placeholder="4" aria-label="Sets">' +
+      '<input name="xreps" type="text" class="short" placeholder="10" aria-label="Reps">' +
+      '<select aria-label="Muscle group">' +
+        ["Push", "Pull", "Legs", "Shoulders", "Core", "Recovery", "Rest"]
+          .map((g) => '<option value="' + g + '">' + g + '</option>').join("") +
+      '</select>' +
+      '<button type="button" data-day="' + esc(day) + '">Add</button>';
+    card.appendChild(addrow);
+
+    const foot = document.createElement("div");
+    foot.className = "dayfoot";
+    foot.innerHTML =
+      '<span class="done">' + "Exercises: " + d.exercises.length + '</span>' +
+      '<button type="button" class="clear" data-day="' + esc(day) + '">clear day</button>';
+    card.appendChild(foot);
+
+    board.appendChild(card);
+  });
+
+  document.getElementById("stat-days").textContent = "Strength days: " + strengthDays;
+  document.getElementById("stat-exercises").textContent = "Total exercises: " + totalEx;
+  document.getElementById("stat-unfilled").textContent = "Days still empty: " + emptyDays;
+}
+
+let week = load();
+render(week);
+save(week);
+
+const board = document.getElementById("board");
+board.addEventListener("click", (ev) => {
+  const t = ev.target;
+  if (t.tagName !== "BUTTON") return;
+  const day = t.dataset.day;
+  if (!day) return;
+
+  if (t.dataset.i !== undefined) {
+    week[day].exercises.splice(Number(t.dataset.i), 1);
+  } else if (t.classList.contains("clear")) {
+    week[day].exercises = [];
+  } else {
+    const row = t.closest(".addrow");
+    const name = row.querySelector('[name="xname"]').value.trim();
+    const sets = row.querySelector('[name="xsets"]').value.trim();
+    const reps = row.querySelector('[name="xreps"]').value.trim();
+    const group = row.querySelector("select").value;
+    if (!name) return;
+    week[day].exercises.push({
+      name,
+      detail: [sets, reps].filter(Boolean).map((x) => x).join(" × ") || "",
+      group
+    });
+  }
+  render(week);
+  save(week);
+});
+
+document.getElementById("btn-reset").addEventListener("click", () => {
+  week = structuredClone(STARTER);
+  render(week);
+  save(week);
+});
+document.getElementById("btn-clear-week").addEventListener("click", () => {
+  week = blankWeek();
+  render(week);
+  save(week);
+});
+
+["week-label", "goal-label"].forEach((id) => {
+  const el = document.getElementById(id);
+  try { el.value = localStorage.getItem("workout-planner-" + id) || ""; } catch (err) {}
+  el.addEventListener("input", () => {
+    try { localStorage.setItem("workout-planner-" + id, el.value); } catch (err) {}
+  });
+});
+</script>
+</body>
+</html>
