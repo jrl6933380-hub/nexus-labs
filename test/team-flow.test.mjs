@@ -7,6 +7,7 @@ import {parseTeamMentions,teamHandles} from '../public/team-mentions.js';
 import {createAgentDelegation} from '../lib/agentDelegation.js';
 import {chatVisualDocument} from '../public/chat-visual.js';
 import {buildConversationAccessPolicy} from '../lib/nexBrain.js';
+import {planCognitiveRun} from '../lib/nexCognitiveController.js';
 
 const members=[{id:'agent-maya',name:'Maya',role:'research',job:'Research launch ideas',scopes:['conversation']},{id:'agent-atlas',name:'Atlas',role:'build',job:'Build projects',scopes:['conversation','projects']}];
 function fixture(){
@@ -53,6 +54,17 @@ test('review specialists stay read-only and do not request write approval',async
   const runner=createTeamRunner({runs,messages:{overview:async()=>({groups:[],specialists:[reviewer]})},mode:async()=>({mode:'engaged'}),history:async()=>null,ask:async(...args)=>{calls.push(args);return {reply:'Reviewed',provider:'gateway'};}});
   await runs.act('justin','nex-main',run.id,'start');await runner.execute('justin','nex-main',run.id);
   assert.equal(calls[0][3].conversation.execution_mode,'read_only');
+  assert.equal(calls[0][5].cognitiveLane,'chat');
+});
+test('read-only research stays out of the code evidence gate when safety prose mentions projects',async()=>{
+  const {runs}=fixture(),researcher=members[0],calls=[];
+  const runner=createTeamRunner({runs,messages:{overview:async()=>({groups:[{id:'group-launch',member_ids:[researcher.id]}],specialists:[researcher]})},mode:async()=>({mode:'engaged'}),history:async()=>null,ask:async(prompt,history,tier,context,onStage,toolContext)=>{
+    const plan=planCognitiveRun({message:prompt,toolContext});calls.push({plan,toolContext});
+    return {reply:'Three evidence-backed landscaping ideas.',provider:'gateway',completionReceipt:{status:plan.requireEvidence.length?'incomplete':'not_required',observed:[],missing:plan.requireEvidence}};
+  }});
+  const run=await runs.create('justin','group-launch',[researcher],'@Maya research AI websites without changing projects','request-lane-regression',{includeNex:false,autoStart:true});
+  await runner.execute('justin','group-launch',run.id);
+  const [saved]=await runs.list('justin','group-launch');assert.equal(calls[0].toolContext.cognitiveLane,'chat');assert.equal(calls[0].plan.lane,'chat');assert.deepEqual(calls[0].plan.requireEvidence,[]);assert.equal(saved.state,'completed');assert.equal(saved.steps[0].state,'returned');
 });
 test('mission creation is idempotent, owner scoped and prevents overlapping group writes',async()=>{
   const {runs}=fixture(),first=await create(runs);assert.equal((await create(runs)).id,first.id);
@@ -64,16 +76,19 @@ test('mission creation is idempotent, owner scoped and prevents overlapping grou
 });
 test('separate calls pass actual research to builder, pause for approval, then review',async()=>{
   const {runs}=fixture(),calls=[],currentMembers=structuredClone(members);
-  const runner=createTeamRunner({runs,messages:{overview:async()=>({groups:[{id:'group-launch',member_ids:members.map(m=>m.id)}],specialists:currentMembers})},mode:async()=>({mode:'engaged'}),history:async()=>({messages:[{role:'user',content:'Our launch is a simple site.'}]}),ask:async(prompt,h,t,context)=>{calls.push({prompt,h,context});return {reply:calls.length===1?'Research finding: local gardening.':calls.length===2?'Draft PR prepared.':'Reviewed the returned draft.',provider:'gateway',model:'test-model',completionReceipt:{status:'not_required',observed:[]}};}});
+  const runner=createTeamRunner({runs,messages:{overview:async()=>({groups:[{id:'group-launch',member_ids:members.map(m=>m.id)}],specialists:currentMembers})},mode:async()=>({mode:'engaged'}),history:async()=>({messages:[{role:'user',content:'Our launch is a simple site.'}]}),ask:async(prompt,h,t,context,stage,toolContext)=>{calls.push({prompt,h,context,toolContext});return {reply:calls.length===1?'Research finding: local gardening.':calls.length===2?'Draft PR prepared.':'Reviewed the returned draft.',provider:'gateway',model:'test-model',completionReceipt:{status:'not_required',observed:[]}};}});
   const run=await create(runs);await runner.execute('justin','group-launch',run.id);assert.equal(calls.length,0,'unapproved plans do no work');
   await runs.act('justin','group-launch',run.id,'start');await runner.execute('justin','group-launch',run.id);
   assert.equal(calls[0].context.conversation.id,'agent-maya');assert.equal(calls[0].context.conversation.execution_mode,'read_only');assert.equal(calls[0].context.conversation.scopes.includes('projects'),false);
+  assert.equal(calls[0].toolContext.cognitiveLane,'chat');
   await runner.execute('justin','group-launch',run.id);assert.equal(calls.length,1,'builder waits for approval');
   let [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'needs_approval');
   await runs.act('justin','group-launch',run.id,'approve_step',saved.steps[1].id);currentMembers[1].scopes.push('life');await runner.execute('justin','group-launch',run.id);
   assert.match(calls[1].prompt,/Research finding: local gardening/);assert.match(calls[1].prompt,/Your assignment: build a page/);assert.equal(calls[1].context.conversation.id,'agent-atlas');
   assert.equal(calls[1].context.conversation.scopes.includes('life'),false,'approval cannot silently expand a worker’s access');
+  assert.equal(calls[1].toolContext.cognitiveLane,'code');
   await runner.execute('justin','group-launch',run.id);assert.equal(calls[2].context.conversation.execution_mode,'read_only');assert.match(calls[2].prompt,/Draft PR prepared/);
+  assert.equal(calls[2].toolContext.cognitiveLane,'chat');
   [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'completed');assert.equal(saved.steps.every(step=>step.state==='returned'),true);assert.ok(saved.events.some(event=>event.message.includes('passed it')));
 });
 test('worker leases prevent duplicate execution and read-only interruptions recover safely',async()=>{
