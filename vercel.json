@@ -4,6 +4,7 @@
   },
   "functions": {
     "api/nexus-messages.js": { "maxDuration": 300 },
+    "api/team-sweep.js": { "maxDuration": 300 },
     "api/room-chat.js": { "maxDuration": 300 }
   },
   "redirects": [
@@ -102,6 +103,10 @@
     },
     {
       "path": "/api/push-deliver",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/team-sweep",
       "schedule": "* * * * *"
     }
   ]

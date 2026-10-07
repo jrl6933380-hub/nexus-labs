@@ -3,7 +3,7 @@ import { teamHandles } from './team-mentions.js';
 
 const node=(tag,text,cls='')=>{const element=document.createElement(tag);if(text!==undefined)element.textContent=text;element.className=cls;return element;};
 const button=(text,run,cls='')=>{const element=node('button',text,cls);element.type='button';element.onclick=run;return element;};
-const LABELS={planned:'Review plan',queued:'Up next',running:'Team working',working:'Working',returned:'Result ready',needs_approval:'Needs you',blocked:'Needs attention',interrupted:'Interrupted',completed:'Ready to review',cancelled:'Cancelled',stopping:'Stopping'};
+const LABELS={planned:'Review plan',queued:'Up next',running:'Team working',working:'Working',retrying:'Retrying automatically',returned:'Result ready',needs_approval:'Needs you',blocked:'Needs attention',interrupted:'Interrupted',completed:'Ready to review',cancelled:'Cancelled',stopping:'Stopping'};
 function mergeApproval(copy,approval,announce,resolve){
   if(approval?.kind!=='merge_pull_request' || !approval.id)return null;
   const card=node('section',undefined,'teammergeapproval');
@@ -74,11 +74,12 @@ export function createTeamChat({input,thread,onMessage=()=>{},onGroup=()=>{},ope
     const expanded=new Set([...host.querySelectorAll('details[open]')].map(item=>item.dataset.step));
     host.replaceChildren(announce);renderRoster();
     if(!runs.length && group.kind!=='group')return;
-    if(!runs.length){const empty=node('section',undefined,'teamwelcome');empty.append(node('small','YOUR TEAM, ONE CONVERSATION','teameyebrow'),node('h3','Turn an idea into a team mission.'),node('p','Give each teammate an assignment. Their results stay here, with clear handoffs. You choose whether Nex participates.'),button('Plan with the whole team',()=>mention({handle:'team'}),'teamgold'));host.append(empty);return;}
+    if(!runs.length){const empty=node('section',undefined,'teamwelcome');empty.append(node('small','YOUR TEAM, ONE CONVERSATION','teameyebrow'),node('h3','Turn an idea into a team mission.'),node('p','Give each teammate an assignment. They continue in the background, hand results forward, recover from temporary interruptions, and pause only when you are needed.'),button('Start a team mission',()=>mention({handle:'team'}),'teamgold'));host.append(empty);return;}
     for(const run of runs.slice(0,4)){
       const card=node('section',undefined,`teammission state-${run.state}`);card.dataset.run=run.id;card.setAttribute('aria-label',`Team task: ${run.goal}`);
       const top=node('div',undefined,'teammissionhead');top.append(node('small','TEAM MISSION','teameyebrow'),node('span',LABELS[run.state] || run.state,'teamstate'));
       card.append(top,node('h3',run.goal));
+      if(run.autonomous && !['completed','cancelled'].includes(run.state))card.append(node('p','Background mission · You can leave this chat. The team will keep its place and continue safely.','teamautonomy'));
       const returned=run.steps.filter(step=>step.state==='returned').length,progress=node('progress');progress.max=run.steps.length;progress.value=returned;progress.setAttribute('aria-label',`${returned} of ${run.steps.length} assignments returned`);card.append(progress);
       const steps=node('ol',undefined,'teamsteps');
       for(const step of run.steps){
@@ -86,7 +87,7 @@ export function createTeamChat({input,thread,onMessage=()=>{},onGroup=()=>{},ope
         heading.append(node('strong',step.name),node('small',LABELS[step.state] || step.state,'teamstate'));copy.append(heading,node('p',step.instruction));
         if(step.state==='working' && step.activity)copy.append(node('small',step.activity,'teamattention'));
         if(step.scopes?.length)copy.append(node('small',`Access: ${step.scopes.map(scope=>scope==='conversation'?'this chat':scope).join(' · ')}`,'teamscopes'));
-        if(step.requires_approval && !step.approved_at && run.state==='planned')copy.append(node('small','Pauses for your approval before making changes.','teamattention'));
+        if(step.requires_approval && !step.approved_at && ['planned','queued'].includes(run.state))copy.append(node('small','Will pause for your approval before making changes.','teamattention'));
         if(step.result){appendChatVisual(copy,step.result,step.name);const details=node('details');details.dataset.step=step.id;details.open=expanded.has(step.id);details.append(node('summary',`${step.name}’s result`),node('div',step.result,'teamresult'));if(step.evidence?.status==='verified')details.append(node('small','Required tool evidence recorded.','teamevidence'));else details.append(node('small',step.evidence?.missing?.length?`Still needs evidence: ${step.evidence.missing.join(', ')}`:'Saved AI result · review before relying on it.','teamevidence'));copy.append(details);}
         if(step.error)copy.append(node('p',step.error,'teamerror'));
         if(step.pending_approval)mergeApproval(copy,step.pending_approval,announce,async()=>{await api('team_resolve_approval',{run_id:run.id,step_id:step.id,approval_id:step.pending_approval.id});signature='';await refresh();});
