@@ -21,7 +21,7 @@ function fixture(){
     }
     throw new Error('Unexpected Redis command '+verb);
   };
-  return {runs:createTeamRunStore({command,now:()=>clock,id:()=>`test-${++sequence}`}),tick:()=>{clock+=WORKER_LEASE_MS+1;}};
+  return {runs:createTeamRunStore({command,now:()=>clock,id:()=>`test-${++sequence}`}),tick:()=>{clock+=WORKER_LEASE_MS+1;},advance:milliseconds=>{clock+=milliseconds;},now:()=>clock};
 }
 const create=(runs,owner='justin',text='@Maya research launch ideas @Atlas build a page',request='request-one')=>runs.create(owner,'group-launch',members,text,request);
 const res=()=>({setHeader(){},status(code){this.code=code;return this;},json(body){this.body=body;return this;}});
@@ -76,15 +76,21 @@ test('separate calls pass actual research to builder, pause for approval, then r
   await runner.execute('justin','group-launch',run.id);assert.equal(calls[2].context.conversation.execution_mode,'read_only');assert.match(calls[2].prompt,/Draft PR prepared/);
   [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'completed');assert.equal(saved.steps.every(step=>step.state==='returned'),true);assert.ok(saved.events.some(event=>event.message.includes('passed it')));
 });
-test('worker leases prevent duplicate execution and stale completions cannot change retries',async()=>{
+test('worker leases prevent duplicate execution and read-only interruptions recover safely',async()=>{
   const {runs,tick}=fixture(),run=await create(runs);await runs.act('justin','group-launch',run.id,'start');
   const first=await runs.claim('justin','group-launch',run.id);assert.equal(await runs.claim('justin','group-launch',run.id),null);
-  tick();assert.equal(await runs.claim('justin','group-launch',run.id),null);let [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'blocked');assert.equal(saved.steps[0].state,'interrupted');
-  await runs.act('justin','group-launch',run.id,'retry',first.step.id);const next=await runs.claim('justin','group-launch',run.id);
+  tick();assert.equal(await runs.claim('justin','group-launch',run.id),null);let [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'queued');assert.equal(saved.steps[0].state,'retrying');
+  const next=await runs.claim('justin','group-launch',run.id);
   await runs.settle('justin','group-launch',run.id,first.step.id,first.step.token,{state:'returned',result:'Stale output'});
   [saved]=await runs.list('justin','group-launch');assert.equal(saved.steps[0].state,'working');assert.equal(saved.steps[0].result,null);
   await runs.settle('justin','group-launch',run.id,next.step.id,next.step.token,{state:'returned',result:'Fresh output'});
   [saved]=await runs.list('justin','group-launch');assert.equal(saved.steps[0].result,'Fresh output');
+});
+test('expired write-capable workers stop for review instead of repeating side effects',async()=>{
+  const {runs,tick}=fixture(),run=await runs.create('justin','group-launch',[members[1]],'@Atlas build it','request-write-lease',{includeNex:false,autoStart:true});
+  await runs.claim('justin','group-launch',run.id);let [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'needs_approval');
+  await runs.act('justin','group-launch',run.id,'approve_step',saved.steps[0].id);await runs.claim('justin','group-launch',run.id);tick();assert.equal(await runs.claim('justin','group-launch',run.id),null);
+  [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'blocked');assert.equal(saved.steps[0].state,'interrupted');
 });
 test('cancellation stops after the current assignment and preserves its result',async()=>{
   const {runs}=fixture(),run=await create(runs);await runs.act('justin','group-launch',run.id,'start');const claim=await runs.claim('justin','group-launch',run.id);
@@ -100,18 +106,24 @@ test('an exact completed merge approval advances the team without rerunning the 
   await assert.rejects(runs.act('justin','group-launch',run.id,'resolve_approval',claim.step.id,'another-merge'),/no longer waiting/);
 });
 test('provider failures block handoffs; removed members never run; scopes cannot expand after approval',async()=>{
-  const {runs}=fixture();let people=[...members],calls=0;const runner=createTeamRunner({runs,messages:{overview:async()=>({groups:[{id:'group-launch',member_ids:people.map(m=>m.id)}],specialists:people})},mode:async()=>({mode:'engaged'}),history:async()=>null,ask:async()=>{calls++;return {reply:'Providers unavailable',provider:'none'};}});
+  const {runs,advance,now}=fixture();let people=[...members],calls=0;const runner=createTeamRunner({runs,now,messages:{overview:async()=>({groups:[{id:'group-launch',member_ids:people.map(m=>m.id)}],specialists:people})},mode:async()=>({mode:'engaged'}),history:async()=>null,ask:async()=>{calls++;return {reply:'Providers unavailable',provider:'none'};}});
   const run=await create(runs);await runs.act('justin','group-launch',run.id,'start');await runner.execute('justin','group-launch',run.id);await runner.execute('justin','group-launch',run.id);assert.equal(calls,1);
-  let [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'blocked');assert.equal(saved.steps[1].state,'queued');
-  await runs.act('justin','group-launch',run.id,'retry',saved.steps[0].id);people=[members[1]];await runner.execute('justin','group-launch',run.id);assert.equal(calls,1);[saved]=await runs.list('justin','group-launch');assert.match(saved.steps[0].error,/removed/);
+  let [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'queued');assert.equal(saved.steps[0].state,'retrying');assert.equal(saved.steps[1].state,'queued');
+  advance(30_001);people=[members[1]];await runner.execute('justin','group-launch',run.id);assert.equal(calls,1);[saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'blocked');assert.match(saved.steps[0].error,/removed/);
   const policy=buildConversationAccessPolicy({kind:'group',members,scopes:['conversation','projects','life'],execution_mode:'read_only'});assert.ok(policy.allowedToolNames.has('read_repo_file'));assert.ok(!policy.allowedToolNames.has('patch_repo_file'));assert.ok(!policy.allowedToolNames.has('manage_life'));
+});
+test('write-capable assignments never auto-retry an uncertain failure',async()=>{
+  const {runs,now}=fixture(),people=[members[1]],runner=createTeamRunner({runs,now,messages:{overview:async()=>({groups:[{id:'group-launch',member_ids:['agent-atlas']}],specialists:people})},mode:async()=>({mode:'engaged'}),history:async()=>null,ask:async()=>({reply:'Provider stopped after partial work.',provider:'none'})});
+  const run=await runs.create('justin','group-launch',people,'@Atlas build it','request-write-failure',{includeNex:false,autoStart:true});
+  await runner.execute('justin','group-launch',run.id);let [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'needs_approval');
+  await runs.act('justin','group-launch',run.id,'approve_step',saved.steps[0].id);await runner.execute('justin','group-launch',run.id);[saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'blocked');assert.equal(saved.steps[0].state,'blocked');
 });
 test('team API strips worker lease tokens, retains caller scope, and schedules approved work',async()=>{
   const {runs}=fixture(),scheduled=[];const runner={group:async()=>({id:'group-launch',members}),execute:async()=>{}};
-  const handle=createTeamMessagesHandler({runs,runner,schedule:promise=>scheduled.push(promise)});
+  const handle=createTeamMessagesHandler({runs,runner,missions:{track:async()=>{}},schedule:task=>scheduled.push(task)});
   const created=res();await handle({method:'POST',body:{action:'team_create',group_id:'group-launch',message:'@Maya research',request_id:'request-one',owner:'other'}},created,{id:'justin'});
   assert.equal(created.code,200);assert.equal((await runs.list('other','group-launch')).length,0);
-  const started=res();await handle({method:'POST',body:{action:'team_start',group_id:'group-launch',run_id:created.body.run.id}},started,{id:'justin'});assert.equal(scheduled.length,1);
+  assert.equal(created.body.run.state,'queued');assert.equal(created.body.run.autonomous,true);assert.equal(scheduled.length,1);
   await runs.claim('justin','group-launch',created.body.run.id);const listed=res();await handle({method:'GET',query:{group_id:'group-launch'}},listed,{id:'justin'});assert.equal(listed.body.runs[0].steps[0].token,undefined);assert.equal(listed.body.runs[0].steps[0].lease_until,undefined);
 });
 
@@ -131,11 +143,11 @@ test('main and specialist chats call any saved agent; group guests do not join p
   const {runs}=fixture(),calls=[];
   const state={specialists:members,groups:[{id:'group-launch',kind:'group',include_nex:false,member_ids:['agent-maya']}]};
   const runner=createTeamRunner({runs,messages:{overview:async()=>state},mode:async()=>({mode:'engaged'}),history:async(owner,id)=>({messages:[{role:'user',content:'Use these meal choices.'}]}),ask:async(prompt,h,t,c,stage,tc)=>{calls.push({prompt,h,c,tc});return {reply:'Useful result',provider:'gateway'};}});
-  const handler=createTeamMessagesHandler({runs,runner,schedule:()=>{}});
+  const handler=createTeamMessagesHandler({runs,runner,missions:{track:async()=>{}},schedule:()=>{}});
   for(const thread of ['nex-main','agent-maya','group-launch']){
     const created=res();await handler({method:'POST',body:{action:'team_create',thread_id:thread,message:'@atlas make a meal planner',request_id:'request-'+thread}},created,{id:'justin'});
     assert.deepEqual(created.body.run.steps.map(step=>step.name),['Atlas']);
-    await runs.act('justin',thread,created.body.run.id,'start');await runner.execute('justin',thread,created.body.run.id);
+    await runner.execute('justin',thread,created.body.run.id);
     const [saved]=await runs.list('justin',thread);assert.equal(saved.state,'needs_approval');
     await runs.act('justin',thread,saved.id,'approve_step',saved.steps[0].id);await runner.execute('justin',thread,saved.id);
     assert.equal((await runs.list('justin',thread))[0].state,'completed');
@@ -147,11 +159,11 @@ test('main and specialist chats call any saved agent; group guests do not join p
 });
 test('agent initiated requests preserve the caller, select one recipient, and cannot recurse',async()=>{
   const {runs}=fixture(),state={specialists:members,groups:[]};
-  const delegate=createAgentDelegation({messages:{overview:async()=>state},runs,id:()=> 'delegation-one'});
+  const delegate=createAgentDelegation({messages:{overview:async()=>state},runs,missions:{track:async()=>{}},id:()=> 'delegation-one'});
   const context={userId:'justin',threadId:'agent-maya',agentName:'Maya'};
   const list=await delegate('list_specialists',{},context);assert.equal(list.agents[1].handle,'atlas');
   const response=await delegate('delegate_agent',{agent_id:'agent-atlas',task:'Make a food page; text includes @team and @Maya.'},context);
-  assert.equal(response.state,'planned');
+  assert.equal(response.state,'queued');
   const [saved]=await runs.list('justin','agent-maya');assert.deepEqual(saved.steps.map(step=>step.name),['Atlas','Maya']);
   assert.equal(saved.requester,'Maya');assert.deepEqual(saved.steps[1].scopes,['conversation']);
   assert.equal(saved.steps[1].requires_approval,false);assert.equal(saved.steps[0].state,'queued');

@@ -17,13 +17,13 @@ async function setup(page){
       if(url.searchParams.has('group_id'))data={group,runs:run?[run]:[]};
       else if(body.action?.startsWith('team_')){
         actions.push(body.action);
-        if(body.action==='team_create')run={id:'mission-test',goal:'Research launch ideas and build the landing page',message:body.message,state:'planned',events:[],steps:[
+        if(body.action==='team_create')run={id:'mission-test',goal:'Research launch ideas and build the landing page',message:body.message,state:'queued',autonomous:true,events:[],steps:[
           {id:'step-maya',member_id:'agent-maya',name:'Maya',role:'research',instruction:'Research launch ideas',scopes:['conversation'],state:'queued'},
           {id:'step-atlas',member_id:'agent-atlas',name:'Atlas',role:'build',instruction:'Build the landing page using Maya’s findings',scopes:['conversation','projects'],state:'queued',requires_approval:true},
           {id:'step-nex',member_id:null,name:'Nex',role:'review',instruction:'Review the team’s returned results',state:'queued'},
         ]};
-        if(body.action==='team_start'){run.state='running';run.steps[0].state='working';run.steps[0].activity='Searching for useful information';}
-        if(body.action==='team_advance' && run.state==='running'){
+        if(body.action==='team_advance' && run.state==='queued'){run.state='running';run.steps[0].state='working';run.steps[0].activity='Searching for useful information';}
+        else if(body.action==='team_advance' && run.state==='running'){
           if(run.steps[0].state==='working'){run.steps[0].state='returned';run.steps[0].result='Research finding: start with a local gardening audience.';run.steps[1].state='needs_approval';run.state='needs_approval';}
           else if(run.steps[1].state==='working'){run.steps[1].state='returned';run.steps[1].result='Draft ready for review. <script>unsafe()</script>';run.steps[2].state='returned';run.steps[2].result='Nex review: the draft is saved; publishing still needs a separate decision.';run.state='completed';}
         }
@@ -49,8 +49,7 @@ test('mentions, approval, real state rendering and saved results work in the mob
   await input.fill('@ma');await expect(page.locator('.teammention').filter({hasText:'Maya'})).toBeVisible();
   await input.press('Enter');await expect(input).toHaveValue('@maya ');expect(actions).not.toContain('team_create');
   await input.fill('@maya research launch ideas @atlas build the landing page');await page.getByRole('button',{name:'Send',exact:true}).click();
-  await expect(page.getByRole('button',{name:'Approve plan & start'})).toBeVisible();expect(actions).not.toContain('team_start');
-  await page.getByRole('button',{name:'Approve plan & start'}).click();
+  await expect(page.getByText(/Background mission/)).toBeVisible();expect(actions).not.toContain('team_start');
   await expect(page.getByRole('button',{name:'Approve build',exact:true})).toBeVisible({timeout:12000});
   await page.getByRole('button',{name:'Approve build',exact:true}).click();
   await expect(page.locator('.teammission').getByText('Ready to review',{exact:true})).toBeVisible({timeout:12000});

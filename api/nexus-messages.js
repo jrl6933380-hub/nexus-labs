@@ -6,7 +6,7 @@ import {teamRunStore} from '../lib/teamRuns.js';
 
 export const maxDuration = 300;
 
-export function createNexusMessagesHandler({getOwner=getNexusOwner,store=nexusMessagesStore,team=createTeamMessagesHandler({schedule:waitUntil})}={}){
+export function createNexusMessagesHandler({getOwner=getNexusOwner,store=nexusMessagesStore,team=createTeamMessagesHandler({schedule:task=>waitUntil(task())})}={}){
   return async function handler(req,res){
     res.setHeader('Cache-Control','private, no-store');
     const owner=await getOwner(req).catch(()=>null);if(!owner)return res.status(401).json({error:'Please sign in again'});
