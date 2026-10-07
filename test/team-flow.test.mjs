@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createTeamRunStore,WORKER_LEASE_MS} from '../lib/teamRuns.js';
+import {createTeamRunStore,teamAssignmentMode,WORKER_LEASE_MS} from '../lib/teamRuns.js';
 import {createTeamRunner} from '../lib/teamRunner.js';
 import {createTeamMessagesHandler} from '../lib/teamMessagesHandler.js';
 import {parseTeamMentions,teamHandles} from '../public/team-mentions.js';
@@ -45,6 +45,25 @@ test('core specialist names have direct mention handles',()=>{
   ];
   assert.deepEqual(teamHandles(core).map(item=>item.handle),['atlas','mason','vida','vera']);
   assert.deepEqual(parseTeamMentions('@Atlas investigate @Mason build @Vida plan @Vera verify',core).map(item=>item.member_id),core.map(item=>item.id));
+});
+test('chat-only visuals stay conversational even when the builder has project access',async()=>{
+  const {runs}=fixture(),builder=members[1],calls=[];
+  const instruction="Use Atlas's findings to draft a simple visual landing-page concept in this chat only. Do not publish, merge, or change any repository.";
+  assert.equal(teamAssignmentMode(builder,instruction),'chat_only');
+  assert.equal(teamAssignmentMode(builder,'Implement the approved concept in the customer website'),'project_write');
+  const runner=createTeamRunner({runs,messages:{overview:async()=>({groups:[{id:'group-launch',member_ids:[builder.id]}],specialists:[builder]})},mode:async()=>({mode:'engaged'}),history:async()=>null,ask:async(prompt,history,tier,context,onStage,toolContext)=>{calls.push({context,toolContext});return {reply:'```html\n<h1>Landscaping</h1>\n```',provider:'gateway',completionReceipt:{status:'not_required',observed:[]}};}});
+  const run=await runs.create('justin','group-launch',[builder],`@Atlas ${instruction}`,'request-chat-visual',{includeNex:false,autoStart:true});
+  assert.equal(run.steps[0].requires_approval,false);assert.equal(run.steps[0].execution_mode,'chat_only');assert.deepEqual(run.steps[0].scopes,['conversation']);
+  await runner.execute('justin','group-launch',run.id);const [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'completed');assert.equal(calls[0].context.conversation.execution_mode,'read_only');assert.equal(calls[0].toolContext.cognitiveLane,'chat');
+});
+test('one approved build grants reversible project work in the same conversation',async()=>{
+  const {runs}=fixture(),builder=members[1];
+  const first=await runs.create('justin','group-launch',[builder],'@Atlas build the customer website','request-first-build',{includeNex:false,autoStart:true});
+  assert.equal(first.steps[0].requires_approval,true);assert.equal(await runs.claim('justin','group-launch',first.id),null);
+  let [saved]=await runs.list('justin','group-launch');await runs.act('justin','group-launch',first.id,'approve_step',saved.steps[0].id);const claim=await runs.claim('justin','group-launch',first.id);
+  await runs.settle('justin','group-launch',first.id,claim.step.id,claim.step.token,{state:'returned',result:'Built safely on a branch.'});
+  const followup=await runs.create('justin','group-launch',[builder],'@Atlas update the customer website headline','request-safe-followup',{includeNex:false,autoStart:true});
+  assert.equal(followup.steps[0].execution_mode,'project_write');assert.equal(followup.steps[0].requires_approval,false);assert.equal(followup.steps[0].approval_source,'conversation_grant');assert.ok(followup.steps[0].approved_at);
 });
 test('review specialists stay read-only and do not request write approval',async()=>{
   const {runs}=fixture(),reviewer={id:'agent-core-vera',name:'Vera',role:'review',job:'Verify work',scopes:['conversation','projects']};
