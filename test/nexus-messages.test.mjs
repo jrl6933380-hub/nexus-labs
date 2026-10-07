@@ -129,8 +129,9 @@ test('workspace opens on Messages and sends only a saved conversation id back to
 test('Messages carries the old navigation as colored connected conversation rows',()=>{
   const source=fs.readFileSync(new URL('../public/nexus-messages.js',import.meta.url),'utf8');
   const css=fs.readFileSync(new URL('../public/nexus-messages.css',import.meta.url),'utf8');
+  const design=fs.readFileSync(new URL('../public/nexus-design-system.css',import.meta.url),'utf8');
   for(const name of ['Schedule','Reminders','Nexus Life','Projects','Nexus Legacy','Nexus Teams','Command Deck','Capabilities'])assert.match(source,new RegExp(`name:'${name}'`));
-  assert.match(css,/tone-schedule/);assert.match(css,/tone-reminders/);assert.match(css,/tone-life/);assert.match(css,/tone-projects/);
+  assert.match(design,/tone-schedule/);assert.match(design,/tone-reminders/);assert.match(design,/tone-life/);assert.match(design,/tone-projects/);
   assert.match(css,/messageitem\.tone-group/);assert.match(css,/messageitem\.tone-recent/);assert.match(css,/messageitem\.tone-research/);assert.match(css,/messageitem\.tone-review/);
   assert.match(css,/messageitem\.pinned/);assert.match(css,/rolechoice/);assert.match(css,/messageprimary/);
   assert.match(source,/Create a specialist/);assert.match(source,/Step 1 of 2/);assert.match(source,/You choose what this agent can access/);
