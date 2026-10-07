@@ -1000,10 +1000,10 @@ function conversationGreeting(){
     ]));return;
   }
   if(activeConversation?.kind==='group'){
-    bubble('a',`<p>Your team: ${esc((activeConversation.members || []).map(member=>typeof member==='string'?member:member.name).join(' and '))} in this conversation. You or any teammate can call another agent with @mentions and follow the saved handoffs here.</p><p>You do not need a project picked yet. Keep this group ready, or give it a mission whenever you want.</p>`);
+    bubble('a',`<p>This group is ready whenever you are. Tell the team what you want done, or use @ to give one teammate a specific part.</p>`);
     thread.appendChild(chips([
-      {label:'Assign a project',run:()=>{el('input').value='I need this group to work together on ';el('input').focus();}},
-      {label:'Review the team',run:()=>{el('input').value='Explain each specialist’s role in this group.';submit();}},
+      {label:'Start a project',run:()=>{el('input').value='I need this group to work together on ';el('input').focus();}},
+      {label:'What can this team do?',run:()=>{el('input').value='What can this team help me accomplish?';submit();}},
     ]));return;
   }
   greet();

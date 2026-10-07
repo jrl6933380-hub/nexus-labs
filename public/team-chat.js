@@ -18,6 +18,18 @@ function resultLabel(step){
   if(step.role==='review')return step.name==='Nex'?'Nex’s recommendation':`What ${step.name} checked`;
   return `${step.name}’s result`;
 }
+function coordinatorCopy(run){
+  if(run.state==='completed')return 'The team finished this project. Everything is ready below.';
+  if(run.state==='cancelled')return 'This project was stopped. The saved work is still here if you want to use it later.';
+  const phrases=run.steps.filter(step=>step.member_id).map(step=>{
+    if(step.role==='research')return `${step.name} will research and compare the best options`;
+    if(step.role==='build')return `${step.name} will turn the useful findings into the finished result`;
+    if(step.role==='life')return `${step.name} will make a realistic plan and schedule`;
+    if(step.role==='review')return `${step.name} will check the finished work`;
+    return `${step.name} will handle their part`;
+  });
+  return phrases.length?`I’ll coordinate this. ${phrases.join('. ')}.`:'I’ll bring this together and keep you posted.';
+}
 function mergeApproval(copy,approval,announce,resolve){
   if(approval?.kind!=='merge_pull_request' || !approval.id)return null;
   const card=node('section',undefined,'teammergeapproval');
@@ -83,16 +95,30 @@ export function createTeamChat({input,thread,onMessage=()=>{},onGroup=()=>{},ope
     catch(error){if(stamp===generation){announce.textContent=error.message;if(control)control.disabled=false;}}
   }
   function actionButton(label,action,run,step=null,cls=''){const control=button(label,()=>act(action,run,step,control),cls);return control;}
+  function coordination(run){
+    const row=node('section',undefined,'teamcoordination'),copy=node('div',undefined,'teamcoordinationcopy');
+    copy.append(node('strong','Nex'),node('p',coordinatorCopy(run)));row.append(avatar({name:'Nex',role:'review'}),copy);return row;
+  }
+  function approvalPrompt(run,step){
+    const row=node('section',undefined,'teamapprovalprompt'),copy=node('div',undefined,'teamapprovalbubble'),actions=node('div',undefined,'teamapprovalbuttons');
+    const coordinated=group.kind==='nex' || (group.kind==='group' && group.include_nex!==false),speaker=coordinated?{name:'Nex',role:'review'}:step;
+    copy.append(node('strong',speaker.name),node('p',`The plan is ready. Want ${step.name} to start ${step.role==='build'?'building':'working'}?`));
+    actions.append(actionButton(step.role==='build'?'Approve build':`Approve ${step.name}`,'approve_step',run,step,'teamgold'),button('Change the plan',async()=>{await act('cancel',run);input.value=run.message;input.focus();},'teamsecondary'));
+    copy.append(actions);row.append(avatar(speaker),copy);return row;
+  }
   function render(){
     if(!host)return;
     const expanded=new Set([...host.querySelectorAll('details[open]')].map(item=>item.dataset.step));
     host.replaceChildren(announce);renderRoster();
     if(!runs.length && group.kind!=='group')return;
     if(!runs.length){const empty=node('section',undefined,'teamwelcome');empty.append(node('small','YOUR TEAM, ONE CONVERSATION','teameyebrow'),node('h3','Turn an idea into a team project.'),node('p','Tell each teammate what you need. They can work together in the background and ask when they need you.'),button('Start a team project',()=>mention({handle:'team'}),'teamgold'));host.append(empty);return;}
-    for(const run of runs.slice(0,4)){
+    for(const [runIndex,run] of runs.slice(0,4).entries()){
+      const coordinated=group.kind==='nex' || (group.kind==='group' && group.include_nex!==false);
+      if(runIndex===0 && coordinated)host.append(coordination(run));
       const card=node('section',undefined,`teammission state-${run.state}`);card.dataset.run=run.id;card.setAttribute('aria-label',`Team task: ${run.goal}`);
-      const top=node('div',undefined,'teammissionhead');top.append(node('small','TEAM PROJECT','teameyebrow'),node('span',LABELS[run.state] || run.state,'teamstate'));
-      card.append(top,node('h3',run.goal));
+      if(!coordinated)card.classList.add('teammission-solo');
+      const top=node('div',undefined,'teammissionhead');top.append(node('strong',`◎ ${group.title || group.name || 'Team'} project`,'teamtasktitle'),node('span',LABELS[run.state] || run.state,'teamstate'));
+      card.append(top);
       if(run.autonomous && !['completed','cancelled'].includes(run.state))card.append(node('p','You can leave this chat. Your team will keep working.','teamautonomy'));
       const returned=run.steps.filter(step=>step.state==='returned').length,progress=node('progress');progress.max=run.steps.length;progress.value=returned;progress.setAttribute('aria-label',`${returned} of ${run.steps.length} assignments returned`);card.append(progress);
       const steps=node('ol',undefined,'teamsteps');
@@ -107,7 +133,6 @@ export function createTeamChat({input,thread,onMessage=()=>{},onGroup=()=>{},ope
         }
         if(step.error)copy.append(node('p',step.error,'teamerror'));
         if(step.pending_approval)mergeApproval(copy,step.pending_approval,announce,async()=>{await api('team_resolve_approval',{run_id:run.id,step_id:step.id,approval_id:step.pending_approval.id});signature='';await refresh();});
-        if(step.state==='needs_approval'){copy.append(actionButton(`Approve ${step.role==='build'?'build':step.name+'’s assignment'}`,'approve_step',run,step,'teamgold'));}
         if(['blocked','interrupted'].includes(step.state) && run.state==='blocked'){
           if(step.pending_approval)copy.append(button('Open all approvals',openApprovals,'teamquiet'));
           copy.append(node('p','Check partial work before retrying; changes from the previous attempt may already exist.','teamattention'),actionButton('Retry this assignment','retry',run,step,'teamsecondary'));
@@ -117,11 +142,12 @@ export function createTeamChat({input,thread,onMessage=()=>{},onGroup=()=>{},ope
       card.append(steps);
       const controls=node('div',undefined,'teamcontrols');
       if(run.state==='planned'){controls.append(actionButton('Approve plan & start','start',run,null,'teamgold'),button('Change the plan',async()=>{await act('cancel',run);input.value=run.message;input.focus();},'teamsecondary'));}
-      if(!['completed','cancelled','stopping'].includes(run.state))controls.append(actionButton(run.state==='running'?'Stop after this assignment':'Cancel task','cancel',run,null,'teamquiet'));
+      if(!['completed','cancelled','stopping','needs_approval'].includes(run.state))controls.append(actionButton(run.state==='running'?'Stop after this step':'Cancel project','cancel',run,null,'teamquiet'));
       if(run.state==='completed')controls.append(button('Give the team a follow-up',()=>mention({handle:'team'}),'teamsecondary'));
       card.append(controls);
       const timeline=node('details',undefined,'teamtimeline');timeline.append(node('summary','Team activity'));for(const event of run.events.slice(-10))timeline.append(node('p',`${new Date(event.at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} · ${event.message}`));card.append(timeline);
       host.append(card);
+      const approval=run.steps.find(step=>step.state==='needs_approval');if(approval)host.append(approvalPrompt(run,approval));
     }
   }
   async function refresh(stamp=generation){

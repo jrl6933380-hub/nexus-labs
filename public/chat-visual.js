@@ -7,8 +7,8 @@ export function chatVisualDocument(result) {
 }
 export function appendChatVisual(host,result,name) {
   const doc=chatVisualDocument(result);if(!doc)return null;
-  const frame=document.createElement('iframe');frame.title=`${name} visual preview`;frame.setAttribute('sandbox','');frame.setAttribute('referrerpolicy','no-referrer');const parsed=new DOMParser().parseFromString(doc,'text/html');
+  const frame=document.createElement('iframe');frame.title=`${name} visual preview`;frame.className='teamvisual';frame.setAttribute('sandbox','');frame.setAttribute('referrerpolicy','no-referrer');const parsed=new DOMParser().parseFromString(doc,'text/html');
   parsed.querySelectorAll('script,iframe,object,embed,link,base,meta[http-equiv=refresh]').forEach(element=>element.remove());
   parsed.querySelectorAll('*').forEach(element=>{for(const attribute of [...element.attributes])if(/^on/iu.test(attribute.name) || ['href','xlink:href','action','formaction','srcdoc','autofocus'].includes(attribute.name.toLowerCase()))element.removeAttribute(attribute.name);});
-  frame.srcdoc='<!doctype html>'+parsed.documentElement.outerHTML;frame.style.cssText='width:100%;height:440px;border:1px solid #ddd;border-radius:12px;background:white';host.append(frame);return frame;
+  frame.srcdoc='<!doctype html>'+parsed.documentElement.outerHTML;host.append(frame);return frame;
 }
