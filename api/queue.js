@@ -6,8 +6,11 @@
 
 import { listQueue, addToQueue, approveQueueItem, rejectQueueItem, notifyQueue } from '../lib/queue.js';
 import { readBoard } from '../lib/board.js';
+import { getNexusOwner } from '../lib/nexusOwnerAuth.js';
 
 export default async function handler(req, res) {
+  const owner = await getNexusOwner(req).catch(() => null);
+  if (!owner) return res.status(401).json({ error: 'Please sign in again' });
   try {
     if (req.method === 'GET') {
       const items = await listQueue();
