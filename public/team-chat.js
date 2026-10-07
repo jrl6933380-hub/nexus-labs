@@ -4,6 +4,22 @@ import { teamHandles } from './team-mentions.js';
 const node=(tag,text,cls='')=>{const element=document.createElement(tag);if(text!==undefined)element.textContent=text;element.className=cls;return element;};
 const button=(text,run,cls='')=>{const element=node('button',text,cls);element.type='button';element.onclick=run;return element;};
 const LABELS={planned:'Review plan',queued:'Up next',running:'Team working',working:'Working',returned:'Result ready',needs_approval:'Needs you',blocked:'Needs attention',interrupted:'Interrupted',completed:'Ready to review',cancelled:'Cancelled',stopping:'Stopping'};
+function mergeApproval(copy,approval,announce,resolve){
+  if(approval?.kind!=='merge_pull_request' || !approval.id)return null;
+  const card=node('section',undefined,'teammergeapproval');
+  card.append(node('strong','Pull request ready to merge'),node('p',approval.description || 'Review this pull request before merging it.'));
+  const actions=node('div',undefined,'teamapprovalactions');
+  if(approval.reviewUrl){const review=node('a','Read PR','teamsecondary');review.href=approval.reviewUrl;review.target='_blank';review.rel='noopener noreferrer';actions.append(review);}
+  const merge=button(approval.label || 'Merge',async()=>{
+    merge.disabled=true;merge.textContent='Merging…';
+    try{
+      const response=await fetch('/api/queue',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:approval.id,action:'approve'})});
+      const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error || 'The merge could not be completed.');
+      merge.textContent='Merged';card.classList.add('is-complete');announce.textContent='Pull request merged successfully.';await resolve();
+    }catch(error){merge.disabled=false;merge.textContent=approval.label || 'Merge';announce.textContent=error.message;}
+  },'teamgold');
+  actions.append(merge);card.append(actions);copy.append(card);return card;
+}
 function avatar(person){const mark=node('span',person.name==='Nex'?'N':undefined,`messageavatar teamavatar tone-${person.role} ${person.role}`);mark.setAttribute('aria-hidden','true');if(['research','build','life','review'].includes(person.role) && person.name!=='Nex')mark.append(node('i'));else mark.textContent=person.name.slice(0,1).toUpperCase();return mark;}
 export function createTeamChat({input,thread,onMessage=()=>{},onGroup=()=>{},openApprovals=()=>{}}) {
   let group=null,host=null,timer=null,generation=0,refreshing=null,signature='',runs=[],roster=[],request=null;
@@ -73,9 +89,10 @@ export function createTeamChat({input,thread,onMessage=()=>{},onGroup=()=>{},ope
         if(step.requires_approval && !step.approved_at && run.state==='planned')copy.append(node('small','Pauses for your approval before making changes.','teamattention'));
         if(step.result){appendChatVisual(copy,step.result,step.name);const details=node('details');details.dataset.step=step.id;details.open=expanded.has(step.id);details.append(node('summary',`${step.name}’s result`),node('div',step.result,'teamresult'));if(step.evidence?.status==='verified')details.append(node('small','Required tool evidence recorded.','teamevidence'));else details.append(node('small',step.evidence?.missing?.length?`Still needs evidence: ${step.evidence.missing.join(', ')}`:'Saved AI result · review before relying on it.','teamevidence'));copy.append(details);}
         if(step.error)copy.append(node('p',step.error,'teamerror'));
+        if(step.pending_approval)mergeApproval(copy,step.pending_approval,announce,async()=>{await api('team_resolve_approval',{run_id:run.id,step_id:step.id,approval_id:step.pending_approval.id});signature='';await refresh();});
         if(step.state==='needs_approval'){copy.append(actionButton(`Approve ${step.role==='build'?'build':step.name+'’s assignment'}`,'approve_step',run,step,'teamgold'));}
         if(['blocked','interrupted'].includes(step.state) && run.state==='blocked'){
-          if(step.pending_approval)copy.append(button('Review action in Approvals',openApprovals,'teamsecondary'));
+          if(step.pending_approval)copy.append(button('Open all approvals',openApprovals,'teamquiet'));
           copy.append(node('p','Check partial work before retrying; changes from the previous attempt may already exist.','teamattention'),actionButton('Retry this assignment','retry',run,step,'teamsecondary'));
         }
         item.append(avatar(step),copy);steps.append(item);
