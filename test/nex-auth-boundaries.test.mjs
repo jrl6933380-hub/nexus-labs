@@ -2,11 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const [chat, recentChat, privateLane, memory] = await Promise.all([
+const [chat, recentChat, privateLane, memory, queue] = await Promise.all([
   readFile(new URL('../api/chat.js', import.meta.url), 'utf8'),
   readFile(new URL('../api/chat-recent.js', import.meta.url), 'utf8'),
   readFile(new URL('../api/claude-message.js', import.meta.url), 'utf8'),
   readFile(new URL('../api/memory.js', import.meta.url), 'utf8'),
+  readFile(new URL('../api/queue.js', import.meta.url), 'utf8'),
 ]);
 
 test('Nex chat uses dedicated owner auth and conversation keys are owner scoped', () => {
@@ -31,4 +32,10 @@ test('memory management is Nexus-owner-only', () => {
   assert.match(memory, /getNexusOwner\(req\)/u);
   assert.doesNotMatch(memory, /roomAuth/u);
   assert.match(memory, /status\(401\)/u);
+});
+
+test('approval reads and merge execution are Nexus-owner-only', () => {
+  assert.match(queue, /getNexusOwner\(req\)/u);
+  assert.doesNotMatch(queue, /roomAuth/u);
+  assert.match(queue, /status\(401\)/u);
 });
