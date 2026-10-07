@@ -92,6 +92,13 @@ test('cancellation stops after the current assignment and preserves its result',
   await runs.settle('justin','group-launch',run.id,claim.step.id,claim.step.token,{state:'returned',result:'Saved partial research'});
   assert.equal((await runs.list('justin','group-launch'))[0].state,'cancelled');assert.equal(await runs.claim('justin','group-launch',run.id),null);
 });
+test('an exact completed merge approval advances the team without rerunning the specialist',async()=>{
+  const {runs}=fixture(),run=await create(runs);await runs.act('justin','group-launch',run.id,'start');const claim=await runs.claim('justin','group-launch',run.id);
+  await runs.settle('justin','group-launch',run.id,claim.step.id,claim.step.token,{state:'blocked',result:'PR is ready.',error:'Approval required.',pending_approval:{id:'merge-one',kind:'merge_pull_request',label:'Merge PR #42'}});
+  let saved=await runs.act('justin','group-launch',run.id,'resolve_approval',claim.step.id,'merge-one');
+  assert.equal(saved.state,'queued');assert.equal(saved.steps[0].state,'returned');assert.equal(saved.steps[0].pending_approval,null);assert.equal(saved.steps[0].approval_receipt.id,'merge-one');
+  await assert.rejects(runs.act('justin','group-launch',run.id,'resolve_approval',claim.step.id,'another-merge'),/no longer waiting/);
+});
 test('provider failures block handoffs; removed members never run; scopes cannot expand after approval',async()=>{
   const {runs}=fixture();let people=[...members],calls=0;const runner=createTeamRunner({runs,messages:{overview:async()=>({groups:[{id:'group-launch',member_ids:people.map(m=>m.id)}],specialists:people})},mode:async()=>({mode:'engaged'}),history:async()=>null,ask:async()=>{calls++;return {reply:'Providers unavailable',provider:'none'};}});
   const run=await create(runs);await runs.act('justin','group-launch',run.id,'start');await runner.execute('justin','group-launch',run.id);await runner.execute('justin','group-launch',run.id);assert.equal(calls,1);
