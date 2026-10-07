@@ -4,6 +4,20 @@ import { teamHandles } from './team-mentions.js';
 const node=(tag,text,cls='')=>{const element=document.createElement(tag);if(text!==undefined)element.textContent=text;element.className=cls;return element;};
 const button=(text,run,cls='')=>{const element=node('button',text,cls);element.type='button';element.onclick=run;return element;};
 const LABELS={planned:'Review plan',queued:'Up next',running:'Team working',working:'Working',retrying:'Retrying automatically',returned:'Result ready',needs_approval:'Needs you',blocked:'Needs attention',interrupted:'Interrupted',completed:'Ready to review',cancelled:'Cancelled',stopping:'Stopping'};
+export function teamStepDescription(step){
+  if(step.role==='research')return 'Researching the topic, comparing options, and checking the facts.';
+  if(step.role==='build')return 'Creating the page, app, tool, or visual you asked for.';
+  if(step.role==='life')return 'Turning your goals into a realistic plan, schedule, and reminders.';
+  if(step.role==='review')return step.name==='Nex'?'Bringing the team’s work together and recommending what to do next.':'Checking the work and pointing out anything that needs attention.';
+  return 'Helping with this part of the project.';
+}
+function resultLabel(step){
+  if(step.role==='research')return `What ${step.name} found`;
+  if(step.role==='build')return `What ${step.name} made`;
+  if(step.role==='life')return `${step.name}’s plan`;
+  if(step.role==='review')return step.name==='Nex'?'Nex’s recommendation':`What ${step.name} checked`;
+  return `${step.name}’s result`;
+}
 function mergeApproval(copy,approval,announce,resolve){
   if(approval?.kind!=='merge_pull_request' || !approval.id)return null;
   const card=node('section',undefined,'teammergeapproval');
@@ -74,22 +88,23 @@ export function createTeamChat({input,thread,onMessage=()=>{},onGroup=()=>{},ope
     const expanded=new Set([...host.querySelectorAll('details[open]')].map(item=>item.dataset.step));
     host.replaceChildren(announce);renderRoster();
     if(!runs.length && group.kind!=='group')return;
-    if(!runs.length){const empty=node('section',undefined,'teamwelcome');empty.append(node('small','YOUR TEAM, ONE CONVERSATION','teameyebrow'),node('h3','Turn an idea into a team mission.'),node('p','Give each teammate an assignment. They continue in the background, hand results forward, recover from temporary interruptions, and pause only when you are needed.'),button('Start a team mission',()=>mention({handle:'team'}),'teamgold'));host.append(empty);return;}
+    if(!runs.length){const empty=node('section',undefined,'teamwelcome');empty.append(node('small','YOUR TEAM, ONE CONVERSATION','teameyebrow'),node('h3','Turn an idea into a team project.'),node('p','Tell each teammate what you need. They can work together in the background and ask when they need you.'),button('Start a team project',()=>mention({handle:'team'}),'teamgold'));host.append(empty);return;}
     for(const run of runs.slice(0,4)){
       const card=node('section',undefined,`teammission state-${run.state}`);card.dataset.run=run.id;card.setAttribute('aria-label',`Team task: ${run.goal}`);
-      const top=node('div',undefined,'teammissionhead');top.append(node('small','TEAM MISSION','teameyebrow'),node('span',LABELS[run.state] || run.state,'teamstate'));
+      const top=node('div',undefined,'teammissionhead');top.append(node('small','TEAM PROJECT','teameyebrow'),node('span',LABELS[run.state] || run.state,'teamstate'));
       card.append(top,node('h3',run.goal));
-      if(run.autonomous && !['completed','cancelled'].includes(run.state))card.append(node('p','Background mission · You can leave this chat. The team will keep its place and continue safely.','teamautonomy'));
+      if(run.autonomous && !['completed','cancelled'].includes(run.state))card.append(node('p','You can leave this chat. Your team will keep working.','teamautonomy'));
       const returned=run.steps.filter(step=>step.state==='returned').length,progress=node('progress');progress.max=run.steps.length;progress.value=returned;progress.setAttribute('aria-label',`${returned} of ${run.steps.length} assignments returned`);card.append(progress);
       const steps=node('ol',undefined,'teamsteps');
       for(const step of run.steps){
         const item=node('li',undefined,`teamstep state-${step.state}`),copy=node('div',undefined,'teamstepcopy'),heading=node('div',undefined,'teamstephead');
-        heading.append(node('strong',step.name),node('small',LABELS[step.state] || step.state,'teamstate'));copy.append(heading,node('p',step.instruction));
-        if(step.state==='working' && step.activity)copy.append(node('small',step.activity,'teamattention'));
-        if(step.scopes?.length)copy.append(node('small',`Access: ${step.scopes.map(scope=>scope==='conversation'?'this chat':scope).join(' · ')}`,'teamscopes'));
-        if(step.requires_approval && !step.approved_at && ['planned','queued'].includes(run.state))copy.append(node('small','Will pause for your approval before making changes.','teamattention'));
-        if(step.approval_source==='conversation_grant')copy.append(node('small','Project access was already approved in this conversation. Safe edits can continue.','teamscopes'));
-        if(step.result){appendChatVisual(copy,step.result,step.name);const details=node('details');details.dataset.step=step.id;details.open=expanded.has(step.id);details.append(node('summary',`${step.name}’s result`),node('div',step.result,'teamresult'));if(step.evidence?.status==='verified')details.append(node('small','Required tool evidence recorded.','teamevidence'));else details.append(node('small',step.evidence?.missing?.length?`Still needs evidence: ${step.evidence.missing.join(', ')}`:'Saved AI result · review before relying on it.','teamevidence'));copy.append(details);}
+        heading.append(node('strong',step.name),node('small',LABELS[step.state] || step.state,'teamstate'));copy.append(heading,node('p',teamStepDescription(step)));
+        if(step.requires_approval && !step.approved_at && ['planned','queued'].includes(run.state))copy.append(node('small','Will ask you before making changes.','teamattention'));
+        if(step.approval_source==='conversation_grant')copy.append(node('small','Already approved for this project.','teamscopes'));
+        if(step.result){
+          const visual=appendChatVisual(copy,step.result,step.name);
+          if(!visual){const details=node('details');details.dataset.step=step.id;details.open=expanded.has(step.id);details.append(node('summary',resultLabel(step)),node('div',step.result,'teamresult'));if(step.evidence?.status==='verified')details.append(node('small','Checked against the available information.','teamevidence'));else if(step.evidence?.missing?.length)details.append(node('small','Some details could not be fully checked.','teamevidence'));copy.append(details);}
+        }
         if(step.error)copy.append(node('p',step.error,'teamerror'));
         if(step.pending_approval)mergeApproval(copy,step.pending_approval,announce,async()=>{await api('team_resolve_approval',{run_id:run.id,step_id:step.id,approval_id:step.pending_approval.id});signature='';await refresh();});
         if(step.state==='needs_approval'){copy.append(actionButton(`Approve ${step.role==='build'?'build':step.name+'’s assignment'}`,'approve_step',run,step,'teamgold'));}
@@ -105,7 +120,7 @@ export function createTeamChat({input,thread,onMessage=()=>{},onGroup=()=>{},ope
       if(!['completed','cancelled','stopping'].includes(run.state))controls.append(actionButton(run.state==='running'?'Stop after this assignment':'Cancel task','cancel',run,null,'teamquiet'));
       if(run.state==='completed')controls.append(button('Give the team a follow-up',()=>mention({handle:'team'}),'teamsecondary'));
       card.append(controls);
-      const timeline=node('details',undefined,'teamtimeline');timeline.append(node('summary','Handoffs & activity'));for(const event of run.events.slice(-10))timeline.append(node('p',`${new Date(event.at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} · ${event.message}`));card.append(timeline);
+      const timeline=node('details',undefined,'teamtimeline');timeline.append(node('summary','Team activity'));for(const event of run.events.slice(-10))timeline.append(node('p',`${new Date(event.at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} · ${event.message}`));card.append(timeline);
       host.append(card);
     }
   }

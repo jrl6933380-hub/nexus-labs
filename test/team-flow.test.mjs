@@ -6,6 +6,7 @@ import {createTeamMessagesHandler} from '../lib/teamMessagesHandler.js';
 import {parseTeamMentions,teamHandles} from '../public/team-mentions.js';
 import {createAgentDelegation} from '../lib/agentDelegation.js';
 import {chatVisualDocument} from '../public/chat-visual.js';
+import {teamStepDescription} from '../public/team-chat.js';
 import {buildConversationAccessPolicy} from '../lib/nexBrain.js';
 import {planCognitiveRun} from '../lib/nexCognitiveController.js';
 
@@ -237,4 +238,9 @@ test('chat visual previews block network and do not accept unfenced or oversized
   assert.match(doc,/Content-Security-Policy/);assert.match(doc,/connect-src 'none'/);assert.match(doc,/Food choices/);
   assert.equal(chatVisualDocument('<h1>unfenced</h1>'),null);
   assert.equal(chatVisualDocument('```html\n'+'x'.repeat(50001)+'\n```'),null);
+});
+test('team assignments use plain capability descriptions instead of internal instructions',()=>{
+  assert.equal(teamStepDescription({name:'Atlas',role:'research',instruction:'Use tool search and cite evidence.'}),'Researching the topic, comparing options, and checking the facts.');
+  assert.equal(teamStepDescription({name:'Mason',role:'build',instruction:'Do not change any repository.'}),'Creating the page, app, tool, or visual you asked for.');
+  assert.equal(teamStepDescription({name:'Nex',role:'review',instruction:'Review saved handoffs.'}),'Bringing the team’s work together and recommending what to do next.');
 });
