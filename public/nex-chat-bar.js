@@ -117,10 +117,23 @@ export function renderApprovalAction({ approval, container, onApprove }) {
   if (!container || approval?.kind !== 'merge_pull_request' || !approval.id) return null;
   const row = document.createElement('div');
   row.className = 'nex-approval-action';
+  const summary = document.createElement('span');
+  summary.className = 'nex-approval-summary';
+  summary.innerText = approval.description || 'A pull request is ready for your review.';
+  row.appendChild(summary);
+  if (approval.reviewUrl) {
+    const review = document.createElement('a');
+    review.className = 'nex-approval-review';
+    review.href = approval.reviewUrl;
+    review.target = '_blank';
+    review.rel = 'noopener noreferrer';
+    review.innerText = 'Read PR';
+    row.appendChild(review);
+  }
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'nex-approval-button';
-  button.innerText = approval.label || 'Approve & merge';
+  button.innerText = approval.label || 'Merge';
   button.setAttribute('aria-label', approval.description || button.innerText);
   button.addEventListener('click', async () => {
     if (button.disabled) return;
@@ -132,7 +145,7 @@ export function renderApprovalAction({ approval, container, onApprove }) {
       button.innerText = 'Merged';
     } catch (err) {
       button.disabled = false;
-      button.innerText = approval.label || 'Approve & merge';
+      button.innerText = approval.label || 'Merge';
       throw err;
     }
   });
@@ -644,7 +657,18 @@ export function createNexChatBar() {
       align-self: flex-start;
       max-width: 85%;
       margin: -2px 0 4px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      padding: 10px;
+      border: 1px solid var(--nex-border);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, .025);
     }
+
+    .nex-approval-summary { flex: 1 0 100%; color: var(--nex-text-dim); font-size: 12px; line-height: 1.5; }
+    .nex-approval-review { color: var(--nex-accent); font: 650 12px var(--nex-sans); text-decoration: none; padding: 8px 4px; }
 
     .nex-approval-button {
       background: rgba(86, 214, 160, .14);

@@ -1015,10 +1015,11 @@ function renderResponseActions(data){
     const card=document.createElement('section');card.className='approvalcard';
     const title=document.createElement('strong');title.textContent='Your approval is needed';
     const copy=document.createElement('p');copy.textContent=data.pendingApproval.description || 'Review this action before Nex continues.';
+    const review=data.pendingApproval.reviewUrl?document.createElement('a'):null;if(review){review.href=data.pendingApproval.reviewUrl;review.target='_blank';review.rel='noopener noreferrer';review.className='uxsecondary';review.textContent='Read PR';}
     const approve=document.createElement('button');approve.type='button';approve.className='uxprimary';approve.textContent=data.pendingApproval.label || 'Approve';
     const status=document.createElement('p');status.setAttribute('role','status');
-    approve.onclick=async()=>{approve.disabled=true;try{const response=await fetch('/api/queue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:data.pendingApproval.id,action:'approve'})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error || 'Approval failed');status.textContent='Approved. Nex can continue.';}catch(error){status.textContent=friendlyError(error,{subject:'this approval'});approve.disabled=false;}};
-    card.append(title,copy,approve,status);thread.append(card);
+    approve.onclick=async()=>{approve.disabled=true;try{const response=await fetch('/api/queue',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:data.pendingApproval.id,action:'approve'})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error || 'Approval failed');status.textContent='Merged successfully.';approve.textContent='Merged';}catch(error){status.textContent=friendlyError(error,{subject:'this approval'});approve.disabled=false;}};
+    card.append(title,copy,...(review?[review]:[]),approve,status);thread.append(card);
   }
 }
 
