@@ -65,6 +65,17 @@ test('one approved build grants reversible project work in the same conversation
   const followup=await runs.create('justin','group-launch',[builder],'@Atlas update the customer website headline','request-safe-followup',{includeNex:false,autoStart:true});
   assert.equal(followup.steps[0].execution_mode,'project_write');assert.equal(followup.steps[0].requires_approval,false);assert.equal(followup.steps[0].approval_source,'conversation_grant');assert.ok(followup.steps[0].approved_at);
 });
+test('approved Mason builds get a long provider window and resume from a safe background checkpoint',async()=>{
+  const {runs,advance,now}=fixture(),builder=members[1],calls=[];
+  const runner=createTeamRunner({runs,now,messages:{overview:async()=>({groups:[{id:'group-launch',member_ids:[builder.id]}],specialists:[builder]})},mode:async()=>({mode:'engaged'}),history:async()=>null,ask:async(prompt,history,tier,context,onStage,toolContext)=>{calls.push(toolContext);return calls.length===1
+    ? {reply:'Checkpoint saved.',provider:'nex-pod',runState:{state:'waiting',blocker:'runaway_safety_ceiling_hit'},completionReceipt:{status:'incomplete',missing:['tests']}}
+    : {reply:'Build complete.',provider:'nex-pod',runState:{state:'completed'},completionReceipt:{status:'verified',observed:['tests']}};}});
+  const run=await runs.create('justin','group-launch',[builder],'@Atlas build the customer website','request-durable-build',{includeNex:false,autoStart:true});
+  await runner.execute('justin','group-launch',run.id);let [saved]=await runs.list('justin','group-launch');await runs.act('justin','group-launch',run.id,'approve_step',saved.steps[0].id);
+  await runner.execute('justin','group-launch',run.id);[saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'queued');assert.equal(saved.steps[0].state,'retrying');assert.match(saved.steps[0].error,/continue it in the background/);
+  assert.equal(calls[0].providerTimeoutMs,240000);assert.equal(calls[0].reasoningBudgets.maxElapsedMs,240000);assert.match(calls[0].resumeRunId,/^nex-turn-[a-f0-9]{32}$/u);
+  advance(30_001);await runner.execute('justin','group-launch',run.id);[saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'completed');assert.equal(calls[1].resumeRunId,calls[0].resumeRunId);
+});
 test('review specialists stay read-only and do not request write approval',async()=>{
   const {runs}=fixture(),reviewer={id:'agent-core-vera',name:'Vera',role:'review',job:'Verify work',scopes:['conversation','projects']};
   const run=await runs.create('justin','nex-main',[reviewer],'@Vera verify this','request-reviewer');
