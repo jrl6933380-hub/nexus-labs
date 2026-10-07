@@ -121,6 +121,20 @@ test('separate calls pass actual research to builder, pause for approval, then r
   assert.equal(calls[2].toolContext.cognitiveLane,'chat');
   [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'completed');assert.equal(saved.steps.every(step=>step.state==='returned'),true);assert.ok(saved.events.some(event=>event.message.includes('passed it')));
 });
+test('Nex receives every long handoff and returns evidence-caveated reviews',async()=>{
+  const {runs}=fixture(),calls=[];
+  const runner=createTeamRunner({runs,messages:{overview:async()=>({groups:[{id:'group-launch',member_ids:members.map(member=>member.id)}],specialists:members})},mode:async()=>({mode:'engaged'}),history:async()=>null,ask:async prompt=>{
+    calls.push(prompt);
+    if(calls.length===1)return {reply:'Research: '+'A'.repeat(17_500),provider:'nex-pod',completionReceipt:{status:'not_required',observed:[]}};
+    if(calls.length===2)return {reply:'MASON_RESULT: complete visual concept.',provider:'nex-pod',completionReceipt:{status:'not_required',observed:[]}};
+    return {reply:'Review completed with the available evidence.',provider:'nex-pod',runState:{state:'waiting',blocker:'missing_evidence:source_read'},completionReceipt:{status:'incomplete',observed:['saved_handoffs'],missing:['source_read']}};
+  }});
+  const run=await runs.create('justin','group-launch',members,'@Maya research landscaping options @Atlas draft a visual concept in this chat only','request-fair-handoffs',{includeNex:true,autoStart:true});
+  await runner.execute('justin','group-launch',run.id);await runner.execute('justin','group-launch',run.id);await runner.execute('justin','group-launch',run.id);
+  const [saved]=await runs.list('justin','group-launch');
+  assert.match(calls[2],/MASON_RESULT: complete visual concept/);
+  assert.equal(saved.state,'completed');assert.equal(saved.steps.at(-1).state,'returned');assert.equal(saved.steps.at(-1).error,null);assert.equal(saved.steps.at(-1).evidence.status,'incomplete');
+});
 test('worker leases prevent duplicate execution and read-only interruptions recover safely',async()=>{
   const {runs,tick}=fixture(),run=await create(runs);await runs.act('justin','group-launch',run.id,'start');
   const first=await runs.claim('justin','group-launch',run.id);assert.equal(await runs.claim('justin','group-launch',run.id),null);
