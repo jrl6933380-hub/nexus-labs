@@ -15,6 +15,7 @@ import { askNex, MODEL_TIERS } from '../lib/nexBrain.js';
 import { getNexusOwner } from '../lib/nexusOwnerAuth.js';
 import {
   clearConversationThreads,
+  clearConversationMessages,
   deleteConversationThread,
   listConversationThreads,
   loadConversationThread,
@@ -173,6 +174,14 @@ export default async function handler(req, res) {
     threadId = req.body?.threadId ? normalizeThreadId(req.body.threadId) : null;
   } catch {
     return res.status(400).json({ error: 'Invalid thread id' });
+  }
+  if(action==='clear_thread'){
+    if(!threadId)return res.status(400).json({error:'A thread id is required'});
+    try{
+      const runs=await teamRunStore.list(operatorUser,threadId);
+      if(runs.some(run=>['queued','running','stopping'].includes(run.state)))return res.status(409).json({error:'Let this chat finish its current work before clearing it.'});
+      return res.status(200).json(await clearConversationMessages(operatorUser,threadId));
+    }catch(error){return res.status(503).json({error:'Could not check and preserve important details. Your chat is still available. Try again.'});}
   }
   if (action === 'delete_thread') {
     if (!threadId) return res.status(400).json({ error: 'A thread id is required' });

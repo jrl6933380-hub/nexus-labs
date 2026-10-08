@@ -240,13 +240,13 @@ export async function renderMessages(ctx){
     card.append(node('h3',ios?'Install from Safari':'Install from your browser'),steps);root.append(card,button('Got it',moreView,'uxprimary messagecontinue'));
   }
   function clearConversations(recent){
-    const kept=new Set();heading(root,'Clear conversations','Saved Memory, projects, schedules, reminders, Life, specialists, and groups stay safe. Choose Keep on any recent chat you still want.',draw);
+    const kept=new Set();heading(root,'Clear conversations','Keep useful facts, preferences, decisions, and project details in Memory, then clear the chats. Chats with nothing important save nothing. Projects, schedules, reminders, and your agents stay safe. Choose Keep on any recent chat you still want.',draw);
     const summary=node('p',`${recent.length} recent conversation${recent.length===1?'':'s'} selected to clear.`,'clearsummary');root.append(summary);
     const list=node('div',undefined,'clearlist');
     const update=()=>{const count=recent.length-kept.size;summary.textContent=count?`${count} conversation${count===1?'':'s'} will be cleared. Anything marked Keep will stay.`:'Everything is marked Keep. Nothing will be cleared.';clear.disabled=count===0;clear.textContent=count?`Clear ${count} conversation${count===1?'':'s'}`:'Nothing to clear';};
     for(const thread of recent){const item=node('label',undefined,'clearitem');const input=node('input');input.type='checkbox';input.setAttribute('aria-label',`Keep ${thread.title}`);input.onchange=()=>{if(input.checked)kept.add(thread.id);else kept.delete(thread.id);update();};const copy=node('span',undefined,'clearcopy');copy.append(node('strong',thread.title),node('small',`${thread.message_count || 0} messages`));item.append(copy,input,node('span','Keep','keeplabel'));list.append(item);}root.append(list);
     const status=node('p',undefined,'messageformstatus');status.setAttribute('role','status');
-    const clear=button('',async()=>{clear.disabled=true;back.disabled=true;status.textContent='Clearing conversations…';try{const result=await ctx.clearRecentThreads([...kept]);await load(`${result.deleted || 0} conversation${result.deleted===1?'':'s'} cleared.`);}catch(error){status.textContent=friendlyError(error,{action:'clear',subject:'those conversations'});clear.disabled=false;back.disabled=false;}},'uxprimary clearprimary');
+    const clear=button('',async()=>{clear.disabled=true;back.disabled=true;status.textContent='Checking key details, then clearing conversations…';try{const result=await ctx.clearRecentThreads([...kept]);await load(`${result.deleted || 0} conversation${result.deleted===1?'':'s'} cleared. ${result.memoriesSaved || 0} new key detail${result.memoriesSaved===1?'':'s'} remembered.`);}catch(error){status.textContent=friendlyError(error,{action:'clear',subject:'those conversations'});clear.disabled=false;back.disabled=false;}},'uxprimary clearprimary');
     const back=button('Back to Messages',draw,'messagesecondary');root.append(clear,back,status);update();
   }
   function newConversation(){
