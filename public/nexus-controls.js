@@ -29,6 +29,10 @@ export async function renderAccountControls(root,ctx,back,actions){
     row(customize,'Memory','Review and manage what Nexus remembers',()=>ctx.openSystem('memory'));
     row(customize,'Connections','Manage connections for your projects',()=>ctx.openSystem('workbench'));
     row(customize,'Accent color',data.preferences.accent,()=>preferenceView(data));
+    const intelligence=group(panel,'Intelligence');
+    row(intelligence,'AI Team','Manage your agents and their work',()=>ctx.openSystem('agents'));
+    row(intelligence,'Pod Room','Your connected intelligence workspace',()=>ctx.openSystem('pod'));
+    row(intelligence,'Capabilities','Tools, skills, and commands together',actions.capabilities);
     const app=group(panel,'App settings');
     row(app,'Notifications','Turn phone alerts on or off for this device',actions.notifications);
     row(app,'Install Nexus','Open Nexus from your Home Screen',actions.install);

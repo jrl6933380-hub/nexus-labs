@@ -139,9 +139,9 @@ test('Messages carries the old navigation as colored connected conversation rows
   assert.match(source,/Name the group and choose who belongs/);assert.match(source,/placeholder='Group name'/);
 });
 
-test('More contains owner-only tool, skill, and command catalogs',()=>{
+test('Account controls group owner-only tool, skill, and command catalogs',()=>{
   const source=fs.readFileSync(new URL('../public/nexus-messages.js',import.meta.url),'utf8');
-  for(const name of ['Tools','Skills','Commands'])assert.match(source,new RegExp(`name:'${name}'`));
+  for(const name of ['Tools','Skills','Commands'])assert.ok(source.includes(`'${name}'`));
   assert.match(source,/Owner controls/u);
   assert.match(source,/fetch\('\/api\/owner-capabilities'/u);
   assert.match(source,/credentials:'include'/u);

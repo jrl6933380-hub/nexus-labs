@@ -47,3 +47,10 @@ body[data-view=messages] .foot,body[data-view=messages] .disc{display:none}body[
 .controlsummary,.controlnote{padding:0 16px 14px;line-height:1.5}.controlnote{font-size:12px;color:var(--dm)}
 .controlgroup details{padding:0 16px 16px;color:var(--dm);font-size:12px;line-height:1.6}.controlgroup summary{cursor:pointer;color:var(--tx);padding:10px 0}.controlgroup details p{margin:8px 0}
 .nexusmessages .messageprimary,.nexusmessages .messagecontinue{background:var(--nexus-control-accent,#e1bd72)!important;box-shadow:none}
+.composer-plus{display:grid;place-items:center;width:44px;height:44px;flex-shrink:0;font:300 32px/1 system-ui;border-radius:50%;color:var(--tx,#f2f0ed)}
+.composer-plus:hover,.composer-plus[aria-expanded=true]{background:var(--chip,#303030)}
+.composer-plus:focus-visible{outline:2px solid var(--nexus-control-accent,#e1bd72)}
+.composer-popover{position:fixed;z-index:2000;padding:12px;border:1px solid #444;border-radius:30px;background:linear-gradient(145deg,rgba(48,48,48,.98),rgba(32,32,32,.98));box-shadow:0 20px 60px #0008;backdrop-filter:blur(24px);overflow-y:auto;overscroll-behavior:contain;color:#f2f0ed}
+.composer-popover[hidden]{display:none}.composer-popover>button{display:flex;align-items:center;gap:16px;min-height:68px;width:100%;padding:8px 12px;border-radius:18px;font-size:19px;text-align:left}
+.composer-popover>button:hover,.composer-popover>button:focus-visible{background:#414141;outline:2px solid var(--nexus-control-accent,#e1bd72);outline-offset:-2px}
+.composer-menu-icon{display:grid;place-items:center;flex-shrink:0;width:44px;height:44px;border-radius:50%;background:#ffffff10}.composer-menu-icon svg{width:25px;height:25px}

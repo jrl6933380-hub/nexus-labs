@@ -31,3 +31,34 @@ test('mobile controls save preferences, restore color, refresh usage and retain 
   const accessibility=await new AxeBuilder({page}).include('.nexusmessages').withTags(['wcag2a','wcag2aa']).analyze();expect(accessibility.violations.filter(item=>['serious','critical'].includes(item.impact))).toEqual([]);
   await page.screenshot({path:'test-results/nexus-controls-mobile.png',fullPage:true});expect(errors).toEqual([]);
 });
+
+test('composer plus menu opens one Settings entry and More bundles related spaces',async({page})=>{
+  const chatWrites=[];
+  await page.route('**/_vercel/insights/script.js',route=>route.fulfill({body:'',contentType:'application/javascript'}));
+  await page.route('**/api/**',async route=>{
+    const path=new URL(route.request().url()).pathname;let data={items:[]};
+    if(path==='/api/nexus-auth')data={authenticated:true,owner:{id:'justin'}};
+    if(path==='/api/chat'){data={threads:[],messages:[]};if(route.request().method()==='POST')chatWrites.push(route.request().postDataJSON());}
+    if(path==='/api/nexus-messages')data={specialists:[],groups:[],roles:{},scopes:[],pinned_system_ids:['planner','reminders','life','workbench','story','deck','approvals','memory','pod','skills','agents']};
+    if(path==='/api/nexus-controls')data={account:{id:'justin',plan:'Owner'},preferences:{accent:'gold',responseStyle:'balanced'},usage:{updatedAt:Date.now(),scope:'Completed turns',days:[{turns:0,input:0,output:0,elapsedMs:0}]}};
+    if(path==='/api/owner-capabilities')data={tools:[],skills:[],commands:[]};
+    await route.fulfill({json:data});
+  });
+  await page.goto('/workspace.html');
+  await expect(page.locator('.messagelist').getByRole('button',{name:/Life & Schedule/})).toHaveCount(1);
+  await expect(page.locator('.messagelist').getByRole('button',{name:/Memory|Pod Room|Capabilities|AI Team/})).toHaveCount(0);
+  await page.locator('#composerPlus').click();
+  const menu=page.getByRole('menu',{name:'Nexus shortcuts'});await expect(menu).toBeVisible();await expect(menu.getByRole('menuitem')).toHaveCount(4);
+  await expect(menu.getByRole('menuitem',{name:'Settings',exact:true})).toHaveCount(1);
+  const bounds=await menu.boundingBox();expect(bounds.x).toBeGreaterThanOrEqual(0);expect(bounds.x+bounds.width).toBeLessThanOrEqual(393);
+  await menu.getByRole('menuitem',{name:'Settings',exact:true}).click();await expect(page.getByRole('heading',{name:'Account & Controls'})).toBeVisible();await expect(menu).toBeHidden();
+  await page.getByRole('button',{name:/Capabilities Tools, skills, and commands/}).click();await expect(page.getByRole('heading',{name:'Capabilities'})).toBeVisible();
+  await expect(page.getByRole('button',{name:/Tools Owner controls/})).toBeVisible();
+  await page.locator('#composerPlus').click();await menu.getByRole('menuitem',{name:'Operations',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Operations'})).toBeVisible();
+  for(const name of ['Command Deck','Approvals','Forge'])await expect(page.locator('.nexusmessages').getByRole('button',{name:new RegExp(`${name} Operations`)})).toBeVisible();
+  await page.locator('.messageback').click();await expect(page.locator('.pinmanagerrow')).toHaveCount(3);
+  expect(chatWrites).toEqual([]);
+  await page.locator('#composerPlus').focus();await page.keyboard.press('ArrowDown');await expect(menu).toBeVisible();await page.keyboard.press('Escape');await expect(menu).toBeHidden();await expect(page.locator('#composerPlus')).toBeFocused();
+  await page.screenshot({path:'test-results/nexus-bundles-mobile.png',fullPage:true});
+});
