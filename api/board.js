@@ -120,6 +120,7 @@ export function createLifeHandler({getOwner=getNexusOwner,getUser=getRequestUser
     if(!owner && !roomUser)return res.status(401).json({error:'Sign in to use Life.'});
     const user=owner ? `owner:${owner.id}` : `room:${roomUser}`;
     try{
+      if(req.method==='GET' && req.query?.photos)return res.status(200).json(await store.photos(req.query.photos,user));
       if(req.method==='GET')return res.status(200).json(req.query?.alerts==='1' ? {items:await store.alerts(user)} : await store.overview(user));
       if(req.method!=='POST')return res.status(405).json({error:'Method Not Allowed'});
       const {action,...input}=req.body || {};let result;
@@ -127,6 +128,7 @@ export function createLifeHandler({getOwner=getNexusOwner,getUser=getRequestUser
       else if(action==='preview')result=await store.preview(input,user);
       else if(action==='save')result=await store.save(input,user);
       else if(action==='check_in')result=await store.checkIn(input,user);
+      else if(action==='photos')result=await store.photos(input.id,user,input.photos);
       else if(action==='pulse')result=await store.pulse(input,user);
       else if(action==='preview_week')result=await store.previewWeek(input,user);
       else if(action==='save_week')result=await store.saveWeek(input,user);

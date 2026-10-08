@@ -177,7 +177,7 @@ test('weekly reset UI edits each activity, reviews conflicts, and only copies af
   globalThis.document={createElement:element};globalThis.requestAnimationFrame=callback=>callback();
   globalThis.fetch=async(url,options)=>{let result;if(!options?.method)result=await life.overview('room:a');else{const {action,...input}=JSON.parse(options.body);requests.push(action);result=await life[{preview_week:'previewWeek',save_week:'saveWeek',check_in:'checkIn'}[action] || action](input,'room:a');}return {ok:true,json:async()=>result};};
   try{
-    const root=await renderLife({ask(){}});await all(root).find(el=>el.textContent==='Your rhythm').onclick();await all(root).find(el=>el.textContent==='This week').onclick();await all(root).find(el=>el.textContent==='Weekly reset').onclick();
+    const root=await renderLife({ask(){}});await all(root).find(el=>el.textContent==='Your week').onclick();await all(root).find(el=>el.textContent==='This week').onclick();await all(root).find(el=>el.textContent==='Weekly reset').onclick();
     const reset=all(root).find(el=>el.className==='liferesetitem');assert.ok(reset);
     const label=name=>all(reset).find(el=>el.tagName==='label' && el.textContent===name).children[0];
     label('Carry this activity forward').checked=true;label('Name').value='Next week movement';
@@ -207,10 +207,56 @@ test('Life home keeps extra views collapsed and returns from Explore Life withou
     let explore=all(root).find(el=>el.className==='lifeexplore');assert.equal(explore.open,false);assert.equal(explore.children[0].textContent,'Explore Life');
     assert.equal(all(explore).filter(el=>el.tagName==='button').length,5);
     assert.ok(all(root).find(el=>el.className==='lifepulse'));assert.ok(all(root).find(el=>el.className==='lifeideas' && !el.open));
-    const primary=all(root).find(el=>el.className==='lifeactions lifeprimary');assert.deepEqual(primary.children.map(el=>el.textContent),['✦ Plan with Nex']);
+    const primary=all(root).find(el=>el.className==='lifeactions lifeprimary');assert.deepEqual(primary.children.map(el=>el.textContent),['✦ Plan my week']);
     primary.children[0].onclick();assert.match(prompts[0],/Read Life and Nex Schedule/);
     explore.open=true;await all(explore).find(el=>el.textContent==='Life history').onclick();
     explore=all(root).find(el=>el.className==='lifeexplore');assert.equal(explore.open,true);assert.ok(all(root).find(el=>el.textContent==='Your Life history'));
     await all(root).find(el=>el.textContent==='Today').onclick();assert.equal(all(root).find(el=>el.className==='lifeexplore').open,false);assert.ok(all(root).find(el=>el.className==='lifepulse'));
+  }finally{globalThis.document=oldDocument;globalThis.fetch=oldFetch;}
+});
+
+test('feelings are optional, private, validated and survive plan edits without carrying into new weeks',async()=>{
+  const {life}=fixture();let item=await save(life,activity);
+  await life.checkIn({id:item.id,feelings:['Calm','Inspired','Calm'],reflection:'Quiet water'},'room:a');
+  item=(await life.overview('room:a')).items[0];assert.deepEqual(item.feelings,['Calm','Inspired']);
+  item=await save(life,{...item,title:'Lake walk'});assert.deepEqual(item.feelings,['Calm','Inspired']);
+  await assert.rejects(life.checkIn({id:item.id,feelings:['invented']},'room:a'),/feelings/);
+  await assert.rejects(life.checkIn({id:item.id,feelings:['Calm']},'room:b'),/not found/);
+  const preview=await life.previewWeek({entries:[{source_id:item.id,copy_date:'2026-10-12',starts_at:'2026-10-12T15:00:00Z',ends_at:'2026-10-12T16:00:00Z'}]},'room:a');
+  assert.deepEqual(preview.items[0].feelings,[]);assert.equal(preview.items[0].reflection,'');
+  await life.checkIn({id:item.id,feelings:[]},'room:a');assert.deepEqual((await life.overview('room:a')).items[0].feelings,[]);
+});
+
+test('photos persist privately outside agent overview, validate size/type, and clear with activity deletion',async()=>{
+  const {life}=fixture(),item=await save(life,activity),photo={source:'data:image/jpeg;base64,/9j/2Q==',caption:'At the lake'};
+  await life.photos(item.id,'room:a',[photo]);assert.deepEqual((await life.photos(item.id,'room:a')).photos,[photo]);
+  const overview=await life.overview('room:a');assert.equal(overview.items[0].photo_count,1);assert.ok(!JSON.stringify(overview).includes('base64'));
+  await assert.rejects(life.photos(item.id,'room:b'),/not found/);
+  await assert.rejects(life.photos(item.id,'room:a',Array(4).fill(photo)),/three photos/);
+  await assert.rejects(life.photos(item.id,'room:a',[{source:'data:image/svg+xml;base64,aaaa'}]),/supported/);
+  await assert.rejects(life.photos(item.id,'room:a',[{source:'data:image/jpeg;base64,'+'a'.repeat(200001)}]),/supported/);
+  await assert.rejects(life.photos(item.id,'room:a',[{source:'data:image/jpeg;base64,AAAA'}]),/valid JPEG/);
+  assert.equal((await life.photos(item.id,'room:a')).photos.length,1);
+  await life.photos(item.id,'room:a',[]);assert.equal((await life.overview('room:a')).items[0].photo_count,0);
+  await life.remove(item.id,'room:a');await assert.rejects(life.photos(item.id,'room:a'),/not found/);
+});
+
+test('Life photo HTTP routes derive owner scope and reject unauthenticated requests',async()=>{
+  const calls=[],store={photos:async(...args)=>{calls.push(args);return {photos:[]};}},response=()=>({setHeader(){},status(code){this.code=code;return this;},json(data){this.data=data;return this;}});
+  const handler=createLifeHandler({getOwner:async()=>({id:'justin'}),getUser:async()=>null,store});
+  await handler({method:'GET',query:{photos:'walk',user:'other'}},response());assert.deepEqual(calls[0],['walk','owner:justin']);
+  await handler({method:'POST',body:{action:'photos',id:'walk',photos:[],user:'other'}},response());assert.deepEqual(calls[1],['walk','owner:justin',[]]);
+  const denied=createLifeHandler({getOwner:async()=>null,getUser:async()=>null,store}),res=response();await denied({method:'GET',query:{photos:'walk'}},res);assert.equal(res.code,401);assert.equal(calls.length,2);
+});
+
+test('weekly Life views connect saved feelings and reflections to their activity without model calls',async()=>{
+  const oldDocument=globalThis.document,oldFetch=globalThis.fetch,start=new Date(),prompts=[];
+  globalThis.document={createElement:element};
+  globalThis.fetch=async()=>({ok:true,json:async()=>({items:[{...activity,id:'walk',starts_at:start.toISOString(),ends_at:new Date(+start+3600000).toISOString(),outcome:'happened',energy:4,feelings:['Calm'],reflection:'An afternoon by the lake'}],profile:{onboarded:true,focus:[]}})});
+  try{
+    const root=await renderLife({ask:prompt=>prompts.push(prompt)});await all(root).find(el=>el.textContent==='Your week').onclick();await all(root).find(el=>el.textContent==='This week').onclick();
+    await all(root).find(el=>el.textContent==='Reflections').onclick();assert.ok(all(root).find(el=>el.textContent==='An afternoon by the lake'));assert.ok(all(root).find(el=>el.textContent==='Calm'));
+    await all(root).find(el=>el.textContent==='Energy').onclick();assert.ok(all(root).find(el=>el.textContent==='4.0'));assert.equal(prompts.length,0);
+    await all(root).find(el=>el.textContent==='Reflect on my week with Vida').onclick();assert.match(prompts[0],/supplied feelings/);
   }finally{globalThis.document=oldDocument;globalThis.fetch=oldFetch;}
 });
