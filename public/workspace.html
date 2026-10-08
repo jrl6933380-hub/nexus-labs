@@ -985,7 +985,7 @@ async function showView(id){
   try {
     const nodes = await VIEWS[id].render(ctx);
     thread.innerHTML = '';
-    const help=renderFeatureHelp(id,ctx);if(help)thread.appendChild(help);
+    const help=id==='life' ? null : renderFeatureHelp(id,ctx);if(help)thread.appendChild(help);
     for (const node of nodes) thread.appendChild(node);
     if(!['messages','approvals','guide'].includes(id)){if(!threadId)threadId='nex-main';teamChat.open(activeConversation,threadId);}
   } catch (error) {

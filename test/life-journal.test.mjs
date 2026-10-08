@@ -31,3 +31,14 @@ test('touch drag commits once, cancellation saves nothing, keyboard supports pre
     resize.onkeydown({...e(0),key:'ArrowDown'});assert.equal(changes.length,1);resize.onkeydown({...e(0),key:'Enter'});await Promise.resolve();assert.equal(changes.length,2);assert.equal(new Date(changes[1].ends_at).getMinutes(),15);
   }finally{globalThis.document=oldDocument;}
 });
+
+import {lifeSelection,lifeMovedTimes} from '../public/life-calendar.js';
+test('drawing time before entering details supports reversed ranges and local midnight',()=>{
+  const range=lifeSelection('2026-10-08',600,525);assert.equal(range.minutes,525);assert.equal(range.duration,75);assert.equal(new Date(range.starts_at).getDate(),8);assert.equal(new Date(range.starts_at).getHours(),8);
+  const late=lifeSelection('2026-10-08',1410,1440);assert.equal(late.duration,30);assert.equal(new Date(late.ends_at).getDate(),9);
+  assert.equal(lifeSelection('2026-10-08',540,540).duration,15);
+});
+test('direct dragging preserves duration and the hidden portion of overnight blocks',()=>{
+  const original=new Date(2026,9,7,23),record={starts_at:original.toISOString(),ends_at:new Date(+original+8*3600000).toISOString()};
+  const moved=lifeMovedTimes(record,'2026-10-08','2026-10-09',30,0);assert.equal(new Date(moved.starts_at).getDate(),8);assert.equal(new Date(moved.starts_at).getHours(),23);assert.equal(new Date(moved.starts_at).getMinutes(),30);assert.equal(Date.parse(moved.ends_at)-Date.parse(moved.starts_at),8*3600000);
+});
