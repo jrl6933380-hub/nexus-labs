@@ -1,0 +1,65 @@
+/*
+  Nexus design system
+
+  Choose an identity with data-nx-identity="life" or a tone-life class.
+  New surfaces consume --nx-current-* and the reusable nx-* contracts below,
+  so product identity follows the feature instead of being rebuilt per page.
+*/
+:root{
+  color-scheme:dark;
+  --nx-bg:#0e0f12;--nx-surface:#151920;--nx-surface-raised:#1a1f27;--nx-surface-soft:#11151a;
+  --nx-line:#303640;--nx-line-soft:#252a32;--nx-text:#f2efeb;--nx-text-soft:#b3bac5;--nx-text-muted:#858d99;
+  --nx-radius-sm:11px;--nx-radius-md:16px;--nx-radius-lg:22px;--nx-shadow-card:0 10px 28px rgba(0,0,0,.24);--nx-focus:#eed391;
+
+  --nx-nex:#e0ba68;--nx-nex-wash:rgba(117,88,28,.32);
+  --nx-schedule:#f0a34a;--nx-schedule-wash:rgba(146,75,19,.31);
+  --nx-reminders:#66a7ff;--nx-reminders-wash:rgba(33,86,166,.30);
+  --nx-life:#62d79a;--nx-life-wash:rgba(22,116,72,.30);
+  --nx-projects:#52c9ff;--nx-projects-wash:rgba(20,103,148,.31);
+  --nx-groups:#5bd0d7;--nx-groups-wash:rgba(20,111,119,.31);
+  --nx-research:#a97aff;--nx-research-wash:rgba(89,51,144,.31);
+  --nx-review:#ff9e7a;--nx-review-wash:rgba(149,65,40,.30);
+  --nx-memory:#78a9ff;--nx-memory-wash:rgba(43,78,151,.28);
+  --nx-legacy:#ef8fa4;--nx-legacy-wash:rgba(144,43,76,.28);
+  --nx-operations:#d6b672;--nx-operations-wash:rgba(112,84,30,.26);
+  --nx-forge:#ff8165;--nx-forge-wash:rgba(148,53,30,.30);
+  --nx-story:#d981f2;--nx-story-wash:rgba(120,40,143,.30);
+  --nx-ventures:#65d9bd;--nx-ventures-wash:rgba(26,118,96,.30);
+  --nx-pod:#8f91ff;--nx-pod-wash:rgba(58,57,153,.30);
+
+  --nx-current:var(--nx-nex);--nx-current-wash:var(--nx-nex-wash);
+  --accent:var(--nx-current);--wash:var(--nx-current-wash);
+}
+
+[data-nx-identity="nex"],.tone-nex{--nx-current:var(--nx-nex);--nx-current-wash:var(--nx-nex-wash)}
+[data-nx-identity="schedule"],.tone-schedule{--nx-current:var(--nx-schedule);--nx-current-wash:var(--nx-schedule-wash)}
+[data-nx-identity="reminders"],.tone-reminders{--nx-current:var(--nx-reminders);--nx-current-wash:var(--nx-reminders-wash)}
+[data-nx-identity="life"],.tone-life{--nx-current:var(--nx-life);--nx-current-wash:var(--nx-life-wash)}
+[data-nx-identity="projects"],.tone-projects,.tone-build{--nx-current:var(--nx-projects);--nx-current-wash:var(--nx-projects-wash)}
+[data-nx-identity="groups"],.tone-groups,.tone-group,.tone-teams{--nx-current:var(--nx-groups);--nx-current-wash:var(--nx-groups-wash)}
+[data-nx-identity="research"],.tone-research,.tone-skills{--nx-current:var(--nx-research);--nx-current-wash:var(--nx-research-wash)}
+[data-nx-identity="review"],.tone-review{--nx-current:var(--nx-review);--nx-current-wash:var(--nx-review-wash)}
+[data-nx-identity="memory"],.tone-memory{--nx-current:var(--nx-memory);--nx-current-wash:var(--nx-memory-wash)}
+[data-nx-identity="legacy"],.tone-legacy{--nx-current:var(--nx-legacy);--nx-current-wash:var(--nx-legacy-wash)}
+[data-nx-identity="operations"],.tone-operations,.tone-more{--nx-current:var(--nx-operations);--nx-current-wash:var(--nx-operations-wash)}
+[data-nx-identity="forge"],.tone-forge{--nx-current:var(--nx-forge);--nx-current-wash:var(--nx-forge-wash)}
+[data-nx-identity="story"],.tone-story{--nx-current:var(--nx-story);--nx-current-wash:var(--nx-story-wash)}
+[data-nx-identity="ventures"],.tone-ventures{--nx-current:var(--nx-ventures);--nx-current-wash:var(--nx-ventures-wash)}
+[data-nx-identity="pod"],.tone-pod{--nx-current:var(--nx-pod);--nx-current-wash:var(--nx-pod-wash)}
+.tone-recent{--nx-current:#7896bf;--nx-current-wash:rgba(48,72,111,.24)}
+.tone-specialist,.tone-plain{--nx-current:#8b96a8;--nx-current-wash:rgba(68,78,95,.22)}
+
+[data-nx-identity],[class*="tone-"]{--accent:var(--nx-current);--wash:var(--nx-current-wash)}
+body[data-view="planner"]{--nx-current:var(--nx-schedule);--nx-current-wash:var(--nx-schedule-wash)}
+body[data-view="reminders"]{--nx-current:var(--nx-reminders);--nx-current-wash:var(--nx-reminders-wash)}
+body[data-view="life"]{--nx-current:var(--nx-life);--nx-current-wash:var(--nx-life-wash)}
+body[data-view="workbench"]{--nx-current:var(--nx-projects);--nx-current-wash:var(--nx-projects-wash)}
+body[data-view="messages"],body[data-view="chat"]{--nx-current:var(--nx-nex);--nx-current-wash:var(--nx-nex-wash)}
+
+.nx-surface{border:1px solid color-mix(in srgb,var(--nx-current) 38%,var(--nx-line));border-radius:var(--nx-radius-md);background:radial-gradient(circle at 8% 0,var(--nx-current-wash),transparent 42%),var(--nx-surface);color:var(--nx-text);box-shadow:var(--nx-shadow-card)}
+.nx-icon{display:grid;place-items:center;width:44px;height:44px;border-radius:14px;border:1px solid color-mix(in srgb,var(--nx-current) 55%,transparent);background:color-mix(in srgb,var(--nx-current-wash) 70%,var(--nx-surface-raised));color:var(--nx-current)}
+.nx-status{color:var(--nx-current);font-size:11px;font-weight:700}
+.nx-action{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:10px 15px;border:1px solid color-mix(in srgb,var(--nx-current) 62%,var(--nx-line));border-radius:12px;background:var(--nx-surface-raised);color:var(--nx-text);font-weight:700}
+.nx-action-primary{background:var(--nx-current);border-color:var(--nx-current);color:#101216}
+.nx-surface:focus-visible,.nx-action:focus-visible,.nx-icon:focus-visible{outline:2px solid var(--nx-current);outline-offset:3px}
+@media(prefers-reduced-motion:reduce){.nx-surface,.nx-action,.nx-icon{scroll-behavior:auto;transition:none!important}}
