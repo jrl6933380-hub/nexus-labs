@@ -127,6 +127,7 @@ export function createTeamChat({input,thread,onMessage=()=>{},onGroup=()=>{},ope
         heading.append(node('strong',step.name),node('small',LABELS[step.state] || step.state,'teamstate'));copy.append(heading,node('p',teamStepDescription(step)));
         if(step.requires_approval && !step.approved_at && ['planned','queued'].includes(run.state))copy.append(node('small','Will ask you before making changes.','teamattention'));
         if(step.approval_source==='conversation_grant')copy.append(node('small','Already approved for this project.','teamscopes'));
+        for(const update of step.updates || [])copy.append(node('p',update,'teamprogress'));
         if(step.result){
           const visual=appendChatVisual(copy,step.result,step.name);
           if(!visual){const details=node('details');details.dataset.step=step.id;details.open=expanded.has(step.id);details.append(node('summary',resultLabel(step)),node('div',step.result,'teamresult'));if(step.evidence?.status==='verified')details.append(node('small','Checked against the available information.','teamevidence'));else if(step.evidence?.missing?.length)details.append(node('small','Some details could not be fully checked.','teamevidence'));copy.append(details);}

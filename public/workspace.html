@@ -1009,9 +1009,10 @@ function conversationGreeting(){
   }
   greet();
 }
-function renderResponseActions(data){
+function renderResponseActions(data,target=thread,onPick=label=>{el('input').value=label;submit();}){
+  if(data.runState?.state==='waiting' && data.runState.blocker==='runaway_safety_ceiling_hit')target.appendChild(chips([{label:'Continue working',run:()=>onPick('Continue the saved task from its checkpoint. Keep the original goal and reuse completed work.')} ]));
   const options=data.question?.options?.length?data.question.options:data.suggestedReplies;
-  if(Array.isArray(options) && options.length)thread.appendChild(chips(options.slice(0,4).map(label=>({label,run:()=>{el('input').value=label;submit();}}))));
+  if(Array.isArray(options) && options.length)target.appendChild(chips(options.slice(0,4).map(label=>({label,run:()=>onPick(label)}))));
   if(data.pendingApproval){
     const card=document.createElement('section');card.className='approvalcard';
     const title=document.createElement('strong');title.textContent='Your approval is needed';
@@ -1020,7 +1021,7 @@ function renderResponseActions(data){
     const approve=document.createElement('button');approve.type='button';approve.className='uxprimary';approve.textContent=data.pendingApproval.label || 'Approve';
     const status=document.createElement('p');status.setAttribute('role','status');
     approve.onclick=async()=>{approve.disabled=true;try{const response=await fetch('/api/queue',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:data.pendingApproval.id,action:'approve'})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error || 'Approval failed');status.textContent='Merged successfully.';approve.textContent='Merged';}catch(error){status.textContent=friendlyError(error,{subject:'this approval'});approve.disabled=false;}};
-    card.append(title,copy,...(review?[review]:[]),approve,status);thread.append(card);
+    card.append(title,copy,...(review?[review]:[]),approve,status);target.append(card);
   }
 }
 
@@ -1165,6 +1166,7 @@ async function openMessagesConversation(conversation,fresh=false,restoredThreadI
     try{const response=await fetch(`/api/chat?threadId=${encodeURIComponent(threadId)}`,{headers:{Accept:'application/json'},cache:'no-store'});const data=await response.json().catch(()=>({}));if(response.ok)for(const message of data.messages || [])history.push(message);}catch{}
   }
   if(outstanding?.threadId===threadId && !history.some(message=>message?.role==='user' && message.content===outstanding.message))history.push({role:'user',content:outstanding.message});
+  for(const update of outstandingState?.updates || [])if(!history.some(message=>message.role==='assistant' && message.content===update.text))history.push({role:'assistant',content:update.text});
   if(['queued','running'].includes(outstandingState?.state))history.push({role:'assistant',content:'Nex is still working in the background. You can leave Nexus and come back.'});
   else if(outstandingState?.state==='failed')history.push({role:'assistant',content:outstandingState.error || 'Nex could not finish that request. Your message is saved and can be retried.'});
   await showView('chat');
@@ -1206,6 +1208,13 @@ drawPins();
 
 // --- composer --------------------------------------------------------------
 const pause=(milliseconds)=>new Promise(resolve=>setTimeout(resolve,milliseconds));
+function savedChatRuns(){try{return JSON.parse(localStorage.getItem('nexus:chat-runs:v1') || '{}');}catch{return {};}}
+function rememberChatRun(targetThread,data){
+  const runs=savedChatRuns();
+  if(data.runState?.runId && !['completed','blocked','cancelled','failed'].includes(data.runState.state))runs[targetThread]=data.runState.runId;
+  else delete runs[targetThread];
+  localStorage.setItem('nexus:chat-runs:v1',JSON.stringify(runs));
+}
 function pendingChat(){try{return JSON.parse(localStorage.getItem(PENDING_CHAT_KEY) || 'null');}catch{return null;}}
 function savePendingChat(value){
   if(value)localStorage.setItem(PENDING_CHAT_KEY,JSON.stringify(value));
@@ -1217,10 +1226,12 @@ async function chatRequestStatus(requestId){
   if(!response.ok)throw new Error(data?.error || `Status check failed (${response.status})`);
   return data.request;
 }
-async function waitForChatRequest(record,{maxWaitMs=295000}={}){
+async function waitForChatRequest(record,{maxWaitMs=295000,onProgress=()=>{}}={}){
+  const seen=new Set();
   const started=Date.now();
   while(Date.now()-started<maxWaitMs){
     const request=await chatRequestStatus(record.requestId);
+    for(const update of request?.updates || []){if(!seen.has(update.id)){seen.add(update.id);onProgress(update,request.stage);}}
     if(request?.state==='finished'){
       savePendingChat(null);
       return request.response;
@@ -1233,22 +1244,23 @@ async function waitForChatRequest(record,{maxWaitMs=295000}={}){
   }
   throw new Error('Nex is still working in the background. You can close Nexus and come back later.');
 }
-async function durableChatRequest(message,targetThread){
+async function durableChatRequest(message,targetThread,onProgress=()=>{}){
   const requestId=crypto.randomUUID();
   const record={requestId,threadId:targetThread,message,createdAt:Date.now()};
   savePendingChat(record);
   const response=await fetch('/api/chat',{
     method:'POST',
     headers:{'Content-Type':'application/json','Prefer':'respond-async'},
-    body:JSON.stringify({message,threadId:targetThread,requestId,respondAsync:true,workspace:workspaceContext()}),
+    body:JSON.stringify({message,threadId:targetThread,requestId,respondAsync:true,resumeRunId:savedChatRuns()[targetThread],workspace:workspaceContext()}),
   });
   const data=await response.json().catch(()=>({}));
   if(!response.ok){
     if(response.status<500)savePendingChat(null);
     throw new Error(data?.error || `Request failed (${response.status})`);
   }
-  if(response.status===202 || data.state==='queued')return waitForChatRequest(record);
+  if(response.status===202 || data.state==='queued'){const result=await waitForChatRequest(record,{onProgress});rememberChatRun(targetThread,result);return result;}
   savePendingChat(null);
+  rememberChatRun(targetThread,data);
   return data;
 }
 const teamChat=createTeamChat({input:el('input'),thread,
@@ -1274,9 +1286,14 @@ async function submit(){
   if (!threadId) threadId = `t${Date.now().toString(36)}`;
   history.push({role:'user',content:raw});saveThread();
   busy = true; el('send').disabled = true;
-  const pending = bubble('a', '<p style="color:#918c85">Nex is working… You can leave Nexus and come back.</p>');
+  const pending = bubble('a', `<p style="color:#918c85">${esc(activeConversation?.name || 'Nex')} is working… You can leave Nexus and come back.</p>`);
   try {
-    const data = await durableChatRequest(raw,threadId);
+    const targetThread=threadId;
+    const data = await durableChatRequest(raw,targetThread,update=>{
+      if(threadId!==targetThread)return;
+      const note=bubble('a',paragraphs(update.text));pending.before(note);
+      history.push({role:'assistant',content:update.text});
+    });
     const reply = data.reply || 'No reply came back.';
     pending.innerHTML = paragraphs(reply);
     history.push({role:'assistant',content:reply});
@@ -1345,13 +1362,15 @@ let sheetBaseHeight = 0;
 let dockBusy = false;
 let dockError = '';
 let dockIntro = 'Ask me anything about what you have open.';
+let dockResponseActions=null;
 function renderDockConversation(){
   const body=el('dockBody');body.replaceChildren();
   if(dockIntro){const hint=document.createElement('div');hint.className='dockhint';hint.textContent=dockIntro;body.appendChild(hint);}
   const messages=history.filter((message)=>['user','assistant'].includes(message?.role) && message.content).slice(-12);
   for(const message of messages){const bubble=document.createElement('div');bubble.className=`dockmessage${message.role==='user' ? ' user' : ''}`;bubble.textContent=message.content;body.appendChild(bubble);}
-  if(dockBusy){const working=document.createElement('div');working.className='dockmessage working';working.innerHTML='<span>Nex is working</span><span class="workingdots" aria-hidden="true"><i></i><i></i><i></i></span>';body.appendChild(working);}
+  if(dockBusy){const working=document.createElement('div');working.className='dockmessage working';working.innerHTML=`<span>${esc(activeConversation?.name || 'Nex')} is working</span><span class="workingdots" aria-hidden="true"><i></i><i></i><i></i></span>`;body.appendChild(working);}
   if(dockError){const error=document.createElement('div');error.className='dockmessage error';error.textContent=dockError;body.appendChild(error);}
+  if(!dockBusy && dockResponseActions)renderResponseActions(dockResponseActions,body,label=>dockAsk(label));
   body.setAttribute('aria-busy',String(dockBusy));
   requestAnimationFrame(()=>{body.scrollTop=body.scrollHeight;});
 }
@@ -1409,10 +1428,12 @@ async function dockAsk(text){
   if(dockBusy)return;
   if (!threadId) threadId = `t${Date.now().toString(36)}`;
   history.push({role:'user',content:text});saveThread();
-  dockIntro='';dockError='';dockBusy=true;el('dockSend').disabled=true;renderDockConversation();
+  dockIntro='';dockError='';dockResponseActions=null;dockBusy=true;el('dockSend').disabled=true;renderDockConversation();
   try {
-    const data=await durableChatRequest(text,threadId);
+    const targetThread=threadId;
+    const data=await durableChatRequest(text,targetThread,update=>{if(threadId!==targetThread)return;history.push({role:'assistant',content:update.text});renderDockConversation();});
     history.push({role:'assistant',content:data.reply || 'No reply came back.'});
+    dockResponseActions=data;
     saveThread();
   } catch (error) { dockError=friendlyError(error); }
   finally {dockBusy=false;el('dockSend').disabled=false;renderDockConversation();}
