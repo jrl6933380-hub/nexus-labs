@@ -9,7 +9,7 @@
 // plan — Free tier can preview and iterate, but exporting code is one
 // of the things that unlocks with the Hosted tier and above.
 
-import { listBuilds, getBuild, listProjects, deleteProject } from '../lib/roomHistory.js';
+import { listBuilds, getBuild, getLatestBuildByProject, listProjects, saveBuild, deleteProject } from '../lib/roomHistory.js';
 import { getRequestUser, getUserPlan, isOperatorUser, isPaidPlan, PLANS } from '../lib/roomAuth.js';
 import { workbenchProjectAllowance } from '../lib/workbenchPlans.js';
 import { getLiveSite, removeLiveSite, takeSiteOffline, listLiveSites } from '../lib/roomLiveSites.js';
@@ -17,17 +17,44 @@ import { deleteStaticSite } from '../lib/vercel.js';
 import { getOrCreateAnonId } from '../lib/anonSession.js';
 
 // Dependencies are injectable so ownership is exercised through the real handler.
-export function createHistoryHandler({ resolveUser = getRequestUser, readBuild = getBuild, readList = listBuilds, readProjects = listProjects, removeProject = deleteProject, freeLiveSite = takeSiteOffline, readLiveSites = listLiveSites, readLiveSite = getLiveSite, deleteSite = deleteStaticSite, resolvePlan = getUserPlan } = {}) {
+export function createHistoryHandler({ resolveUser = getRequestUser, readBuild = getBuild, readLatestProject = getLatestBuildByProject, readList = listBuilds, readProjects = listProjects, writeBuild = saveBuild, removeProject = deleteProject, freeLiveSite = takeSiteOffline, readLiveSites = listLiveSites, readLiveSite = getLiveSite, deleteSite = deleteStaticSite, resolvePlan = getUserPlan } = {}) {
 return async function handler(req, res) {
   res.setHeader('Cache-Control', 'private, no-store');
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  if (req.method !== 'GET' && req.method !== 'DELETE') {
+  if (!['GET', 'POST', 'DELETE'].includes(req.method)) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
   try {
   let username = await resolveUser(req);
   if (!username) username = getOrCreateAnonId(req, res);
+
+    if (req.method === 'POST') {
+      const body = req.body && typeof req.body === 'object' ? req.body : {};
+      if (body.action !== 'save_chat_visual') return res.status(400).json({ error: 'Unknown project action' });
+      const html = typeof body.html === 'string' ? body.html.trim() : '';
+      const label = typeof body.label === 'string' ? body.label.trim().slice(0, 80) : '';
+      const requestMessage = typeof body.requestMessage === 'string' ? body.requestMessage.trim().slice(0, 4000) : '';
+      const promotionId = typeof body.promotionId === 'string' ? body.promotionId.trim() : '';
+      if (!html || html.length > 100000 || !promotionId || promotionId.length > 180 || !/^[a-zA-Z0-9_-]+$/.test(promotionId)) {
+        return res.status(400).json({ error: 'That visual build is not valid.' });
+      }
+      const projectId = `chatvisual-${promotionId}`.slice(0, 120);
+      const existing = await readLatestProject(username, projectId);
+      if (existing) return res.status(200).json({ build: existing, projectId, alreadySaved: true });
+      const [projects, plan] = await Promise.all([readProjects(username), resolvePlan(username)]);
+      const allowance = workbenchProjectAllowance(plan, isOperatorUser(username));
+      if (projects.length >= allowance.limit) {
+        return res.status(402).json({ error: `Your ${allowance.planName} plan has reached its Projects limit.`, code: 'PROJECT_LIMIT_REACHED' });
+      }
+      const build = await writeBuild(username, {
+        projectId,
+        label: label || 'Saved chat build',
+        requestMessage,
+        html: /^\s*<!doctype\b/i.test(html) || /^\s*<html\b/i.test(html) ? html : `<!doctype html><html><body>${html}</body></html>`,
+      });
+      return res.status(201).json({ build, projectId, alreadySaved: false });
+    }
 
     // DELETE ?projectId=<key> removes every saved version of one project.
     // Scoped to the caller's own history like every other path here, so a

@@ -5,7 +5,7 @@ import {createTeamRunner} from '../lib/teamRunner.js';
 import {createTeamMessagesHandler} from '../lib/teamMessagesHandler.js';
 import {parseTeamMentions,teamHandles} from '../public/team-mentions.js';
 import {createAgentDelegation} from '../lib/agentDelegation.js';
-import {chatVisualDocument} from '../public/chat-visual.js';
+import {chatVisualDocument,chatVisualHtml} from '../public/chat-visual.js';
 import {teamStepDescription} from '../public/team-chat.js';
 import {buildConversationAccessPolicy} from '../lib/nexBrain.js';
 import {planCognitiveRun} from '../lib/nexCognitiveController.js';
@@ -56,6 +56,11 @@ test('chat-only visuals stay conversational even when the builder has project ac
   const run=await runs.create('justin','group-launch',[builder],`@Atlas ${instruction}`,'request-chat-visual',{includeNex:false,autoStart:true});
   assert.equal(run.steps[0].requires_approval,false);assert.equal(run.steps[0].execution_mode,'chat_only');assert.deepEqual(run.steps[0].scopes,['conversation']);
   await runner.execute('justin','group-launch',run.id);const [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'completed');assert.equal(calls[0].context.conversation.execution_mode,'read_only');assert.equal(calls[0].toolContext.cognitiveLane,'chat');assert.match(calls[0].prompt,/not a square poster/);assert.match(calls[0].prompt,/Do not stack every item/);
+});
+test('chat visuals retain their editable source for promotion to Projects',()=>{
+  const source='<!doctype html><html><body><main>Editable site</main></body></html>';
+  assert.equal(chatVisualHtml(`Here it is.\n\`\`\`html\n${source}\n\`\`\``),source);
+  assert.match(chatVisualDocument(`\`\`\`html\n${source}\n\`\`\``),/Content-Security-Policy/);
 });
 test('one approved build grants reversible project work in the same conversation',async()=>{
   const {runs}=fixture(),builder=members[1];
