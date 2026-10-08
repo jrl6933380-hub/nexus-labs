@@ -134,6 +134,7 @@ test('Nex receives every long handoff and returns evidence-caveated reviews',asy
   await runner.execute('justin','group-launch',run.id);await runner.execute('justin','group-launch',run.id);await runner.execute('justin','group-launch',run.id);
   const [saved]=await runs.list('justin','group-launch');
   assert.match(calls[2],/MASON_RESULT: complete visual concept/);
+  assert.match(calls[2],/"truncated":true/);
   assert.equal(saved.state,'completed');assert.equal(saved.steps.at(-1).state,'returned');assert.equal(saved.steps.at(-1).error,null);assert.equal(saved.steps.at(-1).evidence.status,'incomplete');
 });
 test('worker leases prevent duplicate execution and read-only interruptions recover safely',async()=>{
@@ -243,4 +244,20 @@ test('team assignments use plain capability descriptions instead of internal ins
   assert.equal(teamStepDescription({name:'Atlas',role:'research',instruction:'Use tool search and cite evidence.'}),'Researching the topic, comparing options, and checking the facts.');
   assert.equal(teamStepDescription({name:'Mason',role:'build',instruction:'Do not change any repository.'}),'Creating the page, app, tool, or visual you asked for.');
   assert.equal(teamStepDescription({name:'Nex',role:'review',instruction:'Review saved handoffs.'}),'Bringing the team’s work together and recommending what to do next.');
+});
+
+test('research, chat builder, reviewer and Nex get role guidance and finish one team flow',async()=>{
+  const {runs}=fixture(),calls=[];
+  const roster=[{id:'agent-core-atlas',name:'Atlas',role:'research',job:'Research',scopes:['conversation']},{id:'agent-core-mason',name:'Mason',role:'build',job:'Build',scopes:['conversation','projects']},{id:'agent-core-vera',name:'Vera',role:'review',job:'Review',scopes:['conversation','projects']}];
+  const outputs=['Recommended direction: a local business service page. Acceptance criteria: services and contact section.','Complete website draft with services and contact section.','Ready: requested sections are present.','The team finished the draft. Next: review the preview.'];
+  const runner=createTeamRunner({runs,messages:{overview:async()=>({groups:[{id:'group-launch',member_ids:roster.map(x=>x.id)}],specialists:roster})},mode:async()=>({mode:'engaged'}),history:async()=>null,ask:async(prompt,history,tier,context,onStage,tools)=>{calls.push({prompt,tools});return {reply:outputs[calls.length-1],provider:'nex-pod'};}});
+  const run=await runs.create('justin','group-launch',roster,'@Atlas recommend a business website direction @Mason draft a preview in this chat only @Vera review the preview','request-polished-team',{includeNex:true,autoStart:true});
+  for(let i=0;i<4;i++)await runner.execute('justin','group-launch',run.id);
+  assert.match(calls[0].prompt,/Choose one recommended solution/);
+  assert.match(calls[1].prompt,/Recommended direction: a local business service page/);
+  assert.match(calls[1].prompt,/one coherent finished draft/);
+  assert.match(calls[2].prompt,/Review the actual deliverable/);
+  assert.match(calls[3].prompt,/Bring the team to one useful outcome/);
+  for(const {tools} of calls){assert.equal(tools.providerTimeoutMs,240000);assert.equal(tools.reasoningBudgets.maxElapsedMs,240000);assert.equal(tools.cognitiveLane,'chat');assert.ok(tools.reasoningBudgets.maxElapsedMs<WORKER_LEASE_MS);}
+  const [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'completed');assert.equal(saved.steps.every(x=>x.state==='returned'),true);
 });
