@@ -1,8 +1,9 @@
 import {NEXUS_INTRO} from './nexus-guide.js';
 import {renderAccountControls} from './nexus-controls.js';
+import {SPACE_BUNDLES,pinnedBundles} from './nexus-navigation.js';
 import {friendlyError,showFeedback} from './ux.js';
 import {installNexus,nexusInstallState} from './app-install.js';
-import {disableNotifications,enableNotifications,notificationState,pushSupport,notificationError} from './push-notifications.js';
+import {disableNotifications,enableNotifications,notificationState,notificationError} from './push-notifications.js';
 
 const node=(tag,text,cls='')=>{const el=document.createElement(tag);if(text!==undefined)el.textContent=text;el.className=cls;return el;};
 const button=(text,run,cls='')=>{const el=node('button',text,cls);el.type='button';el.onclick=run;return el;};
@@ -60,7 +61,7 @@ export function buildOwnerCapabilityPrompt(section,{name='',purpose='',behavior=
 export async function renderMessages(ctx){
   const root=node('section',undefined,'nexusmessages');let state={specialists:[],groups:[],roles:{},scopes:[],pinned_system_ids:[]};
   let ownerCatalog=null;
-  async function load(message){try{state=await api();if(ctx.consumeMessagesNew?.())newConversation();else draw();if(typeof message==='string' && message.trim())showFeedback(root,message);}catch(error){root.replaceChildren(node('p',friendlyError(error,{action:'load',subject:'Messages'})),button('Try again',()=>load()),button('Explore Nexus',()=>ctx.go('guide'),'guideopen'));}}
+  async function load(message){try{state=await api();if(ctx.consumeMessagesNew?.())newConversation();else {const destination=ctx.consumeMessagesDestination?.();if(destination==='settings')accountControls();else if(SPACE_BUNDLES.some(bundle=>bundle.id===destination))bundleView(destination);else draw();}if(typeof message==='string' && message.trim())showFeedback(root,message);}catch(error){root.replaceChildren(node('p',friendlyError(error,{action:'load',subject:'Messages'})),button('Try again',()=>load()),button('Explore Nexus',()=>ctx.go('guide'),'guideopen'));}}
   function draw(){
     document.body.classList.remove('messages-panel');
     root.replaceChildren();
@@ -74,8 +75,8 @@ export async function renderMessages(ctx){
     for(const group of state.groups){const saved=threads.get(group.id),members=group.member_ids.map(id=>state.specialists.find(item=>item.id===id)).filter(Boolean),names=members.map(member=>member.name);entries.push({section:'Conversations',element:row({name:group.title,meta:[...(group.include_nex===false?[]:['Nex']),...names].join(' + '),preview:saved?.title || 'Use @mentions to give your team a mission.',icon:'+',tone:'group',status:state.team_status?.[group.id] || (saved?.message_count?'Active':'Ready'),when:timeLabel(saved?.updated_at),run:()=>ctx.openConversation({kind:'group',...group,members})}),search:`${group.title} ${names.join(' ')}`});}
     const recent=ctx.recentThreads().filter(item=>!/^agent-|^group-|^nex-main$/u.test(item.id));
     for(const thread of recent)entries.push({section:'Recent',element:row({name:thread.title,meta:'Nex conversation',preview:`${thread.message_count || 0} messages`,icon:'N',tone:'recent',when:timeLabel(thread.updated_at || thread.ts),run:()=>ctx.openThread(thread)}),search:thread.title});
-    const pinned=new Set(state.pinned_system_ids || []);
-    for(const system of SYSTEMS.filter(item=>item.id && pinned.has(item.id))){const run=()=>ctx.openSystem(system.id);entries.push({section:'Nexus spaces',element:row({name:system.name,meta:'Nexus space',preview:system.description,icon:system.icon,tone:system.tone,run}),search:`${system.name} ${system.description}`});}
+    const pinned=new Set(pinnedBundles(state.pinned_system_ids || []));
+    for(const system of SPACE_BUNDLES.filter(item=>pinned.has(item.id))){const run=()=>bundleView(system.id);entries.push({section:'Nexus spaces',element:row({name:system.name,meta:'Nexus space',preview:system.description,icon:system.icon,tone:system.tone,run}),search:`${system.name} ${system.description}`});}
     entries.push({section:'Nexus spaces',element:row({name:'More',meta:'Customize Messages',preview:'Pin the Nexus spaces you want on this screen.',icon:'…',tone:'more',run:moreView}),search:'more customize pin nexus spaces'});
     const paint=(query='')=>{list.replaceChildren();const needle=query.toLowerCase().trim();let previous='';for(const entry of entries){if(needle && !entry.search.toLowerCase().includes(needle))continue;if(!needle && entry.section!==previous){if(previous && entry.section!=='Conversations')list.append(node('p',entry.section,'messagesection'));previous=entry.section;}list.append(entry.element);}if(!list.querySelector('.messageitem'))list.append(node('p','No conversations match that search.','messageempty'));};paint();search.oninput=()=>paint(search.value);
     root.append(button('New conversation',newConversation,'uxprimary messageprimary'));
@@ -84,43 +85,37 @@ export async function renderMessages(ctx){
   function moreView(message=''){
     heading(root,'More','Choose which Nexus spaces stay on your Messages screen.',draw);
     root.append(row({name:'Account & Controls',meta:'Settings and live usage',preview:'Usage, reply preferences, appearance, notifications, security, and data.',icon:'⌁',tone:'more',run:accountControls}));
-    const pinned=new Set(state.pinned_system_ids || []),list=node('div',undefined,'pinmanager');
-    for(const system of SYSTEMS.filter(item=>item.id)){
+    const pinned=new Set(pinnedBundles(state.pinned_system_ids || [])),list=node('div',undefined,'pinmanager');
+    for(const system of SPACE_BUNDLES){
       const item=node('div',undefined,`pinmanagerrow${pinned.has(system.id)?' is-pinned':''}`);
-      item.append(row({name:system.name,meta:system.section,preview:system.description,icon:system.icon,tone:system.tone,run:()=>ctx.openSystem(system.id)}));
+      item.append(row({name:system.name,meta:'Connected spaces',preview:system.description,icon:system.icon,tone:system.tone,run:()=>bundleView(system.id)}));
       const toggle=button(pinned.has(system.id)?'Pinned':'Pin',async()=>{
         toggle.disabled=true;
-        const next=new Set(state.pinned_system_ids || []);if(next.has(system.id))next.delete(system.id);else next.add(system.id);
+        const next=new Set(pinnedBundles(state.pinned_system_ids || []));if(next.has(system.id))next.delete(system.id);else next.add(system.id);
         try{const data=await api('set_pinned_systems',{pinned_system_ids:[...next]});state.pinned_system_ids=data.pinned_system_ids;moreView(`${system.name} ${next.has(system.id)?'pinned to':'removed from'} Messages.`);}catch(error){toggle.disabled=false;showFeedback(root,friendlyError(error,{action:'save',subject:'your pinned spaces'}));}
       },'pinbutton');
       toggle.setAttribute('aria-pressed',String(pinned.has(system.id)));toggle.setAttribute('aria-label',`${pinned.has(system.id)?'Unpin':'Pin'} ${system.name}`);item.append(toggle);list.append(item);
     }
     root.append(list);
-    root.append(row({name:'Explore Nexus',meta:'Your practical guide',preview:'Every feature explained, with examples you can try.',icon:'?',tone:'more',run:()=>ctx.go('guide')}));
-    const app=node('div',undefined,'messagechoices installchoice');app.append(node('p','Nexus app','messagesection'));
-    const installState=nexusInstallState();
-    const installCopy=installState==='installed'?'Nexus is installed on this device.':installState==='prompt'?'Add Nexus to this device with one tap.':installState==='ios'?'Put Nexus on your Home Screen and open it like an app.':'Get Nexus on this device for faster access.';
-    app.append(row({name:installState==='installed'?'Nexus is installed':'Install Nexus',meta:installState==='installed'?'Ready from your Home Screen':'Nexus app',preview:installCopy,icon:'N',tone:'nex',run:installView}));
-    root.append(app);
-    const alerts=node('div',undefined,'messagechoices notificationchoice');alerts.append(node('p','Phone alerts','messagesection'));
-    const support=pushSupport();
-    alerts.append(row({name:'Notifications',meta:support==='supported'?'Schedule + Reminders':'This device is not ready',preview:support==='supported'?'Get alerts even when Nexus is closed.':support==='install-required'?'Add Nexus to your Home Screen, then open the app to turn on alerts.':'Install Nexus on a supported phone or browser to use background alerts.',icon:'◉',tone:'reminders',run:notificationView}));
-    root.append(alerts);
-    const owner=node('div',undefined,'messagechoices ownercontrols');owner.append(node('p','Owner controls','messagesection'));
-    owner.append(row({name:'Tools',meta:'Nex capability inventory',preview:'See every callable tool, what it accesses, and its risk level.',icon:'T',tone:'operations',run:()=>ownerCatalogView('tools')}));
-    owner.append(row({name:'Skills',meta:'Installed operating knowledge',preview:'See the procedures Nex can load and the phrases that trigger them.',icon:'S',tone:'skills',run:()=>ownerCatalogView('skills')}));
-    owner.append(row({name:'Commands',meta:'Deterministic shortcuts',preview:'See the exact commands and @mention patterns Nexus recognizes.',icon:'C',tone:'pod',run:()=>ownerCatalogView('commands')}));
-    root.append(owner);
-    const account=node('div',undefined,'messagechoices');account.append(node('p','Account','messagesection'));
-    for(const system of SYSTEMS.filter(item=>item.action)){account.append(row({name:system.name,meta:'Nexus account',preview:system.description,icon:system.icon,tone:system.tone,run:()=>ctx[system.action]?.()}));}
-    account.append(row({name:'Report a problem',meta:'Help improve Nexus',preview:'Send an idea or tell us what went wrong.',icon:'!',tone:'operations',run:feedbackView}));
-    account.append(row({name:'Privacy',meta:'Your information',preview:'See what Nexus keeps and what you control.',icon:'P',tone:'memory',run:()=>location.assign('/privacy.html')}));
-    account.append(row({name:'Terms',meta:'Using Nexus',preview:'Read the plain-English rules for Nexus.',icon:'T',tone:'legacy',run:()=>location.assign('/terms.html')}));
-    root.append(account);if(typeof message==='string' && message.trim())showFeedback(root,message);
+    if(typeof message==='string' && message.trim())showFeedback(root,message);
+  }
+  function bundleView(id){
+    const bundle=SPACE_BUNDLES.find(item=>item.id===id);if(!bundle)return moreView();
+    heading(root,bundle.name,bundle.description,moreView);
+    const choices=node('div',undefined,'messagechoices');
+    for(const member of bundle.members){const system=SYSTEMS.find(item=>item.id===member);if(system)choices.append(row({name:system.name,meta:bundle.name,preview:system.description,icon:system.icon,tone:system.tone,run:()=>ctx.openSystem(system.id)}));}
+    root.append(choices);
+  }
+  function capabilitySettings(){
+    heading(root,'Capabilities','Owner controls for Nex’s tools, skills, and commands.',accountControls);
+    const choices=node('div',undefined,'messagechoices ownercontrols');
+    for(const [section,name,copy] of [['tools','Tools','Callable abilities and access'],['skills','Skills','Installed operating knowledge'],['commands','Commands','Saved instructions and tool chains']])choices.append(row({name,meta:'Owner controls',preview:copy,icon:name[0],tone:'skills',run:()=>ownerCatalogView(section)}));
+    root.append(choices);
   }
   function accountControls(){
+    document.body.classList.add('messages-panel');
     return renderAccountControls(root,ctx,moreView,{
-      notifications:notificationView,install:installView,feedback:feedbackView,
+      notifications:notificationView,install:installView,feedback:feedbackView,capabilities:capabilitySettings,
       clearChats:()=>clearConversations(ctx.recentThreads().filter(item=>!/^agent-|^group-|^nex-main$/u.test(item.id))),
     });
   }
@@ -137,7 +132,7 @@ export async function renderMessages(ctx){
   }
   async function ownerCatalogView(section){
     const titles={tools:['Tools','Every callable ability Nex can load or use.'],skills:['Skills','Installed procedures that shape how Nex works.'],commands:['Commands','Exact shortcuts you can type in a conversation.']};
-    const [title,copy]=titles[section] || titles.tools;heading(root,title,copy,moreView);root.append(node('p','Loading…','messageempty'));
+    const [title,copy]=titles[section] || titles.tools;heading(root,title,copy,capabilitySettings);root.append(node('p','Loading…','messageempty'));
     try{
       const data=await readOwnerCatalog();root.querySelector('.messageempty')?.remove();const items=Array.isArray(data[section])?data[section]:[];
       const config=CAPABILITY_BUILDERS[section] || CAPABILITY_BUILDERS.tools;
@@ -154,8 +149,8 @@ export async function renderMessages(ctx){
         root.append(group('Built-in commands',builtIn.map(command=>row({name:command.name,meta:command.description,preview:`Example: ${command.example}`,icon:'›',tone:'pod',run:()=>ownerCatalogDetail('commands',command)}))));
       }
       if(!items.length)root.append(node('p',`No ${section} are registered yet.`,'messageempty'));
-      root.append(button('Back to More',moreView,'messagesecondary'));
-    }catch(error){root.replaceChildren();heading(root,title,copy,moreView);root.append(node('p',friendlyError(error,{action:'load',subject:section}),'messageempty'),button('Try again',()=>{ownerCatalog=null;ownerCatalogView(section);},'uxprimary messagecontinue'),button('Back to More',moreView,'messagesecondary'));}
+      root.append(button('Back to Settings',accountControls,'messagesecondary'));
+    }catch(error){root.replaceChildren();heading(root,title,copy,capabilitySettings);root.append(node('p',friendlyError(error,{action:'load',subject:section}),'messageempty'),button('Try again',()=>{ownerCatalog=null;ownerCatalogView(section);},'uxprimary messagecontinue'),button('Back to Settings',accountControls,'messagesecondary'));}
   }
   function ownerCatalogDetail(section,item){
     heading(root,item.name,section==='tools'?'Callable tool details':section==='skills'?'Installed skill instructions':item.type==='saved'?'Saved command and tool chain':'Built-in command',()=>ownerCatalogView(section));
@@ -205,39 +200,39 @@ export async function renderMessages(ctx){
     form.onsubmit=async(event)=>{event.preventDefault();create.disabled=true;status.textContent=`Opening Nex to scope this ${config.singular}…`;const scopes=[...scope.querySelectorAll('input:checked')].map(input=>input.value);const prompt=buildOwnerCapabilityPrompt(section,{name:name.value,purpose:purpose.value,behavior:behavior.value,scopes});try{if(ctx.draftPrompt)await ctx.draftPrompt(prompt);else{window.dispatchEvent(new CustomEvent('nexus:nex-prompt',{detail:{text:prompt}}));ctx.openConversation?.({kind:'nex',name:'Nex'});}}catch(error){status.textContent=friendlyError(error,{action:'save',subject:`this ${config.singular}`,keepDraft:true});create.disabled=false;}};
   }
   function feedbackView(){
-    heading(root,'Report a problem','Tell us what happened or what would make Nexus better.',moreView);
+    heading(root,'Report a problem','Tell us what happened or what would make Nexus better.',accountControls);
     const form=node('form',undefined,'messageform'),category=node('select'),message=node('textarea'),status=node('p',undefined,'messageformstatus');
     for(const [value,label] of [['problem','Something went wrong'],['idea','I have an idea'],['other','Something else']]){const option=node('option',label);option.value=value;category.append(option);}
     message.required=true;message.maxLength=4000;message.placeholder='What happened? What did you expect?';status.setAttribute('role','status');
-    const send=button('Send feedback',null,'uxprimary messagecontinue');send.type='submit';form.append(node('label','What kind of feedback?'),category,node('label','Tell us about it'),message,send,status);root.append(form,button('Back to More',moreView,'messagesecondary'));
+    const send=button('Send feedback',null,'uxprimary messagecontinue');send.type='submit';form.append(node('label','What kind of feedback?'),category,node('label','Tell us about it'),message,send,status);root.append(form,button('Back to Settings',accountControls,'messagesecondary'));
     form.onsubmit=async(event)=>{event.preventDefault();send.disabled=true;try{const response=await fetch('/api/feedback',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({category:category.value,message:message.value,page:location.pathname+location.search})}),data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error || 'Feedback could not be sent');moreView('Thanks—your feedback was sent.');}catch(error){status.textContent=friendlyError(error,{action:'send',subject:'your feedback',keepDraft:true});send.disabled=false;}};
     message.focus();
   }
   async function notificationView(message=''){
-    heading(root,'Phone notifications','Let Schedule and Reminders reach you when Nexus is closed.',moreView);
+    heading(root,'Phone notifications','Let Schedule and Reminders reach you when Nexus is closed.',accountControls);
     const card=node('section',undefined,'installcard');card.append(avatar('✓','reminders'));
     const status=node('p','Checking this device…','messageformstatus');card.append(node('h3','Stay ahead of your day.'),node('p','Nexus only sends alerts you asked for. Tap one to open the right Schedule or Reminder.'),status);root.append(card);
     try{
       const state=await notificationState();
-      if(state.support==='install-required'){status.textContent='On iPhone and iPad, add Nexus to your Home Screen first. Open the Nexus icon, then return here to turn on alerts.';root.append(button('Install Nexus',installView,'uxprimary messagecontinue'),button('Back to More',()=>moreView(),'messagesecondary'));return;}
-      if(state.support!=='supported'){status.textContent=state.support==='insecure'?'Open the secure Nexus app to turn on alerts.':'This device or browser does not support Nexus phone alerts yet.';root.append(button('Back to More',moreView,'uxprimary messagecontinue'));return;}
-      if(!state.configured){status.textContent='Phone alerts are being connected. Everything else in Nexus still works.';root.append(button('Back to More',moreView,'uxprimary messagecontinue'));return;}
+      if(state.support==='install-required'){status.textContent='On iPhone and iPad, add Nexus to your Home Screen first. Open the Nexus icon, then return here to turn on alerts.';root.append(button('Install Nexus',installView,'uxprimary messagecontinue'),button('Back to Settings',accountControls,'messagesecondary'));return;}
+      if(state.support!=='supported'){status.textContent=state.support==='insecure'?'Open the secure Nexus app to turn on alerts.':'This device or browser does not support Nexus phone alerts yet.';root.append(button('Back to Settings',accountControls,'uxprimary messagecontinue'));return;}
+      if(!state.configured){status.textContent='Phone alerts are being connected. Everything else in Nexus still works.';root.append(button('Back to Settings',accountControls,'uxprimary messagecontinue'));return;}
       status.textContent=state.enabled?'Notifications are on for this device.':'Notifications are off for this device.';
       const toggle=button(state.enabled?'Turn off notifications':'Turn on notifications',async()=>{toggle.disabled=true;try{if(state.enabled)await disableNotifications();else await enableNotifications();notificationView(state.enabled?'Notifications turned off.':'Notifications are on. A test alert was sent.');}catch(error){toggle.disabled=false;showFeedback(root,notificationError(error));}},'uxprimary messagecontinue');
-      root.append(toggle,button('Back to More',moreView,'messagesecondary'));if(typeof message==='string' && message.trim())showFeedback(root,message);
-    }catch(error){status.textContent=notificationError(error);root.append(button('Try again',notificationView,'uxprimary messagecontinue'),button('Back to More',moreView,'messagesecondary'));}
+      root.append(toggle,button('Back to Settings',accountControls,'messagesecondary'));if(typeof message==='string' && message.trim())showFeedback(root,message);
+    }catch(error){status.textContent=notificationError(error);root.append(button('Try again',notificationView,'uxprimary messagecontinue'),button('Back to Settings',accountControls,'messagesecondary'));}
   }
   function installView(){
-    const state=nexusInstallState();heading(root,state==='installed'?'Nexus is installed':'Install Nexus',state==='installed'?'Open Nexus from your Home Screen whenever you need it.':'Give Nexus its own icon and full-screen home on this device.',moreView);
+    const state=nexusInstallState();heading(root,state==='installed'?'Nexus is installed':'Install Nexus',state==='installed'?'Open Nexus from your Home Screen whenever you need it.':'Give Nexus its own icon and full-screen home on this device.',accountControls);
     const card=node('section',undefined,'installcard');card.append(avatar('N','nex'));
     if(state==='installed'){
       card.append(node('h3','You’re all set.'),node('p','Nexus already opens as an app on this device. Your projects, schedule, reminders, and Life stay connected to your account.'));
-      root.append(card,button('Back to More',moreView,'uxprimary messagecontinue'));return;
+      root.append(card,button('Back to Settings',accountControls,'uxprimary messagecontinue'));return;
     }
     if(state==='prompt'){
       card.append(node('h3','Ready to install.'),node('p','Nexus will get its own icon and open without the browser around it.'));
       const install=button('Install Nexus',async()=>{install.disabled=true;const result=await installNexus();if(result.outcome==='accepted')installView();else{install.disabled=false;showFeedback(root,'Installation was not completed. You can try again whenever you’re ready.');}},'uxprimary messagecontinue');
-      root.append(card,install,button('Not now',moreView,'messagesecondary'));return;
+      root.append(card,install,button('Not now',accountControls,'messagesecondary'));return;
     }
     const ios=nexusInstallState()==='ios';
     const steps=node('ol',undefined,'installsteps');
@@ -245,7 +240,7 @@ export async function renderMessages(ctx){
       ? [['1','Tap Share','Use the Share button in Safari.'],['2','Add to Home Screen','Scroll down and choose Add to Home Screen.'],['3','Add Nexus','Keep Open as Web App turned on, then tap Add.']]
       : [['1','Open your browser menu','Look for Install app or Add to Home Screen.'],['2','Choose Install Nexus','Confirm the installation when your browser asks.'],['3','Open Nexus','Use the new Nexus icon on your device.']];
     for(const [number,title,copy] of instructions){const item=node('li');item.append(node('b',number),node('span',undefined,'installstepcopy'));item.lastChild.append(node('strong',title),node('small',copy));steps.append(item);}
-    card.append(node('h3',ios?'Install from Safari':'Install from your browser'),steps);root.append(card,button('Got it',moreView,'uxprimary messagecontinue'));
+    card.append(node('h3',ios?'Install from Safari':'Install from your browser'),steps);root.append(card,button('Got it',accountControls,'uxprimary messagecontinue'));
   }
   function clearConversations(recent){
     const kept=new Set();heading(root,'Clear conversations','Keep useful facts, preferences, decisions, and project details in Memory, then clear the chats. Chats with nothing important save nothing. Projects, schedules, reminders, and your agents stay safe. Choose Keep on any recent chat you still want.',draw);
