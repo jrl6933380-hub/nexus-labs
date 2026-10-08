@@ -2,6 +2,8 @@ import crypto from 'node:crypto';
 import { waitUntil } from '@vercel/functions';
 import { teamRunner } from '../lib/teamRunner.js';
 import { chatRequest, requestKey } from '../lib/nexChatRequests.js';
+import { createChatProgress } from '../lib/nexChatProgress.js';
+import { INDIVIDUAL_WORK_MS } from '../lib/nexWorkTiming.js';
 // /pages/api/chat.js
 // Nex's visible chat endpoint — thin wrapper around the shared brain
 // in lib/nexBrain.js. Handles the KV-backed rolling history so the
@@ -211,6 +213,11 @@ export default async function handler(req, res) {
     if (buildStreamStarted && !res.destroyed && !res.writableEnded) res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
   };
 
+  const progress=createChatProgress({
+    save:value=>saveStatus({state:'running',...value}),
+    emit:sendBuildEvent,
+  });
+
   // The installed iPhone app may be suspended as soon as Mr. Lopez switches
   // away from it. For workspace requests, acknowledge immediately and let a
   // server-to-server invocation own the real Nex turn. The request status and
@@ -233,7 +240,10 @@ export default async function handler(req, res) {
       if (!response.ok) throw new Error(`Background Nex request failed (${response.status})`);
     }).catch(async (error) => {
       console.error('Background Nex request failed:', error.message);
+      const latest=await chatRequest(operatorUser,requestId).catch(()=>null);
+      if(['finished','failed'].includes(latest?.state))return;
       await saveStatus({
+        ...latest,
         state: 'failed',
         error: 'Nex could not finish that request. Your message is saved and can be retried.',
       });
@@ -334,13 +344,16 @@ export default async function handler(req, res) {
       runState,
       securityReceipt,
       degraded,
-    } = await askNex(messageForModel, runningHistory, forcedTier, clientContext, (stage) => sendBuildEvent('stage', stage), {userId:operatorUser,threadId:collaborationThread,agentActivity,scheduleUserId:`owner:${operatorUser}`,storyProjectId:clientContext.screen?.story_project_id || null, effort:forcedEffort, deepThoughtEnabled, deepThoughtRequested, resumeRunId, forceSkill:forcedSkill});
+    } = await askNex(messageForModel, runningHistory, forcedTier, clientContext, (stage) => progress.record(stage), {providerTimeoutMs:INDIVIDUAL_WORK_MS,reasoningBudgets:{maxElapsedMs:INDIVIDUAL_WORK_MS},userId:operatorUser,threadId:collaborationThread,agentActivity,scheduleUserId:`owner:${operatorUser}`,storyProjectId:clientContext.screen?.story_project_id || null, effort:forcedEffort, deepThoughtEnabled, deepThoughtRequested, resumeRunId, forceSkill:forcedSkill});
+
+    await progress.flush();
 
     // Store which model actually answered and token usage alongside the
     // message itself, so "who answered" and token count survive a page
     // reload — not just visible on the live response.
     const finalHistory = [
       ...updatedHistory,
+      ...progress.snapshot().updates.filter(update=>update.text!==reply).map(update=>({role:'assistant',content:update.text})),
       { role: 'assistant', content: reply, model: answeredModel, usage },
     ];
     await saveConversation(operatorUser, finalHistory, threadId);
@@ -363,7 +376,7 @@ export default async function handler(req, res) {
       securityReceipt,
       degraded,
     };
-    await saveStatus({ state: 'finished', response });
+    await saveStatus({ state: 'finished', response, ...progress.snapshot() });
     if (wantsBuildStream) {
       sendBuildEvent('stage', { state: 'complete', tool: 'planning', label: 'Build response ready' });
       sendBuildEvent('result', response);
@@ -371,7 +384,8 @@ export default async function handler(req, res) {
     }
     return res.status(200).json(response);
   } catch (err) {
-    if (tracked) await saveStatus({ state: 'failed', error: 'Nex hit a server error. Inspect the last saved progress before trying again.' });
+    await progress.flush();
+    if (tracked) await saveStatus({ state: 'failed', error: 'Nex hit a server error. Inspect the last saved progress before trying again.', ...progress.snapshot() });
     console.error('Nex chat handler crashed:', err);
     Sentry.captureException(err);
     await Sentry.flush(2000); // wait for Sentry to actually send before the function ends

@@ -261,3 +261,14 @@ test('research, chat builder, reviewer and Nex get role guidance and finish one 
   for(const {tools} of calls){assert.equal(tools.providerTimeoutMs,240000);assert.equal(tools.reasoningBudgets.maxElapsedMs,240000);assert.equal(tools.cognitiveLane,'chat');assert.ok(tools.reasoningBudgets.maxElapsedMs<WORKER_LEASE_MS);}
   const [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'completed');assert.equal(saved.steps.every(x=>x.state==='returned'),true);
 });
+
+test('team public progress is saved while the assignment continues',async()=>{
+  const {runs}=fixture(),researcher=members[0];
+  const runner=createTeamRunner({runs,messages:{overview:async()=>({groups:[],specialists:[researcher]})},mode:async()=>({mode:'engaged'}),history:async()=>null,ask:async(prompt,history,tier,context,onStage)=>{
+    onStage({type:'commentary',text:'I found the strongest direction. Now I’m checking its sources.'});
+    return {reply:'Recommendation complete.',provider:'nex-pod'};
+  }});
+  const run=await runs.create('justin','nex-main',[researcher],'@Maya research launch ideas','request-visible-progress',{includeNex:false,autoStart:true});
+  await runner.execute('justin','nex-main',run.id);
+  const [saved]=await runs.list('justin','nex-main');assert.equal(saved.steps[0].updates[0],'I found the strongest direction. Now I’m checking its sources.');assert.equal(saved.state,'completed');
+});

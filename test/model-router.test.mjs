@@ -548,3 +548,17 @@ test('REGRESSION: switching the emergency fallback model (the real gpt-5.6-sol -
   });
   assert.equal(calls[0].model, 'openai/gpt-5.4-nano');
 });
+
+test('Qwen uses explicit remaining-time overrides without restoring the ninety-second minimum',async()=>{
+  _resetPodCacheForTests();
+  const timers=[],original=globalThis.setTimeout;
+  globalThis.setTimeout=(fn,ms,...args)=>{timers.push(ms);return original(fn,ms,...args);};
+  try{
+    const result=await routeMessage({preferPod:true,timeoutOverrideMs:40000,body:{messages:[{role:'user',content:'Continue'}]},env:{RUNPOD_API_KEY:'rp',NEX_POD_KEY:'pk',NEX_QWEN_ONLY:'true'},fetchFn:async url=>{
+      if(url==='https://rest.runpod.io/v1/pods')return response({json:[{id:'pod-1',name:'nex-pod',desiredStatus:'RUNNING'}]});
+      if(url.endsWith('/v1/models'))return response();
+      return response({json:{choices:[{message:{content:'Done'}}]}});
+    }});
+    assert.equal(result.provider,'nex-pod');assert.ok(timers.includes(40000));assert.ok(!timers.includes(90000));
+  }finally{globalThis.setTimeout=original;}
+});
