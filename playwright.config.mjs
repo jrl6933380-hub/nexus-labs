@@ -15,5 +15,6 @@ export default defineConfig({
   },
   use: {
     baseURL: 'http://127.0.0.1:4173',
+    launchOptions: process.env.NEXUS_TEST_BROWSER_PATH ? {executablePath:process.env.NEXUS_TEST_BROWSER_PATH,args:['--no-sandbox','--disable-dev-shm-usage']} : {},
   },
 });

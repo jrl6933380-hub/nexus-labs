@@ -4,7 +4,8 @@ import {createLifeStore,summarizeLife} from '../lib/life.js';
 import {createPlannerStore} from '../lib/planner.js';
 import {createReminderStore} from '../lib/reminders.js';
 import {createLifeHandler} from '../api/board.js';
-import {renderLife,lifeWeekItems,copyLifeTimes} from '../public/life.js';
+import {renderLife as renderLifeRaw,lifeWeekItems,copyLifeTimes} from '../public/life.js';
+async function renderLife(ctx){const root=await renderLifeRaw(ctx);const today=all(root).find(el=>el.textContent==='Today');if(today)await today.onclick();return root;}
 function fixture(){const hashes=new Map();let id=0,time=1000;const command=async([verb,key,...args])=>{const hash=hashes.get(key) || new Map();hashes.set(key,hash);if(verb==='HSET'){for(let i=0;i<args.length;i+=2)hash.set(args[i],args[i+1]);return 1;}if(verb==='HGET')return hash.get(args[0]) || null;if(verb==='HGETALL')return [...hash].flat();if(verb==='HDEL')return hash.delete(args[0]) ? 1 : 0;throw Error(verb);};const now=()=>++time;const planner=createPlannerStore({command,now,idFactory:()=>`block-${++id}`}),reminders=createReminderStore({command,planner,now,idFactory:()=>`reminder-${++id}`});return {planner,reminders,life:createLifeStore({command,planner,reminders,now,idFactory:()=>`life-${++id}`})};}
 const activity={title:'Walk',pillar:'health',kind:'activity',starts_at:'2026-10-05T15:00:00Z',ends_at:'2026-10-05T16:00:00Z'};
 async function save(life,input,user='room:a',destination='life'){const preview=await life.preview(input,user);return life.save({...preview.item,baseline:preview.baseline,destination},user);}
@@ -42,7 +43,7 @@ test('Life HTTP authentication derives account scope and refuses unknown actions
   const denied=createLifeHandler({getOwner:async()=>null,getUser:async()=>null,store});const reject=res();await denied({method:'GET'},reject);assert.equal(reject.code,401);
   const bad=res();await handler({method:'POST',body:{action:'invent'}},bad);assert.equal(bad.code,400);
 });
-function element(tag){return {tagName:tag,children:[],attrs:{},className:'',value:'',style:{setProperty(){}},classList:{toggle(){},add(){}},setAttribute(k,v){this.attrs[k]=v;},removeAttribute(k){delete this.attrs[k];},append(...nodes){this.children.push(...nodes);},replaceChildren(...nodes){this.children=nodes;},get childNodes(){return this.children;},focus(){},querySelector(){return null;}};}
+function element(tag){return {tagName:tag,children:[],attrs:{},dataset:{},className:'',value:'',style:{setProperty(){}},classList:{toggle(){},add(){},remove(){}},setAttribute(k,v){this.attrs[k]=v;},removeAttribute(k){delete this.attrs[k];},append(...nodes){nodes.forEach(node=>{node.parentElement=this;});this.children.push(...nodes);},replaceChildren(...nodes){this.children=[];this.append(...nodes);},get childNodes(){return this.children;},get lastChild(){return this.children.at(-1);},focus(){},querySelector(){return null;},querySelectorAll(){return [];},getBoundingClientRect(){return {width:176,left:0,right:176,top:0,bottom:852};},addEventListener(){},showModal(){},close(){},remove(){if(this.parentElement)this.parentElement.children=this.parentElement.children.filter(node=>node!==this);}};}
 const all=root=>[root,...root.children.flatMap(all)];
 test('Life has its own calendar/reminders navigation and skippable onboarding',async()=>{
   const previousDocument=globalThis.document,previousFetch=globalThis.fetch;const requests=[];
@@ -83,7 +84,7 @@ test('Life calendar reads its own endpoint and an activity is reviewed before th
   };
   try{
     const root=await renderLife({ask(){}});await all(root).find(el=>el.textContent==='Life calendar').onclick();
-    assert.ok(requests.some(request=>request.url.startsWith('/api/life?from=')));assert.equal(requests.some(request=>request.url.startsWith('/api/planner')),false);
+    assert.ok(requests.some(request=>request.url==='/api/life'));assert.equal(requests.some(request=>request.url.startsWith('/api/planner')),false);
     all(root).find(el=>el.textContent==='+ Plan an activity').onclick();
     all(root).find(el=>el.tagName==='label' && el.textContent==='What is it?').children[0].value='Walk';
     await all(root).find(el=>el.tagName==='form').onsubmit({preventDefault(){}});
@@ -116,15 +117,11 @@ test('saved check-ins are visible on Life cards and calendar blocks; quick choic
     await all(card).find(el=>el.textContent==='4 · Energizing').onclick();
     let saved=(await life.overview('room:a')).items[0];assert.equal(saved.energy,4);assert.equal(saved.reflection,'A beautiful walk');assert.equal(saved.actual_starts_at,start.toISOString());
     assert.deepEqual(requests.at(-1),{action:'check_in',id:item.id,energy:4});
-    await all(root).find(el=>el.textContent==='Life calendar').onclick();await all(root).find(el=>el.textContent==='Day').onclick();await all(all(root).find(el=>el.className==='nexcalendar')).find(el=>el.textContent==='Today').onclick();
-    let block=all(root).find(el=>el.className==='caltimed');assert.ok(block);
-    assert.ok(all(block).find(el=>el.textContent==='It happened · 4/5 · Energizing'));
-    assert.match(block.children[0].attrs['aria-label'],/It happened/);
-    await all(block).find(el=>el.tagName==='button' && el.textContent==='Did not happen').onclick();
-    block=all(root).find(el=>el.className==='caltimed');assert.ok(all(block).find(el=>el.textContent==='Did not happen · 4/5 · Energizing'));
-    saved=(await life.overview('room:a')).items[0];assert.equal(saved.actual_starts_at,null);assert.equal(saved.reflection,'A beautiful walk');
-    await all(block).find(el=>el.tagName==='button' && el.textContent==='It happened').onclick();
-    saved=(await life.overview('room:a')).items[0];assert.equal(saved.outcome,'happened');assert.equal(saved.actual_starts_at,null);
+    await all(root).find(el=>el.textContent==='Life calendar').onclick();
+    const block=all(root).find(el=>el.className==='lc-block');assert.ok(block);assert.ok(all(block).find(el=>el.textContent==='4 ⚡'));
+    await all(root).find(el=>el.textContent==='Today').onclick();card=all(root).find(el=>el.className==='lifeactivity');
+    await all(card).find(el=>el.tagName==='button' && el.textContent==='Did not happen').onclick();saved=(await life.overview('room:a')).items[0];assert.equal(saved.actual_starts_at,null);assert.equal(saved.reflection,'A beautiful walk');
+    card=all(root).find(el=>el.className==='lifeactivity');await all(card).find(el=>el.tagName==='button' && el.textContent==='It happened').onclick();saved=(await life.overview('room:a')).items[0];assert.equal(saved.outcome,'happened');assert.equal(saved.actual_starts_at,null);
     for(const control of all(root).filter(el=>el.tagName==='button'))assert.equal(all(control).slice(1).some(el=>el.tagName==='button'),false);
   }finally{globalThis.document=oldDocument;globalThis.fetch=oldFetch;globalThis.requestAnimationFrame=oldFrame;}
 });
@@ -163,7 +160,7 @@ test('daily pulse, history, guided day changes, and relevant suggestions work wi
   globalThis.document={createElement:element};globalThis.requestAnimationFrame=callback=>callback();
   globalThis.fetch=async(url,options)=>{let result;if(!options?.method)result=await life.overview('room:a');else{const {action,...input}=JSON.parse(options.body);result=await life[action==='check_in' ? 'checkIn' : action](input,'room:a');}return {ok:true,json:async()=>result};};
   try{
-    const root=await renderLife({ask:prompt=>prompts.push(prompt)});await all(root).find(el=>el.textContent==='Today').onclick();await all(root).find(el=>el.textContent==='2 · Low').onclick();
+    const root=await renderLifeRaw({ask:prompt=>prompts.push(prompt)});assert.ok(all(root).find(el=>el.className==='lifecalendar'));assert.ok(!all(root).find(el=>el.textContent==='Month'));await all(root).find(el=>el.textContent==='Today').onclick();await all(root).find(el=>el.textContent==='2 · Low').onclick();
     assert.ok(all(root).find(el=>el.textContent==='Today: 2/5 · Low'));assert.ok(all(root).find(el=>el.textContent==='Plan a short pause'));
     const pulse=all(root).find(el=>el.className==='lifepulse');all(pulse).find(el=>el.tagName==='textarea').value='Need a quiet afternoon';await all(pulse).find(el=>el.textContent==='Save note').onclick();
     await all(root).find(el=>el.textContent==='Life history').onclick();assert.ok(all(root).find(el=>el.textContent?.includes('Need a quiet afternoon')));
@@ -199,19 +196,19 @@ test('weekly carry-forward uses the chosen local day for duplicate protection wh
   proposed=await life.previewWeek({entries:[{source_id:source.id,copy_date:'2026-10-12',starts_at:'2026-10-13T01:00:00Z',ends_at:'2026-10-13T02:00:00Z'}]},'room:a');assert.equal(proposed.items.length,0);assert.equal(proposed.already.length,1);
 });
 
-test('Life home keeps extra views collapsed and returns from Explore Life without losing the daily pulse',async()=>{
+test('Life opens one calendar and retains Today pulse and history as secondary views',async()=>{
   const oldDocument=globalThis.document,oldFetch=globalThis.fetch;const prompts=[];
   globalThis.document={createElement:element};globalThis.fetch=async()=>({ok:true,json:async()=>({items:[],pulses:[],profile:{onboarded:true,focus:[]}})});
   try{
-    const root=await renderLife({ask:prompt=>prompts.push(prompt)});await all(root).find(el=>el.textContent==='Today').onclick();
-    let explore=all(root).find(el=>el.className==='lifeexplore');assert.equal(explore.open,false);assert.equal(explore.children[0].textContent,'Explore Life');
-    assert.equal(all(explore).filter(el=>el.tagName==='button').length,5);
+    const root=await renderLifeRaw({ask:prompt=>prompts.push(prompt)});assert.ok(all(root).find(el=>el.className==='lifecalendar'));assert.ok(!all(root).find(el=>el.textContent==='Month'));await all(root).find(el=>el.textContent==='Today').onclick();
+    let explore=all(root).find(el=>el.className==='lifeexplore');assert.equal(explore.tagName,'div');
+    assert.equal(all(explore).filter(el=>el.tagName==='button').length,3);
     assert.ok(all(root).find(el=>el.className==='lifepulse'));assert.ok(all(root).find(el=>el.className==='lifeideas' && !el.open));
     const primary=all(root).find(el=>el.className==='lifeactions lifeprimary');assert.deepEqual(primary.children.map(el=>el.textContent),['✦ Plan my week']);
     primary.children[0].onclick();assert.match(prompts[0],/Read Life and Nex Schedule/);
-    explore.open=true;await all(explore).find(el=>el.textContent==='Life history').onclick();
-    explore=all(root).find(el=>el.className==='lifeexplore');assert.equal(explore.open,true);assert.ok(all(root).find(el=>el.textContent==='Your Life history'));
-    await all(root).find(el=>el.textContent==='Today').onclick();assert.equal(all(root).find(el=>el.className==='lifeexplore').open,false);assert.ok(all(root).find(el=>el.className==='lifepulse'));
+    await all(root).find(el=>el.textContent==='Life history').onclick();
+    explore=all(root).find(el=>el.className==='lifeexplore');assert.equal(explore.tagName,'div');assert.ok(all(root).find(el=>el.textContent==='Your Life history'));
+    await all(root).find(el=>el.textContent==='Today').onclick();assert.equal(all(root).find(el=>el.className==='lifeexplore').tagName,'div');assert.ok(all(root).find(el=>el.className==='lifepulse'));
   }finally{globalThis.document=oldDocument;globalThis.fetch=oldFetch;}
 });
 
