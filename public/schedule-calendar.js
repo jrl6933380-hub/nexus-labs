@@ -1,3 +1,4 @@
+import {attachCalendarDrag} from './calendar-drag.js';
 import { friendlyError } from './ux.js';
 // A calendar-first surface over the shared Schedule store.
 import { occupiedStart } from './schedule-availability.js';
@@ -36,13 +37,13 @@ const clock = (date) => date.toLocaleTimeString('en-US',{hour:'numeric',minute:'
 export async function renderScheduleCalendar(ctx, extras) {
   const state=ctx.calendarState || globalCalendarState;
   const root=node('section','nexcalendar');
-  let payload={items:[]}, requestId=0, search='', closeActivityActions=null;
+  let payload={items:[]}, requestId=0, search='', closeActivityActions=null, savedScroll=null;
   async function load() {
     const id=++requestId;
     root.setAttribute('aria-busy','true');
     const start=state.mode === 'month' ? new Date(state.date.getFullYear(),state.date.getMonth(),1) : dayStart(state.date);
-    const from=shift(start,state.mode === 'month' ? -start.getDay() : 0);
-    const to=state.mode === 'month' ? shift(from,42) : shift(from,state.mode === 'multi' ? 3 : state.mode === 'list' ? 30 : 1);
+    const from=shift(start,state.mode === 'month' ? -start.getDay() : state.mode==='week' ? -((start.getDay()+6)%7) : 0);
+    const to=state.mode === 'month' ? shift(from,42) : shift(from,state.mode==='week' ? 7 : state.mode === 'multi' ? 3 : state.mode === 'list' ? 30 : 1);
     try {
       // Include blocks starting before the range, such as overnight events.
       const response=await fetch(`${ctx.calendarEndpoint || '/api/planner'}?from=${encodeURIComponent(shift(from,-14).toISOString())}&to=${encodeURIComponent(to.toISOString())}`,{credentials:'include'});
@@ -68,7 +69,7 @@ export async function renderScheduleCalendar(ctx, extras) {
     const add=button('+',()=>ctx.openScheduleStudio('block',calendarKey(state.date)),'Add activity'); add.className='caladd';toolbar.append(add);root.append(toolbar);
     const controls=node('div','calcontrols');
     const modes=node('div','calmodes');modes.setAttribute('aria-label','Calendar views');
-    for(const [mode,label] of [['month','Month'],['day','Day'],['multi','Multi-day'],['list','List']]) {
+    for(const [mode,label] of [['month','Month'],['day','Day'],...(ctx.changeCalendarTimes ? [['week','Week']] : []),['multi','Multi-day'],['list','List']]) {
       const control=button(label,()=>{state.mode=mode;return load();});control.classList.toggle('active',state.mode===mode);control.setAttribute('aria-pressed',String(state.mode===mode));modes.append(control);
     }
     controls.append(modes,button('Today',()=>{state.date=new Date();return load();}));root.append(controls);
@@ -91,7 +92,7 @@ export async function renderScheduleCalendar(ctx, extras) {
   }
   function navigate(direction) {
     if(state.mode === 'month') state.date=new Date(state.date.getFullYear(),state.date.getMonth()+direction,Math.min(state.date.getDate(),28));
-    else state.date=shift(state.date,direction*(state.mode === 'multi' ? 3 : state.mode === 'list' ? 7 : 1));
+    else state.date=shift(state.date,direction*(state.mode==='week' ? 7 : state.mode === 'multi' ? 3 : state.mode === 'list' ? 7 : 1));
     load();
   }
   function month(items) {
@@ -141,17 +142,19 @@ export async function renderScheduleCalendar(ctx, extras) {
     if(!count)host.append(node('p','calempty',search ? 'No matching activities in this period.' : 'Your schedule is open. Tap + to add something, or plan with Nex.'));
   }
   function timeline(items) {
-    const days=Array.from({length:state.mode==='multi' ? 3 : 1},(_,i)=>shift(state.date,i));
+    const first=state.mode==='week' ? shift(state.date,-((state.date.getDay()+6)%7)) : state.date;
+    const days=Array.from({length:state.mode==='week' ? 7 : state.mode==='multi' ? 3 : 1},(_,i)=>shift(first,i));
+    const canvas=node('div',state.mode==='week' ? 'calweekcanvas' : 'calcanvas');root.append(canvas);
     const head=node('div','caldayheads');head.style.setProperty('--days',days.length);head.append(node('span','',''));
-    for(const day of days)head.append(button(day.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}),()=>{state.date=day;state.mode='day';return load();}));root.append(head);
+    for(const day of days)head.append(button(day.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}),()=>{state.date=day;state.mode='day';return load();}));canvas.append(head);
     const allDay=node('div','calallday');
     for(const day of days) for(const item of calendarDayItems(items,day).filter((item)=>item.all_day)) allDay.append(activityBlock(item,'calalldayitem'));
     if(allDay.childNodes.length)root.append(allDay);
-    const scroll=node('div','calhours');const grid=node('div','calhourgrid');grid.style.setProperty('--days',days.length);scroll.append(grid);root.append(scroll);
-    const labels=node('div','calhourlabels');
+    const scroll=node('div','calhours');const grid=node('div','calhourgrid');grid.style.setProperty('--days',days.length);scroll.append(grid);canvas.append(scroll);
+    const columns=[];const labels=node('div','calhourlabels');
     for(let hour=0;hour<24;hour++)labels.append(node('span','',`${hour%12 || 12} ${hour<12 ? 'AM' : 'PM'}`));grid.append(labels);
     for(const day of days) {
-      const column=node('div','calhourcolumn');
+      const column=node('div','calhourcolumn');column.setAttribute('data-day',calendarKey(day));columns.push(column);
       for(let hour=0;hour<24;hour++) {
         const slot=button('',()=>ctx.openScheduleStudio('block',calendarKey(day),hour*60),`Add activity ${day.toLocaleDateString('en-US',{weekday:'long'})} at ${hour%12 || 12} ${hour<12 ? 'AM' : 'PM'}`);slot.className='calslot';
         const busy=occupiedStart({days:[calendarKey(day)],startMinutes:hour*60,durationMinutes:60,items}).length>0;
@@ -161,11 +164,12 @@ export async function renderScheduleCalendar(ctx, extras) {
         const {item}=entry;const event=activityBlock(item,`caltimed${item.status==='draft' ? ' draft' : ''}`,(entry.end-entry.start)<45);
         event.style.cssText=`top:${entry.start/60*56}px;height:${Math.max(20,(entry.end-entry.start)/60*56)}px;left:calc(${entry.column/entry.columns*100}% + 2px);width:calc(${100/entry.columns}% - 4px);--event:${COLORS[item.category] || COLORS.other}`;
         column.append(event);
+        if(ctx.changeCalendarTimes)attachCalendarDrag({event,item,day,entry,columns,grid,scroll,onChange:async(record,times)=>{savedScroll=scroll.scrollTop;await ctx.changeCalendarTimes(record,times);await load();},onError:error=>{const message=node('p','calerror',friendlyError(error,{subject:'calendar change'}));message.setAttribute('role','alert');root.append(message);}});
       }
       if(calendarKey(day)===calendarKey(new Date())) {const now=new Date();const line=node('div','calnow');line.style.top=`${(now.getHours()+now.getMinutes()/60)*56}px`;column.append(line);}
       grid.append(column);
     }
-    requestAnimationFrame(()=>{scroll.scrollTop=8*56;});root.append(node('p','calhint','Tap an open hour to add. Tap an activity for notes, editing, or more time.'));
+    requestAnimationFrame(()=>{scroll.scrollTop=savedScroll ?? 8*56;savedScroll=null;});root.append(node('p','calhint',ctx.changeCalendarTimes ? 'Tap a block, then drag Move to change its time or Duration to change its finish. Times snap to 15 minutes.' : 'Tap an open hour to add. Tap an activity for notes, editing, or more time.'));
   }
   await load();return root;
 }

@@ -95,3 +95,14 @@ test('activity actions target the exact block without nested buttons or completi
     assert.ok(descendants(root).find(node=>node.className==='caleventrow').children[1].children.some(node=>node.textContent==='Add notes'));
   } finally {globalThis.document=previousDocument;globalThis.fetch=previousFetch;globalThis.requestAnimationFrame=previousFrame;}
 });
+
+test('Life week mode exposes seven local days while leaving ordinary Schedule unchanged',async()=>{
+  const oldDocument=globalThis.document,oldFetch=globalThis.fetch,oldFrame=globalThis.requestAnimationFrame;
+  globalThis.document={createElement:fakeElement};globalThis.requestAnimationFrame=callback=>callback();globalThis.fetch=async()=>({ok:true,json:async()=>({items:[]})});
+  try{
+    const context={calendarState:{date:new Date(2026,9,8),mode:'month'},openScheduleStudio(){},changeCalendarTimes(){}};
+    const root=await renderScheduleCalendar(context,{balance(){}});await descendants(root).find(el=>el.textContent==='Week').onclick();
+    const columns=descendants(root).filter(el=>el.className==='calhourcolumn');assert.equal(columns.length,7);assert.equal(columns[0].attrs['data-day'],'2026-10-05');assert.equal(columns.at(-1).attrs['data-day'],'2026-10-11');
+    const ordinary=await renderScheduleCalendar({...context,calendarState:{date:new Date(),mode:'month'},changeCalendarTimes:undefined},{balance(){}});assert.ok(!descendants(ordinary).find(el=>el.textContent==='Week'));
+  }finally{globalThis.document=oldDocument;globalThis.fetch=oldFetch;globalThis.requestAnimationFrame=oldFrame;}
+});

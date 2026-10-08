@@ -1,7 +1,8 @@
 import { friendlyError, showFeedback } from './ux.js';
 import {calendarKey,calendarDayItems,renderScheduleCalendar} from './schedule-calendar.js';
+import {LIFE_FEELINGS,PHOTO_LIMIT,prepareLifePhoto,journalWeek} from './life-journal.js';
 const PILLARS=[['work','Work','#6f9ce8'],['sleep','Sleep','#879ade'],['social','Social','#df7fa4'],['health','Health','#65b8b2'],['personal','Personal','#bd91d9']];
-const state={tab:'today',date:new Date(),mode:'month',rhythmDate:new Date(),historyDate:calendarKey(new Date())};
+const state={tab:'today',date:new Date(),mode:'month',rhythmDate:new Date(),historyDate:calendarKey(new Date()),insight:'time',pillar:'all',sort:'date'};
 const node=(tag,text,cls='')=>{const el=document.createElement(tag);if(text!==undefined)el.textContent=text;el.className=cls;return el;};
 const button=(text,run)=>{const el=node('button',text);el.type='button';el.onclick=run;return el;};
 const field=(label,input)=>{const el=node('label',label);el.append(input);return el;};
@@ -30,19 +31,20 @@ export async function renderLife(ctx){
     const home=button('Today',()=>{state.tab='today';return draw();});home.setAttribute('aria-pressed',String(state.tab==='today'));
     const explore=node('details',undefined,'lifeexplore');explore.open=state.tab!=='today';explore.append(node('summary','Explore Life'));
     const tabs=node('div',undefined,'lifetabs');
-    for(const [key,label] of [['calendar','Life calendar'],['reminders','Life reminders'],['insights','Your rhythm'],['history','Life history'],['reset','Weekly reset']]){const tab=button(label,()=>{state.tab=key;return draw();});tab.setAttribute('aria-pressed',String(state.tab===key));tabs.append(tab);}explore.append(tabs);navigation.append(home,explore);root.append(navigation);
-    const actions=node('div',undefined,'lifeactions lifeprimary');const plan=button('✦ Plan with Nex',()=>ctx.planWithNex ? ctx.planWithNex() : askNex('Help me design my Life week around my priorities. Read Life and Nex Schedule. Ask only the decisions you need, using relevant clickable options. Preview each linked change and get my approval.'));plan.className='uxprimary';actions.append(plan);root.append(actions);const more=node('details',undefined,'lifemore');more.append(node('summary','More options'),button('+ Plan an activity',()=>form()),button('+ Remember something',()=>form(null,'reminder')),button('My priorities',preferences),button('My day changed',dayChanged));root.append(more);
+    for(const [key,label] of [['calendar','Life calendar'],['reminders','Life reminders'],['insights','Your week'],['history','Life history'],['reset','Weekly reset']]){const tab=button(label,()=>{state.tab=key;return draw();});tab.setAttribute('aria-pressed',String(state.tab===key));tabs.append(tab);}explore.append(tabs);navigation.append(home,explore);root.append(navigation);
+    const actions=node('div',undefined,'lifeactions lifeprimary');const plan=button('✦ Plan my week',()=>ctx.planWithNex ? ctx.planWithNex() : askNex('Help me design my Life week around my priorities. Read Life and Nex Schedule. Ask only the decisions you need, using relevant clickable options. Preview each linked change and get my approval.'));plan.className='uxprimary';actions.append(plan);root.append(actions);const more=node('details',undefined,'lifemore');more.append(node('summary','More options'),button('+ Plan an activity',()=>form()),button('+ Remember something',()=>form(null,'reminder')),button('My priorities',preferences),button('My day changed',dayChanged));root.append(more);
     if(!data.profile.onboarded){const welcome=node('div',undefined,'lifewelcome');welcome.append(node('h3','Start with what matters to you.'),node('p','Choose a few priorities, or jump straight into your day. You can change them anytime.'),button('Choose my priorities',preferences),button('Skip for now',async()=>{await api('profile',{focus:[]});await load();}));root.append(welcome);}
     if(state.tab==='calendar'){
       const calendar=await renderScheduleCalendar({calendarState:state,calendarEndpoint:'/api/life',calendarSubject:'Life plan',detailsLabel:'Check in',balanceLabel:'Your rhythm',weekLabel:'Design next week',
         activitySummary:lifeExperience,activityTitle:item=>`${item.title}${item.outcome==='happened' ? ' · ✓' : item.outcome==='missed' ? ' · Did not happen' : ''}${item.energy!=null ? ` · ${item.energy}/5` : ''}`,activityActions:quickCheckIn,
         planWithNex:()=>ctx.planWithNex ? ctx.planWithNex() : askNex('Help me design a balanced Life week. Read my priorities, Life records, and Nex Schedule. Ask only what you need and preview conflicts before linking anything.'),
         openScheduleStudio:(_mode,day,minutes)=>_mode==='week' ? askNex('Help me design a balanced Life week. Read my priorities, Life records, and Nex Schedule. Show relevant clickable choices and preview conflicts before linking anything.') : form(null,'activity',day,minutes),
+        changeCalendarTimes:async(item,times)=>{const proposed=await api('preview',{...item,...times});if(proposed.conflicts.length){review(proposed,item);return;}const saved=await api('save',{...proposed.item,baseline:proposed.baseline,destination:item.link ? 'linked' : 'life'});data.items=data.items.map(record=>record.id===saved.id ? {...record,...saved} : record);showFeedback(root,'Activity time updated.');},
         editScheduleItem:item=>form(item,item.kind==='reminder' ? 'reservation' : 'activity'),editScheduleNotes:item=>form(item),openPlannerItem:item=>item.kind==='reminder' ? form(item) : checkIn(item),detailsLabelFor:item=>item.kind==='reminder' ? 'Reminder' : 'Check in',
         openScheduleOverrun:item=>askNex(`Life activity ${item.id}, ${item.title}, is running over. Ask how much time I need. Read Life and Nex Schedule, preserve protected commitments, and preview any changes before I approve them.`),
         openWeekRollover:weeklyReset,ask:askNex,
       },{balance:()=>rhythm(state.date)});if(generation!==drawId)return;root.append(calendar);
-    }else if(state.tab==='reminders')reminders();else if(state.tab==='insights')root.append(rhythm());else if(state.tab==='history')history();else if(state.tab==='reset')weeklyReset();else today();
+    }else if(state.tab==='reminders')reminders();else if(state.tab==='insights')root.append(weekJournal());else if(state.tab==='history')history();else if(state.tab==='reset')weeklyReset();else today();
     root.append(node('p','Life stays private to your account. Linking to Nex is always your choice.','lifehint'));
   }
   function askNex(prompt){return ctx.ask(`You are helping inside Nexus Life. Use read_life and manage_life for Life-owned records; ordinary Nex Schedule and Reminders are separate until explicitly linked. Never infer actual experience or energy from planned time. ${prompt}`);}
@@ -53,10 +55,11 @@ export async function renderLife(ctx){
     const experience=node('p',lifeExperience(item),'lifeexperience');experience.setAttribute('role','status');card.append(experience);
     if(item.outcome==='happened' && item.actual_starts_at && item.actual_ends_at)card.append(node('p',`Actual time: ${clock(item.actual_starts_at)} – ${clock(item.actual_ends_at)}`));
     if(item.person || item.place)card.append(node('p',[item.person,item.place].filter(Boolean).join(' · ')));
+    if(item.feelings?.length)card.append(node('p',item.feelings.join(' · '),'lifefeelingsline'));
     if(item.reflection)card.append(node('p',item.reflection,'lifereflection'));
     const actions=node('div',undefined,'lifeactions');actions.append(button('Edit plan',()=>form(item)),button(item.kind==='activity' ? 'How was it?' : item.status==='done' ? 'Reopen' : 'Done',()=>item.kind==='activity' ? checkIn(item) : complete(item)));
     if(item.kind==='reminder' && item.status!=='done')actions.append(button(item.starts_at ? 'Change reserved time' : 'Find time in Life',()=>form(item,'reservation')));
-    if(item.memory_url){const link=node('a','Open memory');link.href=item.memory_url;link.target='_blank';link.rel='noopener noreferrer';actions.append(link);}card.append(actions,...quickCheckIn(item));return card;
+    if(item.memory_url){const link=node('a','Open memory');link.href=item.memory_url;link.target='_blank';link.rel='noopener noreferrer';actions.append(link);}actions.append(button(item.photo_count ? `Photos · ${item.photo_count}` : 'Add photos',()=>photoScreen(item)));card.append(actions,...quickCheckIn(item));return card;
   }
   function quickCheckIn(item){
     if(item.kind!=='activity')return [];
@@ -91,7 +94,7 @@ export async function renderLife(ctx){
   async function complete(item){try{await api('check_in',{id:item.id,status:item.status==='done' ? 'planned' : 'done'});await load();}catch(error){errorBox(error);}}
   function rhythm(day=state.rhythmDate){
     const host=node('section',undefined,'liferhythm');host.append(node('h3',`Your rhythm · ${day.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}`),node('p','Planned time and confirmed experience are different. Missing check-ins are simply unknown.'));
-    const items=lifeWeekItems(data.items,day);let rated=0;
+    const items=journalWeek(data.items,day).activities;let rated=0;
     const from=new Date(day);from.setHours(0,0,0,0);from.setDate(from.getDate()-((from.getDay()+6)%7));const to=new Date(from);to.setDate(to.getDate()+7);
     const daily=(data.pulses || []).filter(pulse=>pulse.date>=calendarKey(from) && pulse.date<calendarKey(to) && pulse.energy!=null);
     host.append(node('p',daily.length ? `Daily energy: ${(daily.reduce((sum,pulse)=>sum+pulse.energy,0)/daily.length).toFixed(1)}/5 across ${daily.length} reported days. Activity ratings are shown separately below.` : 'No daily energy ratings this week. You can add one from Today.'));
@@ -105,7 +108,7 @@ export async function renderLife(ctx){
       const ratings=activities.filter(item=>item.energy!=null);rated+=ratings.length;
       const card=node('div',undefined,'lifepillarrow');card.style.setProperty('--pillar',color);card.append(node('strong',label),node('p',`${planned.toFixed(1)} hours planned · ${actual.toFixed(1)} hours confirmed`));
       const bar=node('div',undefined,'lifechart');bar.setAttribute('role','img');bar.setAttribute('aria-label',`${label}: ${planned.toFixed(1)} hours planned, ${actual.toFixed(1)} hours confirmed`);
-      const fill=node('span');fill.style.width=`${Math.min(100,planned/Math.max(1,...PILLARS.map(([key])=>items.filter(item=>item.pillar===key).reduce((sum,item)=>sum+hours(item),0)))*100)}%`;bar.append(fill);card.append(bar);
+      const fill=node('span');fill.style.width=`${Math.min(100,planned/Math.max(1,...PILLARS.map(([key])=>items.filter(item=>item.pillar===key).reduce((sum,item)=>sum+hours(item),0)))*100)}%`;bar.append(fill);card.append(node('small','Planned'),bar);const lived=node('div',undefined,'lifechart lifeactualchart');lived.setAttribute('role','img');lived.setAttribute('aria-label',`${label}: ${actual.toFixed(1)} confirmed hours`);const livedFill=node('span');livedFill.style.width=`${Math.min(100,actual/Math.max(1,...PILLARS.map(([key])=>items.filter(item=>item.pillar===key).reduce((sum,item)=>sum+hours(item),0)))*100)}%`;lived.append(livedFill);card.append(node('small','Confirmed'),lived);
       card.append(node('small',ratings.length ? `Reported energy: ${(ratings.reduce((sum,item)=>sum+item.energy,0)/ratings.length).toFixed(1)}/5 · ${ratings.length} check-ins` : 'No energy ratings yet'));host.append(card);
     }
     host.append(node('p',`${items.filter(item=>item.kind==='activity' && item.outcome==='unknown').length} activities have no experience check-in. ${rated} energy ratings recorded.`));
@@ -153,7 +156,7 @@ export async function renderLife(ctx){
     items.sort((a,b)=>Date.parse(a.starts_at || `${a.due_date}T12:00:00`)-Date.parse(b.starts_at || `${b.due_date}T12:00:00`));
     if(!items.length)root.append(node('p','No activities or reminders recorded for this day.','lifeempty'));items.forEach(item=>root.append(row(item)));
     const memories=node('details',undefined,'lifememories');memories.append(node('summary','Browse reflections and memories'));
-    const remembered=data.items.filter(item=>item.reflection || item.memory_url).sort((a,b)=>Date.parse(b.starts_at || b.due_date || 0)-Date.parse(a.starts_at || a.due_date || 0));
+    const remembered=data.items.filter(item=>item.reflection || item.memory_url || item.photo_count).sort((a,b)=>Date.parse(b.starts_at || b.due_date || 0)-Date.parse(a.starts_at || a.due_date || 0));
     if(!remembered.length)memories.append(node('p','Add a reflection or memory through an activity check-in.'));
     for(const item of remembered){const entry=node('div');entry.append(node('p',`${item.title} · ${new Date(item.starts_at || item.due_date || item.created_at).toLocaleDateString('en-US',{dateStyle:'medium'})}`),button('View this day',()=>{state.historyDate=item.starts_at ? calendarKey(new Date(item.starts_at)) : item.due_date || calendarKey(new Date(item.created_at));return draw();}));if(item.reflection)entry.append(node('p',item.reflection,'lifereflection'));if(item.memory_url){const link=node('a','Open memory');link.href=item.memory_url;link.target='_blank';link.rel='noopener noreferrer';entry.append(link);}memories.append(entry);}root.append(memories);
   }
@@ -196,6 +199,52 @@ export async function renderLife(ctx){
   }
 
   function errorBox(error){const status=node('p',friendlyError(error,{subject:'Life',keepDraft:true}),'lifeerror');status.setAttribute('role','status');root.append(status);}
+  function weekJournal(){
+    const week=journalWeek(data.items,state.rhythmDate),host=node('section',undefined,'lifejournal');
+    const toolbar=node('div',undefined,'lifeactions');
+    for(const [label,offset] of [['Previous week',-7],['Next week',7]])toolbar.append(button(label,()=>{state.rhythmDate.setDate(state.rhythmDate.getDate()+offset);return draw();}));
+    toolbar.append(button('This week',()=>{state.rhythmDate=new Date();return draw();}));host.append(toolbar);
+    const last=new Date(week.to);last.setDate(last.getDate()-1);
+    host.append(node('h3',`${week.from.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${last.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}`));
+    const tabs=node('nav',undefined,'lifeinsighttabs');tabs.setAttribute('aria-label','Weekly insights');
+    for(const [key,label] of [['time','Time'],['energy','Energy'],['reflection','Reflections'],['media','Photos']]){const tab=button(label,()=>{state.insight=key;return draw();});tab.setAttribute('aria-pressed',String(state.insight===key));tabs.append(tab);}host.append(tabs);
+    const hero=node('div',undefined,'lifeweekhero'),orb=node('div',undefined,'lifeorb');
+    orb.append(node('strong',state.insight==='energy' ? week.energy===null ? '—' : week.energy.toFixed(1) : String(week.confirmed)),node('span',state.insight==='energy' ? 'ENERGY / 5' : 'CONFIRMED ACTIVITIES'));
+    const story=node('div');story.append(node('h3',state.insight==='energy' ? 'Notice what restores you.' : state.insight==='reflection' ? 'Keep what mattered.' : state.insight==='media' ? 'Your week in moments.' : 'Make space for what matters.'));
+    story.append(node('p',`${week.activities.length} planned activities · ${week.confirmed} confirmed · ${week.unknown} awaiting a check-in.`));
+    story.append(node('p',week.rated ? `${week.rated} activity energy ratings. These reflect what you reported.` : 'Check in after an activity to begin seeing your energy patterns.'));hero.append(story,orb);host.append(hero);
+    if(state.insight==='time')host.append(rhythm(state.rhythmDate));
+    else if(state.insight==='energy'){
+      for(const bucket of week.pillars){const pillar=PILLARS.find(([key])=>key===bucket.pillar),card=node('article',undefined,'lifepillarrow');card.style.setProperty('--pillar',pillar[2]);card.append(node('strong',pillar[1]),node('p',bucket.energy===null ? 'No activity ratings recorded.' : `${bucket.energy.toFixed(1)}/5 · ${bucket.ratings} ratings`));host.append(card);}
+      const rated=week.activities.filter(item=>item.energy!=null).sort((a,b)=>b.energy-a.energy);for(const item of rated)host.append(row(item));
+    }else{
+      const controls=node('div',undefined,'lifeactions'),filter=select([['all','All pillars'],...PILLARS.map(([key,label])=>[key,label])],state.pillar),sort=select([['date','Newest first'],['energy','Highest energy']],state.sort);
+      filter.onchange=()=>{state.pillar=filter.value;return draw();};sort.onchange=()=>{state.sort=sort.value;return draw();};controls.append(field('Show',filter),field('Sort by',sort));host.append(controls);
+      const records=week.activities.filter(item=>(state.pillar==='all' || item.pillar===state.pillar) && (state.insight==='reflection' ? item.reflection : item.photo_count>0));
+      records.sort((a,b)=>state.sort==='energy' ? (b.energy ?? -1)-(a.energy ?? -1) : Date.parse(b.starts_at)-Date.parse(a.starts_at));
+      if(!records.length)host.append(node('p',state.insight==='reflection' ? 'No reflections here yet. Open an activity and record what stood out.' : 'No photos here yet. Add a photo to an activity to keep the moment.','lifeempty'));
+      const grid=node('div',undefined,'lifemomentgrid');for(const item of records){const card=node('article',undefined,'lifemoment');card.style.setProperty('--pillar',PILLARS.find(([key])=>key===item.pillar)?.[2]);card.append(node('small',new Date(item.starts_at).toLocaleDateString('en-US',{month:'short',day:'numeric'})),node('h3',item.title));if(item.feelings?.length)card.append(node('p',item.feelings.join(' · ')));if(state.insight==='reflection')card.append(node('p',item.reflection,'lifereflection'));else card.append(photoPreview(item));card.append(button('Open activity',()=>checkIn(item)),button('Photos',()=>photoScreen(item)));grid.append(card);}host.append(grid);
+    }
+    if(state.insight!=='time')host.append(button('Reflect on my week with Vida',()=>askNex(`Help me reflect on the week containing ${calendarKey(state.rhythmDate)}. Read Life records, use only supplied feelings, reflections and energy, distinguish missing data from failure, and offer one optional change for next week.`)));
+    return host;
+  }
+  async function readPhotos(id){const response=await fetch(`/api/life?photos=${encodeURIComponent(id)}`,{credentials:'include'});const result=await response.json();if(!response.ok)throw new Error(result.error || 'Could not load photos');return result.photos;}
+  function photoPreview(item){
+    const host=node('div',undefined,'lifephotos');host.append(node('p','Loading photos…'));
+    readPhotos(item.id).then(photos=>{host.replaceChildren();for(const photo of photos){const image=node('img');image.src=photo.source;image.alt=photo.caption || `Photo from ${item.title}`;image.loading='lazy';host.append(image);}}).catch(error=>{host.replaceChildren(node('p',friendlyError(error,{action:'load',subject:'photos'})),button('Try again',()=>host.replaceChildren(photoPreview(item))));});return host;
+  }
+  function photoScreen(item){
+    ++drawId;heading();root.append(node('h3',item.title),node('p','Keep a moment from this activity. Photos stay private in Life.'),button('Back to Life',draw));
+    const host=node('section',undefined,'lifephotoeditor'),status=node('p');status.setAttribute('role','status');root.append(host,status);let photos=[],busy=false;
+    async function loadPhotos(){status.textContent='Loading photos…';try{photos=await readPhotos(item.id);status.textContent='';paint();}catch(error){status.textContent=friendlyError(error,{action:'load',subject:'photos'});host.replaceChildren(button('Try again',loadPhotos));}}
+    function paint(){
+      host.replaceChildren();const grid=node('div',undefined,'lifephotos');
+      for(const [index,photo] of photos.entries()){const card=node('div'),image=node('img');image.src=photo.source;image.alt=photo.caption || `Photo from ${item.title}`;const caption=node('input');caption.value=photo.caption;caption.maxLength=240;caption.oninput=()=>{photo.caption=caption.value;};card.append(image,field('Caption',caption),button('Remove photo',()=>{photos.splice(index,1);paint();}));grid.append(card);}host.append(grid);
+      for(const [label,camera] of [['Choose photos',false],['Open camera',true]]){const input=node('input');input.type='file';input.accept='image/*';input.hidden=true;input.multiple=!camera;if(camera)input.setAttribute('capture','environment');input.onchange=async()=>{if(busy)return;busy=true;status.textContent='Preparing photo…';try{const selected=Array.from(input.files || []);if(photos.length+selected.length>PHOTO_LIMIT)throw new Error('Keep up to three photos per activity.');const prepared=[];for(const file of selected)prepared.push(await prepareLifePhoto(file));photos.push(...prepared);status.textContent='Ready. Save photos to keep them.';paint();}catch(error){status.textContent=error.message;}finally{busy=false;}};host.append(input,button(label,()=>{if(!busy)input.click();}));}
+      const save=button('Save photos',async()=>{if(busy)return;busy=true;save.disabled=true;status.textContent='Saving photos…';try{await api('photos',{id:item.id,photos});item.photo_count=photos.length;status.textContent='Photos saved.';}catch(error){status.textContent=friendlyError(error,{subject:'photos',keepDraft:true});}finally{busy=false;save.disabled=false;}});host.append(save,node('p','Up to three photos per activity. Saved photos are resized; keep your original pictures in your gallery.','lifehint'));
+    }
+    loadPhotos();
+  }
   function preferences(){
     ++drawId;heading();root.append(node('h3','What would you like more room for?'),node('p','Choose any that matter. You can skip this.'));
     const chosen=new Set(data.profile.focus || []),choices=node('div',undefined,'lifeactions');for(const [key,label] of PILLARS){const choice=button(label,()=>{chosen.has(key) ? chosen.delete(key) : chosen.add(key);choice.setAttribute('aria-pressed',String(chosen.has(key)));});choice.setAttribute('aria-pressed',String(chosen.has(key)));choices.append(choice);}root.append(choices);
@@ -249,13 +298,15 @@ export async function renderLife(ctx){
     const form=document.createElement('form');form.className='lifeform';root.append(form);
     const outcome=select([['unknown','Not recorded'],['happened','It happened'],['missed','It did not happen']],item.outcome || 'unknown');
     const energy=select([['','Skip energy rating'],['1','1 · Very draining'],['2','2 · Draining'],['3','3 · Neutral'],['4','4 · Energizing'],['5','5 · Very energizing']],item.energy ?? '');
+    const feelings=new Set(item.feelings || []),feelingsBox=node('fieldset',undefined,'lifefeelings');feelingsBox.append(node('legend','How did you feel? (choose up to five)'));
+    for(const label of LIFE_FEELINGS){const choice=button(label,()=>{if(feelings.has(label))feelings.delete(label);else if(feelings.size<5)feelings.add(label);choice.setAttribute('aria-pressed',String(feelings.has(label)));});choice.setAttribute('aria-pressed',String(feelings.has(label)));feelingsBox.append(choice);}
     const usePlan=node('input');usePlan.type='checkbox';const actualStart=node('input');actualStart.type='datetime-local';actualStart.value=item.actual_starts_at ? local(new Date(item.actual_starts_at)) : '';
     const actualEnd=node('input');actualEnd.type='datetime-local';actualEnd.value=item.actual_ends_at ? local(new Date(item.actual_ends_at)) : '';
     const reflection=node('textarea');reflection.value=item.reflection || '';reflection.maxLength=4000;reflection.placeholder='Something you enjoyed, learned, or want to remember…';
     const memory=node('input');memory.type='url';memory.value=item.memory_url || '';memory.placeholder='https://…';
-    form.append(field('What happened?',outcome),field('How did it feel?',energy),field(`Use the planned times (${clock(item.starts_at)} – ${clock(item.ends_at)})`,usePlan),field('Actual start (optional)',actualStart),field('Actual finish (optional)',actualEnd),field('Reflection (optional)',reflection),field('Link to a photo, video, or memory (optional)',memory));
+    form.append(field('What happened?',outcome),field('How did it feel?',energy),feelingsBox,field(`Use the planned times (${clock(item.starts_at)} – ${clock(item.ends_at)})`,usePlan),field('Actual start (optional)',actualStart),field('Actual finish (optional)',actualEnd),field('Reflection (optional)',reflection),field('Link to a photo, video, or memory (optional)',memory));
     const save=node('button','Save my check-in');save.type='submit';const status=node('p');status.setAttribute('role','status');form.append(save,button('Skip / Back',draw),status);
-    form.onsubmit=async(event)=>{event.preventDefault();save.disabled=true;try{await api('check_in',{id:item.id,outcome:outcome.value,energy:energy.value==='' ? null : Number(energy.value),use_planned_times:usePlan.checked,...(!usePlan.checked ? {actual_starts_at:actualStart.value ? new Date(actualStart.value).toISOString() : null,actual_ends_at:actualEnd.value ? new Date(actualEnd.value).toISOString() : null} : {}),reflection:reflection.value,memory_url:memory.value});await load(`Check-in saved for ${item.title}.`);}catch(error){status.textContent=friendlyError(error,{subject:'Life',keepDraft:true});save.disabled=false;}};
+    form.onsubmit=async(event)=>{event.preventDefault();save.disabled=true;try{await api('check_in',{id:item.id,outcome:outcome.value,energy:energy.value==='' ? null : Number(energy.value),use_planned_times:usePlan.checked,...(!usePlan.checked ? {actual_starts_at:actualStart.value ? new Date(actualStart.value).toISOString() : null,actual_ends_at:actualEnd.value ? new Date(actualEnd.value).toISOString() : null} : {}),feelings:[...feelings],reflection:reflection.value,memory_url:memory.value});await load(`Check-in saved for ${item.title}.`);}catch(error){status.textContent=friendlyError(error,{subject:'Life',keepDraft:true});save.disabled=false;}};
   }
   await load();return root;
 }
