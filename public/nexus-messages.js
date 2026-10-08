@@ -1,4 +1,5 @@
 import {NEXUS_INTRO} from './nexus-guide.js';
+import {renderAccountControls} from './nexus-controls.js';
 import {friendlyError,showFeedback} from './ux.js';
 import {installNexus,nexusInstallState} from './app-install.js';
 import {disableNotifications,enableNotifications,notificationState,pushSupport,notificationError} from './push-notifications.js';
@@ -82,6 +83,7 @@ export async function renderMessages(ctx){
   }
   function moreView(message=''){
     heading(root,'More','Choose which Nexus spaces stay on your Messages screen.',draw);
+    root.append(row({name:'Account & Controls',meta:'Settings and live usage',preview:'Usage, reply preferences, appearance, notifications, security, and data.',icon:'⌁',tone:'more',run:accountControls}));
     const pinned=new Set(state.pinned_system_ids || []),list=node('div',undefined,'pinmanager');
     for(const system of SYSTEMS.filter(item=>item.id)){
       const item=node('div',undefined,`pinmanagerrow${pinned.has(system.id)?' is-pinned':''}`);
@@ -115,6 +117,12 @@ export async function renderMessages(ctx){
     account.append(row({name:'Privacy',meta:'Your information',preview:'See what Nexus keeps and what you control.',icon:'P',tone:'memory',run:()=>location.assign('/privacy.html')}));
     account.append(row({name:'Terms',meta:'Using Nexus',preview:'Read the plain-English rules for Nexus.',icon:'T',tone:'legacy',run:()=>location.assign('/terms.html')}));
     root.append(account);if(typeof message==='string' && message.trim())showFeedback(root,message);
+  }
+  function accountControls(){
+    return renderAccountControls(root,ctx,moreView,{
+      notifications:notificationView,install:installView,feedback:feedbackView,
+      clearChats:()=>clearConversations(ctx.recentThreads().filter(item=>!/^agent-|^group-|^nex-main$/u.test(item.id))),
+    });
   }
   async function readOwnerCatalog(){
     if(ownerCatalog)return ownerCatalog;
