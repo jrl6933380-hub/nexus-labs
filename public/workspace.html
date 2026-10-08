@@ -294,6 +294,7 @@ import { scheduleStart, scheduleEnd, occupiedStart, plannedEndLabel, updateStart
 import { registerNexusApp } from '/app-install.js';
 import { renderFeatureHelp, draftNexusExample } from '/nexus-guide.js';
 import { createTeamChat } from '/team-chat.js';
+import { appendChatVisual, chatVisualHtml } from '/chat-visual.js';
 
 // Owner gate. The previous root page checked this before rendering anything, and
 // this shell now sits at the root, so it has to hold the same line — without it,
@@ -934,6 +935,24 @@ function bubble(role, html){
 function paragraphs(text){
   return String(text).split(/\n{2,}/).map((p) => `<p>${esc(p).replace(/\n/g,'<br>')}</p>`).join('');
 }
+function assistantReplyMarkup(content){
+  if(!chatVisualHtml(content))return paragraphs(content);
+  const plain=String(content).replace(/```html\s*\n[\s\S]*?\n```/iu,'').trim();
+  return paragraphs(plain || 'Here’s the visual build. You can preview it below or keep building it in Projects.');
+}
+function chatVisualPromotionId(content){
+  let hash=2166136261;for(const character of String(content))hash=Math.imul(hash^character.charCodeAt(0),16777619);
+  const scope=String(threadId || activeConversation?.id || 'nex-main').replace(/[^a-zA-Z0-9_-]/g,'-').slice(0,48);
+  return `direct-${scope}-${(hash>>>0).toString(36)}`;
+}
+async function keepChatVisual({html},content,requestMessage=''){
+  const response=await fetch('/api/room-history',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'save_chat_visual',html,label:`${activeConversation?.name || 'Nex'} build`,requestMessage,promotionId:chatVisualPromotionId(content)})});
+  const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error || 'This build could not be saved to Projects.');
+  location.assign(`/forge.html?surface=workbench&view=chat&build=${encodeURIComponent(data.build.id)}`);
+}
+function appendAssistantVisual(body,content,requestMessage=''){
+  return appendChatVisual(body,content,activeConversation?.name || 'Nex',{onPromote:payload=>keepChatVisual(payload,content,requestMessage)});
+}
 
 // ---------------------------------------------------------------------------
 // Views render into the same thread the conversation uses. Switching a view
@@ -977,7 +996,7 @@ function replayThread(){
   if (!history.length) { conversationGreeting(); return; }
   for (const message of history) {
     if (message.role === 'user') bubble('u', esc(message.content));
-    else bubble('a', paragraphs(message.content));
+    else {const body=bubble('a', assistantReplyMarkup(message.content));appendAssistantVisual(body,message.content);}
   }
 }
 function conversationSubtitle(){
@@ -1297,7 +1316,8 @@ async function submit(){
       history.push({role:'assistant',content:update.text});
     });
     const reply = data.reply || 'No reply came back.';
-    pending.innerHTML = paragraphs(reply);
+    pending.innerHTML = assistantReplyMarkup(reply);
+    appendAssistantVisual(pending,reply,raw);
     history.push({role:'assistant',content:reply});
     saveThread();
     renderResponseActions(data);
@@ -1347,6 +1367,7 @@ el('newTop').onclick = () => {
     const card=document.createElement('section');card.id='conversationMenu';card.className='approvalcard conversationmenu';
     const title=document.createElement('strong');title.textContent='Conversation options';
     const fresh=document.createElement('button');fresh.className='uxprimary';fresh.textContent='Start a new conversation';fresh.onclick=()=>{messagesStartNew=true;activeConversation=null;history.length=0;threadId=null;showView('messages');};
+    const persistentConversation=['specialist','group'].includes(activeConversation?.kind);
     const inbox=document.createElement('button');inbox.className='messagesecondary';inbox.textContent='Back to Messages';inbox.onclick=()=>{activeConversation=null;showView('messages');};
     const clear=document.createElement('button');clear.className='messagesecondary';clear.textContent='Clear this chat, keep key memories';clear.disabled=!history.length || busy || dockBusy || pendingChat()?.threadId===threadId;
     const notice=document.createElement('p');notice.setAttribute('role','status');
@@ -1364,7 +1385,7 @@ el('newTop').onclick = () => {
         await showView('chat');bubble('a',`<p>Chat cleared. ${Number(result.memoriesSaved) || 0} new key details remembered. Your existing memories are still available.</p>`);
       }catch(error){notice.textContent=error.message;clear.disabled=false;fresh.disabled=false;inbox.disabled=false;}
     };
-    card.append(title,fresh,clear,inbox,notice);thread.append(card);thread.scrollTop=thread.scrollHeight;return;
+    card.append(title,...(persistentConversation?[]:[fresh]),clear,inbox,notice);thread.append(card);thread.scrollTop=thread.scrollHeight;return;
   }
   messagesStartNew=true;activeConversation=null;history.length=0;threadId=null;showView('messages');
 };

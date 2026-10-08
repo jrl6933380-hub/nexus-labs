@@ -69,7 +69,10 @@ test('existing JSON and list responses remain compatible', async () => {
   const res=response(); await make('alice')(request({id:'a1'}),res); assert.equal(res.body.build.html,html);
   // The list response gained a grouped `projects` view; `builds` stays for
   // anything still reading the flat version list.
-  const list=response(); await make('alice')(request({}),list); assert.deepEqual(list.body,{builds:[],projects:[]});
+  const list=response(); await make('alice')(request({}),list);
+  assert.deepEqual(list.body.builds,[]);
+  assert.deepEqual(list.body.projects,[]);
+  assert.equal(list.body.workbench.canCreate,true);
 });
 
 test('deleting a project is scoped to the caller and reports what it removed', async () => {
@@ -103,8 +106,42 @@ test('session storage failure returns a controlled error', async () => {
   const handler=createHistoryHandler({resolveUser:async()=>{throw new Error('storage unavailable');}});
   const res=response(); await handler(request(),res); assert.equal(res.code,500);
 });
-test('non-GET requests cannot export', async () => {
-  const res=response(); await make('alice')({method:'POST'},res); assert.equal(res.code,405);
+test('unsupported requests cannot export', async () => {
+  const res=response(); await make('alice')({method:'PUT'},res); assert.equal(res.code,405);
+});
+test('a chat visual becomes one idempotent Workbench project owned by the caller', async () => {
+  const writes=[];
+  const handler=createHistoryHandler({
+    resolveUser:async()=> 'alice',
+    readLatestProject:async()=>null,
+    readProjects:async()=>[],
+    resolvePlan:async()=> 'hosted',
+    writeBuild:async(owner,build)=>{writes.push({owner,build});return {id:'saved-1',...build};},
+  });
+  const res=response();
+  await handler({method:'POST',body:{action:'save_chat_visual',html:'<main>Site</main>',label:'Launch site',requestMessage:'Make a site',promotionId:'run-1-step-2'},headers:{}},res);
+  assert.equal(res.code,201);
+  assert.equal(res.body.build.id,'saved-1');
+  assert.equal(writes[0].owner,'alice');
+  assert.equal(writes[0].build.projectId,'chatvisual-run-1-step-2');
+  assert.match(writes[0].build.html,/<!doctype html><html><body><main>Site<\/main>/i);
+
+  const repeat=createHistoryHandler({
+    resolveUser:async()=> 'alice',
+    readLatestProject:async(owner,projectId)=>({id:'saved-1',owner,projectId}),
+    readProjects:async()=>{throw new Error('must not count a project twice');},
+  });
+  const repeated=response();
+  await repeat({method:'POST',body:{action:'save_chat_visual',html:'<main>Site</main>',promotionId:'run-1-step-2'},headers:{}},repeated);
+  assert.equal(repeated.code,200);
+  assert.equal(repeated.body.alreadySaved,true);
+});
+test('chat visual promotion respects the Projects allowance', async () => {
+  const handler=createHistoryHandler({resolveUser:async()=> 'alice',readLatestProject:async()=>null,readProjects:async()=>[],resolvePlan:async()=> 'free'});
+  const res=response();
+  await handler({method:'POST',body:{action:'save_chat_visual',html:'<h1>Site</h1>',promotionId:'run-step'},headers:{}},res);
+  assert.equal(res.code,402);
+  assert.equal(res.body.code,'PROJECT_LIMIT_REACHED');
 });
 test('free-tier accounts cannot download exported html', async () => {
   const res=response(); await make('alice', async () => 'free')(request(),res);

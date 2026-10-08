@@ -78,6 +78,11 @@ export function createTeamChat({input,thread,onMessage=()=>{},onGroup=()=>{},ope
     const response=await fetch('/api/nexus-messages'+(action?'':`?group_id=${encodeURIComponent(group.id)}`),{credentials:'include',cache:'no-store',...(action?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,group_id:group.id,...body})}:{})});
     const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error || 'The team could not save that update.');return data;
   }
+  async function keepVisual(run,step,{html}){
+    const response=await fetch('/api/room-history',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'save_chat_visual',html,label:run.goal || `${step.name} build`,requestMessage:run.message || step.instruction || '',promotionId:`${run.id}-${step.id}`})});
+    const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error || 'This build could not be saved to Projects.');
+    location.assign(`/forge.html?surface=workbench&view=chat&build=${encodeURIComponent(data.build.id)}`);
+  }
   function stop(){generation++;refreshing=null;clearTimeout(timer);timer=null;group=null;host?.remove();host=null;roster=[];runs=[];request=null;signature='';suggestions.hidden=true;input.removeAttribute('aria-expanded');}
   function renderRoster(){
     const banner=thread.querySelector('.conversationbanner');if(!banner)return;
@@ -129,7 +134,7 @@ export function createTeamChat({input,thread,onMessage=()=>{},onGroup=()=>{},ope
         if(step.approval_source==='conversation_grant')copy.append(node('small','Already approved for this project.','teamscopes'));
         for(const update of step.updates || [])copy.append(node('p',update,'teamprogress'));
         if(step.result){
-          const visual=appendChatVisual(copy,step.result,step.name);
+          const visual=appendChatVisual(copy,step.result,step.name,{onPromote:payload=>keepVisual(run,step,payload)});
           if(!visual){const details=node('details');details.dataset.step=step.id;details.open=expanded.has(step.id);details.append(node('summary',resultLabel(step)),node('div',step.result,'teamresult'));if(step.evidence?.status==='verified')details.append(node('small','Checked against the available information.','teamevidence'));else if(step.evidence?.missing?.length)details.append(node('small','Some details could not be fully checked.','teamevidence'));copy.append(details);}
         }
         if(step.error)copy.append(node('p',step.error,'teamerror'));
