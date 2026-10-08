@@ -4,6 +4,9 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=overlays-content" />
 <meta name="theme-color" content="#0e0e0e" />
+<script>
+try{const colors={gold:'#e1bd72',blue:'#74a7ff',green:'#72d896',violet:'#bd9aff'};document.documentElement.style.setProperty('--nexus-control-accent',colors[localStorage.getItem('nexus-control-accent')] || colors.gold);}catch{}
+</script>
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Nexus" />
@@ -285,6 +288,7 @@
 </div>
 
 <script type="module">
+import {syncControls} from '/nexus-controls.js';
 import { friendlyError, showFeedback } from '/ux.js';
 import { VIEWS, matchView, say, chips, esc, scheduleBalance, renderWelcome } from '/workspace-views.js';
 import { NEX_CHAT_MODES } from '/nexus-product-catalog.js';
@@ -313,6 +317,7 @@ if (!session?.ok) {
   location.replace(`/nexus-login.html?next=${next}`);
   await new Promise(() => {});
 }
+syncControls();
 
 const el = (id) => document.getElementById(id);
 const thread = el('thread');
