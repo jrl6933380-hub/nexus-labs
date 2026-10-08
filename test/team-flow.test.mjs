@@ -52,10 +52,10 @@ test('chat-only visuals stay conversational even when the builder has project ac
   const instruction="Use Atlas's findings to draft a simple visual landing-page concept in this chat only. Do not publish, merge, or change any repository.";
   assert.equal(teamAssignmentMode(builder,instruction),'chat_only');
   assert.equal(teamAssignmentMode(builder,'Implement the approved concept in the customer website'),'project_write');
-  const runner=createTeamRunner({runs,messages:{overview:async()=>({groups:[{id:'group-launch',member_ids:[builder.id]}],specialists:[builder]})},mode:async()=>({mode:'engaged'}),history:async()=>null,ask:async(prompt,history,tier,context,onStage,toolContext)=>{calls.push({context,toolContext});return {reply:'```html\n<h1>Landscaping</h1>\n```',provider:'gateway',completionReceipt:{status:'not_required',observed:[]}};}});
+  const runner=createTeamRunner({runs,messages:{overview:async()=>({groups:[{id:'group-launch',member_ids:[builder.id]}],specialists:[builder]})},mode:async()=>({mode:'engaged'}),history:async()=>null,ask:async(prompt,history,tier,context,onStage,toolContext)=>{calls.push({prompt,context,toolContext});return {reply:'```html\n<h1>Landscaping</h1>\n```',provider:'gateway',completionReceipt:{status:'not_required',observed:[]}};}});
   const run=await runs.create('justin','group-launch',[builder],`@Atlas ${instruction}`,'request-chat-visual',{includeNex:false,autoStart:true});
   assert.equal(run.steps[0].requires_approval,false);assert.equal(run.steps[0].execution_mode,'chat_only');assert.deepEqual(run.steps[0].scopes,['conversation']);
-  await runner.execute('justin','group-launch',run.id);const [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'completed');assert.equal(calls[0].context.conversation.execution_mode,'read_only');assert.equal(calls[0].toolContext.cognitiveLane,'chat');
+  await runner.execute('justin','group-launch',run.id);const [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'completed');assert.equal(calls[0].context.conversation.execution_mode,'read_only');assert.equal(calls[0].toolContext.cognitiveLane,'chat');assert.match(calls[0].prompt,/not a square poster/);assert.match(calls[0].prompt,/Do not stack every item/);
 });
 test('one approved build grants reversible project work in the same conversation',async()=>{
   const {runs}=fixture(),builder=members[1];
