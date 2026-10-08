@@ -1138,13 +1138,15 @@ async function openThread(record){
 }
 async function clearRecentConversationThreads(keepThreadIds=[]){
   const keep=new Set(Array.isArray(keepThreadIds)?keepThreadIds:[]);
+  const running=pendingChat();if(running?.threadId)keep.add(running.threadId);
+  if(busy || dockBusy)keep.add(threadId);
   const clearable=(item)=>item?.id && !/^(agent-|group-|nex-main$)/u.test(item.id) && !keep.has(item.id);
   const targets=recentThreads.filter(clearable).map(item=>item.id);
   if(!targets.length)return {deleted:0};
   const response=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'clear_threads',keepThreadIds:[...keep]})});
   const data=await response.json().catch(()=>({}));
   if(!response.ok)throw new Error(data.error || 'Those conversations could not be cleared');
-  const removed=new Set(targets);
+  const removed=new Set(data.threadIds || []);
   writeStore(THREADS_KEY,readStore(THREADS_KEY).filter(item=>!removed.has(item?.id)));
   recentThreads=recentThreads.filter(item=>!removed.has(item?.id));
   drawRecents();
@@ -1346,7 +1348,23 @@ el('newTop').onclick = () => {
     const title=document.createElement('strong');title.textContent='Conversation options';
     const fresh=document.createElement('button');fresh.className='uxprimary';fresh.textContent='Start a new conversation';fresh.onclick=()=>{messagesStartNew=true;activeConversation=null;history.length=0;threadId=null;showView('messages');};
     const inbox=document.createElement('button');inbox.className='messagesecondary';inbox.textContent='Back to Messages';inbox.onclick=()=>{activeConversation=null;showView('messages');};
-    card.append(title,fresh,inbox);thread.append(card);thread.scrollTop=thread.scrollHeight;return;
+    const clear=document.createElement('button');clear.className='messagesecondary';clear.textContent='Clear this chat, keep key memories';clear.disabled=!history.length || busy || dockBusy || pendingChat()?.threadId===threadId;
+    const notice=document.createElement('p');notice.setAttribute('role','status');
+    clear.onclick=async()=>{
+      if(busy || dockBusy || pendingChat()?.threadId===threadId || !threadId)return;
+      clear.disabled=true;fresh.disabled=true;inbox.disabled=true;notice.textContent='Checking what’s worth remembering…';
+      try{
+        const response=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'clear_thread',threadId})});
+        const result=await response.json().catch(()=>({}));if(!response.ok || !result.cleared)throw new Error(result.error || 'This chat could not be cleared. Your messages are still available.');
+        history.length=0;
+        writeStore(THREADS_KEY,readStore(THREADS_KEY).filter(item=>item?.id!==threadId));
+        recentThreads=recentThreads.map(item=>item.id===threadId?{...item,title:'New chat',message_count:0,messages:[]}:item);
+        dockResponseActions=null;renderDockConversation();drawRecents();
+        const savedRuns=savedChatRuns();delete savedRuns[threadId];localStorage.setItem('nexus:chat-runs:v1',JSON.stringify(savedRuns));
+        await showView('chat');bubble('a',`<p>Chat cleared. ${Number(result.memoriesSaved) || 0} new key details remembered. Your existing memories are still available.</p>`);
+      }catch(error){notice.textContent=error.message;clear.disabled=false;fresh.disabled=false;inbox.disabled=false;}
+    };
+    card.append(title,fresh,clear,inbox,notice);thread.append(card);thread.scrollTop=thread.scrollHeight;return;
   }
   messagesStartNew=true;activeConversation=null;history.length=0;threadId=null;showView('messages');
 };

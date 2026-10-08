@@ -50,6 +50,7 @@ const {
   parseCuratorDecision,
   rankMemories,
   stageExchangeForMemory,
+  purgeChatMemoryCandidates,
 } = await import('../lib/memory.js');
 
 test('legacy records receive safe structured defaults', () => {
@@ -112,4 +113,12 @@ test('compression never reactivates superseded memories', async () => {
   const old = normalizeMemory({ id: 'old', content: 'Use the retired design.', status: 'superseded', created_at: 1 });
   const current = normalizeMemory({ id: 'current', content: 'Use the current design.', status: 'active', created_at: 2 });
   assert.deepEqual(rankMemories([old, current], 'design').map((item) => item.id), ['current']);
+});
+
+test('clearing a chat removes its draft transcript copies without deleting saved Memory or other chats',async()=>{
+  const saved=await addMemory('A durable project fact.','project');
+  const remove=await stageExchangeForMemory({userMessage:'My project is a landscaping company.',assistantReply:'A detailed reply.',sourceTurn:'thread:t-clean'});
+  const keep=await stageExchangeForMemory({userMessage:'My other project is a bakery.',assistantReply:'Another reply.',sourceTurn:'thread:t-keep'});
+  await purgeChatMemoryCandidates([{id:'t-clean',messages:[{role:'user',content:'My project is a landscaping company.'}]}]);
+  const candidates=await listMemoryCandidates({status:null});assert.ok(!candidates.some(item=>item.id===remove.id));assert.ok(candidates.some(item=>item.id===keep.id));assert.ok((await listMemories()).some(item=>item.id===saved.id));
 });
