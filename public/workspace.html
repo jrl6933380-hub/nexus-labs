@@ -987,7 +987,7 @@ async function showView(id){
     thread.innerHTML = '';
     const help=id==='life' ? null : renderFeatureHelp(id,ctx);if(help)thread.appendChild(help);
     for (const node of nodes) thread.appendChild(node);
-    if(!['messages','approvals','guide'].includes(id)){if(!threadId)threadId='nex-main';teamChat.open(activeConversation,threadId);}
+    if(!['messages','approvals','guide','life'].includes(id)){if(!threadId)threadId='nex-main';teamChat.open(activeConversation,threadId);}
   } catch (error) {
     thread.innerHTML = '';
     bubble('sys', esc(friendlyError(error,{action:'load',subject:VIEWS[id].label})));

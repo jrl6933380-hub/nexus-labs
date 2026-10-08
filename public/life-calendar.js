@@ -33,7 +33,7 @@ export function renderLifeCalendar({items,state,onCreate,onOpen,onChange,onNavig
   const gutter=node('div','lc-hourlabels');for(let hour=0;hour<24;hour++)gutter.append(node('span','',`${hour%12 || 12} ${hour<12 ? 'AM' : 'PM'}`));
   heads.append(node('div','lc-corner','TIME'));grid.append(gutter);
   const columns=[],today=calendarKey(new Date());let saving=false;
-  function captureScroll(){state.scrollTop=viewport.scrollTop;state.scrollLeft=viewport.scrollLeft;}
+  function captureScroll(){state.scrollTop=viewport.scrollTop;state.scrollLeft=viewport.scrollLeft;dayViewport.scrollLeft=viewport.scrollLeft;}
   function columnAt(x,fallback){return columns.find(column=>{const r=column.getBoundingClientRect();return x>=r.left && x<r.right;}) || fallback;}
   function minuteAt(y){return Math.max(0,Math.min(1440,(y-grid.getBoundingClientRect().top)/LIFE_HOUR_HEIGHT*60));}
   function clashes(start,end,ignore){return items.some(item=>item.id!==ignore && item.status!=='cancelled' && item.status!=='done' && Date.parse(item.starts_at)<Date.parse(end) && Date.parse(item.ends_at)>Date.parse(start));}
@@ -122,10 +122,11 @@ export function renderLifeCalendar({items,state,onCreate,onOpen,onChange,onNavig
     for(const entry of calendarLayout(items.filter(item=>item.starts_at),day))directBlock(entry.item,entry,column,day);
     if(key===today){const now=new Date(),line=node('div','lc-now');line.style.top=`${(now.getHours()+now.getMinutes()/60)*LIFE_HOUR_HEIGHT}px`;column.append(line);}grid.append(column);
   }
-  canvas.append(heads,grid);viewport.append(canvas);root.append(status,viewport);
+  const dayViewport=node('div','lc-dayviewport');dayViewport.append(heads);
+  canvas.append(grid);viewport.append(canvas);root.append(status,dayViewport,viewport);
   const add=button('+ Time block',()=>{captureScroll();onCreate(lifeSelection(state.date,9*60,10*60));});add.className='lc-add';root.append(add);
   viewport.onscroll=captureScroll;
   const frame=typeof requestAnimationFrame==='function' ? requestAnimationFrame : callback=>callback();
-  frame(()=>{viewport.scrollTop=state.scrollTop ?? 8*LIFE_HOUR_HEIGHT;const index=days.findIndex(day=>calendarKey(day)===calendarKey(current));viewport.scrollLeft=state.scrollLeft ?? Math.max(0,index)*columns[0].getBoundingClientRect().width;});
+  frame(()=>{viewport.scrollTop=state.scrollTop ?? 8*LIFE_HOUR_HEIGHT;const index=days.findIndex(day=>calendarKey(day)===calendarKey(current));viewport.scrollLeft=state.scrollLeft ?? Math.max(0,index)*columns[0].getBoundingClientRect().width;captureScroll();});
   return root;
 }

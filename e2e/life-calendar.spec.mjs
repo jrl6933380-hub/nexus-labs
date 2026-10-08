@@ -86,3 +86,30 @@ test('a failed drag save retains the original block and reports the storage erro
   await page.mouse.move(rect.x+40,rect.y+20);await page.mouse.down();await page.mouse.move(rect.x+40,rect.y+60,{steps:5});await page.mouse.up();
   await expect(page.locator('.lc-status')).toContainText('Life storage is unavailable');expect((await life.overview(user)).items[0].starts_at).toBe(item.starts_at);await expect(block).toBeVisible();expect(errors).toEqual([]);
 });
+
+test('day labels stay above the grid while touch scrolling to midnight and horizontally, including short screens',async({page})=>{
+  await setup(page);
+  const viewport=page.locator('.lc-viewport'),heads=page.locator('.lc-dayviewport');
+  const check=async()=>{
+    const h=await heads.boundingBox(),v=await viewport.boundingBox(),foot=await page.locator('.foot').boundingBox();
+    expect(h.height).toBeGreaterThanOrEqual(58);expect(v.height).toBeGreaterThan(100);expect(h.y).toBeGreaterThanOrEqual(0);expect(Math.abs(h.y+h.height-v.y)).toBeLessThan(2);expect(v.y+v.height).toBeLessThanOrEqual(foot.y);
+    expect(await page.locator('#thread').evaluate(el=>el.scrollHeight-el.clientHeight)).toBeLessThanOrEqual(1);
+  };
+  await check();
+  const cdp=await page.context().newCDPSession(page);
+  const touch=async(type,x,y)=>cdp.send('Input.dispatchTouchEvent',{type,touchPoints:type==='touchEnd'?[]:[{x,y,id:1,radiusX:2,radiusY:2,force:1}]});
+  for(let i=0;i<8;i++){
+    const box=await viewport.boundingBox();const x=box.x+100,y=box.y+35;
+    await touch('touchStart',x,y);await touch('touchMove',x,y+180);await touch('touchEnd',0,0);
+    await check();
+  }
+  expect(await viewport.evaluate(el=>el.scrollTop)).toBe(0);
+  const before=await heads.boundingBox();
+  await viewport.evaluate(el=>{el.scrollTop=1500;el.scrollLeft=176;});
+  await expect.poll(()=>heads.evaluate(el=>el.scrollLeft)).toBe(176);
+  await check();expect((await heads.boundingBox()).y).toBe(before.y);
+  const alignment=await page.evaluate(()=>[...document.querySelectorAll('.lc-days button')].map((head,i)=>Math.abs(head.getBoundingClientRect().left-document.querySelectorAll('.lc-lane')[i].getBoundingClientRect().left)));
+  expect(Math.max(...alignment)).toBeLessThan(1);
+  await page.setViewportSize({width:393,height:600});await check();
+  await page.screenshot({path:'test-results/life-pinned-days-mobile.png',fullPage:true});
+});
