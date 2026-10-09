@@ -1,4 +1,3 @@
-import {NEXUS_INTRO} from './nexus-guide.js';
 import {renderAccountControls} from './nexus-controls.js';
 import {SPACE_BUNDLES,pinnedBundles} from './nexus-navigation.js';
 import {friendlyError,showFeedback} from './ux.js';
@@ -38,7 +37,7 @@ function avatar(label,tone=''){const el=node('span',undefined,`messageavatar ${t
 function timeLabel(value){const stamp=Number(value);if(!stamp)return '';const date=new Date(stamp),now=new Date();if(date.toDateString()===now.toDateString())return date.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});const yesterday=new Date(now);yesterday.setDate(now.getDate()-1);if(date.toDateString()===yesterday.toDateString())return 'Yesterday';return date.toLocaleDateString([],{month:'short',day:'numeric'});}
 function row({name,meta,preview,icon='N',tone='',status='',when='',pinned=false,run}){const item=button('',run,`messageitem tone-${tone || 'plain'}${pinned?' pinned':''}`);item.append(avatar(icon,tone));const copy=node('span',undefined,'messagecopy');const top=node('span',undefined,'messagetop');top.append(node('strong',name));const aside=node('span',undefined,'messageaside');if(status)aside.append(node('small',status,'messagestatus'));if(when)aside.append(node('small',when,'messagetime'));top.append(aside);copy.append(top,node('span',meta,'messagemeta'),node('span',preview,'messagepreview'));item.append(copy);return item;}
 function group(label,items=[]){const section=node('section',undefined,'messagechoices cataloggroup');section.append(node('p',label,'messagesection'),...items);return section;}
-function heading(root,title,copy,back){document.body.classList.add('messages-panel');root.replaceChildren();const top=node('div',undefined,'messagepanelhead');if(back)top.append(button('‹',back,'messageback'));top.append(node('h2',title));root.append(top);if(copy)root.append(node('p',copy,'messageintro'));}
+function heading(root,title,copy,back){document.body.classList.remove('messages-home');document.body.classList.add('messages-panel');root.replaceChildren();const top=node('div',undefined,'messagepanelhead');if(back)top.append(button('‹',back,'messageback'));top.append(node('h2',title));root.append(top);if(copy)root.append(node('p',copy,'messageintro'));}
 function wizardHeading(root,title,step,back){heading(root,title,step,back);const progress=node('span',undefined,'messageprogress');progress.append(node('i'));if(step.includes('2 of 2'))progress.classList.add('complete');root.append(progress);}
 
 const CAPABILITY_BUILDERS=Object.freeze({
@@ -59,45 +58,59 @@ export function buildOwnerCapabilityPrompt(section,{name='',purpose='',behavior=
 }
 
 export async function renderMessages(ctx){
-  const root=node('section',undefined,'nexusmessages');let state={specialists:[],groups:[],roles:{},scopes:[],pinned_system_ids:[]};
+  const root=node('section',undefined,'nexusmessages');let state={specialists:[],groups:[],roles:{},scopes:[],pinned_system_ids:[]},projects=[];
   let ownerCatalog=null;
-  async function load(message){try{state=await api();if(ctx.consumeMessagesNew?.())newConversation();else {const destination=ctx.consumeMessagesDestination?.();if(destination==='usage')accountControls('usage');else if(destination==='settings')accountControls();else if(SPACE_BUNDLES.some(bundle=>bundle.id===destination))bundleView(destination);else draw();}if(typeof message==='string' && message.trim())showFeedback(root,message);}catch(error){root.replaceChildren(node('p',friendlyError(error,{action:'load',subject:'Messages'})),button('Try again',()=>load()),button('Explore Nexus',()=>ctx.go('guide'),'guideopen'));}}
+  async function loadProjects(){try{const response=await fetch('/api/room-history',{credentials:'include',headers:{Accept:'application/json'},cache:'no-store'});const data=await response.json().catch(()=>({}));if(response.ok)projects=Array.isArray(data.projects)?data.projects:[];}catch{projects=[];}}
+  async function load(message){try{const [messages]=await Promise.all([api(),loadProjects()]);state=messages;if(ctx.consumeMessagesNew?.())newConversation();else {const destination=ctx.consumeMessagesDestination?.();if(destination==='usage')accountControls('usage');else if(destination==='settings')accountControls();else if(SPACE_BUNDLES.some(bundle=>bundle.id===destination))bundleView(destination);else draw();}if(typeof message==='string' && message.trim())showFeedback(root,message);}catch(error){root.replaceChildren(node('p',friendlyError(error,{action:'load',subject:'Messages'})),button('Try again',()=>load()),button('Explore Nexus',()=>ctx.go('guide'),'guideopen'));}}
   function draw(){
-    document.body.classList.remove('messages-panel');
+    document.body.classList.remove('messages-panel');document.body.classList.add('messages-home');
     root.replaceChildren();
-    const intro=node('header',undefined,'messagespurpose');intro.append(node('h2',NEXUS_INTRO.title),node('p','Recipes, reminders, notes, ideas, and things you want to make. Start with a conversation.'));root.append(intro);
-    const search=node('input');search.type='search';search.placeholder='Search conversations';search.setAttribute('aria-label','Search conversations');root.append(search);
-    const list=node('div',undefined,'messagelist');root.append(list);
-    const entries=[],threads=new Map(ctx.recentThreads().map(item=>[item.id,item])),main=threads.get('nex-main');
-    entries.push({section:'Conversations',element:row({name:'Nex',meta:'Your main intelligence',preview:main?.title || 'Talk about anything—ideas, problems, plans, or life.',icon:'N',tone:'nex',when:timeLabel(main?.updated_at),pinned:true,run:()=>ctx.openConversation({kind:'nex',name:'Nex'})}),search:'nex main intelligence talk anything ideas problems plans life'});
-    for(const specialist of state.specialists){const saved=threads.get(specialist.id);entries.push({section:'Agents',element:row({name:specialist.name,meta:state.roles[specialist.role]?.label || 'Specialist',preview:saved?.title || specialist.job,icon:specialist.name,tone:specialist.role,status:state.specialist_status?.[specialist.id] || (saved?.message_count?'Active':'Ready'),when:timeLabel(saved?.updated_at),run:()=>ctx.openConversation({kind:'specialist',...specialist})}),search:`agents ${specialist.name} ${specialist.job} ${state.roles[specialist.role]?.label || specialist.role}`});}
-    for(const group of state.groups){const saved=threads.get(group.id),members=group.member_ids.map(id=>state.specialists.find(item=>item.id===id)).filter(Boolean),names=members.map(member=>member.name);entries.push({section:'Teams',element:row({name:group.title,meta:[...(group.include_nex===false?[]:['Nex']),...names].join(' + '),preview:saved?.title || 'Use @mentions to give your team a mission.',icon:'+',tone:'group',status:state.team_status?.[group.id] || (saved?.message_count?'Active':'Ready'),when:timeLabel(saved?.updated_at),run:()=>ctx.openConversation({kind:'group',...group,members})}),search:`${group.title} ${names.join(' ')}`});}
-    const recent=ctx.recentThreads().filter(item=>!/^agent-|^group-|^nex-main$/u.test(item.id));
-    for(const thread of recent)entries.push({section:'Recent',element:row({name:thread.title,meta:'Nex conversation',preview:`${thread.message_count || 0} messages`,icon:'N',tone:'recent',when:timeLabel(thread.updated_at || thread.ts),run:()=>ctx.openThread(thread)}),search:thread.title});
-    const pinned=new Set(pinnedBundles(state.pinned_system_ids || []));
-    for(const system of SPACE_BUNDLES.filter(item=>pinned.has(item.id))){const run=()=>bundleView(system.id);entries.push({section:'Nexus spaces',element:row({name:system.name,meta:'Nexus space',preview:system.description,icon:system.icon,tone:system.tone,run}),search:`${system.name} ${system.description}`});}
-    entries.push({section:'Nexus spaces',element:row({name:'More',meta:'Customize Messages',preview:'Pin the Nexus spaces you want on this screen.',icon:'…',tone:'more',run:moreView}),search:'more customize pin nexus spaces'});
-    const paint=(query='')=>{
-      list.replaceChildren();const needle=query.toLowerCase().trim();let previous='',agentGrid=null;
-      for(const entry of entries){
-        if(needle && !entry.search.toLowerCase().includes(needle))continue;
-        if(entry.section==='Agents'){
-          if(!agentGrid){
-            const agents=node('section',undefined,'messageagents');agents.setAttribute('aria-label','Agents');
-            agents.append(node('h3','Agents','messagesection'));agentGrid=node('div',undefined,'messageagentgrid');agents.append(agentGrid);list.append(agents);
-          }
-          agentGrid.append(entry.element);previous='Agents';continue;
-        }
-        if(!needle && entry.section!==previous){if(previous && entry.section!=='Conversations')list.append(node('p',entry.section,'messagesection'));}
-        previous=entry.section;list.append(entry.element);
-      }
-      if(!list.querySelector('.messageitem'))list.append(node('p','No conversations match that search.','messageempty'));
-    };paint();search.oninput=()=>paint(search.value);
-    root.append(button('New conversation',newConversation,'uxprimary messageprimary'));
+    const threads=ctx.recentThreads(),threadMap=new Map(threads.map(item=>[item.id,item])),main=threadMap.get('nex-main');
+    const attention=[...state.specialists.map(item=>({kind:'specialist',item,status:state.specialist_status?.[item.id]})),...state.groups.map(item=>({kind:'group',item,status:state.team_status?.[item.id]}))].filter(record=>/needs attention|result ready/iu.test(record.status || ''));
+    const ready=attention.find(record=>/result ready/iu.test(record.status || '')),urgent=attention.find(record=>/needs attention/iu.test(record.status || ''));
+    const project=projects[0],recent=threads.filter(item=>!/^agent-|^group-|^nex-main$/u.test(item.id));
+    const hour=new Date().getHours(),greeting=hour<12?'Good morning':hour<18?'Good afternoon':'Good evening';
+    const briefing=urgent?`${urgent.item.name || urgent.item.title} needs your attention. ${project?'Your latest project is ready when you are.':'Nex is ready to help you decide what comes next.'}`:ready?`${ready.item.name || ready.item.title} has a result ready. ${project?'Your latest project is saved and ready to continue.':'You can review it now or keep moving.'}`:project?`${project.label || 'Your latest project'} is ready to continue. No agent result needs you right now.`:main?.title?`No agent results are waiting. You can pick up “${main.title}” or start with whatever is on your mind.`:'No agent results are waiting. Start with Nex, a project, or your day.';
+    const openRecord=(record)=>{if(!record)return nexHub();if(record.kind==='specialist')return ctx.openConversation({kind:'specialist',...record.item});const members=record.item.member_ids.map(id=>state.specialists.find(item=>item.id===id)).filter(Boolean);return ctx.openConversation({kind:'group',...record.item,members});};
+
+    const hero=node('section',undefined,'homebriefing');
+    const heroTop=node('div',undefined,'homebriefingtop'),heroCopy=node('div',undefined,'homebriefingcopy');heroTop.append(avatar('N','nex'));heroCopy.append(node('span','Nex briefing','homeeyebrow'),node('h2',greeting),node('p',briefing));heroTop.append(heroCopy);hero.append(heroTop);
+    const signals=node('div',undefined,'homesignals');
+    if(attention.length)signals.append(node('span',`${attention.length} need${attention.length===1?'s':''} you`));
+    if(project)signals.append(node('span','Project ready'));
+    signals.append(node('span','Live overview'));hero.append(signals);
+    const heroActions=node('div',undefined,'homeactions');heroActions.append(button(attention.length?'Review next':main?'Continue':'See my Nex',()=>attention.length?openRecord(attention[0]):main?ctx.openConversation({kind:'nex',name:'Nex'}):nexHub(),'homeprimary'),button('Talk to Nex',()=>ctx.openConversation({kind:'nex',name:'Nex'},true),'homesecondary'));hero.append(heroActions);root.append(hero);
+
+    root.append(node('h3','Your Nexus','homeheading'));
+    const spaces=node('nav',undefined,'homespacegrid');spaces.setAttribute('aria-label','Your Nexus spaces');
+    for(const space of [
+      {name:'Nex',copy:`${state.specialists.length} agent${state.specialists.length===1?'':'s'} connected`,icon:'N',tone:'nex',run:nexHub},
+      {name:'Projects',copy:project?(project.label || 'Continue building'):'Make something real',icon:'◫',tone:'projects',run:()=>ctx.go('workbench')},
+      {name:'Life',copy:'Your rhythm and schedule',icon:'✦',tone:'life',run:()=>ctx.go('life')},
+      {name:'More',copy:'Explore and customize',icon:'…',tone:'more',run:moreView},
+    ]){const item=button('',space.run,`homespace tone-${space.tone}`);item.append(avatar(space.icon,space.tone));const copy=node('span');copy.append(node('strong',space.name),node('small',space.copy));item.append(copy,node('i','›'));spaces.append(item);}root.append(spaces);
+
+    root.append(node('h3','Live cards','homeheading'));
+    const cards=node('div',undefined,'homecards');
+    const projectCard=button('',()=>ctx.go('workbench'),'homecard projectcard');projectCard.append(node('span','Active project','homecardlabel'));const projectVisual=node('span',undefined,'projectvisual');projectVisual.append(node('i'),node('i'),node('i'));projectCard.append(projectVisual,node('strong',project?.label || 'Start your first project'),node('small',project?'Open the latest saved version':'Build a page, app, tool, or visual'),node('b',project?'Continue':'Start building'));cards.append(projectCard);
+    const lifeCard=button('',()=>ctx.go('life'),'homecard lifecard');lifeCard.append(node('span','Life','homecardlabel'));const ring=node('span',undefined,'lifering');ring.append(node('i',attention.length?'Check':'Ready'),node('b','•'));lifeCard.append(ring,node('strong','Your alignment'),node('small',attention.length?'See what is asking for your energy':'Your Life space is ready for today'),node('b','Open Life'));cards.append(lifeCard);
+    const team=ready || urgent || (state.groups[0]?{kind:'group',item:state.groups[0],status:state.team_status?.[state.groups[0].id]}:null);
+    const teamCard=button('',()=>team?openRecord(team):newConversation(),'homecard teamcard');teamCard.append(node('span','Team result','homecardlabel'),node('span',team?'✓':'+','teamresulticon'),node('strong',team?.item?.name || team?.item?.title || 'Bring a team together'),node('small',team?.status || 'Nex can assemble the right agents'),node('b',team?'Review':'Start a team'));cards.append(teamCard);
+    root.append(cards);
+
+    if(recent.length || state.groups.length){root.append(node('h3','Continue','homeheading'));const continuation=node('div',undefined,'homecontinue');for(const thread of recent.slice(0,2))continuation.append(row({name:thread.title,meta:'Nex conversation',preview:`${thread.message_count || 0} messages`,icon:'N',tone:'recent',when:timeLabel(thread.updated_at || thread.ts),run:()=>ctx.openThread(thread)}));if(!recent.length && state.groups[0]){const group=state.groups[0],members=group.member_ids.map(id=>state.specialists.find(item=>item.id===id)).filter(Boolean);continuation.append(row({name:group.title,meta:'Your team',preview:'Open the shared conversation.',icon:'+',tone:'group',status:state.team_status?.[group.id] || 'Ready',run:()=>ctx.openConversation({kind:'group',...group,members})}));}root.append(continuation);}
     if(recent.length)root.append(button('Clear recent conversations',()=>clearConversations(recent),'messageclear'));
   }
+  function nexHub(){
+    heading(root,'Nex','Your main intelligence and every agent it can bring into the work.',draw);
+    const main=ctx.recentThreads().find(item=>item.id==='nex-main');root.append(row({name:'Talk with Nex',meta:'Your main intelligence',preview:main?.title || 'Think, plan, remember, or create.',icon:'N',tone:'nex',when:timeLabel(main?.updated_at),pinned:true,run:()=>ctx.openConversation({kind:'nex',name:'Nex'})}));
+    const tools=node('div',undefined,'nexhubactions');tools.append(button('New conversation',newConversation,'homeprimary'),button('Create an agent',createSpecialist,'homesecondary'));root.append(tools);
+    const search=node('input');search.type='search';search.placeholder='Find an agent';search.setAttribute('aria-label','Find an agent');root.append(search);
+    const agents=node('section',undefined,'messageagents');agents.setAttribute('aria-label','Agents');agents.append(node('h3','Your agents','messagesection'));const grid=node('div',undefined,'messageagentgrid');agents.append(grid);root.append(agents);
+    const paint=(query='')=>{grid.replaceChildren();const needle=query.trim().toLowerCase();for(const specialist of state.specialists){const role=state.roles[specialist.role]?.label || 'Specialist';if(needle&&!`${specialist.name} ${specialist.job} ${role}`.toLowerCase().includes(needle))continue;const saved=ctx.recentThreads().find(item=>item.id===specialist.id);grid.append(row({name:specialist.name,meta:role,preview:saved?.title || specialist.job,icon:specialist.name,tone:specialist.role,status:state.specialist_status?.[specialist.id] || (saved?.message_count?'Active':'Ready'),when:timeLabel(saved?.updated_at),run:()=>ctx.openConversation({kind:'specialist',...specialist})}));}if(!grid.children.length)grid.append(node('p',state.specialists.length?'No agents match that search.':'No agents yet. Create one when you need a specialist.','messageempty'));};paint();search.oninput=()=>paint(search.value);
+  }
   function moreView(message=''){
-    heading(root,'More','Choose which Nexus spaces stay on your Messages screen.',draw);
+    heading(root,'More','Customize Messages and choose which Nexus spaces stay close.',draw);
     root.append(row({name:'Account & Controls',meta:'Settings and live usage',preview:'Usage, reply preferences, appearance, notifications, security, and data.',icon:'⌁',tone:'more',run:accountControls}));
     root.append(row({name:'Explore Nexus',meta:'Everyday life, projects, and work',preview:'See what each feature does and try a practical example.',icon:'?',tone:'more',run:()=>ctx.go('guide')}));
     const pinned=new Set(pinnedBundles(state.pinned_system_ids || [])),list=node('div',undefined,'pinmanager');
