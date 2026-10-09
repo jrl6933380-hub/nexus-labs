@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {CORE_SPECIALISTS,createNexusMessagesStore,MESSAGE_SYSTEM_IDS} from '../lib/nexusMessagesStore.js';
 import {createNexusMessagesHandler} from '../api/nexus-messages.js';
-import {conversationThreadId,conversationPreview,buildOwnerCapabilityPrompt} from '../public/nexus-messages.js';
+import {conversationThreadId,conversationPreview,buildOwnerCapabilityPrompt,buildHomeNotifications,HOME_SURFACE_FEATURES} from '../public/nexus-messages.js';
 import {buildActiveTools,buildConversationAccessPolicy,formatLiveWorkspaceContext} from '../lib/nexBrain.js';
 import {isProtectedConversationThreadId} from '../lib/nexConversationStore.js';
 import fs from 'node:fs';
@@ -59,6 +59,23 @@ test('specialist and group threads stay isolated and previews are compact',()=>{
   assert.equal(conversationThreadId({kind:'group',id:'group-abc'}),'group-abc');
   assert.equal(conversationThreadId({kind:'nex'}),'nex-main');
   assert.equal(conversationPreview({title:'  Plan   the launch  '}),'Plan the launch');
+});
+
+test('home notifications keep only relevant live items and deduplicate linked Life plans',()=>{
+  const now=Date.parse('2026-10-09T12:00:00.000Z');
+  const items=buildHomeNotifications({now,
+    schedule:[
+      {id:'past',title:'Old meeting',status:'planned',starts_at:'2026-10-09T09:00:00.000Z',ends_at:'2026-10-09T10:00:00.000Z'},
+      {id:'walk',title:'Evening walk',status:'planned',starts_at:'2026-10-09T18:00:00.000Z',ends_at:'2026-10-09T19:00:00.000Z'},
+    ],
+    life:[{id:'life-walk',title:'Evening walk',status:'planned',starts_at:'2026-10-09T18:00:00.000Z',ends_at:'2026-10-09T19:00:00.000Z'}],
+    reminders:[{id:'call',title:'Call Mom',status:'planned',due_at:'2026-10-09T15:00:00.000Z'}],
+    projects:[{projectId:'garden',label:'Garden site',updatedAt:now-60000},{projectId:'stale',label:'Old site',updatedAt:now-(2*86400000)}],
+  });
+  assert.deepEqual(items.map(item=>item.title),['Garden site','Call Mom','Evening walk']);
+  assert.equal(items.filter(item=>item.title==='Evening walk').length,1);
+  assert.equal(items.some(item=>item.title==='Old meeting'||item.title==='Old site'),false);
+  assert.equal(HOME_SURFACE_FEATURES.projects.meter,'project_slots');
 });
 
 test('trusted workspace context names specialist boundaries and makes Nex coordinate groups honestly',()=>{
@@ -137,8 +154,10 @@ test('Messages carries the old navigation as colored connected conversation rows
   assert.match(source,/Create a specialist/);assert.match(source,/Step 1 of 2/);assert.match(source,/You choose what this agent can access/);
   assert.match(source,/Customize Messages/);assert.match(source,/set_pinned_systems/);assert.match(css,/pinmanager/);
   assert.match(source,/Name your team and choose who belongs/);assert.match(source,/placeholder='Team name'/);
-  assert.match(source,/Live details ↻/);assert.match(source,/Create your first team/);assert.match(source,/teamGroup=state\.groups/u);
-  assert.match(css,/homecard\.is-flipped/);assert.match(css,/homecardfacts/);
+  assert.match(source,/Now & next/);assert.match(source,/Live spaces/);assert.match(source,/for\(const item of projects\)/u);assert.match(source,/for\(const group of state\.groups\)/u);
+  assert.match(source,/Create a team/);assert.match(source,/data-project-usage/u);assert.match(source,/messages\.live_projects/u);
+  assert.match(css,/overflow-x:auto/);assert.match(css,/homelivecard/);assert.match(css,/homenotifications/);
+  assert.doesNotMatch(css,/homecard\.is-flipped/);
 });
 
 test('Account controls group owner-only tool, skill, and command catalogs',()=>{
