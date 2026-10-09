@@ -356,7 +356,7 @@ const ctx = {
     await fetch('/api/nexus-auth', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ action:'lock' }) });
     location.replace('/nexus-login.html?next=%2Fworkspace.html');
   },
-  openWorkbenchPanel: (buildId, mode = 'preview') => location.assign(`/forge.html?surface=workbench&view=${mode === 'edit' ? 'chat' : ['preview','fine','add-piece'].includes(mode) ? mode : 'chat'}&build=${encodeURIComponent(buildId)}`),
+  openWorkbenchPanel: (buildId, mode = 'overview') => location.assign(`/forge.html?surface=workbench&view=${mode === 'edit' ? 'chat' : ['overview','preview','fine','add-piece'].includes(mode) ? mode : 'overview'}&build=${encodeURIComponent(buildId)}`),
   newWorkbenchPanel: () => location.assign('/forge.html?surface=workbench&view=chat&new=1'),
   setProjectUsage: (count, limit) => {
     const badge = el('projectPlanBadge');

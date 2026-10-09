@@ -11,7 +11,7 @@ const [workspace, forge, views, workspaceViews, messages] = await Promise.all([
 ]);
 
 test('Nex Chat opens panels through the tailored Workbench surface', () => {
-  assert.match(workspace, /mode === 'edit' \? 'chat' : \['preview','fine','add-piece'\]/u);
+  assert.match(workspace, /mode === 'edit' \? 'chat' : \['overview','preview','fine','add-piece'\]/u);
   assert.match(workspace, /forge\.html\?surface=workbench&view=chat&new=1/u);
 });
 
@@ -116,8 +116,8 @@ test('Projects view shows plan usage and the backend receives the Workbench surf
   assert.match(forge, /WORKBENCH_PROJECT_LIMIT/u);
 });
 
-test('Live project cards expose the clean public link without opening editor chrome', () => {
-  assert.match(workspaceViews, /copy\.textContent = 'Copy link'/u);
-  assert.match(workspaceViews, /copyProjectLink\(liveUrl, copy\)/u);
-  assert.match(workspaceViews, /navigator\.clipboard\.writeText\(url\)/u);
+test('Live project cards stay visually quiet and open their project home', () => {
+  assert.match(workspaceViews, /badge\.textContent=liveUrl\?'Live':'Draft'/u);
+  assert.match(workspaceViews, /openCard\.onclick=\(\)=>open\(buildId,'overview',title\)/u);
+  assert.doesNotMatch(workspaceViews, /copyProjectLink/u);
 });
