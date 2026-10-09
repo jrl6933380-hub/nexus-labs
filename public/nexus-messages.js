@@ -70,7 +70,6 @@ export async function renderMessages(ctx){
     const list=node('div',undefined,'messagelist');root.append(list);
     const entries=[],threads=new Map(ctx.recentThreads().map(item=>[item.id,item])),main=threads.get('nex-main');
     entries.push({section:'Conversations',element:row({name:'Nex',meta:'Your main intelligence',preview:main?.title || 'Talk about anything—ideas, problems, plans, or life.',icon:'N',tone:'nex',when:timeLabel(main?.updated_at),pinned:true,run:()=>ctx.openConversation({kind:'nex',name:'Nex'})}),search:'nex main intelligence talk anything ideas problems plans life'});
-    entries.push({section:'Conversations',element:row({name:'Explore Nexus',meta:'Everyday life, projects, and work',preview:'See what each feature does and try a practical example.',icon:'?',tone:'more',run:()=>ctx.go('guide')}),search:'explore nexus guide help what can I do recipes notes reminders sleep birthdays research builder agents'});
     for(const specialist of state.specialists){const saved=threads.get(specialist.id);entries.push({section:'Conversations',element:row({name:specialist.name,meta:state.roles[specialist.role]?.label || 'Specialist',preview:saved?.title || specialist.job,icon:specialist.name,tone:specialist.role,status:state.specialist_status?.[specialist.id] || (saved?.message_count?'Active':'Ready'),when:timeLabel(saved?.updated_at),run:()=>ctx.openConversation({kind:'specialist',...specialist})}),search:`${specialist.name} ${specialist.job}`});}
     for(const group of state.groups){const saved=threads.get(group.id),members=group.member_ids.map(id=>state.specialists.find(item=>item.id===id)).filter(Boolean),names=members.map(member=>member.name);entries.push({section:'Conversations',element:row({name:group.title,meta:[...(group.include_nex===false?[]:['Nex']),...names].join(' + '),preview:saved?.title || 'Use @mentions to give your team a mission.',icon:'+',tone:'group',status:state.team_status?.[group.id] || (saved?.message_count?'Active':'Ready'),when:timeLabel(saved?.updated_at),run:()=>ctx.openConversation({kind:'group',...group,members})}),search:`${group.title} ${names.join(' ')}`});}
     const recent=ctx.recentThreads().filter(item=>!/^agent-|^group-|^nex-main$/u.test(item.id));
@@ -85,6 +84,7 @@ export async function renderMessages(ctx){
   function moreView(message=''){
     heading(root,'More','Choose which Nexus spaces stay on your Messages screen.',draw);
     root.append(row({name:'Account & Controls',meta:'Settings and live usage',preview:'Usage, reply preferences, appearance, notifications, security, and data.',icon:'⌁',tone:'more',run:accountControls}));
+    root.append(row({name:'Explore Nexus',meta:'Everyday life, projects, and work',preview:'See what each feature does and try a practical example.',icon:'?',tone:'more',run:()=>ctx.go('guide')}));
     const pinned=new Set(pinnedBundles(state.pinned_system_ids || [])),list=node('div',undefined,'pinmanager');
     for(const system of SPACE_BUNDLES){
       const item=node('div',undefined,`pinmanagerrow${pinned.has(system.id)?' is-pinned':''}`);
