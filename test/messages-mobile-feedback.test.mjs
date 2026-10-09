@@ -16,11 +16,28 @@ test('opening More with a tap event shows no banner; pinning still shows its con
   const more=all(root).find(el=>el.tagName==='button'&&all(el).some(child=>child.textContent==='More'));
   more.onclick({type:'click',toString:()=> '[object PointerEvent]'});
   assert.equal(all(root).some(el=>el.className==='uxfeedback'),false);
-  await all(root).find(el=>el.attrs['aria-label']==='Unpin Schedule').onclick({type:'click'});
-  assert.equal(all(root).find(el=>el.className==='uxfeedback').textContent,'Schedule removed from Messages.');
+  await all(root).find(el=>el.attrs['aria-label']==='Unpin Life & Schedule').onclick({type:'click'});
+  assert.equal(all(root).find(el=>el.className==='uxfeedback').textContent,'Life & Schedule removed from Messages.');
   all(root).find(el=>el.textContent==='‹').onclick({type:'click'});
   all(root).find(el=>el.tagName==='button'&&all(el).some(child=>child.textContent==='More')).onclick({type:'click'});
   assert.equal(all(root).some(el=>el.className==='uxfeedback'),false);
+ }finally{globalThis.document=previousDocument;globalThis.fetch=previousFetch;}
+});
+
+test('the living home keeps agents inside Nex and surfaces real project and attention signals',async()=>{
+ const previousDocument=globalThis.document,previousFetch=globalThis.fetch;
+ globalThis.document={createElement:element,body:{classList:{add(){},remove(){}}}};
+ const state={specialists:[{id:'agent-mason',name:'Mason',role:'build',job:'Build approved projects.'}],groups:[],roles:{build:{label:'Builder'}},scopes:[],pinned_system_ids:[],specialist_status:{'agent-mason':'Needs attention'}};
+ globalThis.fetch=async(url)=>({ok:true,json:async()=>String(url).includes('room-history')?{projects:[{projectId:'garden',label:'Garden site'}]}:state});
+ try{
+  const root=await renderMessages({recentThreads:()=>[]});
+  assert.equal(all(root).some(el=>el.className==='messageagents'),false);
+  assert.equal(all(root).some(el=>el.textContent==='Garden site'),true);
+  assert.equal(all(root).some(el=>el.textContent==='1 needs you'),true);
+  const nex=all(root).find(el=>el.tagName==='button'&&all(el).some(child=>child.textContent==='Nex'));
+  nex.onclick();
+  assert.equal(all(root).some(el=>el.textContent==='Your agents'),true);
+  assert.equal(all(root).some(el=>el.textContent==='Mason'),true);
  }finally{globalThis.document=previousDocument;globalThis.fetch=previousFetch;}
 });
 

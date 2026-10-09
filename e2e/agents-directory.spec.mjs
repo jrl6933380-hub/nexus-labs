@@ -19,16 +19,17 @@ test('agents share one directory under Nex, search by role, and open their own c
     await route.fulfill({json:data});
   });
   await page.goto('/workspace.html');
+  await expect(page.getByRole('heading',{name:/Good (morning|afternoon|evening)/})).toBeVisible();
+  await page.getByRole('button',{name:/Nex 5 agents connected/}).click();
   const directory=page.getByRole('region',{name:'Agents',exact:true});
   await expect(directory.getByRole('button')).toHaveCount(5);
-  const list=page.locator('.messagelist');await expect(list.locator(':scope > .messageitem').first()).toContainText('Nex');
-  expect(await directory.evaluate(el=>el.previousElementSibling.classList.contains('pinned'))).toBe(true);
+  await expect(page.getByRole('button',{name:/Talk with Nex/})).toBeVisible();
   await expect(directory.getByRole('button',{name:/Launch team/})).toHaveCount(0);
-  const search=page.getByRole('searchbox',{name:'Search conversations'});await search.fill('Builder');await expect(directory.getByRole('button')).toHaveCount(1);await expect(directory).toContainText('Mason');
-  await search.fill('missing agent');await expect(page.getByText('No conversations match that search.')).toBeVisible();await search.fill('');
+  const search=page.getByRole('searchbox',{name:'Find an agent'});await search.fill('Builder');await expect(directory.getByRole('button')).toHaveCount(1);await expect(directory).toContainText('Mason');
+  await search.fill('missing agent');await expect(page.getByText('No agents match that search.')).toBeVisible();await search.fill('');
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
   const a11y=await new AxeBuilder({page}).include('.nexusmessages').withTags(['wcag2a','wcag2aa']).analyze();expect(a11y.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
   await page.screenshot({path:'test-results/agents-directory-mobile.png',fullPage:true});
-  for(const agent of agents){await directory.getByRole('button',{name:new RegExp(agent.name)}).click();await expect(page.locator('body')).toHaveAttribute('data-view','chat');expect(opened.at(-1)).toBe(agent.id);await page.getByRole('button',{name:'Back to Messages',exact:true}).click();await expect(directory.getByRole('button')).toHaveCount(5);}
+  for(const agent of agents){await directory.getByRole('button',{name:new RegExp(agent.name)}).click();await expect(page.locator('body')).toHaveAttribute('data-view','chat');expect(opened.at(-1)).toBe(agent.id);await page.getByRole('button',{name:'Back to Messages',exact:true}).click();await page.getByRole('button',{name:/Nex 5 agents connected/}).click();await expect(directory.getByRole('button')).toHaveCount(5);}
   await page.setViewportSize({width:1440,height:1000});await page.screenshot({path:'test-results/agents-directory-desktop.png',fullPage:true});expect(errors).toEqual([]);
 });

@@ -211,9 +211,11 @@ test.describe('mobile canvas room interactions', () => {
     await stubCurrentWorkspace(page);
     await page.goto('/workspace.html');
     await expect(page.locator('body')).toHaveAttribute('data-view', 'messages');
-    await expect(page.getByRole('heading', { name: 'One place to think, plan, remember, and create.' })).toBeVisible();
-    await expect(page.locator('.messageitem')).toHaveCount(7);
-    await page.locator('.messageitem').first().click();
+    await expect(page.getByRole('heading', { name: /Good (morning|afternoon|evening)/ })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Your Nexus spaces' }).getByRole('button')).toHaveCount(4);
+    await expect(page.locator('.homecard')).toHaveCount(3);
+    await page.getByRole('button', { name: /Nex 0 agents connected/ }).click();
+    await page.getByRole('button', { name: /Talk with Nex/ }).click();
     await expect(page.locator('body')).toHaveAttribute('data-view', 'chat');
     await expect(page.locator('.comp')).toBeVisible();
     const composerBox = await page.locator('.comp').boundingBox();

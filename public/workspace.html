@@ -969,7 +969,7 @@ async function showView(id){
   if(viewMounted)rememberWorkspaceScroll();
   teamChat.stop();
   closeChatSheet();
-  document.body.classList.remove('messages-panel');
+  document.body.classList.remove('messages-panel','messages-home');
   currentView = id;
   document.body.dataset.view = id;
   el('input').placeholder = id === 'planner' ? 'Ask Nex about your schedule…' : id === 'reminders' ? 'Ask Nex about your reminders…' : id === 'life' ? 'Talk with Nex about your life…' : 'Message Nex…';
@@ -1358,6 +1358,9 @@ function workspaceContext() {
 }
 function askFromView(text) {
   if (currentView === 'chat') { el('input').value = text; return submit(); }
+  if (currentView === 'messages') {
+    return openMessagesConversation({kind:'nex',name:'Nex'},true).then(()=>{el('input').value=text;return submit();});
+  }
   openChatSheet({ focus:false });
   dockAsk(text);
 }
