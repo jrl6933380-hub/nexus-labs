@@ -43,6 +43,7 @@ function wizardHeading(root,title,step,back){heading(root,title,step,back);const
 const CAPABILITY_BUILDERS=Object.freeze({
   tools:{singular:'tool',title:'Add a tool',namePlaceholder:'Tool name, like check_inventory',purposePlaceholder:'What real job should this tool complete?',behaviorPlaceholder:'What should it read or change, and what result should it return?'},
   skills:{singular:'skill',title:'Add a skill',namePlaceholder:'Skill name, like trip-planner',purposePlaceholder:'When should Nex load this operating knowledge?',behaviorPlaceholder:'What procedure, judgment, or rules should the skill teach Nex?'},
+  capability_packs:{singular:'capability pack',title:'Add a capability pack',namePlaceholder:'Pack name, like Professional Sales Agent',purposePlaceholder:'Which agent role should this pack make excellent?',behaviorPlaceholder:'Which skills, tools, workflows, commands, guidance, and quality checks belong together?'},
   commands:{singular:'command',title:'Add a command',namePlaceholder:'Command phrase, like Plan my launch',purposePlaceholder:'What should happen when you type this command?',behaviorPlaceholder:'List the exact steps, inputs, and finished result.'},
 });
 export function buildOwnerCapabilityPrompt(section,{name='',purpose='',behavior='',scopes=[]}={}){
@@ -135,9 +136,9 @@ export async function renderMessages(ctx){
     root.append(choices);
   }
   function capabilitySettings(){
-    heading(root,'Capabilities','Owner controls for Nex’s tools, skills, and commands.',accountControls);
+    heading(root,'Capabilities','See how each agent’s packs bring tools, skills, workflows, and commands together.',accountControls);
     const choices=node('div',undefined,'messagechoices ownercontrols');
-    for(const [section,name,copy] of [['tools','Tools','Callable abilities and access'],['skills','Skills','Installed operating knowledge'],['commands','Commands','Saved instructions and tool chains']])choices.append(row({name,meta:'Owner controls',preview:copy,icon:name[0],tone:'skills',run:()=>ownerCatalogView(section)}));
+    for(const [section,name,copy] of [['capability_packs','Agent packs','Skills, tools, workflows, commands, and quality checks'],['tools','Tools','Callable abilities and access'],['skills','Skills','Installed operating knowledge'],['commands','Commands','Saved instructions and tool chains']])choices.append(row({name,meta:'Owner controls',preview:copy,icon:name[0],tone:'skills',run:()=>ownerCatalogView(section)}));
     root.append(choices);
   }
   function accountControls(initialView='account'){
@@ -159,14 +160,16 @@ export async function renderMessages(ctx){
     const data=await response.json().catch(()=>({}));if(!response.ok){const error=new Error(data.error || 'Owner controls could not be updated');error.status=response.status;throw error;}ownerCatalog=null;return data;
   }
   async function ownerCatalogView(section){
-    const titles={tools:['Tools','Every callable ability Nex can load or use.'],skills:['Skills','Installed procedures that shape how Nex works.'],commands:['Commands','Exact shortcuts you can type in a conversation.']};
+    const titles={capability_packs:['Agent packs','The professional capability bundles active across Nex and your agents.'],tools:['Tools','Every callable ability Nex can load or use.'],skills:['Skills','Installed procedures that shape how Nex works.'],commands:['Commands','Exact shortcuts you can type in a conversation.']};
     const [title,copy]=titles[section] || titles.tools;heading(root,title,copy,capabilitySettings);root.append(node('p','Loading…','messageempty'));
     try{
       const data=await readOwnerCatalog();root.querySelector('.messageempty')?.remove();const items=Array.isArray(data[section])?data[section]:[];
       const config=CAPABILITY_BUILDERS[section] || CAPABILITY_BUILDERS.tools;
       root.append(button(config.title,()=>section==='commands'?commandBuilder(items):ownerCapabilityBuilder(section),'uxprimary messagecontinue'));
       root.append(node('p',section==='commands'?'Save a reusable instruction or arrange real tools into an ordered chain Nex can select.':`Scope it here, then Nex will wire and test the real ${config.singular} before it appears as active.`,'guidedraftnote'));
-      if(section==='tools'){
+      if(section==='capability_packs'){
+        root.append(group('Installed agent packs',items.map(pack=>row({name:pack.name,meta:`For ${pack.roles.join(', ')} · ${pack.workflows.length} workflow${pack.workflows.length===1?'':'s'}`,preview:pack.description,icon:'P',tone:'skills',run:()=>ownerCatalogDetail('capability_packs',pack)}))));
+      }else if(section==='tools'){
         const grouped=new Map();for(const tool of items){const label=tool.category_label || 'Other';if(!grouped.has(label))grouped.set(label,[]);grouped.get(label).push(tool);}
         for(const [label,tools] of grouped)root.append(group(label,tools.map(tool=>row({name:tool.name,meta:[tool.core?'always loaded':tool.category,tool.sideEffect,`${tool.risk} risk`].filter(Boolean).join(' · '),preview:String(tool.description || '').slice(0,150),icon:tool.sideEffect==='write'?'W':'R',tone:tool.risk==='high'?'operations':'skills',run:()=>ownerCatalogDetail('tools',tool)}))));
       }else if(section==='skills'){
@@ -181,9 +184,13 @@ export async function renderMessages(ctx){
     }catch(error){root.replaceChildren();heading(root,title,copy,capabilitySettings);root.append(node('p',friendlyError(error,{action:'load',subject:section}),'messageempty'),button('Try again',()=>{ownerCatalog=null;ownerCatalogView(section);},'uxprimary messagecontinue'),button('Back to Settings',accountControls,'messagesecondary'));}
   }
   function ownerCatalogDetail(section,item){
-    heading(root,item.name,section==='tools'?'Callable tool details':section==='skills'?'Installed skill instructions':item.type==='saved'?'Saved command and tool chain':'Built-in command',()=>ownerCatalogView(section));
+    heading(root,item.name,section==='capability_packs'?'Agent capability pack':section==='tools'?'Callable tool details':section==='skills'?'Installed skill instructions':item.type==='saved'?'Saved command and tool chain':'Built-in command',()=>ownerCatalogView(section));
     const card=node('section',undefined,'installcard capabilitydetail');card.append(node('p',item.description || item.trigger || 'No description saved.'));
-    if(section==='tools'){
+    if(section==='capability_packs'){
+      card.append(node('h3','Used by'),node('p',item.roles.join(', ')),node('h3','Skills'),node('p',item.skills.length?item.skills.join(', '):'No fixed skills'),node('h3','Tool families'),node('p',item.tool_categories.length?item.tool_categories.join(', '):'Loaded only when requested'));
+      card.append(node('h3','Workflows'));for(const workflow of item.workflows){card.append(node('strong',workflow.name),node('p',workflow.description),node('p',workflow.steps.join(' → '),'guidedraftnote'));}
+      card.append(node('h3','Commands'),node('p',item.commands.map(command=>command.name).join(', ') || 'No starter commands'),node('h3','Completion checks'));const checks=node('ul',undefined,'capabilityfields');for(const check of item.evaluations)checks.append(node('li',check));card.append(checks);
+    }else if(section==='tools'){
       card.append(node('h3','Access'),node('p',[item.category_label,item.core?'Always loaded':'Loaded when relevant',`${item.sideEffect} access`,`${item.risk} risk`].filter(Boolean).join(' · ')));
       const fields=Object.entries(item.input_schema?.properties || {});card.append(node('h3','Inputs'));
       if(fields.length){const list=node('ul',undefined,'capabilityfields');for(const [name,definition] of fields){const field=node('li');field.append(node('strong',name),node('span',definition.description || definition.type || 'Input'));list.append(field);}card.append(list);}else card.append(node('p','This tool does not require inputs.'));

@@ -4,6 +4,7 @@ import { TOOL_REGISTRY } from '../lib/nexBrain.js';
 import { NEX_TOOL_CATEGORIES } from '../lib/nex/toolCategories.js';
 import { toolRegistryManifest } from '../lib/nexToolRegistry.js';
 import { isRetiredProviderCommand, nexCommandChainStore } from '../lib/nexCommandChains.js';
+import { capabilityPackManifest, listAllNexCapabilityPacks } from '../lib/nexCapabilityPacks.js';
 
 export const OWNER_COMMANDS = Object.freeze([
   { name:'@agent task', description:'Call a named specialist into the current conversation and give it a task.', example:'@Maya research the best options for this.' },
@@ -12,7 +13,7 @@ export const OWNER_COMMANDS = Object.freeze([
   { name:'Open a Nexus space', description:'Move to a connected space using its exact name.', example:'Open Schedule' },
 ]);
 
-export async function ownerCapabilityCatalog({ owner = null, listSkills = listAllNexSkills, commandStore = nexCommandChainStore } = {}) {
+export async function ownerCapabilityCatalog({ owner = null, listSkills = listAllNexSkills, listPacks = listAllNexCapabilityPacks, commandStore = nexCommandChainStore } = {}) {
   const tools = toolRegistryManifest(TOOL_REGISTRY).map((tool) => ({
     ...tool,
     description: String(TOOL_REGISTRY.get(tool.name)?.schema?.description || ''),
@@ -20,8 +21,9 @@ export async function ownerCapabilityCatalog({ owner = null, listSkills = listAl
     category_label: tool.category ? NEX_TOOL_CATEGORIES[tool.category]?.label || tool.category : 'Always available',
   }));
   const skills = (await listSkills()).map(({ name, description, triggers, instructions, sourcePath }) => ({ name, description, triggers, instructions,source:sourcePath ? String(sourcePath).split('/').slice(-2).join('/') : '' }));
+  const capability_packs = (await listPacks()).map(capabilityPackManifest);
   const saved = owner ? (await commandStore.list(owner)).filter(command=>!isRetiredProviderCommand(command)) : [];
-  return { tools, skills, commands: [...OWNER_COMMANDS.map(command=>({...command,type:'built_in'})),...saved.map(command=>({...command,type:'saved'}))] };
+  return { tools, skills, capability_packs, commands: [...OWNER_COMMANDS.map(command=>({...command,type:'built_in'})),...saved.map(command=>({...command,type:'saved'}))] };
 }
 
 export function createOwnerCapabilitiesHandler({ getOwner = getNexusOwner, catalog = ownerCapabilityCatalog, commandStore = nexCommandChainStore } = {}) {
