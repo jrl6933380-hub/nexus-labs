@@ -70,14 +70,29 @@ export async function renderMessages(ctx){
     const list=node('div',undefined,'messagelist');root.append(list);
     const entries=[],threads=new Map(ctx.recentThreads().map(item=>[item.id,item])),main=threads.get('nex-main');
     entries.push({section:'Conversations',element:row({name:'Nex',meta:'Your main intelligence',preview:main?.title || 'Talk about anything—ideas, problems, plans, or life.',icon:'N',tone:'nex',when:timeLabel(main?.updated_at),pinned:true,run:()=>ctx.openConversation({kind:'nex',name:'Nex'})}),search:'nex main intelligence talk anything ideas problems plans life'});
-    for(const specialist of state.specialists){const saved=threads.get(specialist.id);entries.push({section:'Conversations',element:row({name:specialist.name,meta:state.roles[specialist.role]?.label || 'Specialist',preview:saved?.title || specialist.job,icon:specialist.name,tone:specialist.role,status:state.specialist_status?.[specialist.id] || (saved?.message_count?'Active':'Ready'),when:timeLabel(saved?.updated_at),run:()=>ctx.openConversation({kind:'specialist',...specialist})}),search:`${specialist.name} ${specialist.job}`});}
-    for(const group of state.groups){const saved=threads.get(group.id),members=group.member_ids.map(id=>state.specialists.find(item=>item.id===id)).filter(Boolean),names=members.map(member=>member.name);entries.push({section:'Conversations',element:row({name:group.title,meta:[...(group.include_nex===false?[]:['Nex']),...names].join(' + '),preview:saved?.title || 'Use @mentions to give your team a mission.',icon:'+',tone:'group',status:state.team_status?.[group.id] || (saved?.message_count?'Active':'Ready'),when:timeLabel(saved?.updated_at),run:()=>ctx.openConversation({kind:'group',...group,members})}),search:`${group.title} ${names.join(' ')}`});}
+    for(const specialist of state.specialists){const saved=threads.get(specialist.id);entries.push({section:'Agents',element:row({name:specialist.name,meta:state.roles[specialist.role]?.label || 'Specialist',preview:saved?.title || specialist.job,icon:specialist.name,tone:specialist.role,status:state.specialist_status?.[specialist.id] || (saved?.message_count?'Active':'Ready'),when:timeLabel(saved?.updated_at),run:()=>ctx.openConversation({kind:'specialist',...specialist})}),search:`agents ${specialist.name} ${specialist.job} ${state.roles[specialist.role]?.label || specialist.role}`});}
+    for(const group of state.groups){const saved=threads.get(group.id),members=group.member_ids.map(id=>state.specialists.find(item=>item.id===id)).filter(Boolean),names=members.map(member=>member.name);entries.push({section:'Teams',element:row({name:group.title,meta:[...(group.include_nex===false?[]:['Nex']),...names].join(' + '),preview:saved?.title || 'Use @mentions to give your team a mission.',icon:'+',tone:'group',status:state.team_status?.[group.id] || (saved?.message_count?'Active':'Ready'),when:timeLabel(saved?.updated_at),run:()=>ctx.openConversation({kind:'group',...group,members})}),search:`${group.title} ${names.join(' ')}`});}
     const recent=ctx.recentThreads().filter(item=>!/^agent-|^group-|^nex-main$/u.test(item.id));
     for(const thread of recent)entries.push({section:'Recent',element:row({name:thread.title,meta:'Nex conversation',preview:`${thread.message_count || 0} messages`,icon:'N',tone:'recent',when:timeLabel(thread.updated_at || thread.ts),run:()=>ctx.openThread(thread)}),search:thread.title});
     const pinned=new Set(pinnedBundles(state.pinned_system_ids || []));
     for(const system of SPACE_BUNDLES.filter(item=>pinned.has(item.id))){const run=()=>bundleView(system.id);entries.push({section:'Nexus spaces',element:row({name:system.name,meta:'Nexus space',preview:system.description,icon:system.icon,tone:system.tone,run}),search:`${system.name} ${system.description}`});}
     entries.push({section:'Nexus spaces',element:row({name:'More',meta:'Customize Messages',preview:'Pin the Nexus spaces you want on this screen.',icon:'…',tone:'more',run:moreView}),search:'more customize pin nexus spaces'});
-    const paint=(query='')=>{list.replaceChildren();const needle=query.toLowerCase().trim();let previous='';for(const entry of entries){if(needle && !entry.search.toLowerCase().includes(needle))continue;if(!needle && entry.section!==previous){if(previous && entry.section!=='Conversations')list.append(node('p',entry.section,'messagesection'));previous=entry.section;}list.append(entry.element);}if(!list.querySelector('.messageitem'))list.append(node('p','No conversations match that search.','messageempty'));};paint();search.oninput=()=>paint(search.value);
+    const paint=(query='')=>{
+      list.replaceChildren();const needle=query.toLowerCase().trim();let previous='',agentGrid=null;
+      for(const entry of entries){
+        if(needle && !entry.search.toLowerCase().includes(needle))continue;
+        if(entry.section==='Agents'){
+          if(!agentGrid){
+            const agents=node('section',undefined,'messageagents');agents.setAttribute('aria-label','Agents');
+            agents.append(node('h3','Agents','messagesection'));agentGrid=node('div',undefined,'messageagentgrid');agents.append(agentGrid);list.append(agents);
+          }
+          agentGrid.append(entry.element);previous='Agents';continue;
+        }
+        if(!needle && entry.section!==previous){if(previous && entry.section!=='Conversations')list.append(node('p',entry.section,'messagesection'));}
+        previous=entry.section;list.append(entry.element);
+      }
+      if(!list.querySelector('.messageitem'))list.append(node('p','No conversations match that search.','messageempty'));
+    };paint();search.oninput=()=>paint(search.value);
     root.append(button('New conversation',newConversation,'uxprimary messageprimary'));
     if(recent.length)root.append(button('Clear recent conversations',()=>clearConversations(recent),'messageclear'));
   }
