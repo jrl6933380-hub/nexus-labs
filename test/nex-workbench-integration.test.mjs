@@ -16,8 +16,11 @@ test('Nex Chat sends a stable thread id and loads cloud thread summaries', () =>
   assert.match(chat, /loadConversation\(operatorUser, threadId\)/u);
 });
 
-test('Projects shelf exposes preview, Nex editing and fine-tune destinations',()=>{
- assert.match(views,/open\(buildId, 'preview'\)/u);assert.match(views,/open\(buildId, 'edit'\)/u);assert.match(views,/preferredBuilderMode\(\)/u);
- assert.match(workspace,/\['preview','fine','add-piece'\]\.includes\(mode\)/u);
- assert.match(forge,/\['preview','fine','add-piece'\]\.includes\(requestedView\)/u);
+test('Projects shelf opens the project home before its three editing modes',()=>{
+ assert.match(views,/open\(buildId,'overview',title\)/u);
+ assert.match(views,/More ways to build/u);
+ assert.doesNotMatch(views,/preferredBuilderMode\(\)/u);
+ assert.match(workspace,/\['overview','preview','fine','add-piece'\]\.includes\(mode\)/u);
+ assert.match(forge,/\['overview','preview','fine','add-piece'\]\.includes\(requestedView\)/u);
+ assert.match(forge,/\['overview', 'preview', 'fine', 'pages', 'stack'\]\.includes\(destination\)/u);
 });

@@ -304,7 +304,7 @@
 </div>
 
 <script type="module">
-import {mountProjectBuilder,preferredBuilderMode} from '/project-builder.js';
+import {mountProjectBuilder} from '/project-builder.js';
 import { friendlyError, showFeedback } from '/ux.js';
 import { FORGE_VIEWS, matchForgeView, featureUnlocked, loadConnection, connectionSnapshot, primaryAction, secondaryActions } from '/forge-views.js';
 import { say, chips, esc } from '/workspace-views.js';
@@ -443,10 +443,10 @@ const startupParams = new URLSearchParams(location.search);
 const surfaceMode = startupParams.get('surface') === 'workbench' ? 'workbench' : 'forge';
 const isWorkbench = surfaceMode === 'workbench';
 const WORKBENCH_VIEW_ORDER = ['project', 'live', 'roadmap', 'stack', 'brief'];
-const WORKBENCH_VIEWS = new Set([...WORKBENCH_VIEW_ORDER, 'preview', 'fine', 'pages', 'help']);
+const WORKBENCH_VIEWS = new Set([...WORKBENCH_VIEW_ORDER, 'overview', 'preview', 'fine', 'pages', 'help']);
 let builderWorkspace=null,sourceConversation=null;
 const WORKBENCH_LABELS = {
-  project: 'Projects', live: 'Live Sites', preview: 'Preview', fine:'Fine-tune', pages: 'Add to Project',
+  project: 'Projects', live: 'Live Sites', overview: 'Project', preview: 'Preview', fine:'Fine-tune', pages: 'Add to Project',
   roadmap: 'Project Path', stack: 'Connections', brief: 'Project Plan', help: 'How It Works',
 };
 if (isWorkbench) {
@@ -575,7 +575,7 @@ const ctx = {
     await showView('chat');
     await runBuild(addon ? 'Implement my approved add-on plan in this existing project. Preserve everything outside the planned change and connect the addition to the main experience.' : 'Build the first working version from my approved Project Brief.', addon ? `Add-on approved: ${String(approvedPlan.answers?.idea || 'Project addition').slice(0, 80)}` : 'Project Brief approved', true, addon ? 'addon' : 'new');
   },
-  openBuild: async (id, destination = (preferredBuilderMode()==='build'?'chat':preferredBuilderMode()), projectLabel = '') => {
+  openBuild: async (id, destination = 'overview', projectLabel = '') => {
     const notice = bubble('sys', 'Opening that project…');
     let opened = false;
     try {
@@ -610,7 +610,7 @@ const ctx = {
           else for(const message of original.messages || [])history.push({role:message.role,content:String(message.content).replace(/```html[\s\S]*?```/giu,'[Saved project preview]')});
         }}catch{}
       }
-      await showView(destination === 'add-piece' ? 'brief' : ['preview', 'fine', 'pages', 'stack'].includes(destination) ? destination : 'chat');
+      await showView(destination === 'add-piece' ? 'brief' : ['overview', 'preview', 'fine', 'pages', 'stack'].includes(destination) ? destination : 'overview');
 
       opened = true;
     } catch (error) {
@@ -980,8 +980,8 @@ async function saveProjectChange(action,payload){
 }
 function syncWorkbenchEditor(){
   screenEl.classList.remove('workbench-editing');
-  if(!isWorkbench || !currentBuild || !['chat','preview','fine'].includes(currentView))return;
-  const mode=currentView==='chat'?'build':currentView==='fine'?'fine':'preview';
+  if(!isWorkbench || !currentBuild || !['overview','chat','preview','fine'].includes(currentView))return;
+  const mode=currentView==='overview'?'overview':currentView==='chat'?'build':currentView==='fine'?'fine':'preview';
   if(builderWorkspace?.projectId!==currentProjectId){builderWorkspace?.destroy();builderWorkspace=mountProjectBuilder({projectId:currentProjectId,label:currentProjectLabel,html:currentBuild,buildId:latestBuildId,conversation:document.querySelector('.conversation-pane'),mode,sourceConversation,
     onMode:value=>{currentView=value==='build'?'chat':value;},onExit:()=>showView('project'),onPublish:async()=>{const url=await publishCurrentProject();await copyText(url);},
     onSave:(html,baseline)=>saveProjectChange('save_project_edit',{html,baseline}),onRestore:(buildId,baseline)=>saveProjectChange('restore_project_version',{buildId,baseline}),
@@ -1055,7 +1055,7 @@ function renderWorkbenchPreview(){
 }
 
 async function showView(id){
-  if(builderWorkspace && !['chat','preview','fine'].includes(id)){builderWorkspace.destroy();builderWorkspace=null;}
+  if(builderWorkspace && !['overview','chat','preview','fine'].includes(id)){builderWorkspace.destroy();builderWorkspace=null;}
   document.getElementById('workbenchFullPreview')?.remove();
   if (!viewAllowed(id)) id = 'project';
   if (id === 'stack' && !currentBuild) id = 'brief';
@@ -1073,7 +1073,7 @@ async function showView(id){
     ? (isWorkbench ? 'Nex Workbench' : 'Nexus Forge')
     : (id === 'brief' && currentBuild ? 'Plan an addition' : isWorkbench ? WORKBENCH_LABELS[id] : FORGE_VIEWS[id].label);
   if (id === 'chat') { replay(); return; }
-  if (['preview','fine'].includes(id) && isWorkbench && builderWorkspace) return;
+  if (['overview','preview','fine'].includes(id) && isWorkbench && builderWorkspace) return;
   if (id === 'preview' && isWorkbench && renderWorkbenchPreview()) return;
   thread.innerHTML = '';
   bubble('sys', 'One second…');
@@ -1576,7 +1576,7 @@ if (!await handleBrainResult()) {
   const requestedBuild = startupParams.get('build');
   const wantsNewProject = startupParams.get('new') === '1';
   if (signedIn && requestedBuild && /^[a-zA-Z0-9_-]{1,160}$/u.test(requestedBuild)) {
-    await ctx.openBuild(requestedBuild, ['preview','fine','add-piece'].includes(requestedView) ? requestedView : 'chat');
+    await ctx.openBuild(requestedBuild, ['overview','preview','fine','add-piece'].includes(requestedView) ? requestedView : 'overview');
   } else if (signedIn && wantsNewProject) {
     ctx.startProject();
   } else if (requestedView && FORGE_VIEWS[requestedView]) {
