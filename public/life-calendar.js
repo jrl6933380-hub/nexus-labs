@@ -173,7 +173,7 @@ export function renderLifeCalendar({items,state,onCreate,onOpen,onChange,onNavig
   }
   const dayViewport=node('div','lc-dayviewport');dayViewport.append(heads);
   canvas.append(grid);viewport.append(canvas);root.append(status,selectionActions,dayViewport,viewport);
-  const add=button('+ Time block',()=>{captureScroll();const column=columns.find(el=>el.dataset.day===calendarKey(dayAt(state.date)));column?.selectRange(9*60,10*60);});add.className='lc-add';root.append(add);
+  const add=button('+ Time block',()=>{captureScroll();const column=columns.find(el=>el.dataset.day===calendarKey(dayAt(state.date)));column?.selectRange(9*60,10*60);});add.className='lc-add';add.textContent='+';toolbar.append(add);
   viewport.onscroll=captureScroll;
   const frame=typeof requestAnimationFrame==='function' ? requestAnimationFrame : callback=>callback();
   frame(()=>{viewport.scrollTop=state.scrollTop ?? 8*LIFE_HOUR_HEIGHT;const index=days.findIndex(day=>calendarKey(day)===calendarKey(current));viewport.scrollLeft=state.scrollLeft ?? Math.max(0,index)*columns[0].getBoundingClientRect().width;captureScroll();});
