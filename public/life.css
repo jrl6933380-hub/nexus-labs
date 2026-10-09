@@ -38,3 +38,15 @@ body[data-view="life"] .thread>.nexuslife:has(.lifecalendar){display:flex;flex-d
 .lc-dayviewport>.lc-days{width:max(100%,1274px);position:relative;top:auto;backdrop-filter:none}
 .lifecalendar>.lc-viewport{flex:1;height:auto;min-height:0;max-height:none;border-top:0}
 @media(max-height:700px){.nexuslife:has(.lifecalendar)>.lifehint{display:none}.lifecalendar>.lc-status{margin:4px 8px}.lifecalendar>.lc-toolbar{padding-bottom:4px}}
+/* Let the calendar fill the page from directly below the Life header. */
+body[data-view="life"] .thread:has(.lifecalendar){padding:0;max-width:none;width:100%}
+.nexuslife:has(.lifecalendar)>.lifehint{display:none}
+.nexuslife:has(.lifecalendar)>.lifehomeviews{margin:0;padding:0 4px}
+.nexuslife:has(.lifecalendar) .lifeexplore>.lifetabs{padding-bottom:0}
+.lifecalendar>.lc-toolbar{padding:4px 6px;gap:4px}
+.nexuslife .lc-toolbar .lc-add{display:grid;place-items:center;flex:0 0 44px;width:44px;height:44px;margin:0;padding:0;background:#203f2e;border:1px solid #477f5d;border-radius:12px;color:#cee7d5;font-size:26px}
+.lifecalendar>.lc-status{height:32px;min-height:32px;margin:4px 8px;line-height:16px}
+body[data-view="life"] .foot{flex-shrink:0;padding:6px 10px calc(env(safe-area-inset-bottom) + 8px)}
+body[data-view="life"] .comp{padding:7px 8px 7px 13px}
+@media(max-width:480px){.lc-period strong{font-size:20px}}
+
