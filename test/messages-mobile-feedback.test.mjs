@@ -41,6 +41,20 @@ test('the living home keeps agents inside Nex and surfaces real project and atte
  }finally{globalThis.document=previousDocument;globalThis.fetch=previousFetch;}
 });
 
+test('live cards use real detail data and an individual Atlas result never impersonates a team',async()=>{
+ const previousDocument=globalThis.document,previousFetch=globalThis.fetch;
+ globalThis.document={createElement:element,body:{classList:{add(){},remove(){}}}};
+ const state={specialists:[{id:'agent-atlas',name:'Atlas',role:'research',job:'Research'}],groups:[],roles:{research:{label:'Research'}},scopes:[],pinned_system_ids:[],specialist_status:{'agent-atlas':'Result ready'}};
+ globalThis.fetch=async(url)=>({ok:true,json:async()=>String(url).includes('room-history')?{projects:[{projectId:'garden',label:'Garden site',versionCount:3,stackItems:[{id:'services'}],liveUrl:'https://garden.example',updatedAt:Date.now()}]}:String(url).includes('/api/life')?{items:[{id:'walk',title:'Evening walk',status:'planned',starts_at:`${new Date().toISOString().slice(0,10)}T18:00:00.000Z`,pillar:'health'}],pulses:[],summary:{unconfirmed:1}}:state});
+ try{
+  const root=await renderMessages({recentThreads:()=>[],go(){}}),text=all(root).map(el=>el.textContent).filter(Boolean);
+  assert.ok(text.includes('Live details ↻'));
+  assert.ok(text.includes('Versions'));assert.ok(text.includes('3'));assert.ok(text.includes('Project pieces'));assert.ok(text.includes('2'));
+  assert.ok(text.includes('Create your first team'));assert.ok(text.includes('Create team'));
+  assert.equal(text.includes('Team result'),false);
+ }finally{globalThis.document=previousDocument;globalThis.fetch=previousFetch;}
+});
+
 test('iPhone Safari explains installation while the installed app can request push',()=>{
  const windowObject={isSecureContext:true,Notification:{},PushManager:{},matchMedia:()=>({matches:false})};
  const navigatorObject={userAgent:'iPhone',serviceWorker:{}};
