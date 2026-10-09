@@ -41,17 +41,18 @@ test('the living home keeps agents inside Nex and surfaces real project and atte
  }finally{globalThis.document=previousDocument;globalThis.fetch=previousFetch;}
 });
 
-test('live cards use real detail data and an individual Atlas result never impersonates a team',async()=>{
+test('live spaces show every real project and team without turning an individual Atlas result into a team',async()=>{
  const previousDocument=globalThis.document,previousFetch=globalThis.fetch;
  globalThis.document={createElement:element,body:{classList:{add(){},remove(){}}}};
- const state={specialists:[{id:'agent-atlas',name:'Atlas',role:'research',job:'Research'}],groups:[],roles:{research:{label:'Research'}},scopes:[],pinned_system_ids:[],specialist_status:{'agent-atlas':'Result ready'}};
- globalThis.fetch=async(url)=>({ok:true,json:async()=>String(url).includes('room-history')?{projects:[{projectId:'garden',label:'Garden site',versionCount:3,stackItems:[{id:'services'}],liveUrl:'https://garden.example',updatedAt:Date.now()}]}:String(url).includes('/api/life')?{items:[{id:'walk',title:'Evening walk',status:'planned',starts_at:`${new Date().toISOString().slice(0,10)}T18:00:00.000Z`,pillar:'health'}],pulses:[],summary:{unconfirmed:1}}:state});
+ const state={specialists:[{id:'agent-atlas',name:'Atlas',role:'research',job:'Research'}],groups:[{id:'group-launch',title:'Launch team',member_ids:['agent-atlas'],include_nex:true}],roles:{research:{label:'Research'}},scopes:[],pinned_system_ids:[],specialist_status:{'agent-atlas':'Result ready'},team_status:{'group-launch':'Active'}};
+ globalThis.fetch=async(url)=>({ok:true,json:async()=>String(url).includes('room-history')?{projects:[{projectId:'garden',label:'Garden site',versionCount:3,stackItems:[{id:'services'}],liveUrl:'https://garden.example',updatedAt:Date.now()},{projectId:'studio',label:'Story studio',versionCount:1,stackItems:[],updatedAt:Date.now()}],workbench:{count:2,limit:10,planName:'Plus',canCreate:true}}:String(url).includes('/api/life')?{items:[{id:'walk',title:'Evening walk',status:'planned',starts_at:`${new Date().toISOString().slice(0,10)}T18:00:00.000Z`,ends_at:`${new Date().toISOString().slice(0,10)}T19:00:00.000Z`,pillar:'health'}],pulses:[],summary:{unconfirmed:1}}:String(url).includes('/api/planner')||String(url).includes('/api/reminders')?{items:[]}:state});
  try{
   const root=await renderMessages({recentThreads:()=>[],go(){}}),text=all(root).map(el=>el.textContent).filter(Boolean);
-  assert.ok(text.includes('Live details ↻'));
-  assert.ok(text.includes('Versions'));assert.ok(text.includes('3'));assert.ok(text.includes('Project pieces'));assert.ok(text.includes('2'));
-  assert.ok(text.includes('Create your first team'));assert.ok(text.includes('Create team'));
+  assert.ok(text.includes('Live spaces'));assert.ok(text.includes('Garden site'));assert.ok(text.includes('Story studio'));
+  assert.ok(text.includes('3 versions · 2 pieces'));assert.ok(text.includes('Launch team'));assert.ok(text.includes('Atlas · Nex'));
+  assert.ok(text.includes('Create a team'));assert.ok(text.includes('Now & next'));
   assert.equal(text.includes('Team result'),false);
+  assert.equal(all(root).find(el=>el.className.includes('homecards')).attrs['data-project-usage'],'2/10');
  }finally{globalThis.document=previousDocument;globalThis.fetch=previousFetch;}
 });
 
