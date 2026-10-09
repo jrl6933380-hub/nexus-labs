@@ -118,7 +118,7 @@ test('saved check-ins are visible on Life cards and calendar blocks; quick choic
     let saved=(await life.overview('room:a')).items[0];assert.equal(saved.energy,4);assert.equal(saved.reflection,'A beautiful walk');assert.equal(saved.actual_starts_at,start.toISOString());
     assert.deepEqual(requests.at(-1),{action:'check_in',id:item.id,energy:4});
     await all(root).find(el=>el.textContent==='Life calendar').onclick();
-    const block=all(root).find(el=>el.className==='lc-block');assert.ok(block);assert.ok(all(block).find(el=>el.textContent==='4 ⚡'));
+    const block=all(root).find(el=>el.className==='lc-block');assert.ok(block);assert.ok(all(block).find(el=>el.textContent==='4/5 ⚡'));
     await all(root).find(el=>el.textContent==='Today').onclick();card=all(root).find(el=>el.className==='lifeactivity');
     await all(card).find(el=>el.tagName==='button' && el.textContent==='Did not happen').onclick();saved=(await life.overview('room:a')).items[0];assert.equal(saved.actual_starts_at,null);assert.equal(saved.reflection,'A beautiful walk');
     card=all(root).find(el=>el.className==='lifeactivity');await all(card).find(el=>el.tagName==='button' && el.textContent==='It happened').onclick();saved=(await life.overview('room:a')).items[0];assert.equal(saved.outcome,'happened');assert.equal(saved.actual_starts_at,null);

@@ -32,13 +32,13 @@ async function setup(page){
 async function rangeAt(page,minutes,dayOffset=0){
   return page.evaluate(({minutes,dayOffset})=>{const viewport=document.querySelector('.lc-viewport'),lanes=[...document.querySelectorAll('.lc-lane')];viewport.scrollTop=8*80;const rect=viewport.getBoundingClientRect(),visible=lanes.filter(l=>{const r=l.getBoundingClientRect();return r.left>=rect.left+35 && r.left<rect.right-60;});const lane=visible[dayOffset] || visible[0];const r=lane.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+minutes/60*80,day:lane.dataset.day};},{minutes,dayOffset});
 }
-async function saveActivity(page,title){await page.getByLabel('What is it?',{exact:true}).fill(title);await page.getByRole('button',{name:'Review my plan',exact:true}).click();await page.getByRole('button',{name:'Keep in Life only',exact:true}).click();await expect(page.getByRole('dialog')).toHaveCount(0);}
+async function saveActivity(page,title){if(!await page.getByRole('dialog').count())await page.getByRole('button',{name:'Add details',exact:true}).click();await page.getByLabel('What is it?',{exact:true}).fill(title);await page.getByRole('button',{name:'Review my plan',exact:true}).click();await page.getByRole('button',{name:'Keep in Life only',exact:true}).click();await expect(page.getByRole('dialog')).toHaveCount(0);}
 
 test('draw a time range, fill sheet, move the block directly, resize, and retain saved times on reopen',async({page})=>{
   const {life,user,calls,errors}=await setup(page);
   await expect(page.getByRole('button',{name:'Month',exact:true})).toHaveCount(0);await expect(page.getByRole('button',{name:'Multi-day',exact:true})).toHaveCount(0);
   const point=await rangeAt(page,9*60);await page.mouse.move(point.x,point.y);await page.mouse.down();await page.mouse.move(point.x,point.y+100,{steps:10});await page.mouse.up();
-  await expect(page.getByRole('dialog',{name:'Add Time Block'})).toBeVisible();expect(await page.locator('.lifeadjusttime select').last().inputValue()).toBe('75');await page.screenshot({path:'test-results/life-block-editor-mobile.png',fullPage:true});
+  await page.getByRole('button',{name:'Add details',exact:true}).click();await expect(page.getByRole('dialog',{name:'Add Time Block'})).toBeVisible();expect(await page.locator('.lifeadjusttime select').last().inputValue()).toBe('75');await page.screenshot({path:'test-results/life-block-editor-mobile.png',fullPage:true});
   await saveActivity(page,'Morning walk');let item=(await life.overview(user)).items[0];expect(Date.parse(item.ends_at)-Date.parse(item.starts_at)).toBe(75*60000);
   const original=Date.parse(item.starts_at),block=page.locator(`[data-item-id="${item.id}"]`);await expect(block).toBeVisible();
   let rect=await block.boundingBox();await page.mouse.move(rect.x+40,rect.y+20);await page.mouse.down();await page.mouse.move(rect.x+40,rect.y+60,{steps:8});await page.mouse.up();
@@ -57,8 +57,8 @@ test('draw a time range, fill sheet, move the block directly, resize, and retain
 test('real touch holds and selects a range, touch drags a block, and swipe scrolls without creating',async({page})=>{
   const {life,user,errors}=await setup(page),cdp=await page.context().newCDPSession(page),point=await rangeAt(page,9*60);
   const touch=async(type,x,y)=>cdp.send('Input.dispatchTouchEvent',{type,touchPoints:type==='touchEnd' ? [] : [{x,y,id:1,radiusX:2,radiusY:2,force:1}]});
-  await touch('touchStart',point.x,point.y);await page.waitForTimeout(280);await touch('touchMove',point.x,point.y+80);await touch('touchEnd',0,0);
-  await expect(page.getByRole('dialog')).toBeVisible();expect(await page.locator('.lifeadjusttime select').last().inputValue()).toBe('60');await saveActivity(page,'Touch walk');
+  await touch('touchStart',point.x,point.y);await page.waitForTimeout(450);await touch('touchMove',point.x,point.y+80);await touch('touchEnd',0,0);
+  await page.getByRole('button',{name:'Add details',exact:true}).click();await expect(page.getByRole('dialog')).toBeVisible();expect(await page.locator('.lifeadjusttime select').last().inputValue()).toBe('60');await saveActivity(page,'Touch walk');
   const item=(await life.overview(user)).items[0],rect=await page.locator(`[data-item-id="${item.id}"]`).boundingBox();
   await touch('touchStart',rect.x+50,rect.y+16);await touch('touchMove',rect.x+50,rect.y+56);await touch('touchEnd',0,0);
   await expect.poll(async()=>Date.parse((await life.overview(user)).items[0].starts_at)).toBe(Date.parse(item.starts_at)+30*60000);
