@@ -30,3 +30,8 @@ test('Forge exposes understandable account download and deletion controls',()=>{
   const views=fs.readFileSync(new URL('../public/forge-views.js',import.meta.url),'utf8');
   assert.match(forge,/fetch\('\/api\/account'/u);assert.match(views,/Download my data/u);assert.match(views,/Delete my account/u);
 });
+
+test('account deletion also removes the durable current-project index',async()=>{
+  const calls=[];const service=createAccountDataService({account:async()=>({username:'person'}),command:async command=>{calls.push(command);return command[0]==='SCAN'?['0',[]]:1;},removeAccount:async()=>({deleted:true})});
+  await service.purgeData('person');assert.ok(calls.some(command=>command[0]==='DEL' && command.includes('nexus:room:builds:person:current')));
+});

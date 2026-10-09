@@ -14,7 +14,7 @@ import { friendlyError } from './ux.js';
 // second level of navigation anywhere.
 
 export { esc, pick, getJSON, field, relative, say, row, group, chips, empty, pill, primaryAction, secondaryActions } from '/workspace-views.js';
-import { esc, pick, getJSON, field, relative, say, row, group, chips, empty, primaryAction, secondaryActions } from '/workspace-views.js';
+import { projectGallery, esc, pick, getJSON, field, relative, say, row, group, chips, empty, primaryAction, secondaryActions } from '/workspace-views.js';
 
 // Mirrors lib/forge/features.js. The server is the real gate; this is what the
 // customer sees. Kept as plain data so the two stay readable side by side.
@@ -557,11 +557,9 @@ export const FORGE_VIEWS = {
     say: ['project', 'my project', 'home'],
     async render(ctx) {
       if (ctx.surface?.() === 'workbench') {
-        return [
-          say('Choose your project. Tap its preview to open it, or choose Add a piece to add a page or tool.'),
-          say('Your pages and tools become one complete site at one link. These cards help you organize its parts.'),
-          await workbenchProjectTiles(ctx),
-        ];
+        const payload=await getJSON('/api/room-history');
+        const projects=pick(payload,'projects','builds');
+        return [await projectGallery(projects,ctx,{canCreate:payload.workbench?.canCreate!==false,count:projects.length,limit:payload.workbench?.limit ?? 10})];
       }
       const nodes = [];
       let history = null;

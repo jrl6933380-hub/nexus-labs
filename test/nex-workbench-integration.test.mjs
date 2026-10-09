@@ -10,18 +10,14 @@ const chat = await readFile(new URL('../api/chat.js', import.meta.url), 'utf8');
 test('Nex Chat sends a stable thread id and loads cloud thread summaries', () => {
   assert.match(workspace, /fetch\('\/api\/chat\?threads=1'/u);
   assert.match(workspace, /action:'save_thread'/u);
-  assert.match(workspace, /threadId:targetThread,requestId,respondAsync:true,workspace:workspaceContext\(\)/u);
+  assert.match(workspace, /threadId:targetThread,requestId,respondAsync:true,[^}]*workspace:workspaceContext\(\)/u);
   assert.match(chat, /listConversationThreads\(operatorUser\)/u);
   assert.match(chat, /action === 'save_thread'/u);
   assert.match(chat, /loadConversation\(operatorUser, threadId\)/u);
 });
 
-test('Projects gallery renders real builds and defaults selected cards to full preview', () => {
-  assert.match(views, /getJSON\('\/api\/room-history'\)/u);
-  assert.match(views, /className = 'projectgrid'/u);
-  assert.match(views, /ctx\.openWorkbenchPanel\(buildId, 'preview'\)/u);
-  assert.match(views, /ctx\.openWorkbenchPanel\(buildId, 'edit'\)/u);
-  assert.match(workspace, /view=\$\{mode === 'edit' \? 'chat' : 'preview'\}/u);
-  assert.match(forge, /startupParams\.get\('build'\)/u);
-  assert.match(forge, /await ctx\.openBuild\(requestedBuild, requestedView === 'preview' \? 'preview' : 'chat'\)/u);
+test('Projects shelf exposes preview, Nex editing and fine-tune destinations',()=>{
+ assert.match(views,/open\(buildId, 'preview'\)/u);assert.match(views,/open\(buildId, 'edit'\)/u);assert.match(views,/preferredBuilderMode\(\)/u);
+ assert.match(workspace,/\['preview','fine','add-piece'\]\.includes\(mode\)/u);
+ assert.match(forge,/\['preview','fine','add-piece'\]\.includes\(requestedView\)/u);
 });

@@ -14,10 +14,10 @@ test('builder visuals can be saved to Projects and opened in Workbench', async (
     readFile(new URL('../public/team-chat.js',import.meta.url),'utf8'),
     readFile(new URL('../public/chat-visual.js',import.meta.url),'utf8'),
   ]);
-  assert.match(visual,/Keep building this/u);
-  assert.match(visual,/Saves it to Projects and opens the visual Workbench/u);
+  assert.match(visual,/Saving draft/u);assert.match(visual,/Open project/u);
+  assert.match(visual,/Saved to Projects/u);
   assert.match(team,/action:'save_chat_visual'/u);
-  assert.match(team,/forge\.html\?surface=workbench&view=chat&build=/u);
+  assert.match(visual,/forge\.html\?surface=workbench&view=chat&build=/u);
   const workspace=await readFile(new URL('../public/workspace.html',import.meta.url),'utf8');
   assert.match(workspace,/appendAssistantVisual\(pending,reply,raw\)/u);
   assert.match(workspace,/appendAssistantVisual\(body,message\.content\)/u);

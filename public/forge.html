@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#0b0c0f" />
 <title>Nexus Forge</title>
 <script defer src="/_vercel/insights/script.js"></script>
+
 <!--
   /forge.html — the customer's workspace.
 
@@ -242,6 +243,7 @@
     .workbench-stack-toggle{font-size:10.5px;padding:7px 8px}.workbench-stack-part{flex-basis:112px;min-height:78px}
   }
 </style>
+<link rel="stylesheet" href="/project-builder.css" />
 <link rel="stylesheet" href="/ux.css" />
 </head>
 <body>
@@ -302,6 +304,7 @@
 </div>
 
 <script type="module">
+import {mountProjectBuilder,preferredBuilderMode} from '/project-builder.js';
 import { friendlyError, showFeedback } from '/ux.js';
 import { FORGE_VIEWS, matchForgeView, featureUnlocked, loadConnection, connectionSnapshot, primaryAction, secondaryActions } from '/forge-views.js';
 import { say, chips, esc } from '/workspace-views.js';
@@ -440,12 +443,14 @@ const startupParams = new URLSearchParams(location.search);
 const surfaceMode = startupParams.get('surface') === 'workbench' ? 'workbench' : 'forge';
 const isWorkbench = surfaceMode === 'workbench';
 const WORKBENCH_VIEW_ORDER = ['project', 'live', 'roadmap', 'stack', 'brief'];
-const WORKBENCH_VIEWS = new Set([...WORKBENCH_VIEW_ORDER, 'preview', 'pages', 'help']);
+const WORKBENCH_VIEWS = new Set([...WORKBENCH_VIEW_ORDER, 'preview', 'fine', 'pages', 'help']);
+let builderWorkspace=null,sourceConversation=null;
 const WORKBENCH_LABELS = {
-  project: 'Projects', live: 'Live Sites', preview: 'Full Preview', pages: 'Add to Project',
+  project: 'Projects', live: 'Live Sites', preview: 'Preview', fine:'Fine-tune', pages: 'Add to Project',
   roadmap: 'Project Path', stack: 'Connections', brief: 'Project Plan', help: 'How It Works',
 };
 if (isWorkbench) {
+  document.body.classList.add('workbench');
   document.title = 'Nex Workbench';
   el('surfaceBrand').textContent = 'Nex';
   el('surfaceProduct').textContent = 'Workbench';
@@ -570,7 +575,7 @@ const ctx = {
     await showView('chat');
     await runBuild(addon ? 'Implement my approved add-on plan in this existing project. Preserve everything outside the planned change and connect the addition to the main experience.' : 'Build the first working version from my approved Project Brief.', addon ? `Add-on approved: ${String(approvedPlan.answers?.idea || 'Project addition').slice(0, 80)}` : 'Project Brief approved', true, addon ? 'addon' : 'new');
   },
-  openBuild: async (id, destination = 'chat', projectLabel = '') => {
+  openBuild: async (id, destination = (preferredBuilderMode()==='build'?'chat':preferredBuilderMode()), projectLabel = '') => {
     const notice = bubble('sys', 'Opening that project…');
     let opened = false;
     try {
@@ -579,7 +584,7 @@ const ctx = {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data?.build?.html) throw new Error(data.error || 'That project could not be opened.');
-      currentBuild = data.build.html;
+      currentBuild = data.build.html;sourceConversation=data.build.sourceConversation || null;
       currentProjectId = data.build.projectId || data.build.id;
       latestBuildId = data.build.id;
       currentProjectLabel = projectLabel || data.build.label || 'Your project';
@@ -599,11 +604,14 @@ const ctx = {
           }
         }
       } catch { /* Saved HTML remains available when conversation history is down. */ }
-      await showView(destination === 'add-piece' ? 'brief' : ['preview', 'pages', 'stack'].includes(destination) ? destination : 'chat');
-      if (destination === 'chat') {
-        bubble('a', paragraphs(`Opened “${data.build.label || 'Saved project'}”. The live project stays pinned while you tell me what to change.`));
-        await askNex('Review the project I just opened. Ask one useful editing question and give me only the most relevant clickable choices for what I could work on next.', { displayMessage: 'Show me relevant editing options' });
+      if(!history.length && sourceConversation){
+        try{const path=sourceConversation.kind==='team'?'/api/nexus-messages?group_id=':'/api/chat?threadId=';const response=await fetch(path+encodeURIComponent(sourceConversation.id),{credentials:'include'});const original=await response.json();if(response.ok){
+          if(original.runs){const run=original.runs.find(run=>(!sourceConversation.runId || run.id===sourceConversation.runId) && run.steps.some(step=>String(step.result || '').includes('```html')));if(run){history.push({role:'user',content:run.message});for(const step of run.steps)if(step.result)history.push({role:'assistant',content:`${step.name}: ${String(step.result).replace(/```html[\s\S]*?```/giu,'[Saved project preview]')}`});}}
+          else for(const message of original.messages || [])history.push({role:message.role,content:String(message.content).replace(/```html[\s\S]*?```/giu,'[Saved project preview]')});
+        }}catch{}
       }
+      await showView(destination === 'add-piece' ? 'brief' : ['preview', 'fine', 'pages', 'stack'].includes(destination) ? destination : 'chat');
+
       opened = true;
     } catch (error) {
       notice.textContent = friendlyError(error);
@@ -820,7 +828,8 @@ async function stackSetupAction() {
 }
 
 function railOpen(open){ screenEl.classList.toggle('open', open); }
-el('burger').onclick = () => railOpen(!screenEl.classList.contains('open'));
+if(isWorkbench){el('burger').textContent='‹';el('burger').setAttribute('aria-label','Back to Projects');}
+el('burger').onclick = () => isWorkbench?showView('project'):railOpen(!screenEl.classList.contains('open'));
 screenEl.addEventListener('click', (e) => {
   if (screenEl.classList.contains('open') && !e.target.closest('#burger')) railOpen(false);
 }, true);
@@ -966,15 +975,18 @@ async function publishCurrentProject() {
   return currentLiveUrl;
 }
 
+async function saveProjectChange(action,payload){
+  const response=await fetch('/api/room-history',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,projectId:currentProjectId,...payload})});const data=await response.json();if(!response.ok)throw new Error(data.error || 'Could not save this change.');currentBuild=data.build.html;latestBuildId=data.build.id;currentLiveNeedsUpdate=Boolean(currentLiveUrl);saveThread();return data.build;
+}
 function syncWorkbenchEditor(){
-  const editing = Boolean(isWorkbench && currentView === 'chat' && currentBuild);
-  screenEl.classList.toggle('workbench-editing', editing);
-  if (!editing) return;
-  const frame = el('projectEditorFrame');
-  if (frame._nexusHtml !== currentBuild) {
-    frame._nexusHtml = currentBuild;
-    frame.srcdoc = currentBuild;
-  }
+  screenEl.classList.remove('workbench-editing');
+  if(!isWorkbench || !currentBuild || !['chat','preview','fine'].includes(currentView))return;
+  const mode=currentView==='chat'?'build':currentView==='fine'?'fine':'preview';
+  if(builderWorkspace?.projectId!==currentProjectId){builderWorkspace?.destroy();builderWorkspace=mountProjectBuilder({projectId:currentProjectId,label:currentProjectLabel,html:currentBuild,buildId:latestBuildId,conversation:document.querySelector('.conversation-pane'),mode,sourceConversation,
+    onMode:value=>{currentView=value==='build'?'chat':value;},onExit:()=>showView('project'),onPublish:async()=>{const url=await publishCurrentProject();await copyText(url);},
+    onSave:(html,baseline)=>saveProjectChange('save_project_edit',{html,baseline}),onRestore:(buildId,baseline)=>saveProjectChange('restore_project_version',{buildId,baseline}),
+    onRetrySave:(html,baseline)=>saveProjectChange(baseline?'save_project_edit':'save_project_draft',{html,baseline,label:currentProjectLabel,sourceConversation}),onPiece:()=>ctx.beginAddPiecePlanner(),onOptions:()=>showView('stack')});builderWorkspace.html=currentBuild;
+  }else{if(builderWorkspace.html!==currentBuild){builderWorkspace.update(currentBuild,latestBuildId);builderWorkspace.html=currentBuild;}builderWorkspace.setMode(mode);}
 }
 
 function renderWorkbenchPreview(){
@@ -1043,6 +1055,7 @@ function renderWorkbenchPreview(){
 }
 
 async function showView(id){
+  if(builderWorkspace && !['chat','preview','fine'].includes(id)){builderWorkspace.destroy();builderWorkspace=null;}
   document.getElementById('workbenchFullPreview')?.remove();
   if (!viewAllowed(id)) id = 'project';
   if (id === 'stack' && !currentBuild) id = 'brief';
@@ -1060,6 +1073,7 @@ async function showView(id){
     ? (isWorkbench ? 'Nex Workbench' : 'Nexus Forge')
     : (id === 'brief' && currentBuild ? 'Plan an addition' : isWorkbench ? WORKBENCH_LABELS[id] : FORGE_VIEWS[id].label);
   if (id === 'chat') { replay(); return; }
+  if (['preview','fine'].includes(id) && isWorkbench && builderWorkspace) return;
   if (id === 'preview' && isWorkbench && renderWorkbenchPreview()) return;
   thread.innerHTML = '';
   bubble('sys', 'One second…');
@@ -1363,13 +1377,14 @@ async function runBuild(raw, displayMessage = raw, showUser = true, planMode = u
           pending.innerHTML = '<p>Here it is.</p>';
           drawNav();
           el('connectionsProjectBtn').hidden = !isWorkbench || !currentBuild || ['project', 'live'].includes(currentView);
-          if (isWorkbench) syncWorkbenchEditor();
+          if (isWorkbench){syncWorkbenchEditor();builderWorkspace?.markSaving();}
           else renderVisual(currentBuild, 'Your site');
           history.push({ role:'user', content:displayMessage }, { role:'assistant', content:'Built it.' });
           saveThread();
         } else if (data.action === 'saved') {
           currentProjectId = data.projectId || currentProjectId;
-          latestBuildId = data.id || latestBuildId;
+          latestBuildId = data.id || latestBuildId;currentProjectLabel=data.label || currentProjectLabel;builderWorkspace?.updateLabel(currentProjectLabel);
+          if(isWorkbench && currentBuild){builderWorkspace?.update(currentBuild,latestBuildId);if(builderWorkspace)builderWorkspace.html=currentBuild;}
           pendingStackItem = null;
           forgetPendingBuild(jobId);
           saveThread();
@@ -1378,6 +1393,7 @@ async function runBuild(raw, displayMessage = raw, showUser = true, planMode = u
           forgetPendingBuild(jobId);
           pending.innerHTML = `<p style="color:#d09a82">${esc(data.message || 'That build did not finish.')}</p>`;
         } else if (data.action === 'save_error') {
+          builderWorkspace?.markUnsaved(data.message || "This version could not be saved.");
           thread.appendChild(say(data.message || "Built it, but couldn't save it."));
         }
       }
@@ -1560,7 +1576,7 @@ if (!await handleBrainResult()) {
   const requestedBuild = startupParams.get('build');
   const wantsNewProject = startupParams.get('new') === '1';
   if (signedIn && requestedBuild && /^[a-zA-Z0-9_-]{1,160}$/u.test(requestedBuild)) {
-    await ctx.openBuild(requestedBuild, requestedView === 'preview' ? 'preview' : 'chat');
+    await ctx.openBuild(requestedBuild, ['preview','fine','add-piece'].includes(requestedView) ? requestedView : 'chat');
   } else if (signedIn && wantsNewProject) {
     ctx.startProject();
   } else if (requestedView && FORGE_VIEWS[requestedView]) {

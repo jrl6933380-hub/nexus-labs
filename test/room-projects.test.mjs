@@ -4,15 +4,18 @@ import assert from 'node:assert/strict';
 process.env.KV_REST_API_URL = 'https://room-projects-test.invalid';
 process.env.KV_REST_API_TOKEN = 'test-token';
 
-let list = [];
+let list = [],current=new Map();
 global.fetch = async (_url, options) => {
   const cmd = JSON.parse(options.body);
   const [command] = cmd;
   let result;
   if (command === 'LPUSH') { list.unshift(cmd[2]); result = list.length; }
   else if (command === 'RPUSH') { list.push(...cmd.slice(2)); result = list.length; }
-  else if (command === 'LTRIM') { list = list.slice(Number(cmd[2]), Number(cmd[3]) + 1); result = 'OK'; }
-  else if (command === 'LRANGE') { result = list.slice(Number(cmd[2]), Number(cmd[3]) + 1); }
+  else if (command === 'LTRIM') { list = list.slice(Number(cmd[2]), Number(cmd[3])===-1?undefined:Number(cmd[3])+1); result = 'OK'; }
+  else if (command === 'LRANGE') { result = list.slice(Number(cmd[2]), Number(cmd[3])===-1?undefined:Number(cmd[3])+1); }
+  else if(command==='HVALS'){result=[...current.values()];}
+  else if(command==='HSET'){for(let i=2;i<cmd.length;i+=2)current.set(cmd[i],cmd[i+1]);result=1;}
+  else if(command==='HDEL'){for(const key of cmd.slice(2))current.delete(key);result=1;}
   else if (command === 'DEL') { list = []; result = 1; }
   else throw new Error(`Unexpected command ${command}`);
   return { ok: true, json: async () => ({ result }) };
@@ -20,7 +23,7 @@ global.fetch = async (_url, options) => {
 
 const { saveBuild, listBuilds, listProjects, deleteProject } = await import('../lib/roomHistory.js');
 
-test.beforeEach(() => { list = []; });
+test.beforeEach(() => { list = [];current=new Map(); });
 
 test('repeated edits to one project collapse into a single project row', async () => {
   // The bug: every edit calls saveBuild, so a project edited three times
@@ -112,4 +115,18 @@ test('deleting an unknown project reports zero rather than clearing history', as
 
 test('deleteProject requires a projectId', async () => {
   await assert.rejects(() => deleteProject('alice'), /projectId is required/);
+});
+
+test('more than thirty edits preserve other projects and the original title and pieces',async()=>{
+ await saveBuild('alice',{projectId:'p-older',label:'Older garden',html:'<p>Keep this project</p>'});
+ await saveBuild('alice',{projectId:'p-edit',label:'Main garden',html:'<p>Main</p>'});
+ await saveBuild('alice',{projectId:'p-edit',label:'Portal',html:'<p>Portal</p>',stackItem:{id:'portal',kind:'page',label:'Customer portal'}});
+ for(let i=0;i<35;i++)await saveBuild('alice',{projectId:'p-edit',label:`Edit ${i}`,html:`<p>${i}</p>`});
+ const projects=await listProjects('alice');assert.equal(projects.length,2);const project=projects.find(item=>item.projectId==='p-edit');assert.equal(project.mainLabel,'Main garden');assert.equal(project.stackItems[0].label,'Customer portal');
+ const {getBuild,getLatestBuildByProject}=await import('../lib/roomHistory.js');const older=await getLatestBuildByProject('alice','p-older');assert.equal(older.html,'<p>Keep this project</p>');assert.equal((await getBuild('alice',older.id)).html,older.html);
+ assert.equal((await deleteProject('alice','p-older')).removed,1);assert.equal((await listProjects('alice')).length,1);
+});
+
+test('deleting a known project preserves unreadable older records',async()=>{
+ await saveBuild('alice',{projectId:'p-remove',html:'<p>Remove</p>'});list.unshift('{unreadable');list.unshift('null');await deleteProject('alice','p-remove');assert.ok(list.includes('{unreadable'));assert.ok(list.includes('null'));
 });

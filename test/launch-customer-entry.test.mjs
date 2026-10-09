@@ -80,7 +80,7 @@ test('missing Builder Brain responses provide a real setup action in the custome
 
 test('saved projects open directly instead of becoming a new build prompt', () => {
   assert.match(forgeViews, /open\.onclick = \(\) => ctx\.openBuild\(buildId\)/u);
-  assert.match(forge, /openBuild: async \(id, destination = 'chat', projectLabel = ''\)/u);
+  assert.match(forge, /openBuild: async \(id, destination = \(preferredBuilderMode\(\)/u);
   assert.match(forge, /\/api\/room-history\?id=/u);
   assert.match(forge, /currentBuild = data\.build\.html/u);
   assert.match(forge, /currentProjectId = data\.build\.projectId \|\| data\.build\.id/u);

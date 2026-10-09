@@ -1,3 +1,5 @@
+import {withProjectSaveLock} from '../lib/projectSaveLock.js';
+import {projectDocumentTitle} from '../lib/projectName.js';
 // api/room-chat.js
 // Live-canvas room, v3: generates a real, complete, self-contained HTML
 // document per request (inline CSS/JS), streamed token-by-token through
@@ -23,7 +25,7 @@
 // preview. Generated HTML is deliberately free of builder chrome so users
 // see one chat surface, and exports/previews stay portable.
 
-import { listProjects, saveBuild } from '../lib/roomHistory.js';
+import { listProjects, saveBuild, getLatestBuildByProject } from '../lib/roomHistory.js';
 import { recordProjectSpend } from '../lib/roomProjectLedger.js';
 import { getRequestUser, getUserPlan, isOperatorUser } from '../lib/roomAuth.js';
 import { workbenchProjectAllowance } from '../lib/workbenchPlans.js';
@@ -144,7 +146,7 @@ export default async function handler(req, res) {
   // A Workbench project slot is consumed only by a NEW complete project.
   // Edits and supporting pages stay inside the existing project and never
   // spend another slot. Forge caller projects remain on their own surface.
-  if (surface === 'workbench' && !currentHtml) {
+  if (surface === 'workbench') {
     try {
       const projects = await listProjects(username);
       const isExisting = projects.some((project) => (project.projectId || project.key) === resolvedProjectId);
@@ -429,15 +431,25 @@ export default async function handler(req, res) {
       const customerMessage = typeof displayMessage === 'string' && displayMessage.trim()
         ? displayMessage.trim()
         : message;
-      const saved = await saveBuild(username, {
-        label: customerMessage,
+      const save=async()=>{
+        if(surface==='workbench'){
+          const projects=await listProjects(username);const existing=projects.some(project=>(project.projectId || project.key)===resolvedProjectId);
+          const allowance=workbenchProjectAllowance(await getUserPlan(username),isOperatorUser(username));
+          if(!existing && projects.length>=allowance.limit)throw new Error('Your Projects limit was reached while this build was running. Remove a project before saving another.');
+        }
+        const previous=resolvedProjectId?await getLatestBuildByProject(username,resolvedProjectId):null;
+        return saveBuild(username, {
+        sourceConversation:previous?.sourceConversation,
+        label: projectDocumentTitle(html,customerMessage),
         requestMessage: customerMessage,
         html,
         projectId: resolvedProjectId,
         stackItem,
       });
+      };
+      const saved=await withProjectSaveLock(username,save);
       savedBuildId = saved.id;
-      send({ action: 'saved', id: saved.id, projectId: saved.projectId || saved.id });
+      send({ action: 'saved', id: saved.id, projectId: saved.projectId || saved.id,label:saved.label });
       if (saved.projectId) {
         try {
           await roomConversations.appendTurns(username, saved.projectId, [

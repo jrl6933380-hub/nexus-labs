@@ -298,6 +298,7 @@ import { scheduleStart, scheduleEnd, occupiedStart, plannedEndLabel, updateStart
 import { registerNexusApp } from '/app-install.js';
 import { renderFeatureHelp, draftNexusExample } from '/nexus-guide.js';
 import { createTeamChat } from '/team-chat.js';
+import {chatVisualPromotionId as visualPromotionId} from '/project-identity.js';
 import { appendChatVisual, chatVisualHtml } from '/chat-visual.js';
 
 // Owner gate. The previous root page checked this before rendering anything, and
@@ -355,7 +356,7 @@ const ctx = {
     await fetch('/api/nexus-auth', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ action:'lock' }) });
     location.replace('/nexus-login.html?next=%2Fworkspace.html');
   },
-  openWorkbenchPanel: (buildId, mode = 'preview') => location.assign(`/forge.html?surface=workbench&view=${mode === 'edit' ? 'chat' : 'preview'}&build=${encodeURIComponent(buildId)}`),
+  openWorkbenchPanel: (buildId, mode = 'preview') => location.assign(`/forge.html?surface=workbench&view=${mode === 'edit' ? 'chat' : ['preview','fine','add-piece'].includes(mode) ? mode : 'chat'}&build=${encodeURIComponent(buildId)}`),
   newWorkbenchPanel: () => location.assign('/forge.html?surface=workbench&view=chat&new=1'),
   setProjectUsage: (count, limit) => {
     const badge = el('projectPlanBadge');
@@ -948,18 +949,14 @@ function assistantReplyMarkup(content){
   const plain=String(content).replace(/```html\s*\n[\s\S]*?\n```/iu,'').trim();
   return paragraphs(plain || 'Here’s the visual build. You can preview it below or keep building it in Projects.');
 }
-function chatVisualPromotionId(content){
-  let hash=2166136261;for(const character of String(content))hash=Math.imul(hash^character.charCodeAt(0),16777619);
-  const scope=String(threadId || activeConversation?.id || 'nex-main').replace(/[^a-zA-Z0-9_-]/g,'-').slice(0,48);
-  return `direct-${scope}-${(hash>>>0).toString(36)}`;
-}
+function chatVisualPromotionId(content){return visualPromotionId(content,threadId || activeConversation?.id || 'nex-main');}
 async function keepChatVisual({html},content,requestMessage=''){
-  const response=await fetch('/api/room-history',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'save_chat_visual',html,label:`${activeConversation?.name || 'Nex'} build`,requestMessage,promotionId:chatVisualPromotionId(content)})});
+  const response=await fetch('/api/room-history',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'save_chat_visual',html,label:`${activeConversation?.name || 'Nex'} build`,requestMessage,promotionId:chatVisualPromotionId(content),sourceConversation:{kind:'chat',id:threadId || 'nex-main'}})});
   const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error || 'This build could not be saved to Projects.');
-  location.assign(`/forge.html?surface=workbench&view=chat&build=${encodeURIComponent(data.build.id)}`);
+  return data;
 }
 function appendAssistantVisual(body,content,requestMessage=''){
-  return appendChatVisual(body,content,activeConversation?.name || 'Nex',{onPromote:payload=>keepChatVisual(payload,content,requestMessage)});
+  return appendChatVisual(body,content,activeConversation?.name || 'Nex',{saveKey:chatVisualPromotionId(content),onPromote:payload=>keepChatVisual(payload,content,requestMessage)});
 }
 
 // ---------------------------------------------------------------------------
@@ -986,9 +983,9 @@ async function showView(id){
   try {
     const nodes = await VIEWS[id].render(ctx);
     thread.innerHTML = '';
-    const help=id==='life' ? null : renderFeatureHelp(id,ctx);if(help)thread.appendChild(help);
+    const help=['life','workbench'].includes(id) ? null : renderFeatureHelp(id,ctx);if(help)thread.appendChild(help);
     for (const node of nodes) thread.appendChild(node);
-    if(!['messages','approvals','guide','life'].includes(id)){if(!threadId)threadId='nex-main';teamChat.open(activeConversation,threadId);}
+    if(!['messages','approvals','guide','life','workbench'].includes(id)){if(!threadId)threadId='nex-main';teamChat.open(activeConversation,threadId);}
   } catch (error) {
     thread.innerHTML = '';
     bubble('sys', esc(friendlyError(error,{action:'load',subject:VIEWS[id].label})));

@@ -3,10 +3,13 @@ import {nexusMessagesStore,SPECIALIST_ROLES,MESSAGE_SCOPES} from '../lib/nexusMe
 import {waitUntil} from '@vercel/functions';
 import {createTeamMessagesHandler} from '../lib/teamMessagesHandler.js';
 import {teamRunStore} from '../lib/teamRuns.js';
+import {checkNewVisualCapacity} from '../lib/chatProjectSave.js';
+import {parseTeamMentions} from '../public/team-mentions.js';
+import {saveTeamProjects} from '../lib/teamProjectSave.js';
 
 export const maxDuration = 300;
 
-export function createNexusMessagesHandler({getOwner=getNexusOwner,store=nexusMessagesStore,team=createTeamMessagesHandler({schedule:task=>waitUntil(task())})}={}){
+export function createNexusMessagesHandler({getOwner=getNexusOwner,store=nexusMessagesStore,team=createTeamMessagesHandler({schedule:task=>waitUntil(task()),persistProjects:saveTeamProjects,checkCapacity:async(req,message,current)=>{const members=current.available_members || current.members;const mentions=parseTeamMentions(message,members);const ids=current.kind==='group'?current.member_ids:null;const assigned=members.filter(member=>mentions.some(item=>item.all) || !mentions.length ? !ids || ids.includes(member.id) || mentions.some(item=>item.member_id===member.id) : mentions.some(item=>item.member_id===member.id));if(assigned.some(member=>member.role==='build'))await checkNewVisualCapacity(req,message);}})}={}){
   return async function handler(req,res){
     res.setHeader('Cache-Control','private, no-store');
     const owner=await getOwner(req).catch(()=>null);if(!owner)return res.status(401).json({error:'Please sign in again'});

@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import {saveChatProject,checkNewVisualCapacity} from '../lib/chatProjectSave.js';
 import { waitUntil } from '@vercel/functions';
 import { teamRunner } from '../lib/teamRunner.js';
 import { chatRequest, requestKey } from '../lib/nexChatRequests.js';
@@ -320,6 +321,7 @@ export default async function handler(req, res) {
     const agentActivity=(await teamRunStore.list(operatorUser,collaborationThread).catch(()=>[])).slice(0,2).map(run=>JSON.stringify({goal:run.goal,state:run.state,steps:run.steps.map(step=>({name:step.name,state:step.state,result:step.result?.slice(0,3000)}))})).join('\n');
 
     tracked = true;
+    await checkNewVisualCapacity(req,message);
     await saveStatus({ state: 'running' });
     if (wantsBuildStream) {
       res.statusCode = 200;
@@ -366,9 +368,10 @@ export default async function handler(req, res) {
       { role: 'assistant', content: reply, model: answeredModel, usage },
     ];
     await saveConversation(operatorUser, finalHistory, threadId);
+    let projectSaveError=null;try{await saveChatProject(req,collaborationThread,reply,message);}catch(error){projectSaveError=error.message;console.error('Chat project save failed:',error.message);}
 
     const response = {
-      reply,
+      reply,projectSaveError,
       model: answeredModel,
       provider,
       usage,
@@ -394,6 +397,7 @@ export default async function handler(req, res) {
     return res.status(200).json(response);
   } catch (err) {
     await progress.flush();
+    if(err.status){await saveStatus({state:'failed',error:err.message});return res.status(err.status).json({error:err.message});}
     if (tracked) await saveStatus({ state: 'failed', error: 'Nex hit a server error. Inspect the last saved progress before trying again.', ...progress.snapshot() });
     console.error('Nex chat handler crashed:', err);
     Sentry.captureException(err);

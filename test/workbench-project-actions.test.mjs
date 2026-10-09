@@ -15,6 +15,7 @@ const element = (tag) => ({
 function viewsHarness() {
   const context = {
     document: { createElement: element },
+    projectGallery:async(projects,ctx,options)=>({projects,ctx,options}),
     field: (obj, ...keys) => keys.map(key => obj?.[key]).find(Boolean) || '',
     pick: (obj, ...keys) => keys.map(key => obj?.[key]).find(Array.isArray) || [],
     esc: text => String(text).replaceAll('<', '&lt;'),
@@ -28,17 +29,11 @@ function viewsHarness() {
   return context;
 }
 
-test('each project card adds to its own build and carries its main title', async () => {
-  const harness = viewsHarness();
-  const calls = [];
-  const nodes = await harness.views.project.render({ surface: () => 'workbench', hasCurrentBuild: () => true, openBuild: async (...args) => calls.push(args) });
-  const grid = nodes.find(node => node.className === 'workbench-project-grid');
-  for (const stack of grid.children.slice(0, 2)) {
-    const add = stack.children.find(node => node.className === 'workbench-project-actions').children[1];
-    await add.onclick();
-    assert.equal(add.disabled, false);
-  }
-  assert.deepEqual(calls, [['build-a', 'add-piece', 'Bakery'], ['build-b', 'add-piece', 'Garage']]);
+test('Workbench delegates to the shared shelf with the actual owned projects and allowance',async()=>{
+  const harness=viewsHarness(),ctx={surface:()=> 'workbench'};
+  const [shelf]=await harness.views.project.render(ctx);
+  assert.deepEqual(Array.from(shelf.projects,project=>project.latestBuildId),['build-a','build-b']);
+  assert.equal(shelf.ctx,ctx);assert.equal(shelf.options.count,2);assert.equal(shelf.options.canCreate,true);
 });
 
 test('legacy add screen keeps the target visible and routes into the planner without chatting', async () => {
@@ -60,10 +55,10 @@ test('without a current build the add screen asks the customer to choose a proje
 });
 
 function openHarness(ok) {
-  const body = forgeSource.split("openBuild: async (id, destination = 'chat', projectLabel = '') => {")[1].split('\n  },\n  buyUsagePack:')[0];
+  const body = forgeSource.split(/openBuild: async \(id,[^\n]*=> \{/u)[1].split('\n  },\n  buyUsagePack:')[0];
   const context = {
     friendlyError, currentBuild: '<h1>Old</h1>', currentProjectId: 'old-project', latestBuildId: 'old-build', currentProjectLabel: 'Old', pendingStackItem: { kind: 'tool' }, plannerEntry: '',
-    currentLiveUrl: '', currentLiveNeedsUpdate: false, history: [], threadId: null, shown: [],
+    sourceConversation:null,currentLiveUrl: '', currentLiveNeedsUpdate: false, history: [], threadId: null, shown: [],
     bubble: () => ({ closest: () => ({ remove() {} }) }), paragraphs: text => text,
     fetch: async url => ({ ok, json: async () => url.startsWith('/api/room-history') ? { build: { id: 'build-b', projectId: 'project-b', html: '<h1>Garage</h1>', label: 'Add booking form' } } : { turns: [] } }),
   };
