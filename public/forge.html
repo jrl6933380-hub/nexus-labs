@@ -610,6 +610,11 @@ const ctx = {
           else for(const message of original.messages || [])history.push({role:message.role,content:String(message.content).replace(/```html[\s\S]*?```/giu,'[Saved project preview]')});
         }}catch{}
       }
+      // The Projects shelf also renders inside the shared conversation pane.
+      // Restore this project's real conversation before mounting the builder,
+      // otherwise switching from its overview to "Build with Nex" exposes the
+      // stale project picker inside the editor.
+      replay();
       await showView(destination === 'add-piece' ? 'brief' : ['overview', 'preview', 'fine', 'pages', 'stack'].includes(destination) ? destination : 'overview');
 
       opened = true;
@@ -828,8 +833,12 @@ async function stackSetupAction() {
 }
 
 function railOpen(open){ screenEl.classList.toggle('open', open); }
-if(isWorkbench){el('burger').textContent='‹';el('burger').setAttribute('aria-label','Back to Projects');}
-el('burger').onclick = () => isWorkbench?showView('project'):railOpen(!screenEl.classList.contains('open'));
+if(isWorkbench){el('burger').textContent='‹';el('burger').setAttribute('aria-label','Back to Nexus');}
+el('burger').onclick = () => {
+  if(!isWorkbench)return railOpen(!screenEl.classList.contains('open'));
+  if(currentView==='project' && !builderWorkspace)return location.assign('/workspace.html?view=workbench');
+  showView('project');
+};
 screenEl.addEventListener('click', (e) => {
   if (screenEl.classList.contains('open') && !e.target.closest('#burger')) railOpen(false);
 }, true);
