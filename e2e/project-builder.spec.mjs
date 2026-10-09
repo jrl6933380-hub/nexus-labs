@@ -41,6 +41,25 @@ test('mobile modes preserve the conversation draft, preview state and unsaved fi
  await page.locator('.projectbuilder').getByRole('button',{name:'Back to project',exact:true}).click();await expect(page.locator('.pb-home')).toBeVisible();await page.getByRole('button',{name:'Back to Projects',exact:true}).click();await expect(page.locator('.projectshelf')).toBeVisible();await expect(page.locator('.projectfilters')).toContainText('1 of 10 project slots');await expect(page.locator('.teammission')).toHaveCount(0);
  await page.locator('.projectcard').getByRole('button',{name:'Open Creekside Lawn',exact:true}).click();await expect(page.locator('.pb-home')).toBeVisible();await expect(page.getByRole('heading',{name:'Project pieces'})).toBeVisible();await page.locator('.pb-homemodes').getByRole('button',{name:'Preview',exact:true}).click();await expect(preview.getByRole('heading',{name:'Creekside Lawn',exact:true})).toBeVisible();
 });
+test('back navigation restores the project conversation and can leave Projects',async({page})=>{
+ await setup(page);
+ await page.getByRole('button',{name:'Fine-tune',exact:true}).click();
+ await page.locator('.projectbuilder').getByRole('button',{name:'Back to project',exact:true}).click();
+ await expect(page.locator('.pb-home')).toBeVisible();
+ await page.locator('.projectbuilder').getByRole('button',{name:'Back to Projects',exact:true}).click();
+ await expect(page.locator('.projectshelf')).toBeVisible();
+ await page.locator('.projectcard').getByRole('button',{name:'Open Creekside Lawn',exact:true}).click();
+ await expect(page.locator('.pb-home')).toBeVisible();
+ await page.getByRole('button',{name:'Build with Nex',exact:true}).click();
+ await expect(page.locator('.pb-chat .projectshelf')).toHaveCount(0);
+ await expect(page.getByText('Build a garden site.',{exact:true})).toBeVisible();
+ await page.locator('.projectbuilder').getByRole('button',{name:'Back to project',exact:true}).click();
+ await page.locator('.projectbuilder').getByRole('button',{name:'Back to Projects',exact:true}).click();
+ await Promise.all([
+   page.waitForURL('**/workspace.html?view=workbench'),
+   page.getByRole('button',{name:'Back to Nexus',exact:true}).click(),
+ ]);
+});
 test('photo gallery edits prepare an embedded photo and survive reopening the project',async({page})=>{
  const f=await setup(page);await page.getByRole('button',{name:'Fine-tune',exact:true}).click();const preview=page.frameLocator('.pb-canvas iframe');await preview.getByRole('img',{name:'Garden',exact:true}).click();
  await page.getByLabel('Choose image from Photos').setInputFiles({name:'gallery.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==','base64')});await expect(page.getByRole('status')).toContainText('Photo ready');await page.getByRole('button',{name:'Save change',exact:true}).click();await expect(page.getByRole('status')).toContainText('Saved');expect(f.writes[0].html).toContain('data:image/webp;base64,');expect(f.writes[0].html.length).toBeLessThan(100000);
