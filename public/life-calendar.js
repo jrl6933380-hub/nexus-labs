@@ -29,7 +29,7 @@ export function renderLifeCalendar({items,state,onCreate,onOpen,onChange,onNavig
   function navigate(offset){captureScroll();state.date=new Date(+current);state.date.setDate(state.date.getDate()+offset);state.scrollLeft=0;onNavigate();}
   toolbar.append(button('‹',()=>navigate(-7),'Previous week'),title,button('›',()=>navigate(7),'Next week'),button('Today',()=>{state.date=new Date();state.scrollTop=null;state.scrollLeft=null;onNavigate();}));root.append(toolbar);
   const viewport=node('div','lc-viewport'),canvas=node('div','lc-canvas'),heads=node('div','lc-days'),grid=node('div','lc-grid');
-  const status=node('p','lc-status','Hold empty time, then drag to add. Drag a block to move; pull its bottom edge to resize.');status.setAttribute('role','status');status.setAttribute('aria-live','polite');
+  const status=node('p','lc-status','Tap empty time, then drag the selection or either edge. Tap Add details when ready.');status.setAttribute('role','status');status.setAttribute('aria-live','polite');
   const gutter=node('div','lc-hourlabels');for(let hour=0;hour<24;hour++)gutter.append(node('span','',`${hour%12 || 12} ${hour<12 ? 'AM' : 'PM'}`));
   heads.append(node('div','lc-corner','TIME'));grid.append(gutter);
   const columns=[],today=calendarKey(new Date());let saving=false;
@@ -43,35 +43,81 @@ export function renderLifeCalendar({items,state,onCreate,onOpen,onChange,onNavig
     try{await onChange(item,times);status.textContent='Time saved.';}catch(error){status.textContent=error.message || 'Could not save this time. Your original block is unchanged.';}
     finally{saving=false;root.removeAttribute('aria-busy');}
   }
+  let dismissSelection=null;
+  const selectionActions=node('div','lc-selectionactions');selectionActions.hidden=true;
+  root.append(selectionActions);
   function selectionLane(column,day){
-    let gesture=null,timer=null,preview=null;
+    let gesture=null,timer=null,preview=null,range=null,rangeDay=day;
     function cancelKey(event){if(event.key==='Escape'){event.preventDefault();clean();status.textContent='Selection cancelled.';}}
-    function clean(){document.removeEventListener('keydown',cancelKey);clearTimeout(timer);preview?.remove();preview=null;gesture=null;}
+    function clean(){
+      document.removeEventListener('keydown',cancelKey);clearTimeout(timer);preview?.remove();preview=null;gesture=null;range=null;
+      selectionActions.hidden=true;selectionActions.replaceChildren();if(dismissSelection===clean)dismissSelection=null;
+    }
     function paint(){
-      if(!gesture)return;const range=lifeSelection(day,gesture.anchor,gesture.current);
-      if(!preview){preview=node('div','lc-selection');column.append(preview);}
+      if(!range)return;
+      if(!preview){
+        preview=node('div','lc-selection lc-draft');preview.tabIndex=0;preview.setAttribute('aria-label','Selected time. Drag to move, or drag either edge to resize.');
+        const label=node('span','lc-draftlabel'),top=node('span','lc-resize lc-resize-top'),bottom=node('span','lc-resize');
+        top.dataset.edge='start';bottom.dataset.edge='end';top.append(node('i',''));bottom.append(node('i',''));preview.append(label,top,bottom);
+        preview.onpointerdown=e=>{
+          if(saving || e.button!==0)return;e.preventDefault();e.stopPropagation();preview.setPointerCapture(e.pointerId);
+          gesture={mode:e.target.closest('.lc-resize')?.dataset.edge || 'move',anchor:minuteAt(e.clientY),start:range.minutes,end:range.minutes+range.duration};
+        };
+        preview.onpointermove=e=>{
+          if(!gesture)return;e.preventDefault();e.stopPropagation();autoScroll(e.clientX,e.clientY);
+          const minute=Math.round(minuteAt(e.clientY)/15)*15;
+          if(gesture.mode==='move'){
+            const target=columnAt(e.clientX,preview.parentElement);rangeDay=target.dataset.day;target.append(preview);
+            const start=Math.max(0,Math.min(1440-range.duration,gesture.start+Math.round((minuteAt(e.clientY)-gesture.anchor)/15)*15));
+            range=lifeSelection(rangeDay,start,start+range.duration);
+          }else if(gesture.mode==='start'){
+            range=lifeSelection(rangeDay,Math.max(0,Math.min(gesture.end-15,minute)),gesture.end);
+          }else{
+            range=lifeSelection(rangeDay,gesture.start,Math.max(gesture.start+15,Math.min(1440,minute)));
+          }
+          paint();
+        };
+        preview.onpointerup=e=>{e.preventDefault();e.stopPropagation();gesture=null;captureScroll();};
+        preview.onpointercancel=()=>{gesture=null;};
+        preview.onkeydown=e=>{
+          if(e.key==='Enter'){e.preventDefault();finish();}
+          if(e.key==='Escape'){e.preventDefault();clean();}
+        };
+        column.append(preview);
+      }
       preview.style.top=`${range.minutes/60*LIFE_HOUR_HEIGHT}px`;preview.style.height=`${range.duration/60*LIFE_HOUR_HEIGHT}px`;
-      preview.textContent=`${clock(range.starts_at)} – ${clock(range.ends_at)}`;
-      const busy=clashes(range.starts_at,range.ends_at);preview.classList.toggle('lc-conflict',busy);status.textContent=busy ? 'This time overlaps an activity. Choose an open range.' : `${clock(range.starts_at)} – ${clock(range.ends_at)} · release to add details`;
+      preview.querySelector('.lc-draftlabel').textContent=`${clock(range.starts_at)} – ${clock(range.ends_at)}`;
+      const busy=clashes(range.starts_at,range.ends_at);preview.classList.toggle('lc-conflict',busy);
+      status.textContent=busy ? 'This time overlaps an activity. Move or resize the selection.' : `${clock(range.starts_at)} – ${clock(range.ends_at)} · drag to adjust, then add details`;
+      selectionActions.querySelector('button').disabled=busy;
+    }
+    function finish(){
+      if(!range || clashes(range.starts_at,range.ends_at))return;const selected={...range};clean();captureScroll();onCreate(selected);
+    }
+    function begin(start,end){
+      dismissSelection?.();dismissSelection=clean;rangeDay=day;range=lifeSelection(day,start,end);
+      document.addEventListener('keydown',cancelKey);selectionActions.replaceChildren(button('Add details',finish),button('Cancel',clean));selectionActions.hidden=false;paint();
     }
     column.onpointerdown=e=>{
-      if(saving || e.button!==0 || e.target.closest('.lc-block'))return;
-      e.preventDefault();column.setPointerCapture(e.pointerId);document.addEventListener('keydown',cancelKey);
-      gesture={anchor:Math.floor(minuteAt(e.clientY)/15)*15,current:minuteAt(e.clientY),x:e.clientX,y:e.clientY,lastX:e.clientX,lastY:e.clientY,mode:e.pointerType==='touch' ? 'waiting' : 'select'};
-      if(gesture.mode==='waiting')timer=setTimeout(()=>{if(gesture?.mode==='waiting'){gesture.mode='select';paint();}},230);else paint();
+      if(saving || e.button!==0 || e.target.closest('.lc-block,.lc-selection'))return;
+      e.preventDefault();column.setPointerCapture(e.pointerId);
+      const anchor=Math.floor(minuteAt(e.clientY)/15)*15;begin(anchor,anchor+15);
+      gesture={anchor,current:minuteAt(e.clientY),x:e.clientX,y:e.clientY,lastX:e.clientX,lastY:e.clientY,mode:e.pointerType==='touch' ? 'waiting' : 'select'};
+      if(gesture.mode==='waiting')timer=setTimeout(()=>{if(gesture?.mode==='waiting')gesture.mode='select';},230);
     };
     column.onpointermove=e=>{
       if(!gesture)return;e.preventDefault();
-      if(gesture.mode==='waiting' && Math.hypot(e.clientX-gesture.x,e.clientY-gesture.y)>10){clearTimeout(timer);gesture.mode='scroll';}
+      if(gesture.mode==='waiting' && Math.hypot(e.clientX-gesture.x,e.clientY-gesture.y)>10){clearTimeout(timer);gesture.mode='scroll';preview?.remove();preview=null;selectionActions.hidden=true;}
       if(gesture.mode==='scroll'){viewport.scrollTop-=e.clientY-gesture.lastY;viewport.scrollLeft-=e.clientX-gesture.lastX;gesture.lastX=e.clientX;gesture.lastY=e.clientY;return;}
-      if(gesture.mode==='select'){autoScroll(e.clientX,e.clientY);gesture.current=minuteAt(e.clientY);paint();}
+      if(gesture.mode==='select'){autoScroll(e.clientX,e.clientY);range=lifeSelection(day,gesture.anchor,minuteAt(e.clientY));paint();}
     };
     column.onpointerup=e=>{
-      if(!gesture)return;e.preventDefault();const range=lifeSelection(day,gesture.anchor,gesture.current),mode=gesture.mode;clean();captureScroll();
-      if(mode==='scroll')return;if(clashes(range.starts_at,range.ends_at)){status.textContent='That time is occupied. Choose an open range.';return;}onCreate(range);
+      if(!gesture)return;e.preventDefault();const mode=gesture.mode;clearTimeout(timer);gesture=null;captureScroll();
+      if(mode==='scroll')clean();else paint();
     };
     column.onpointercancel=clean;
     column.onkeydown=e=>{if(e.key==='Escape'){clean();status.textContent='Selection cancelled.';}};
+    column.selectRange=begin;
   }
   function directBlock(item,entry,column,day){
     const block=node('div','lc-block');block.tabIndex=0;block.setAttribute('role','button');block.setAttribute('aria-label',`${item.title}, ${clock(item.starts_at)} to ${clock(item.ends_at)}. Drag to move. Press Enter to edit, arrows to move, Shift up or down to resize.`);
@@ -123,8 +169,8 @@ export function renderLifeCalendar({items,state,onCreate,onOpen,onChange,onNavig
     if(key===today){const now=new Date(),line=node('div','lc-now');line.style.top=`${(now.getHours()+now.getMinutes()/60)*LIFE_HOUR_HEIGHT}px`;column.append(line);}grid.append(column);
   }
   const dayViewport=node('div','lc-dayviewport');dayViewport.append(heads);
-  canvas.append(grid);viewport.append(canvas);root.append(status,dayViewport,viewport);
-  const add=button('+ Time block',()=>{captureScroll();onCreate(lifeSelection(state.date,9*60,10*60));});add.className='lc-add';root.append(add);
+  canvas.append(grid);viewport.append(canvas);root.append(status,selectionActions,dayViewport,viewport);
+  const add=button('+ Time block',()=>{captureScroll();const column=columns.find(el=>el.dataset.day===calendarKey(dayAt(state.date)));column?.selectRange(9*60,10*60);});add.className='lc-add';root.append(add);
   viewport.onscroll=captureScroll;
   const frame=typeof requestAnimationFrame==='function' ? requestAnimationFrame : callback=>callback();
   frame(()=>{viewport.scrollTop=state.scrollTop ?? 8*LIFE_HOUR_HEIGHT;const index=days.findIndex(day=>calendarKey(day)===calendarKey(current));viewport.scrollLeft=state.scrollLeft ?? Math.max(0,index)*columns[0].getBoundingClientRect().width;captureScroll();});
