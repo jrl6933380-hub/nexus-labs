@@ -137,6 +137,8 @@ test('Messages carries the old navigation as colored connected conversation rows
   assert.match(source,/Create a specialist/);assert.match(source,/Step 1 of 2/);assert.match(source,/You choose what this agent can access/);
   assert.match(source,/Customize Messages/);assert.match(source,/set_pinned_systems/);assert.match(css,/pinmanager/);
   assert.match(source,/Name your team and choose who belongs/);assert.match(source,/placeholder='Team name'/);
+  assert.match(source,/Live details ↻/);assert.match(source,/Create your first team/);assert.match(source,/teamGroup=state\.groups/u);
+  assert.match(css,/homecard\.is-flipped/);assert.match(css,/homecardfacts/);
 });
 
 test('Account controls group owner-only tool, skill, and command catalogs',()=>{

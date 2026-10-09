@@ -60,9 +60,19 @@ export function buildOwnerCapabilityPrompt(section,{name='',purpose='',behavior=
 
 export async function renderMessages(ctx){
   const root=node('section',undefined,'nexusmessages');let state={specialists:[],groups:[],roles:{},scopes:[],pinned_system_ids:[]},projects=[];
+  let lifeData={items:[],pulses:[],summary:null};
   let ownerCatalog=null;
   async function loadProjects(){try{const response=await fetch('/api/room-history',{credentials:'include',headers:{Accept:'application/json'},cache:'no-store'});const data=await response.json().catch(()=>({}));if(response.ok)projects=Array.isArray(data.projects)?data.projects:[];}catch{projects=[];}}
-  async function load(message){try{const [messages]=await Promise.all([api(),loadProjects()]);state=messages;if(ctx.consumeMessagesNew?.())newConversation();else {const destination=ctx.consumeMessagesDestination?.();if(destination==='usage')accountControls('usage');else if(destination==='settings')accountControls();else if(SPACE_BUNDLES.some(bundle=>bundle.id===destination))bundleView(destination);else draw();}if(typeof message==='string' && message.trim())showFeedback(root,message);}catch(error){root.replaceChildren(node('p',friendlyError(error,{action:'load',subject:'Messages'})),button('Try again',()=>load()),button('Explore Nexus',()=>ctx.go('guide'),'guideopen'));}}
+  async function loadLife(){try{const response=await fetch('/api/life',{credentials:'include',headers:{Accept:'application/json'},cache:'no-store'});const data=await response.json().catch(()=>({}));if(response.ok)lifeData={items:Array.isArray(data.items)?data.items:[],pulses:Array.isArray(data.pulses)?data.pulses:[],summary:data.summary || null};}catch{lifeData={items:[],pulses:[],summary:null};}}
+  async function load(message){try{const [messages]=await Promise.all([api(),loadProjects(),loadLife()]);state=messages;if(ctx.consumeMessagesNew?.())newConversation();else {const destination=ctx.consumeMessagesDestination?.();if(destination==='usage')accountControls('usage');else if(destination==='settings')accountControls();else if(SPACE_BUNDLES.some(bundle=>bundle.id===destination))bundleView(destination);else draw();}if(typeof message==='string' && message.trim())showFeedback(root,message);}catch(error){root.replaceChildren(node('p',friendlyError(error,{action:'load',subject:'Messages'})),button('Try again',()=>load()),button('Explore Nexus',()=>ctx.go('guide'),'guideopen'));}}
+  function flipCard({tone,label,visual,title,copy,action,onOpen,details=[]}){
+    const card=node('article',undefined,`homecard ${tone}`),turn=node('div',undefined,'homecardturn'),front=node('section',undefined,'homecardface homecardfront'),back=node('section',undefined,'homecardface homecardback');
+    const setFlipped=value=>{card.className=`homecard ${tone}${value?' is-flipped':''}`;};
+    front.append(node('span',label,'homecardlabel'),visual,node('strong',title),node('small',copy));
+    const frontActions=node('div',undefined,'homecardactions');frontActions.append(button('Live details ↻',()=>setFlipped(true),'homecardflip'),button(action,onOpen,'homecardopen'));front.append(frontActions);
+    back.append(node('span','Live details','homecardlabel'),node('strong',title));const facts=node('div',undefined,'homecardfacts');for(const detail of details.filter(Boolean)){const fact=node('p');fact.append(node('b',detail.label),node('span',detail.value));facts.append(fact);}back.append(facts);
+    const backActions=node('div',undefined,'homecardactions');backActions.append(button('↻ Front',()=>setFlipped(false),'homecardflip'),button(action,onOpen,'homecardopen'));back.append(backActions);turn.append(front,back);card.append(turn);return card;
+  }
   function draw(){
     document.body.classList.remove('messages-panel');document.body.classList.add('messages-home');
     root.replaceChildren();
@@ -93,10 +103,29 @@ export async function renderMessages(ctx){
 
     root.append(node('h3','Live cards','homeheading'));
     const cards=node('div',undefined,'homecards');
-    const projectCard=button('',()=>ctx.go('workbench'),'homecard projectcard');projectCard.append(node('span','Active project','homecardlabel'));const projectVisual=node('span',undefined,'projectvisual');projectVisual.append(node('i'),node('i'),node('i'));projectCard.append(projectVisual,node('strong',project?.label || 'Start your first project'),node('small',project?'Open the latest saved version':'Build a page, app, tool, or visual'),node('b',project?'Continue':'Start building'));cards.append(projectCard);
-    const lifeCard=button('',()=>ctx.go('life'),'homecard lifecard');lifeCard.append(node('span','Life','homecardlabel'));const ring=node('span',undefined,'lifering');ring.append(node('i',attention.length?'Check':'Ready'),node('b','•'));lifeCard.append(ring,node('strong','Your alignment'),node('small',attention.length?'See what is asking for your energy':'Your Life space is ready for today'),node('b','Open Life'));cards.append(lifeCard);
-    const team=ready || urgent || (state.groups[0]?{kind:'group',item:state.groups[0],status:state.team_status?.[state.groups[0].id]}:null);
-    const teamCard=button('',()=>team?openRecord(team):newConversation(),'homecard teamcard');teamCard.append(node('span','Team result','homecardlabel'),node('span',team?'✓':'+','teamresulticon'),node('strong',team?.item?.name || team?.item?.title || 'Bring a team together'),node('small',team?.status || 'Nex can assemble the right agents'),node('b',team?'Review':'Start a team'));cards.append(teamCard);
+    const projectVisual=node('span',undefined,'projectvisual');projectVisual.append(node('i'),node('i'),node('i'));
+    cards.append(flipCard({tone:'projectcard',label:'Active project',visual:projectVisual,title:project?.label || 'Start your first project',copy:project?'Open the latest saved version':'Build a page, app, tool, or visual',action:project?'Continue':'Start building',onOpen:()=>ctx.go('workbench'),details:project?[
+      {label:'Status',value:project.liveUrl?'Live':'Draft'},
+      {label:'Versions',value:String(project.versionCount || 1)},
+      {label:'Project pieces',value:String(1+(project.stackItems?.length || 0))},
+      {label:'Updated',value:timeLabel(project.updatedAt || project.createdAt) || 'Recently'},
+    ]:[{label:'Status',value:'No project yet'},{label:'Next step',value:'Start with Nex'}]}));
+    const now=new Date(),today=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`,pulse=lifeData.pulses.find(item=>item.date===today),upcoming=lifeData.items.filter(item=>item.status!=='done'&&item.starts_at&&String(item.starts_at).slice(0,10)===today).sort((a,b)=>Date.parse(a.starts_at)-Date.parse(b.starts_at))[0];
+    const ring=node('span',undefined,'lifering');ring.append(node('i',pulse?.energy?'Energy':'Check in'),node('b',pulse?.energy?`${pulse.energy}/5`:'•'));
+    cards.append(flipCard({tone:'lifecard',label:'Life today',visual:ring,title:upcoming?.title || 'Your alignment',copy:upcoming?`${timeLabel(Date.parse(upcoming.starts_at))} · ${upcoming.pillar || 'Life'}`:pulse?.energy?'Today’s energy is checked in':'Your Life space is ready for today',action:'Open Life',onOpen:()=>ctx.go('life'),details:[
+      {label:'Energy',value:pulse?.energy?`${pulse.energy}/5`:'Not checked in'},
+      {label:'Next today',value:upcoming?.title || 'Open time'},
+      {label:'Waiting for check-in',value:String(lifeData.summary?.unconfirmed || 0)},
+      {label:'Life items',value:String(lifeData.items.filter(item=>item.status!=='done').length)},
+    ]}));
+    const teamGroup=state.groups.find(group=>/result ready|needs attention/iu.test(state.team_status?.[group.id] || '')) || state.groups[0] || null;
+    const team=teamGroup?{kind:'group',item:teamGroup,status:state.team_status?.[teamGroup.id] || 'Ready'}:null,members=teamGroup?.member_ids?.map(id=>state.specialists.find(item=>item.id===id)?.name).filter(Boolean) || [];
+    cards.append(flipCard({tone:'teamcard',label:team?'Team':'Build a team',visual:node('span',team?'✓':'+','teamresulticon'),title:team?.item?.title || 'Create your first team',copy:team?.status || 'Choose agents for one shared conversation',action:team?'Open team':'Create team',onOpen:()=>team?openRecord(team):createGroup,details:team?[
+      {label:'Status',value:team.status},
+      {label:'Agents',value:members.join(', ') || 'No agents selected'},
+      {label:'Members',value:String(members.length+(teamGroup.include_nex?1:0))},
+      {label:'Nex',value:teamGroup.include_nex?'Included':'Not included'},
+    ]:[{label:'Status',value:'No team yet'},{label:'Available agents',value:String(state.specialists.length)},{label:'Next step',value:'Name a team and choose agents'}]}));
     root.append(cards);
 
     if(recent.length || state.groups.length){root.append(node('h3','Continue','homeheading'));const continuation=node('div',undefined,'homecontinue');for(const thread of recent.slice(0,2))continuation.append(row({name:thread.title,meta:'Nex conversation',preview:`${thread.message_count || 0} messages`,icon:'N',tone:'recent',when:timeLabel(thread.updated_at || thread.ts),run:()=>ctx.openThread(thread)}));if(!recent.length && state.groups[0]){const group=state.groups[0],members=group.member_ids.map(id=>state.specialists.find(item=>item.id===id)).filter(Boolean);continuation.append(row({name:group.title,meta:'Your team',preview:'Open the shared conversation.',icon:'+',tone:'group',status:state.team_status?.[group.id] || 'Ready',run:()=>ctx.openConversation({kind:'group',...group,members})}));}root.append(continuation);}
@@ -105,7 +134,7 @@ export async function renderMessages(ctx){
   function nexHub(){
     heading(root,'Nex','Your main intelligence and every agent it can bring into the work.',draw);
     const main=ctx.recentThreads().find(item=>item.id==='nex-main');root.append(row({name:'Talk with Nex',meta:'Your main intelligence',preview:main?.title || 'Think, plan, remember, or create.',icon:'N',tone:'nex',when:timeLabel(main?.updated_at),pinned:true,run:()=>ctx.openConversation({kind:'nex',name:'Nex'})}));
-    const tools=node('div',undefined,'nexhubactions');tools.append(button('New conversation',newConversation,'homeprimary'),button('Create an agent',createSpecialist,'homesecondary'));root.append(tools);
+    const tools=node('div',undefined,'nexhubactions');tools.append(button('New conversation',newConversation,'homeprimary'),button('Create a team',createGroup,'homesecondary'),button('Create an agent',createSpecialist,'homesecondary'));root.append(tools);
     const search=node('input');search.type='search';search.placeholder='Find an agent';search.setAttribute('aria-label','Find an agent');root.append(search);
     const agents=node('section',undefined,'messageagents');agents.setAttribute('aria-label','Agents');agents.append(node('h3','Your agents','messagesection'));const grid=node('div',undefined,'messageagentgrid');agents.append(grid);root.append(agents);
     const paint=(query='')=>{grid.replaceChildren();const needle=query.trim().toLowerCase();for(const specialist of state.specialists){const role=state.roles[specialist.role]?.label || 'Specialist';if(needle&&!`${specialist.name} ${specialist.job} ${role}`.toLowerCase().includes(needle))continue;const saved=ctx.recentThreads().find(item=>item.id===specialist.id);grid.append(row({name:specialist.name,meta:role,preview:saved?.title || specialist.job,icon:specialist.name,tone:specialist.role,status:state.specialist_status?.[specialist.id] || (saved?.message_count?'Active':'Ready'),when:timeLabel(saved?.updated_at),run:()=>ctx.openConversation({kind:'specialist',...specialist})}));}if(!grid.children.length)grid.append(node('p',state.specialists.length?'No agents match that search.':'No agents yet. Create one when you need a specialist.','messageempty'));};paint();search.oninput=()=>paint(search.value);
