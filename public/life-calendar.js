@@ -1,6 +1,6 @@
 import {calendarKey,calendarLayout} from './schedule-calendar.js';
 export const LIFE_HOUR_HEIGHT=80;
-const colors={work:'#418ba5',sleep:'#697990',social:'#52a998',health:'#c7a142',personal:'#9c83ae'};
+const colors={work:'#278da5',sleep:'#9aa6ad',social:'#399b89',health:'#d1a325',personal:'#8a85b6'};
 const clock=date=>new Date(date).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
 function dayAt(value){if(typeof value==='string'){const [y,m,d]=value.split('-').map(Number);return new Date(y,m-1,d);}const day=new Date(value);day.setHours(0,0,0,0);return day;}
 function at(day,minute){const value=dayAt(day);value.setMinutes(minute);return value;}
@@ -140,10 +140,10 @@ export function renderLifeCalendar({items,state,onCreate,onOpen,onChange,onNavig
   }
   function directBlock(item,entry,column,day){
     const block=node('div','lc-block');block.tabIndex=0;block.setAttribute('role','button');block.setAttribute('aria-label',`${item.title}, ${clock(item.starts_at)} to ${clock(item.ends_at)}. Drag to move. Press Enter to edit, arrows to move, Shift up or down to resize.`);
-    block.dataset.itemId=item.id;block.style.setProperty('--lc-color',colors[item.pillar] || colors.personal);
+    block.dataset.itemId=item.id;block.dataset.pillar=item.pillar;if(item.photo_count && entry.end-entry.start>=45)block.dataset.photo='true';block.style.setProperty('--lc-color',colors[item.pillar] || colors.personal);
     const position=()=>{block.style.top=`${entry.start/60*LIFE_HOUR_HEIGHT}px`;block.style.height=`${Math.max(24,(entry.end-entry.start)/60*LIFE_HOUR_HEIGHT)}px`;block.style.left=`calc(${entry.column/entry.columns*100}% + 2px)`;block.style.width=`calc(${100/entry.columns}% - 4px)`;block.style.transform='';};position();
     const text=node('div','lc-blocktext');text.append(node('small','',`${clock(item.starts_at)} – ${clock(item.ends_at)}`),node('strong','',item.title));
-    const detail=node('div','lc-blockmeta');detail.append(node('span','',item.person ? '♧' : item.place ? '⌖' : ''),node('span','',item.energy==null ? '' : `${item.energy} ⚡`));
+    const detail=node('div','lc-blockmeta');detail.append(node('span','',item.person ? '♧' : item.place ? '⌖' : ''),node('span','',item.energy==null ? '' : `${item.energy}/5 ⚡`));
     const edge=node('span','lc-resize');edge.setAttribute('aria-hidden','true');edge.append(node('i',''));block.append(text,detail,edge);column.append(block);
     let gesture=null,keyboard=null;
     function cancelKey(event){if(event.key==='Escape'){event.preventDefault();cancel();}}

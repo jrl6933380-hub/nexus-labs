@@ -22,12 +22,17 @@ export async function prepareLifePhoto(file){
   const url=URL.createObjectURL(file);
   try{
     const image=new Image();image.src=url;await image.decode();
-    const canvas=document.createElement('canvas'),scale=Math.min(1,1200/image.width,1200/image.height);
-    canvas.width=Math.max(1,Math.round(image.width*scale));canvas.height=Math.max(1,Math.round(image.height*scale));
-    const context=canvas.getContext('2d');context.fillStyle='#fff';context.fillRect(0,0,canvas.width,canvas.height);context.drawImage(image,0,0,canvas.width,canvas.height);
-    for(const quality of [.8,.65,.5,.35]){
-      const source=canvas.toDataURL('image/jpeg',quality);
-      if(source.length<=PHOTO_BYTES)return {source,caption:''};
+    const canvas=document.createElement('canvas');
+    // Reduce dimensions as well as quality so detailed phone photos can fit the save limit.
+    for(const maxSide of [1200,960,720,480]){
+      const scale=Math.min(1,maxSide/image.width,maxSide/image.height);
+      canvas.width=Math.max(1,Math.round(image.width*scale));canvas.height=Math.max(1,Math.round(image.height*scale));
+      const context=canvas.getContext('2d');if(!context)throw new Error('This device could not prepare the photo. Try again.');
+      context.fillStyle='#fff';context.fillRect(0,0,canvas.width,canvas.height);context.drawImage(image,0,0,canvas.width,canvas.height);
+      for(const quality of [.8,.65,.5,.35]){
+        const source=canvas.toDataURL('image/jpeg',quality);
+        if(source.length<=PHOTO_BYTES)return {source,caption:''};
+      }
     }
     throw new Error('This photo is too detailed to save. Try a smaller photo.');
   }catch(error){if(error.name==='EncodingError')throw new Error('This photo format could not be opened. Try a JPEG or PNG.');throw error;}
