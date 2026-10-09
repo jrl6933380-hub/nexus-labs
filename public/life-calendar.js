@@ -32,7 +32,7 @@ export function renderLifeCalendar({items,state,onCreate,onOpen,onChange,onNavig
   function navigate(offset){captureScroll();state.date=new Date(+current);state.date.setDate(state.date.getDate()+offset);state.scrollLeft=0;onNavigate();}
   toolbar.append(button('‹',()=>navigate(-7),'Previous week'),title,button('›',()=>navigate(7),'Next week'),button('Today',()=>{state.date=new Date();state.scrollTop=null;state.scrollLeft=null;onNavigate();}));root.append(toolbar);
   const viewport=node('div','lc-viewport'),canvas=node('div','lc-canvas'),heads=node('div','lc-days'),grid=node('div','lc-grid');
-  const status=node('p','lc-status','Tap empty time, then drag the selection or either edge. Tap Add details when ready.');status.setAttribute('role','status');status.setAttribute('aria-live','polite');
+  const status=node('p','lc-status','Hold empty time to select, then drag to adjust. Tap Add details when ready.');status.setAttribute('role','status');status.setAttribute('aria-live','polite');
   const gutter=node('div','lc-hourlabels');for(let hour=0;hour<24;hour++)gutter.append(node('span','',`${hour%12 || 12} ${hour<12 ? 'AM' : 'PM'}`));
   heads.append(node('div','lc-corner','TIME'));grid.append(gutter);
   const columns=[],today=calendarKey(new Date());let saving=false;
@@ -40,7 +40,15 @@ export function renderLifeCalendar({items,state,onCreate,onOpen,onChange,onNavig
   function columnAt(x,fallback){return columns.find(column=>{const r=column.getBoundingClientRect();return x>=r.left && x<r.right;}) || fallback;}
   function minuteAt(y){return Math.max(0,Math.min(1440,(y-grid.getBoundingClientRect().top)/LIFE_HOUR_HEIGHT*60));}
   function clashes(start,end,ignore){return items.some(item=>item.id!==ignore && item.status!=='cancelled' && item.status!=='done' && Date.parse(item.starts_at)<Date.parse(end) && Date.parse(item.ends_at)>Date.parse(start));}
-  function autoScroll(x,y){const r=viewport.getBoundingClientRect();if(y<r.top+70)viewport.scrollTop-=10;else if(y>r.bottom-35)viewport.scrollTop+=10;if(x<r.left+18)viewport.scrollLeft-=8;else if(x>r.right-18)viewport.scrollLeft+=8;}
+  let lastAutoScroll=null;
+  function autoScroll(x,y){
+    const now=performance.now(),elapsed=lastAutoScroll===null ? 16 : Math.min(32,Math.max(0,now-lastAutoScroll));lastAutoScroll=now;
+    const r=viewport.getBoundingClientRect(),edge=28;
+    // A narrow edge zone and time-based speed prevent fast pointer events from racing ahead.
+    const pressure=(position,start,end)=>position<start+edge ? -Math.min(1,(start+edge-position)/edge) : position>end-edge ? Math.min(1,(position-end+edge)/edge) : 0;
+    viewport.scrollTop+=pressure(y,r.top,r.bottom)*80*elapsed/1000;
+    viewport.scrollLeft+=pressure(x,r.left,r.right)*60*elapsed/1000;
+  }
   async function change(item,times){
     captureScroll();saving=true;root.setAttribute('aria-busy','true');status.textContent='Saving time…';
     try{await onChange(item,times);status.textContent='Time saved.';}catch(error){status.textContent=error.message || 'Could not save this time. Your original block is unchanged.';}
@@ -64,11 +72,14 @@ export function renderLifeCalendar({items,state,onCreate,onOpen,onChange,onNavig
         top.dataset.edge='start';bottom.dataset.edge='end';top.append(node('i',''));bottom.append(node('i',''));preview.append(label,top,bottom);
         preview.onpointerdown=e=>{
           if(saving || e.button!==0)return;e.preventDefault();e.stopPropagation();preview.setPointerCapture(e.pointerId);
-          gesture={mode:e.target.closest('.lc-resize')?.dataset.edge || 'move',anchor:minuteAt(e.clientY),start:range.minutes,end:range.minutes+range.duration};
+          lastAutoScroll=null;gesture={mode:e.target.closest('.lc-resize')?.dataset.edge || 'move',anchor:minuteAt(e.clientY),x:e.clientX,y:e.clientY,moved:false,start:range.minutes,end:range.minutes+range.duration};
         };
         preview.onpointermove=e=>{
-          if(!gesture)return;e.preventDefault();e.stopPropagation();autoScroll(e.clientX,e.clientY);
-          const minute=Math.round(minuteAt(e.clientY)/15)*15;
+          if(!gesture)return;e.preventDefault();e.stopPropagation();
+          if(!gesture.moved && Math.hypot(e.clientX-gesture.x,e.clientY-gesture.y)<8)return;
+          gesture.moved=true;autoScroll(e.clientX,e.clientY);
+          const delta=Math.round((minuteAt(e.clientY)-gesture.anchor)/15)*15;
+          const minute=(gesture.mode==='start' ? gesture.start : gesture.end)+delta;
           if(gesture.mode==='move'){
             const target=columnAt(e.clientX,preview.parentElement);rangeDay=target.dataset.day;target.append(preview);
             const start=Math.max(0,Math.min(1440-range.duration,gesture.start+Math.round((minuteAt(e.clientY)-gesture.anchor)/15)*15));
@@ -104,19 +115,24 @@ export function renderLifeCalendar({items,state,onCreate,onOpen,onChange,onNavig
     column.onpointerdown=e=>{
       if(saving || e.button!==0 || e.target.closest('.lc-block,.lc-selection'))return;
       e.preventDefault();column.setPointerCapture(e.pointerId);
-      const anchor=Math.floor(minuteAt(e.clientY)/15)*15;begin(anchor,anchor+15);
+      const anchor=Math.floor(minuteAt(e.clientY)/15)*15;
+      lastAutoScroll=null;
       gesture={anchor,current:minuteAt(e.clientY),x:e.clientX,y:e.clientY,lastX:e.clientX,lastY:e.clientY,mode:e.pointerType==='touch' ? 'waiting' : 'select'};
-      if(gesture.mode==='waiting')timer=setTimeout(()=>{if(gesture?.mode==='waiting')gesture.mode='select';},230);
+      if(gesture.mode==='waiting')timer=setTimeout(()=>{
+        if(gesture?.mode!=='waiting')return;
+        const waiting=gesture;begin(waiting.anchor,waiting.anchor+15);gesture={...waiting,mode:'select'};
+      },420);
+      else {const selecting=gesture;begin(anchor,anchor+15);gesture=selecting;}
     };
     column.onpointermove=e=>{
       if(!gesture)return;e.preventDefault();
-      if(gesture.mode==='waiting' && Math.hypot(e.clientX-gesture.x,e.clientY-gesture.y)>10){clearTimeout(timer);gesture.mode='scroll';preview?.remove();preview=null;selectionActions.hidden=true;}
+      if(gesture.mode==='waiting' && Math.hypot(e.clientX-gesture.x,e.clientY-gesture.y)>8){clearTimeout(timer);gesture.mode='scroll';preview?.remove();preview=null;selectionActions.hidden=true;}
       if(gesture.mode==='scroll'){viewport.scrollTop-=e.clientY-gesture.lastY;viewport.scrollLeft-=e.clientX-gesture.lastX;gesture.lastX=e.clientX;gesture.lastY=e.clientY;return;}
       if(gesture.mode==='select'){autoScroll(e.clientX,e.clientY);range=lifeSelection(day,gesture.anchor,minuteAt(e.clientY));paint();}
     };
     column.onpointerup=e=>{
       if(!gesture)return;e.preventDefault();const mode=gesture.mode;clearTimeout(timer);gesture=null;captureScroll();
-      if(mode==='scroll')clean();else paint();
+      if(mode==='scroll' || mode==='waiting')clean();else paint();
     };
     column.onpointercancel=clean;
     column.onkeydown=e=>{if(e.key==='Escape'){clean();status.textContent='Selection cancelled.';}};
@@ -134,7 +150,7 @@ export function renderLifeCalendar({items,state,onCreate,onOpen,onChange,onNavig
     function cancel(){document.removeEventListener('keydown',cancelKey);gesture=null;keyboard=null;block.classList.remove('lc-moving','lc-conflict');position();}
     block.onpointerdown=e=>{
       if(saving || e.button!==0)return;e.preventDefault();e.stopPropagation();block.setPointerCapture(e.pointerId);document.addEventListener('keydown',cancelKey);
-      gesture={x:e.clientX,y:e.clientY,offset:minuteAt(e.clientY)-entry.start,resize:Boolean(e.target.closest('.lc-resize')),moved:false,times:null};
+      lastAutoScroll=null;gesture={x:e.clientX,y:e.clientY,offset:minuteAt(e.clientY)-entry.start,resize:Boolean(e.target.closest('.lc-resize')),moved:false,times:null};
     };
     block.onpointermove=e=>{
       if(!gesture)return;e.preventDefault();e.stopPropagation();if(!gesture.moved && Math.hypot(e.clientX-gesture.x,e.clientY-gesture.y)<6)return;
