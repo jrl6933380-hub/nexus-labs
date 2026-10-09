@@ -4,13 +4,14 @@ import { createOwnerCapabilitiesHandler, ownerCapabilityCatalog } from '../api/o
 
 function response(){return {headers:{},setHeader(key,value){this.headers[key]=value;return this;},status(code){this.code=code;return this;},json(body){this.body=body;return this;}};}
 
-test('owner capability catalog exposes readable tools, skills, commands, and saved chains',async()=>{
+test('owner capability catalog exposes readable packs, tools, skills, commands, and saved chains',async()=>{
   const catalog=await ownerCapabilityCatalog({owner:'justin',listSkills:async()=>[{name:'memory-manager',description:'Keeps durable memory useful.',triggers:['remember'],instructions:'Review memory carefully.',sourcePath:'/app/nex-skills/memory-manager/SKILL.md'}],commandStore:{list:async()=>[{id:'command-test',name:'Check it',description:'Check status',trigger:'When asked',instructions:'Read first',tool_names:['read_board'],scopes:['conversation']}]}});
   assert.ok(catalog.tools.length>50);
   assert.ok(catalog.tools.every(tool=>tool.name && tool.sideEffect && tool.risk && !tool.schema));
   assert.ok(catalog.tools.every(tool=>tool.input_schema));
   assert.equal(catalog.skills[0].instructions,'Review memory carefully.');
   assert.equal(catalog.skills[0].source,'memory-manager/SKILL.md');
+  assert.ok(catalog.capability_packs.some(pack=>pack.id==='professional-builder' && pack.workflows.length));
   assert.ok(catalog.commands.some(command=>command.name==='Hand off to dev team'));
   assert.ok(!catalog.commands.some(command=>/Claude|Hyperfocus|disengage/iu.test(`${command.name} ${command.description}`)));
   assert.ok(catalog.commands.some(command=>command.name==='@agent task'));

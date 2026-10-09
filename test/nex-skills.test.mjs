@@ -21,6 +21,13 @@ test('selects relevant skills without loading unrelated guidance', () => {
   assert.deepEqual(selectNexSkills([design, repo], 'Fix the repository test').map((skill) => skill.name), ['repo-change']);
 });
 
+test('a capability pack preference boosts relevant skills without forcing unrelated ones', () => {
+  const design={name:'design-system',description:'Design responsive interfaces',triggers:['layout'],instructions:'Design it.'};
+  const repo={name:'repo-change',description:'Change repository code safely',triggers:['repository'],instructions:'Change it.'};
+  assert.deepEqual(selectNexSkills([design,repo],'Fix the repository layout',1,[],['repo-change']).map(skill=>skill.name),['repo-change']);
+  assert.deepEqual(selectNexSkills([design,repo],'Hello there',3,[],['repo-change']),[]);
+});
+
 test('loads deployed skills and formats them as bounded guidance', async () => {
   const skills = await loadRelevantNexSkills('Review the database architecture and migration.');
   assert.equal(skills[0]?.name, 'architecture-review');

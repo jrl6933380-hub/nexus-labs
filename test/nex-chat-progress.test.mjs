@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createChatProgress,modelProgressText} from '../lib/nexChatProgress.js';
+import {createChatProgress,modelProgressText,progressPhase,publicProgressUpdate} from '../lib/nexChatProgress.js';
 import {INDIVIDUAL_WORK_MS,remainingModelTimeout} from '../lib/nexWorkTiming.js';
 
 test('public model progress excludes thinking and tool payloads',()=>{
@@ -16,8 +16,18 @@ test('progress is emitted immediately and stored in order before the final statu
   await progress.flush();
   assert.equal(events.length,3);assert.equal(saved.length,3);
   assert.deepEqual(saved.at(-1).updates.map(x=>x.text),['I found the best direction.','Now I’m building the draft.']);
-  assert.equal(saved[0].stage.label,'Working on your request');
+  assert.equal(saved[0].stage.label,'Planning the work');
+  assert.equal(saved.at(-1).updates[0].type,'update');
+  assert.equal(saved.at(-1).updates[0].phase,'working');
   assert.deepEqual(saved.at(-1).updates.map(x=>x.id),[1,2]);
+});
+test('progress phases describe meaningful public states without payloads',()=>{
+  assert.equal(progressPhase({tool:'test_code'}),'verifying');
+  assert.equal(progressPhase({tool:'planning'}),'planning');
+  assert.equal(progressPhase({tool:'ask_user_question'}),'waiting');
+  assert.equal(progressPhase({tool:'commit_repo_files'}),'working');
+  const update=publicProgressUpdate({phase:'verifying',text:'```json\n{"secret":true}\n```Checking the finished flow.'},{id:4,now:()=>50});
+  assert.deepEqual(update,{id:4,type:'update',phase:'verifying',status:'active',text:'Checking the finished flow.',createdAt:50});
 });
 test('progress storage is bounded and survives a temporary storage failure',async()=>{
   let count=0;
