@@ -1297,10 +1297,13 @@ const teamChat=createTeamChat({input:el('input'),thread,
   onMessage:raw=>{bubble('u',esc(raw));history.push({role:'user',content:raw});saveThread();},
   onGroup:group=>{if(group.kind==='group'){activeConversation=group;el('viewSubtitle').textContent=conversationSubtitle();}el('input').placeholder='Message, or @ an agent…';},
   openApprovals:()=>showView('approvals'),
+  openUsage:()=>{messagesDestination='usage';return showView('messages');},
 });
 async function submit(){
   const raw = el('input').value.trim();
-  if (!raw || busy) return;
+  if (!raw) return;
+  if(/^@usage$/iu.test(raw)){el('input').value='';messagesDestination='usage';await showView('messages');return;}
+  if(busy)return;
   if(teamChat.handlesMessage(raw)){
     busy=true;el('send').disabled=true;
     try{await teamChat.submit(raw);}catch{}finally{busy=false;el('send').disabled=false;}

@@ -14,12 +14,12 @@ export async function syncControls(){try{const data=await request();applyControl
 function head(root,title,copy,back){root.replaceChildren();const top=el('div',undefined,'messagepanelhead');top.append(button('‹',back,'messageback'),el('h2',title));root.append(top,el('p',copy,'messageintro'));}
 function group(root,title){const section=el('section',undefined,'controlgroup');section.append(el('h3',title));root.append(section);return section;}
 function row(section,title,description,run){const item=button('',run,'controlrow');const text=el('span');text.append(el('strong',title),el('small',description));item.append(text,el('span','›','controlchevron'));section.append(item);}
-export async function renderAccountControls(root,ctx,back,actions){
+export async function renderAccountControls(root,ctx,back,actions,initialView='account'){
   const open=()=>renderAccountControls(root,ctx,back,actions);
   head(root,'Account & Controls','Your account, usage, and how Nexus works for you.',back);
   const panel=el('div');root.append(panel);panel.append(el('p','Loading your account…','messageformstatus'));
   try{
-    const data=await request();if(!root.contains(panel))return;panel.replaceChildren();applyControls(data.preferences);
+    const data=await request();if(!root.contains(panel))return;panel.replaceChildren();applyControls(data.preferences);if(initialView==='usage'){usageView(data);return;}
     const account=group(panel,'Account');
     account.append(el('p',`Signed in as ${data.account.id}`,'controlsummary'));
     row(account,'Plan','Owner · exempt from usage limits',()=>usageView(data));
@@ -45,7 +45,7 @@ export async function renderAccountControls(root,ctx,back,actions){
     row(help,'Report a problem','Send feedback about Nexus',actions.feedback);
     row(help,'Help','Explore features and practical examples',()=>ctx.go('guide'));
     row(help,'About & terms','Read the rules for using Nexus',()=>location.assign('/terms.html'));
-  }catch(error){if(root.contains(panel)){panel.replaceChildren(el('p',error.message,'messageformstatus'),button('Try again',open));}}
+  }catch(error){if(root.contains(panel)){panel.replaceChildren(el('p',error.message,'messageformstatus'),button('Try again',()=>renderAccountControls(root,ctx,back,actions,initialView)));}}
   function preferenceView(data){
     head(root,'Personalize Nexus','Saved to your account. Reply preferences apply to Nex and specialists; color applies to this workspace.',open);
     const form=el('form',undefined,'messageform'),style=el('select'),accent=el('select'),status=el('p',undefined,'messageformstatus');status.setAttribute('role','status');
@@ -58,7 +58,7 @@ export async function renderAccountControls(root,ctx,back,actions){
     form.onsubmit=async event=>{event.preventDefault();save.disabled=true;status.textContent='Saving…';try{const updated=await request({responseStyle:style.value,accent:accent.value});applyControls(updated.preferences);status.textContent='Saved. Your next replies will use this preference.';}catch(error){status.textContent=error.message;}finally{save.disabled=false;}};
   }
   function usageView(initial){
-    head(root,'Usage & limits','Live activity for your owner account.',open);
+    head(root,'Usage & limits','Live activity for your owner account.',initialView==='usage' ? back : open);
     const usagePanel=el('div'),status=el('p',undefined,'messageformstatus');status.setAttribute('role','status');root.append(usagePanel,status);
     function paint(data){
       usagePanel.replaceChildren();const usage=data.usage,today=usage.days[0],week=usage.days.reduce((sum,day)=>sum+day.turns,0);

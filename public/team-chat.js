@@ -47,7 +47,7 @@ function mergeApproval(copy,approval,announce,resolve){
   actions.append(merge);card.append(actions);copy.append(card);return card;
 }
 function avatar(person){const mark=node('span',person.name==='Nex'?'N':undefined,`messageavatar teamavatar tone-${person.role} ${person.role}`);mark.setAttribute('aria-hidden','true');if(['research','build','life','review'].includes(person.role) && person.name!=='Nex')mark.append(node('i'));else mark.textContent=person.name.slice(0,1).toUpperCase();return mark;}
-export function createTeamChat({input,thread,onMessage=()=>{},onGroup=()=>{},openApprovals=()=>{}}) {
+export function createTeamChat({input,thread,onMessage=()=>{},onGroup=()=>{},openApprovals=()=>{},openUsage=()=>{}}) {
   let group=null,host=null,timer=null,generation=0,refreshing=null,signature='',runs=[],roster=[],request=null;
   const suggestions=node('div',undefined,'teammentions');suggestions.hidden=true;suggestions.setAttribute('aria-label','Mention a teammate');
   input.parentElement.append(suggestions);input.setAttribute('aria-controls','teamMentionSuggestions');suggestions.id='teamMentionSuggestions';
@@ -57,11 +57,11 @@ export function createTeamChat({input,thread,onMessage=()=>{},onGroup=()=>{},ope
     if(!group){suggestions.hidden=true;return;}
     const match=input.value.slice(0,input.selectionStart).match(/(^|\s)@([\p{L}\p{N}_-]*)$/u);
     suggestions.replaceChildren();if(!match){suggestions.hidden=true;input.setAttribute('aria-expanded','false');return;}
-    const needle=match[2].toLowerCase(),options=[{name:group.kind==='group'?'Whole team':'All my agents',handle:'team',role:'group'},...roster].filter(person=>person.handle.startsWith(needle) || person.name.toLowerCase().includes(needle));
+    const needle=match[2].toLowerCase(),options=[{name:'Usage',handle:'usage',role:'more',shortcut:true},{name:group.kind==='group'?'Whole team':'All my agents',handle:'team',role:'group'},...roster].filter(person=>(!person.shortcut || /^@[\p{L}\p{N}_-]*$/u.test(input.value.trim())) && (person.handle.startsWith(needle) || person.name.toLowerCase().includes(needle)));
     for(const person of options)suggestions.append(mentionButton(person));
     suggestions.hidden=!options.length;input.setAttribute('aria-expanded',String(options.length>0));
   }
-  function mentionButton(person){const item=button('',()=>mention(person),'teammention');item.append(avatar(person),node('strong',person.name),node('small',`@${person.handle}`));return item;}
+  function mentionButton(person){const item=button('',()=>{if(person.shortcut){suggestions.hidden=true;input.setAttribute('aria-expanded','false');input.value='';openUsage();}else mention(person);},'teammention');item.append(avatar(person),node('strong',person.name),node('small',`@${person.handle}`));return item;}
   input.addEventListener('input',()=>{request=null;suggest();});
   input.addEventListener('keydown',event=>{
     if(suggestions.hidden)return;

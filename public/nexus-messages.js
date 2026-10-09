@@ -61,7 +61,7 @@ export function buildOwnerCapabilityPrompt(section,{name='',purpose='',behavior=
 export async function renderMessages(ctx){
   const root=node('section',undefined,'nexusmessages');let state={specialists:[],groups:[],roles:{},scopes:[],pinned_system_ids:[]};
   let ownerCatalog=null;
-  async function load(message){try{state=await api();if(ctx.consumeMessagesNew?.())newConversation();else {const destination=ctx.consumeMessagesDestination?.();if(destination==='settings')accountControls();else if(SPACE_BUNDLES.some(bundle=>bundle.id===destination))bundleView(destination);else draw();}if(typeof message==='string' && message.trim())showFeedback(root,message);}catch(error){root.replaceChildren(node('p',friendlyError(error,{action:'load',subject:'Messages'})),button('Try again',()=>load()),button('Explore Nexus',()=>ctx.go('guide'),'guideopen'));}}
+  async function load(message){try{state=await api();if(ctx.consumeMessagesNew?.())newConversation();else {const destination=ctx.consumeMessagesDestination?.();if(destination==='usage')accountControls('usage');else if(destination==='settings')accountControls();else if(SPACE_BUNDLES.some(bundle=>bundle.id===destination))bundleView(destination);else draw();}if(typeof message==='string' && message.trim())showFeedback(root,message);}catch(error){root.replaceChildren(node('p',friendlyError(error,{action:'load',subject:'Messages'})),button('Try again',()=>load()),button('Explore Nexus',()=>ctx.go('guide'),'guideopen'));}}
   function draw(){
     document.body.classList.remove('messages-panel');
     root.replaceChildren();
@@ -127,12 +127,12 @@ export async function renderMessages(ctx){
     for(const [section,name,copy] of [['tools','Tools','Callable abilities and access'],['skills','Skills','Installed operating knowledge'],['commands','Commands','Saved instructions and tool chains']])choices.append(row({name,meta:'Owner controls',preview:copy,icon:name[0],tone:'skills',run:()=>ownerCatalogView(section)}));
     root.append(choices);
   }
-  function accountControls(){
+  function accountControls(initialView='account'){
     document.body.classList.add('messages-panel');
-    return renderAccountControls(root,ctx,moreView,{
+    return renderAccountControls(root,ctx,initialView==='usage' ? ()=>ctx.go('chat') : moreView,{
       notifications:notificationView,install:installView,feedback:feedbackView,capabilities:capabilitySettings,
       clearChats:()=>clearConversations(ctx.recentThreads().filter(item=>!/^agent-|^group-|^nex-main$/u.test(item.id))),
-    });
+    },initialView);
   }
   async function readOwnerCatalog(){
     if(ownerCatalog)return ownerCatalog;
