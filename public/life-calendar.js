@@ -22,6 +22,9 @@ const button=(text,run,label=text)=>{const el=node('button','',text);el.type='bu
 // or pull its bottom edge. Mouse and touch share the same save/preview path.
 export function renderLifeCalendar({items,state,onCreate,onOpen,onChange,onNavigate}){
   const root=node('section','lifecalendar');root.setAttribute('aria-label','Life calendar');
+  // Calendar gestures own long press; notes and chat retain native text copying.
+  root.oncontextmenu=event=>event.preventDefault();
+  root.onselectstart=event=>event.preventDefault();
   const current=dayAt(state.date),monday=dayAt(current);monday.setDate(monday.getDate()-((monday.getDay()+6)%7));
   const days=Array.from({length:7},(_,i)=>{const date=dayAt(monday);date.setDate(date.getDate()+i);return date;});
   const toolbar=node('div','lc-toolbar'),title=node('div','lc-period');
