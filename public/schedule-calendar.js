@@ -2,8 +2,8 @@ import {attachCalendarDrag} from './calendar-drag.js';
 import { friendlyError } from './ux.js';
 // A calendar-first surface over the shared Schedule store.
 import { occupiedStart } from './schedule-availability.js';
-const COLORS = {sleep:'#879ade',personal:'#bd91d9',work:'#6f9ce8',project:'#9a7bea',gym:'#56c596',health:'#65b8b2',family:'#e9a66f',social:'#df7fa4',appointment:'#e0c35c',errands:'#a5a19a',learning:'#74b7e8',creative:'#c883d8',rest:'#7b87a7',travel:'#d78b68',other:'#8e8a84'};
-const globalCalendarState = {date:new Date(),mode:'month'};
+const COLORS = {sleep:'#879ade',personal:'#bd91d9',work:'#56a97b',project:'#9a7bea',gym:'#d5b366',health:'#65b8b2',family:'#e9a66f',social:'#b18cd2',appointment:'#e0c35c',errands:'#a5a19a',learning:'#74b7e8',creative:'#c883d8',rest:'#7b87a7',travel:'#d78b68',other:'#8e8a84'};
+const globalCalendarState = {date:new Date(),mode:'day'};
 export function calendarKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 }
@@ -64,15 +64,20 @@ export async function renderScheduleCalendar(ctx, extras) {
     closeActivityActions=null;root.replaceChildren();
     const items=(payload.items || []).filter((item) => item.status !== 'cancelled' && (!search || item.title.toLowerCase().includes(search.toLowerCase())));
     const toolbar=node('div','caltoolbar');
-    const heading=node('h2','',state.date.toLocaleDateString('en-US',{month:'long',year:'numeric'}));
-    toolbar.append(button('‹',()=>navigate(-1),'Previous period'),heading,button('›',()=>navigate(1),'Next period'));
+    const heading=node('h2','','Calendar');
+    toolbar.append(node('span','nx-product-logo','N'),heading,button('↻',load,'Refresh calendar'));
     const add=button('+',()=>ctx.openScheduleStudio('block',calendarKey(state.date)),'Add activity'); add.className='caladd';toolbar.append(add);root.append(toolbar);
     const controls=node('div','calcontrols');
     const modes=node('div','calmodes');modes.setAttribute('aria-label','Calendar views');
-    for(const [mode,label] of [['month','Month'],['day','Day'],...(ctx.changeCalendarTimes ? [['week','Week']] : []),['multi','Multi-day'],['list','List']]) {
+    for(const [mode,label] of [['day','Day'],['week','Week']]) {
       const control=button(label,()=>{state.mode=mode;return load();});control.classList.toggle('active',state.mode===mode);control.setAttribute('aria-pressed',String(state.mode===mode));modes.append(control);
     }
-    controls.append(modes,button('Today',()=>{state.date=new Date();return load();}));root.append(controls);
+    controls.append(modes);root.append(controls);
+    const strip=node('nav','caldatestrip');strip.setAttribute('aria-label','Choose calendar day');const monday=shift(state.date,-((state.date.getDay()+6)%7));
+    strip.append(button('‹',()=>navigate(-1),'Previous period'));
+    for(let i=0;i<7;i++){const day=shift(monday,i),pick=button('',()=>{state.date=day;return load();},day.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}));pick.append(node('small','',day.toLocaleDateString('en-US',{weekday:'short'})),node('strong','',day.getDate()));pick.setAttribute('aria-pressed',String(calendarKey(day)===calendarKey(state.date)));strip.append(pick);}
+    strip.append(button('›',()=>navigate(1),'Next period'));root.append(strip);
+    const dayHeading=node('div','caldateheading');dayHeading.append(node('strong','',state.date.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})),button('Today',()=>{state.date=new Date();return load();}));root.append(dayHeading);
     const tools=node('div','caltools');
     tools.append(button('✦ Plan with Nex',()=>ctx.planWithNex ? ctx.planWithNex() : ctx.openScheduleStudio('week')),button(ctx.balanceLabel || 'Time balance',()=>{
       const previous=root.querySelector('.calinsight');if(previous){previous.remove();return;}
@@ -80,8 +85,9 @@ export async function renderScheduleCalendar(ctx, extras) {
     }));
     const more=node('details','calmore');more.append(node('summary','','More'));
     more.append(button('Guided planner',()=>ctx.openScheduleStudio('week')),button(ctx.weekLabel || 'Build next week',()=>ctx.openWeekRollover()),button('Ask Nex to adjust',()=>ctx.ask(`Read my ${ctx.calendarSubject || 'schedule'} for ${calendarKey(state.date)}. Show me the tradeoffs and clickable ways to adjust it without moving protected commitments.`)));
+    for(const [mode,label] of [['month','Month view'],['multi','Three days'],['list','Agenda']])more.append(button(label,()=>{state.mode=mode;return load();}));
     const find=node('input','calsearch');find.type='search';find.placeholder='Find an activity';find.setAttribute('aria-label','Search schedule');find.value=search;
-    find.onchange=()=>{search=find.value;state.mode='list';return load();};more.append(find);tools.append(more);root.append(tools);
+    find.onchange=()=>{search=find.value;state.mode='list';return load();};more.append(find);tools.append(more);
     for(const draftId of payload.drafts || []) {
       const draftItems=(payload.draft_items || payload.items || []).filter((item)=>item.draft_id===draftId);
       const draft=button(`Review draft · ${draftItems.length} blocks`,()=>ctx.reviewWeekDraft(draftId,draftItems));draft.className='caldraft';root.append(draft);
@@ -89,6 +95,7 @@ export async function renderScheduleCalendar(ctx, extras) {
     if(state.mode === 'month') month(items);
     else if(state.mode === 'list') agenda(items);
     else timeline(items);
+    const nex=node('details','calnex');nex.append(node('summary','','✦ Plan with Nex'),tools);root.append(nex);
   }
   function navigate(direction) {
     if(state.mode === 'month') state.date=new Date(state.date.getFullYear(),state.date.getMonth()+direction,Math.min(state.date.getDate(),28));

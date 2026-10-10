@@ -4,7 +4,7 @@ import {friendlyError,showFeedback} from '../public/ux.js';
 import {renderWelcome} from '../public/workspace-views.js';
 import {renderReminders} from '../public/reminders.js';
 
-function element(tag){return {tagName:tag,children:[],attrs:{},className:'',value:'',setAttribute(k,v){this.attrs[k]=v;},append(...nodes){this.children.push(...nodes);},prepend(...nodes){this.children.unshift(...nodes);},appendChild(node){this.children.push(node);},replaceChildren(...nodes){this.children=nodes;},focus(){}};}
+function element(tag){return {tagName:tag,children:[],attrs:{},className:'',value:'',classList:{toggle(){}},setAttribute(k,v){this.attrs[k]=v;},append(...nodes){this.children.push(...nodes);},prepend(...nodes){this.children.unshift(...nodes);},appendChild(node){this.children.push(node);},replaceChildren(...nodes){this.children=nodes;},focus(){}};}
 const all=root=>[root,...root.children.flatMap(all)];
 
 test('errors hide service diagnostics and give actionable account, retry, and conflict guidance',()=>{

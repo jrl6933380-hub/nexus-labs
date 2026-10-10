@@ -365,6 +365,12 @@ const ctx = {
   openTask, openApproval, newTask, openDeveloper, createDeveloper, returnToOwner,
   newPlannerItem, openPlannerItem, editScheduleNotes, openScheduleOverrun, editScheduleItem: (item) => plannerForm(item), openScheduleDay, openScheduleCategory, openScheduleStudio, openWeekRollover, reviewWeekDraft,
   planWithNex: () => openNexScheduleComposer(),
+  changeCalendarTimes: async (item, times) => {
+    const payload={...item,...times};
+    const preview=await postPlanner('preview',payload);
+    if((preview.conflicts || []).some(block=>block.id!==item.id))throw new Error('That time is taken: it overlaps another activity. Choose an open time or edit the activity to review it.');
+    await postPlanner('update',{id:item.id,...times});
+  },
   setScheduleItems: (items) => { activeScheduleItems = Array.isArray(items) ? items : []; checkScheduleReminders(); },
 };
 
@@ -986,9 +992,9 @@ async function showView(id){
     const nodes = await VIEWS[id].render(ctx);
     if(renderId!==viewRenderId)return;
     thread.innerHTML = '';
-    const help=['life','workbench'].includes(id) ? null : renderFeatureHelp(id,ctx);if(help)thread.appendChild(help);
+    const help=['life','workbench','planner','reminders'].includes(id) ? null : renderFeatureHelp(id,ctx);if(help)thread.appendChild(help);
     for (const node of nodes) thread.appendChild(node);
-    if(!['messages','approvals','guide','life','workbench'].includes(id)){if(!threadId)threadId='nex-main';teamChat.open(activeConversation,threadId);}
+    if(!['messages','approvals','guide','life','workbench','planner','reminders'].includes(id)){if(!threadId)threadId='nex-main';teamChat.open(activeConversation,threadId);}
   } catch (error) {
     if(renderId!==viewRenderId)return;
     thread.innerHTML = '';
@@ -1296,7 +1302,7 @@ async function durableChatRequest(message,targetThread,onProgress=()=>{}){
 }
 const teamChat=createTeamChat({input:el('input'),thread,
   onMessage:raw=>{bubble('u',esc(raw));history.push({role:'user',content:raw});saveThread();},
-  onGroup:group=>{if(group.kind==='group'){activeConversation=group;el('viewSubtitle').textContent=conversationSubtitle();}el('input').placeholder='Message, or @ an agent…';},
+  onGroup:group=>{if(group.kind==='group'){activeConversation=group;el('viewSubtitle').textContent=conversationSubtitle();}if(currentView==='chat')el('input').placeholder='Message, or @ an agent…';},
   openApprovals:()=>showView('approvals'),
   openUsage:()=>{messagesDestination='usage';return showView('messages');},
 });
