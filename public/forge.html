@@ -615,7 +615,7 @@ const ctx = {
       // otherwise switching from its overview to "Build with Nex" exposes the
       // stale project picker inside the editor.
       replay();
-      await showView(destination === 'add-piece' ? 'brief' : ['overview', 'preview', 'fine', 'pages', 'stack'].includes(destination) ? destination : 'overview');
+      await showView(destination === 'add-piece' ? 'brief' : ['overview', 'chat', 'preview', 'fine', 'pages', 'stack'].includes(destination) ? destination : 'overview');
 
       opened = true;
     } catch (error) {
@@ -1585,7 +1585,7 @@ if (!await handleBrainResult()) {
   const requestedBuild = startupParams.get('build');
   const wantsNewProject = startupParams.get('new') === '1';
   if (signedIn && requestedBuild && /^[a-zA-Z0-9_-]{1,160}$/u.test(requestedBuild)) {
-    await ctx.openBuild(requestedBuild, ['overview','preview','fine','add-piece'].includes(requestedView) ? requestedView : 'overview');
+    await ctx.openBuild(requestedBuild, ['overview','chat','preview','fine','add-piece'].includes(requestedView) ? requestedView : 'overview');
   } else if (signedIn && wantsNewProject) {
     ctx.startProject();
   } else if (requestedView && FORGE_VIEWS[requestedView]) {
