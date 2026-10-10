@@ -188,3 +188,50 @@ test('Workbench startup hides the Forge shell until the requested project is rea
  await expect(page.locator('html')).not.toHaveClass('forge-loading');
  await expect(page.locator('.projectbuilder')).toBeVisible();
 });
+test('More ways to build explains options and carries a reviewed tool brief into a new project without making a model call',async({page})=>{
+ const f=await setup(page,{workspace:true});
+ await page.getByRole('button',{name:/More ways to build/}).click();
+ const guide=page.getByRole('region',{name:'Guided building'});
+ await page.screenshot({path:'test-results/guided-build-options-mobile.png',fullPage:true});
+ await expect(guide.getByRole('heading',{name:'More ways to build',exact:true})).toBeVisible();
+ await expect(page.locator('.projectgrid')).toBeHidden();
+ await expect(guide.getByRole('button',{name:/Assistant · Help people/})).toBeVisible();
+ await guide.getByRole('button',{name:/Tool · Make a task/}).click();
+ await guide.getByRole('button',{name:'Quote calculator',exact:true}).click();
+ await guide.getByLabel('What does someone enter or choose?',{exact:true}).fill('Lawn size, number of visits, and service type');
+ await guide.getByLabel('What should they get back?',{exact:true}).fill('A price estimate with a breakdown');
+ await guide.getByRole('button',{name:'Review my starting brief',exact:true}).click();
+ await expect(guide.getByLabel('Your starting brief')).toHaveValue(/Lawn size, number of visits/);
+ await guide.getByRole('button',{name:'‹ Back',exact:true}).click();
+ await expect(guide.getByLabel('What does someone enter or choose?',{exact:true})).toHaveValue('Lawn size, number of visits, and service type');
+ await guide.getByRole('button',{name:'Review my starting brief',exact:true}).click();
+ expect(f.modelCalls).toEqual([]);
+ const a11y=await new AxeBuilder({page}).include('.buildoptions').withTags(['wcag2a','wcag2aa']).analyze();expect(a11y.violations.filter(v=>['critical','serious'].includes(v.impact))).toEqual([]);
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+ await guide.getByRole('button',{name:'Continue with Nex',exact:true}).click();
+ await expect(page).toHaveURL(/new=1&guided=1/);
+ await expect(page.locator('#input')).toHaveValue(/Help me plan and build a tool\.[\s\S]*price estimate with a breakdown/);
+ expect(f.modelCalls).toEqual([]);expect(f.errors.filter(error=>!error.includes("Service worker is disabled because the context is sandboxed"))).toEqual([]);
+ expect(await page.evaluate(()=>sessionStorage.getItem('nexus:guided-build'))).toBeNull();
+});
+test('guided building can be dismissed and New project still opens the original flow',async({page})=>{
+ const f=await setup(page,{workspace:true});
+ await page.getByRole('button',{name:/More ways to build/}).click();
+ await page.getByRole('region',{name:'Guided building'}).getByRole('button',{name:'‹ Back',exact:true}).click();
+ await expect(page.locator('.projectgrid')).toBeVisible();
+ await expect(page.getByRole('button',{name:/More ways to build/})).toBeFocused();
+ await page.getByRole('button',{name:/New project Start with Nex/}).click();
+ await expect(page).toHaveURL(/new=1$/);
+ expect(f.modelCalls).toEqual([]);expect(f.errors.filter(error=>!error.includes("Service worker is disabled because the context is sandboxed"))).toEqual([]);
+});
+for(const [name,goal,input,output] of [
+ ['App','A workout tracker','Exercises and sets','Progress by week'],
+ ['Website','A lawn care business','Services and prices','Request a quote'],
+ ['Assistant','A customer helper','Our product documentation','Explain the right product'],
+])test(`guided ${name} includes the selected job and connection needs`,async({page})=>{
+ const f=await setup(page,{workspace:true});await page.getByRole('button',{name:/More ways to build/}).click();
+ const guide=page.getByRole('region',{name:'Guided building'});await guide.getByRole('button',{name:new RegExp('^'+name+' ')}).click();
+ const fields=guide.getByRole('textbox');await fields.nth(0).fill(goal);await fields.nth(1).fill(input);await fields.nth(2).fill(output);
+ await guide.getByRole('combobox').selectOption('connected');await guide.getByRole('button',{name:'Review my starting brief',exact:true}).click();
+ const brief=await guide.getByLabel('Your starting brief').inputValue();expect(brief).toContain(goal);expect(brief).toContain(input);expect(brief).toContain(output);expect(brief).toContain('Explain the necessary connections and any costs');expect(f.modelCalls).toEqual([]);
+});
