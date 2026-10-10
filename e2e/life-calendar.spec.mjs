@@ -24,9 +24,8 @@ async function setup(page){
     if(path==='/api/nexus-messages')data={specialists:[],groups:[],roles:{},scopes:[],pinned_system_ids:['life']};
     return route.fulfill({json:data});
   });
-  await page.goto('/workspace.html');
-  await page.locator('.messagelist').getByRole('button',{name:/Life & Schedule/}).click();
-  await page.getByRole('button',{name:/Nexus Life Life & Schedule/}).click();await expect(page.locator('.lifecalendar')).toBeVisible();
+  await page.goto('/workspace.html?view=life');
+  await expect(page.locator('.lifecalendar')).toBeVisible();
   return {life,user,calls,errors,setFailure:value=>{failSave=value;}};
 }
 async function rangeAt(page,minutes,dayOffset=0){
@@ -39,7 +38,8 @@ test('draw a time range, fill sheet, move the block directly, resize, and retain
   await expect(page.getByRole('button',{name:'Month',exact:true})).toHaveCount(0);await expect(page.getByRole('button',{name:'Multi-day',exact:true})).toHaveCount(0);
   const point=await rangeAt(page,9*60);await page.mouse.move(point.x,point.y);await page.mouse.down();await page.mouse.move(point.x,point.y+100,{steps:10});await page.mouse.up();
   await page.getByRole('button',{name:'Add details',exact:true}).click();await expect(page.getByRole('dialog',{name:'Add Time Block'})).toBeVisible();expect(await page.locator('.lifeadjusttime select').last().inputValue()).toBe('75');await page.screenshot({path:'test-results/life-block-editor-mobile.png',fullPage:true});
-  await saveActivity(page,'Morning walk');let item=(await life.overview(user)).items[0];expect(Date.parse(item.ends_at)-Date.parse(item.starts_at)).toBe(75*60000);
+  await page.getByRole('combobox',{name:'Phone alert',exact:true}).selectOption('15');await page.getByLabel('Alert at planned finish',{exact:true}).check();
+  await saveActivity(page,'Morning walk');let item=(await life.overview(user)).items[0];expect(Date.parse(item.ends_at)-Date.parse(item.starts_at)).toBe(75*60000);expect(item.reminder_minutes).toBe(15);expect(item.end_reminder).toBe(true);
   const original=Date.parse(item.starts_at),block=page.locator(`[data-item-id="${item.id}"]`);await expect(block).toBeVisible();
   let rect=await block.boundingBox();await page.mouse.move(rect.x+40,rect.y+20);await page.mouse.down();await page.mouse.move(rect.x+40,rect.y+60,{steps:8});await page.mouse.up();
   await expect.poll(async()=>Date.parse((await life.overview(user)).items[0].starts_at)).toBe(original+30*60000);
