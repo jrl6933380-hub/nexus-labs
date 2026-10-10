@@ -34,14 +34,14 @@ test('calendar view switches load ranges and time-slot clicks carry date and hou
   globalThis.fetch=async()=>({ok:true,json:async()=>({items:[],drafts:[]})});
   try {
     const root=await renderScheduleCalendar({openScheduleStudio:(...args)=>calls.push(args),setScheduleItems(){}},{balance:()=>fakeElement('div')});
-    assert.equal(descendants(root).filter((node)=>node.className==='caldate').length,42);
+    assert.equal(descendants(root).filter((node)=>node.className==='calslot').length,24);
+    assert.equal(descendants(root).find(node=>node.className==='caldatestrip').children.length,9);
     await descendants(root).find((node)=>node.textContent==='Day').onclick();
     const slots=descendants(root).filter((node)=>node.className==='calslot');assert.equal(slots.length,24);
     slots[9].onclick();assert.equal(calls[0][0],'block');assert.match(calls[0][1],/^\d{4}-\d{2}-\d{2}$/);assert.equal(calls[0][2],540);
-    await descendants(root).find((node)=>node.textContent==='Multi-day').onclick();
-    assert.equal(descendants(root).filter((node)=>node.className==='calslot').length,72);
-    await descendants(root).find((node)=>node.textContent==='List').onclick();
-    assert.equal(descendants(root).filter((node)=>node.className==='calempty').length,1);
+    await descendants(root).find((node)=>node.textContent==='Week').onclick();
+    assert.equal(descendants(root).filter((node)=>node.className==='calslot').length,168);
+    assert.equal(descendants(root).filter((node)=>node.className==='calhourcolumn').length,7);
   } finally {globalThis.document=previousDocument;globalThis.fetch=previousFetch;globalThis.requestAnimationFrame=previousFrame;}
 });
 
@@ -52,7 +52,7 @@ test('Plan with Nex opens the conversational composer while the guided planner s
   globalThis.fetch=async()=>({ok:true,json:async()=>({items:[],drafts:[]})});
   try {
     const root=await renderScheduleCalendar({planWithNex:()=>calls.push('conversation'),openScheduleStudio:(mode)=>calls.push(mode),openWeekRollover(){},ask(){},setScheduleItems(){}},{balance:()=>fakeElement('div')});
-    descendants(root).find((node)=>node.textContent==='✦ Plan with Nex').onclick();
+    descendants(root).find((node)=>node.tagName==='button' && node.textContent==='✦ Plan with Nex').onclick();
     descendants(root).find((node)=>node.textContent==='Guided planner').onclick();
     assert.deepEqual(calls,['conversation','week']);
   } finally {globalThis.document=previousDocument;globalThis.fetch=previousFetch;globalThis.requestAnimationFrame=previousFrame;}
@@ -91,18 +91,18 @@ test('activity actions target the exact block without nested buttons or completi
     for(const node of descendants(block).filter(node=>node.tagName==='button'))assert.equal(descendants(node).slice(1).some(child=>child.tagName==='button'),false);
     assert.equal(descendants(block).some(node=>node.textContent==='Mark done'),false);
     block.children[0].onclick();assert.equal(menu.hidden,true);
-    await descendants(root).find(node=>node.textContent==='List').onclick();
+    const search=descendants(root).find(node=>node.className==='calsearch');search.value='Social';await search.onchange();
     assert.ok(descendants(root).find(node=>node.className==='caleventrow').children[1].children.some(node=>node.textContent==='Add notes'));
   } finally {globalThis.document=previousDocument;globalThis.fetch=previousFetch;globalThis.requestAnimationFrame=previousFrame;}
 });
 
-test('Life week mode exposes seven local days while leaving ordinary Schedule unchanged',async()=>{
+test('Week mode exposes seven local days in both Life and Calendar',async()=>{
   const oldDocument=globalThis.document,oldFetch=globalThis.fetch,oldFrame=globalThis.requestAnimationFrame;
   globalThis.document={createElement:fakeElement};globalThis.requestAnimationFrame=callback=>callback();globalThis.fetch=async()=>({ok:true,json:async()=>({items:[]})});
   try{
     const context={calendarState:{date:new Date(2026,9,8),mode:'month'},openScheduleStudio(){},changeCalendarTimes(){}};
     const root=await renderScheduleCalendar(context,{balance(){}});await descendants(root).find(el=>el.textContent==='Week').onclick();
     const columns=descendants(root).filter(el=>el.className==='calhourcolumn');assert.equal(columns.length,7);assert.equal(columns[0].attrs['data-day'],'2026-10-05');assert.equal(columns.at(-1).attrs['data-day'],'2026-10-11');
-    const ordinary=await renderScheduleCalendar({...context,calendarState:{date:new Date(),mode:'month'},changeCalendarTimes:undefined},{balance(){}});assert.ok(!descendants(ordinary).find(el=>el.textContent==='Week'));
+    const ordinary=await renderScheduleCalendar({...context,calendarState:{date:new Date(),mode:'month'},changeCalendarTimes:undefined},{balance(){}});assert.ok(descendants(ordinary).find(el=>el.textContent==='Week'));
   }finally{globalThis.document=oldDocument;globalThis.fetch=oldFetch;globalThis.requestAnimationFrame=oldFrame;}
 });

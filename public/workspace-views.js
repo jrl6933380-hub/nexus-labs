@@ -372,7 +372,7 @@ export const VIEWS = {
   },
 
   planner: {
-    label: 'Schedule',
+    label: 'Calendar',
     icon: '▤',
     say: ['planner', 'calendar', 'schedule', 'my day', 'my week'],
     async render(ctx) {

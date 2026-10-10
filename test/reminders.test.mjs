@@ -60,7 +60,7 @@ test('Reminders HTTP routes enforce authentication and derive account scope on t
   const customer=createRemindersHandler({getOwner:async()=>null,getUser:async()=> 'customer',store});await customer({method:'POST',body:{action:'create',title:'x',userId:'owner:admin'}},response());assert.equal(calls[0],'room:customer');
   const owner=createRemindersHandler({getOwner:async()=>({id:'justin'}),getUser:async()=>{throw Error('must not run');},store});await owner({method:'GET'},response());assert.equal(calls[1],'owner:justin');
 });
-function element(tag){return {tagName:tag,children:[],attrs:{},className:'',value:'',setAttribute(k,v){this.attrs[k]=v;},append(...nodes){this.children.push(...nodes);},replaceChildren(...nodes){this.children=nodes;},focus(){}};}
+function element(tag){return {tagName:tag,children:[],attrs:{},className:'',value:'',classList:{toggle(){}},setAttribute(k,v){this.attrs[k]=v;},append(...nodes){this.children.push(...nodes);},replaceChildren(...nodes){this.children=nodes;},focus(){}};}
 const all=root=>[root,...root.children.flatMap(all)];
 test('quick capture saves without forcing a date; completion targets the exact reminder',async()=>{
   const previousDocument=globalThis.document,previousFetch=globalThis.fetch;const requests=[];let items=[];
@@ -89,4 +89,29 @@ test('Find time disables overlapping starts and reserves an adjacent open interv
     select.value='600';select.onchange();const form=all(root).find(node=>node.className==='reminderform');await form.onsubmit({preventDefault(){}});
     assert.equal(requests[0].id,'call');assert.equal(requests[0].apply,true);assert.equal(Date.parse(requests[0].ends_at)-Date.parse(requests[0].starts_at),30*60000);
   }finally{globalThis.document=previousDocument;globalThis.fetch=previousFetch;}
+});
+
+
+test('daily and weekly routines create one next occurrence, including calendar completion',async()=>{
+  const {store,planner}=fixture(),user='room:routines';
+  await assert.rejects(store.create({title:'Walk',repeat:'daily'},user),/date for a recurring/);
+  await assert.rejects(store.create({title:'Walk',repeat:'monthly',due_date:'2026-10-10'},user),/daily or weekly/);
+  const daily=await store.create({title:'Morning walk',repeat:'daily',due_date:'2026-10-10',due_at:'2026-10-10T09:00:00Z'},user);
+  await store.update({id:daily.id,status:'done'},user);await store.update({id:daily.id,status:'done'},user);
+  let items=await store.list(user);assert.equal(items.length,2);const next=items.find(i=>i.status==='planned');
+  assert.equal(next.due_date,'2026-10-11');assert.equal(next.due_at,'2026-10-11T09:00:00.000Z');assert.equal(next.repeat,'daily');assert.equal(next.schedule_id,null);
+  await store.update({id:next.id,status:'done'},user);assert.equal((await store.list(user)).filter(i=>i.status==='planned')[0].due_date,'2026-10-12');
+  const weekly=await store.create({title:'Weekly reset',repeat:'weekly',due_date:'2026-12-28'},user);
+  const result=await store.schedule({id:weekly.id,starts_at:'2026-12-28T09:00:00Z',ends_at:'2026-12-28T09:30:00Z',apply:true},user);
+  await planner.updatePlannerItem({id:result.block.id,status:'done'},user);await store.list(user);items=await store.list(user);
+  assert.equal(items.find(i=>i.title==='Weekly reset' && i.status==='planned').due_date,'2027-01-04');
+  assert.equal(items.filter(i=>i.title==='Weekly reset').length,2);assert.deepEqual(await store.list('room:other'),[]);
+});
+
+
+test('recurring timed reminders preserve local time across daylight saving changes',async()=>{
+  const {store}=fixture(),user='room:dst';
+  const item=await store.create({title:'Morning routine',repeat:'daily',timezone:'America/Chicago',due_date:'2026-10-31',due_at:'2026-10-31T14:00:00Z'},user);
+  await store.update({id:item.id,status:'done'},user);
+  const next=(await store.list(user)).find(i=>i.status==='planned');assert.equal(next.due_date,'2026-11-01');assert.equal(next.due_at,'2026-11-01T15:00:00.000Z');
 });

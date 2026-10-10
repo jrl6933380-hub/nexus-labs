@@ -5,6 +5,7 @@ const state={filter:'today'};
 const node=(tag,text,cls='')=>{const el=document.createElement(tag);if(text!==undefined)el.textContent=text;el.className=cls;return el;};
 const button=(text,run)=>{const el=node('button',text);el.type='button';el.onclick=run;return el;};
 export function reminderMatches(item,filter,today){
+  if(filter==='routines')return item.status!=='done' && Boolean(item.repeat && item.repeat!=='none');
   if(filter==='completed')return item.status==='done';
   if(item.status==='done')return false;
   if(filter==='today')return Boolean(item.due_date && item.due_date<=today);
@@ -18,34 +19,37 @@ async function api(action,input={}){
 export async function renderReminders(ctx){
   const root=node('section',undefined,'nexreminders');let items=[];
   async function load(message){try{items=(await api()).items || [];draw();if(typeof message==='string')showFeedback(root,message);}catch(error){root.replaceChildren(node('p',friendlyError(error,{action:'load',subject:'your reminders'})),button('Try again',load));}}
-  function header(){root.replaceChildren();const bar=node('div',undefined,'reminderhead');bar.append(node('h2','Reminders'));root.append(bar);}
+  function header(){root.replaceChildren();const bar=node('div',undefined,'reminderhead');bar.append(node('span','N','nx-product-logo'),node('h2','Reminders'),button('↻',load),button('+',()=>form()));bar.children[2].setAttribute('aria-label','Refresh reminders');bar.children[3].setAttribute('aria-label','Add reminder');root.append(bar);}
   function draw(){
     header();const today=calendarKey(new Date()),tabs=node('div',undefined,'reminderfilters');
-    for(const [filter,label] of [['today','Today'],['upcoming','Upcoming'],['all','All'],['completed','Completed']]){
+    for(const [filter,label] of [['today','Today'],['upcoming','Upcoming'],['routines','Routines']]){
       const count=items.filter(item=>reminderMatches(item,filter,today)).length;
       const tab=button(`${label} · ${count}`,()=>{state.filter=filter;draw();});tab.setAttribute('aria-pressed',String(state.filter===filter));tabs.append(tab);
     }
-    root.append(tabs);
+    root.append(tabs);const overview=node('div',undefined,'reminderoverview');overview.append(node('strong',new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})),node('small',`${items.filter(item=>item.status!=='done').length} things to remember`));root.append(overview);
     const quick=document.createElement('form');quick.className='reminderquick';const title=node('input');title.placeholder='Something to remember…';title.required=true;title.maxLength=160;title.setAttribute('aria-label','New reminder title');
     const add=node('button','Add reminder');add.className='uxprimary';add.type='submit';const status=node('p',undefined,'reminderstatus');status.setAttribute('role','status');quick.append(title,add);
     quick.onsubmit=async(event)=>{event.preventDefault();add.disabled=true;try{await api('create',{title:title.value});state.filter='all';await load(`Added reminder: ${title.value}.`);}catch(error){status.textContent=friendlyError(error,{subject:'your reminders',keepDraft:true});add.disabled=false;}};
     const details=node('details',undefined,'uxsecondary');details.append(node('summary','Add a date or notes'),button('New reminder with details',()=>form()));
-    root.append(quick,details,button('✦ Organize with Nex',()=>ctx.ask('Read my reminders and schedule. Help me choose what matters today with relevant clickable choices. Offer to find time for a reminder; get my approval before changing anything.')),status);
+    const capture=node('details',undefined,'remindercapture');capture.append(node('summary','Add or browse reminders'),quick,details);for(const [filter,label] of [['all','All reminders'],['completed','Completed']])capture.append(button(label,()=>{state.filter=filter;draw();}));const nex=node('details',undefined,'remindernex');nex.append(node('summary','✦ Ask Nex'),button('Organize with Nex',()=>ctx.ask('Read my reminders and schedule. Help me choose what matters today with relevant clickable choices. Offer to find time for a reminder; get my approval before changing anything.')));root.append(status);
     const visible=items.filter(item=>reminderMatches(item,state.filter,today));
     if(!visible.length)root.append(node('p',state.filter==='today' ? 'Nothing due today. Capture a reminder or ask Nex to help.' : 'Nothing here yet. Add something you want to remember.','reminderempty'));
-    for(const item of visible){
-      const row=node('div',undefined,'reminderrow');
+    let previousGroup='';for(const item of visible){
+      const group=state.filter==='completed'?'Completed':!item.due_date?'No date':item.due_date && item.due_date<today?'Overdue':item.repeat && item.repeat!=='none'?'Routines':item.due_date===today?'Today':'Upcoming';if(group!==previousGroup){root.append(node('h3',group,'remindergroup'));previousGroup=group;}
+      const row=node('div',undefined,'reminderrow');row.classList.toggle('overdue',Boolean(item.due_date && item.due_date<today && item.status!=='done'));
       const done=button(item.status==='done' ? '✓' : '○',async()=>{done.disabled=true;try{await api('update',{id:item.id,status:item.status==='done' ? 'planned' : 'done'});await load();}catch(error){status.textContent=friendlyError(error,{subject:'your reminders',keepDraft:true});done.disabled=false;}});done.setAttribute('aria-label',`${item.status==='done' ? 'Reopen' : 'Complete'} ${item.title}`);
       const content=node('div',undefined,'remindercontent');content.append(button(item.title,()=>form(item)));
       if(item.notes)content.append(node('p',item.notes));
       const when=item.due_at ? new Date(item.due_at).toLocaleString('en-US',{dateStyle:'medium',timeStyle:'short'}) : item.due_date || 'No date';
       content.append(node('small',`${item.due_date && item.due_date<today && item.status!=='done' ? 'Overdue · ' : ''}${when}${item.scheduled_at ? ` · Time reserved ${new Date(item.scheduled_at).toLocaleString('en-US',{dateStyle:'short',timeStyle:'short'})}` : ''}`));
-      const actions=node('div',undefined,'reminderactions');actions.append(button('Notes',()=>form(item,true)),button('Edit',()=>form(item)));
-      if(item.status!=='done')actions.append(button(item.scheduled_at ? 'Change reserved time' : 'Find time for this',()=>schedule(item)));
+      if(item.schedule_id)content.append(node('span','▣ Calendar','reminderlinked'));if(item.repeat && item.repeat!=='none')content.append(node('small',`Repeats ${item.repeat}`));
+      const actions=node('div',undefined,'reminderactions');if(item.status!=='done')actions.append(button('✓ Done',()=>done.click()),button('◷ Snooze',()=>snooze(item)));const options=node('details',undefined,'reminderoptions');options.append(node('summary','More'),button('Notes',()=>form(item,true)),button('Edit',()=>form(item)));actions.append(options);
+      if(item.status!=='done')options.append(button(item.scheduled_at ? 'Change reserved time' : 'Find time for this',()=>schedule(item)));
       content.append(actions);row.append(done,content);root.append(row);
     }
-    root.append(node('p','Timed reminders appear while Nexus is open.','reminderhint'));
+    root.append(node('p','♧ Timed reminders alert you while Nexus is open.','reminderhint'),nex,capture);
   }
+  function snooze(item){header();const options=node('div',undefined,'reminderform'),status=node('p');status.setAttribute('role','status');root.append(node('h3',`Snooze ${item.title}`),options,status);for(const [label,minutes] of [['15 minutes',15],['1 hour',60],['Tomorrow',1440]])options.append(button(label,async()=>{try{const due=new Date(Date.now()+minutes*60000);await api('update',{id:item.id,due_date:calendarKey(due),due_at:due.toISOString()});await load('Reminder snoozed.');}catch(error){status.textContent=friendlyError(error,{subject:'snoozing reminder'});}}));options.append(button('Back',draw));}
   function form(item=null,notesOnly=false){
     header();const form=document.createElement('form');form.className='reminderform';
     const title=node('input');title.value=item?.title || '';title.placeholder='What do you want to remember?';title.required=true;title.maxLength=160;title.setAttribute('aria-label','Reminder title');
@@ -54,13 +58,14 @@ export async function renderReminders(ctx){
     const time=node('select');time.setAttribute('aria-label','Reminder time');let option=node('option','No time');option.value='';time.append(option);
     for(let minute=0;minute<1440;minute+=15){option=node('option',clock(minute));option.value=String(minute);time.append(option);}
     if(item?.due_at){const local=new Date(item.due_at),minute=local.getHours()*60+local.getMinutes();if(minute%15){const custom=node('option',clock(minute));custom.value=String(minute);time.append(custom);}time.value=String(minute);}
+    const repeat=node('select');repeat.setAttribute('aria-label','Repeat reminder');for(const value of ['none','daily','weekly']){const option=node('option',value==='none'?'Does not repeat':`Repeat ${value}`);option.value=value;repeat.append(option);}repeat.value=item?.repeat || 'none';const repeatLabel=node('label','Repeat');repeatLabel.append(repeat);
     const quickDates=node('div',undefined,'reminderactions');
     for(const [label,offset] of [['Today',0],['Tomorrow',1],['Next week',7]])quickDates.append(button(label,()=>{const day=new Date();day.setDate(day.getDate()+offset);date.value=calendarKey(day);}));
     quickDates.append(button('No date',()=>{date.value='';time.value='';}));
     const dateLabel=node('label','Date (optional)');dateLabel.append(date);const timeLabel=node('label','Time (optional)');timeLabel.append(time);
     const save=node('button',notesOnly ? 'Save notes' : item ? 'Save changes' : 'Add reminder');save.type='submit';const status=node('p');status.setAttribute('role','status');
     if(!notesOnly)form.append(title);else form.append(node('h3',item.title));form.append(notes);
-    if(!notesOnly)form.append(quickDates,dateLabel,timeLabel);
+    if(!notesOnly)form.append(quickDates,dateLabel,timeLabel,repeatLabel);
     form.append(save,button('Back',draw));
     if(item)form.append(button('Delete reminder',async()=>{
       if(!confirm(`Delete “${item.title}”${item.schedule_id ? ' and its reserved Schedule block' : ''}?`))return;
@@ -69,7 +74,7 @@ export async function renderReminders(ctx){
     form.append(status);root.append(form);
     form.onsubmit=async(event)=>{event.preventDefault();save.disabled=true;
       try{if(time.value && !date.value && !notesOnly)throw new Error('Choose a date for this time.');
-        await api(item ? 'update' : 'create',notesOnly ? {id:item.id,notes:notes.value} : {id:item?.id,title:title.value,notes:notes.value,due_date:date.value || null,due_at:date.value && time.value!=='' ? at(date.value,Number(time.value)).toISOString() : null});
+        await api(item ? 'update' : 'create',notesOnly ? {id:item.id,notes:notes.value} : {id:item?.id,title:title.value,notes:notes.value,repeat:repeat.value,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,due_date:date.value || null,due_at:date.value && time.value!=='' ? at(date.value,Number(time.value)).toISOString() : null});
         if(!item)state.filter='all';await load(`${notesOnly ? 'Notes saved for' : item ? 'Saved reminder:' : 'Added reminder:'} ${title.value}.`);
       }catch(error){status.textContent=friendlyError(error,{subject:'your reminders',keepDraft:true});save.disabled=false;}
     };(notesOnly ? notes : title).focus();
