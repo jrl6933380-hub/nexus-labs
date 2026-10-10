@@ -9,7 +9,7 @@
 // package, matching this repo's existing no-new-dependencies pattern
 // for third-party services (see lib/roomAuth.js, lib/board.js).
 
-import { getRequestUser } from '../lib/roomAuth.js';
+import { getRequestUser,getUserPlan,isPaidPlan,getStripeCustomerId } from '../lib/roomAuth.js';
 import { resolveCheckoutPrice } from '../lib/billingPlans.js';
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
@@ -37,40 +37,44 @@ async function stripeRequest(path, body) {
   return data;
 }
 
-export default async function handler(req, res) {
+export function createCheckoutHandler({resolveUser=getRequestUser,resolvePlan=getUserPlan,resolveCustomer=getStripeCustomerId,request=stripeRequest,configured=()=>Boolean(STRIPE_SECRET_KEY)}={}){return async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
-  if (!STRIPE_SECRET_KEY) {
+  if (!configured()) {
     console.error('checkout: missing STRIPE_SECRET_KEY');
     return res.status(500).json({ error: 'Billing is not configured yet.' });
   }
 
   try {
-    const username = await getRequestUser(req);
+    const username = await resolveUser(req);
     if (!username) return res.status(401).json({ error: 'Sign in first.' });
 
     const { priceId, projectId } = req.body || {};
     const resolved = resolveCheckoutPrice(priceId);
     if (!resolved) return res.status(400).json({ error: 'Unknown price.' });
+    if(resolved.kind==='plan'&&isPaidPlan(await resolvePlan(username))){
+      const customer=await resolveCustomer(username);if(!customer)return res.status(409).json({error:'Your paid account needs billing support before changing plans.'});
+      const portal=await request('billing_portal/sessions',{customer,return_url:`${SITE_URL}/workspace.html?view=messages`});return res.status(200).json({url:portal.url});
+    }
     const isProjectScoped = resolved.kind === 'site_agent' || resolved.kind === 'site_agent_reply_pack';
     if (isProjectScoped && (typeof projectId !== 'string' || !/^[a-zA-Z0-9_-]{1,120}$/.test(projectId))) {
       return res.status(400).json({ error: 'A valid project is required for this purchase.' });
     }
 
-    const session = await stripeRequest('checkout/sessions', {
+    const session = await request('checkout/sessions', {
       mode: resolved.mode,
-      'line_items[0][price]': priceId,
+      ...(resolved.amountCents?{'line_items[0][price_data][currency]':'usd','line_items[0][price_data][unit_amount]':resolved.amountCents,'line_items[0][price_data][product_data][name]':resolved.label,'line_items[0][price_data][recurring][interval]':'month'}:{'line_items[0][price]':priceId}),
       'line_items[0][quantity]': 1,
       client_reference_id: username,
       'metadata[username]': username,
       'metadata[kind]': resolved.kind,
-      ...(resolved.kind === 'plan' ? { 'metadata[plan]': resolved.plan } : {}),
+      ...(resolved.kind === 'plan' ? { 'metadata[plan]': resolved.plan,'subscription_data[metadata][kind]':'nexus_plan','subscription_data[metadata][plan]':resolved.plan,'subscription_data[metadata][username]':username } : {}),
       ...(resolved.kind === 'credit_pack' ? { 'metadata[credits]': resolved.credits } : {}),
       ...(resolved.kind === 'site_agent' ? { 'metadata[projectId]': projectId, 'metadata[monthlyLimit]': resolved.monthlyLimit } : {}),
       ...(resolved.kind === 'site_agent_reply_pack' ? { 'metadata[projectId]': projectId, 'metadata[replies]': resolved.replies } : {}),
-      success_url: `${SITE_URL}/forge.html?view=billing&checkout=success`,
-      cancel_url: `${SITE_URL}/room-login.html?checkout=cancelled`,
+      success_url: `${SITE_URL}/workspace.html?view=messages&checkout=success`,
+      cancel_url: `${SITE_URL}/workspace.html?view=messages&checkout=cancelled`,
     });
 
     return res.status(200).json({ url: session.url });
@@ -79,3 +83,6 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Could not start checkout.' });
   }
 }
+
+}
+export default createCheckoutHandler();

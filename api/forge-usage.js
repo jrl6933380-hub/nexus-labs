@@ -16,11 +16,11 @@
 // turns an empty ring from a dead end into a wait.
 
 import { getRequestUser, isOperatorUser } from '../lib/roomAuth.js';
-import { createRoomMeter } from '../lib/roomMetering.js';
+import { roomMeter } from '../lib/roomMetering.js';
 
 let sharedMeter = null;
 function meter() {
-  if (!sharedMeter) sharedMeter = createRoomMeter();
+  if (!sharedMeter) sharedMeter = roomMeter;
   return sharedMeter;
 }
 

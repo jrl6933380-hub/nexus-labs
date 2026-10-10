@@ -16,16 +16,16 @@ test('@usage opens live usage from Nex, specialist and team chats without dispat
     }
     await route.fulfill({json:data});
   });
-  await page.goto('/workspace.html');
-  const home=async()=>{await page.locator('.messageback').click();await expect(page.getByText('Keep this existing conversation.',{exact:true})).toBeVisible();await page.getByRole('button',{name:'Back to Messages',exact:true}).click();await expect(page.locator('.messagelist')).toBeVisible();};
+  await page.goto('/workspace.html?view=messages');
+  const home=async(hub=true)=>{await page.locator('.messageback').click();await expect(page.getByText('Keep this existing conversation.',{exact:true})).toBeVisible();await page.getByRole('button',{name:'Back to Messages',exact:true}).click();await expect(page.getByRole('navigation',{name:'Your Nexus spaces'})).toBeVisible();if(hub)await page.getByRole('navigation',{name:'Your Nexus spaces'}).getByRole('button',{name:/^Nex /}).click();};
   const usage=async()=>{await expect(page.getByRole('heading',{name:'Usage & limits',exact:true})).toBeVisible();await expect(page.getByText(`${turns} completed turns today · ${turns} in the last 7 UTC days`,{exact:true})).toBeVisible();};
-  await page.locator('.messagelist').getByRole('button',{name:/Nex Your main intelligence/}).click();
+  await page.getByRole('navigation',{name:'Your Nexus spaces'}).getByRole('button',{name:/^Nex /}).click();await page.getByRole('button',{name:/Talk with Nex/}).click();
   await page.locator('#input').fill('Please look at @us');await expect(page.locator('.teammentions').getByRole('button',{name:/Usage @usage/})).toHaveCount(0);await page.locator('#input').fill('@us');await page.locator('.teammentions').getByRole('button',{name:/Usage @usage/}).click();await usage();
   turns=4;await page.getByRole('button',{name:'Refresh now',exact:true}).click();await usage();
   offline=true;await page.getByRole('button',{name:'Refresh now',exact:true}).click();await expect(page.getByRole('status')).toContainText('Showing the last loaded usage');await usage();offline=false;
   await home();await page.getByRole('region',{name:'Agents'}).getByRole('button',{name:/Vida/}).click();await expect(page.getByText('Keep this existing conversation.',{exact:true})).toBeVisible();
   await page.locator('#input').fill(' @USAGE ');await page.getByRole('button',{name:'Send',exact:true}).click();await usage();
-  await home();await page.locator('.messagelist').getByRole('button',{name:/Launch/}).click();await page.locator('#input').fill('@usage');await page.locator('#input').press('Enter');await usage();
-  await home();await page.locator('.messagelist').getByRole('button',{name:/Nex Your main intelligence/}).click();offline=true;await page.locator('#input').fill('@usage');await page.getByRole('button',{name:'Send',exact:true}).click();await expect(page.getByText('Controls unavailable',{exact:true})).toBeVisible();offline=false;await page.getByRole('button',{name:'Try again',exact:true}).click();await usage();
+  await home(false);await page.getByRole('button',{name:/^Launch Ready/}).click();await page.locator('#input').fill('@usage');await page.locator('#input').press('Enter');await usage();
+  await home();await page.getByRole('button',{name:/Talk with Nex/}).click();offline=true;await page.locator('#input').fill('@usage');await page.getByRole('button',{name:'Send',exact:true}).click();await expect(page.getByText('Controls unavailable',{exact:true})).toBeVisible();offline=false;await page.getByRole('button',{name:'Try again',exact:true}).click();await usage();
   expect(writes.filter(write=>write.path==='/api/chat' || write.body?.action==='team_create')).toEqual([]);expect(errors).toEqual([]);
 });

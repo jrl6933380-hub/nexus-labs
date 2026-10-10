@@ -8,6 +8,7 @@
 // functions (no framework) like the rest of this repo's api/ routes.
 
 import crypto from 'crypto';
+import {fulfillUsagePack,resolveCheckoutPrice} from '../../lib/billingPlans.js';
 import { setUserPlan, linkStripeCustomer, getUsernameByStripeCustomer, PLANS } from '../../lib/roomAuth.js';
 import { roomMeter } from '../../lib/roomMetering.js';
 import { enableAgent, grantBonusReplies, getProjectBySubscription, disableAgent } from '../../lib/siteAgent.js';
@@ -118,8 +119,9 @@ export default async function handler(req, res) {
   }
 
   try {
-    if (event.type === 'checkout.session.completed') {
+    if (['checkout.session.completed','checkout.session.async_payment_succeeded'].includes(event.type)) {
       const session = event.data.object;
+      if(session.payment_status!=='paid'&&session.payment_status!=='no_payment_required')return res.status(200).json({received:true});
       const username = session.metadata?.username || session.client_reference_id;
       const kind = session.metadata?.kind;
       if (!username) {
@@ -128,8 +130,7 @@ export default async function handler(req, res) {
         await setUserPlan(username, session.metadata.plan);
         if (session.customer) await linkStripeCustomer(username, session.customer);
       } else if (kind === 'credit_pack') {
-        const credits = Number(session.metadata.credits) || 0;
-        if (credits > 0) await roomMeter.grantBonusCredits(username, credits);
+        await fulfillUsagePack(session,roomMeter);
       } else if (kind === 'site_agent' && session.metadata?.projectId) {
         const monthlyLimit = Number(session.metadata.monthlyLimit) || 500;
         await enableAgent(session.metadata.projectId, { username, monthlyLimit, stripeSubscriptionId: session.subscription || null });
@@ -170,6 +171,13 @@ export default async function handler(req, res) {
       // subscription leaves a paying status instead of waiting it out.
       const subscription = event.data.object;
       const revokingStatuses = new Set(['past_due', 'unpaid', 'incomplete_expired', 'paused']);
+      if(['active','trialing'].includes(subscription.status)&&!(await getProjectBySubscription(subscription.id))){
+        const price=subscription.items?.data?.[0]?.price;
+        const mapped=resolveCheckoutPrice(price?.id);
+        const plan=mapped?.plan || (subscription.metadata?.kind==='nexus_plan'&&price?.recurring?.interval==='month'&&price?.currency==='usd' ? price?.unit_amount===1000?PLANS.HOSTED:price?.unit_amount===2000?PLANS.GROWTH:null : null);
+        const username=await getUsernameByStripeCustomer(subscription.customer);
+        if(username&&plan)await setUserPlan(username,plan);
+      }
       if (revokingStatuses.has(subscription.status)) {
         const agentProjectId = await getProjectBySubscription(subscription.id);
         if (agentProjectId) {
@@ -189,10 +197,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ received: true });
   } catch (err) {
     console.error('stripe webhook handling error:', err.message);
-    // Stripe retries on non-2xx. Still ack (200) a processed-but-broken
-    // event once it's logged, since a retry can't fix things like an
-    // unrecognized username — avoids an infinite retry loop for
-    // something that needs a human, not a resend.
-    return res.status(200).json({ received: true, warning: err.message });
+    // Retry failed fulfillment; purchase receipts prevent duplicate grants.
+    return res.status(500).json({error:'Billing fulfillment failed. Please retry.'});
   }
 }
