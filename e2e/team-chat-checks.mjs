@@ -35,8 +35,8 @@ async function setup(page){
     await route.fulfill({json:data});
   });
   await page.goto('/workspace.html');
-  await page.getByRole('button',{name:/Launch team/}).click();
-  await expect(page.getByText('Turn an idea into a team mission.')).toBeVisible();
+  await page.locator('[data-feature="messages.live_teams"]').filter({has:page.getByText('Launch team',{exact:true})}).click();
+  await expect(page.getByText('Turn an idea into a team project.')).toBeVisible();
   return actions;
 }
 
@@ -49,11 +49,11 @@ test('mentions, approval, real state rendering and saved results work in the mob
   await input.fill('@ma');await expect(page.locator('.teammention').filter({hasText:'Maya'})).toBeVisible();
   await input.press('Enter');await expect(input).toHaveValue('@maya ');expect(actions).not.toContain('team_create');
   await input.fill('@maya research launch ideas @atlas build the landing page');await page.getByRole('button',{name:'Send',exact:true}).click();
-  await expect(page.getByText(/Background mission/)).toBeVisible();expect(actions).not.toContain('team_start');
+  await expect(page.getByText('You can leave this chat. Your team will keep working.',{exact:true})).toBeVisible();expect(actions).not.toContain('team_start');
   await expect(page.getByRole('button',{name:'Approve build',exact:true})).toBeVisible({timeout:12000});
   await page.getByRole('button',{name:'Approve build',exact:true}).click();
   await expect(page.locator('.teammission').getByText('Ready to review',{exact:true})).toBeVisible({timeout:12000});
-  await page.getByText('Atlas’s result',{exact:true}).click();
+  await page.locator('details[data-step="step-atlas"] summary').click();
   await expect(page.locator('.teamresult').filter({hasText:'<script>unsafe()</script>'})).toBeVisible();expect(await page.locator('.teamboard script').count()).toBe(0);
   await page.screenshot({path:'test-results/team-mobile.png',fullPage:true});
   // Refresh restores the active group instead of returning to Messages.
@@ -61,7 +61,7 @@ test('mentions, approval, real state rendering and saved results work in the mob
   await expect(page.locator('body')).toHaveAttribute('data-view','chat');
   await expect(page.locator('#viewTitle')).toHaveText('Launch team');
   await expect(page.locator('.teammission').getByText('Ready to review',{exact:true})).toBeVisible();
-  await page.getByText('Nex’s result',{exact:true}).click();await expect(page.getByText(/publishing still needs a separate decision/)).toBeVisible();
+  await page.locator('details[data-step="step-nex"] summary').click();await expect(page.getByText(/publishing still needs a separate decision/)).toBeVisible();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth+1)).toBe(true);
   const result=await new AxeBuilder({page}).include('.teamboard').withTags(['wcag2a','wcag2aa']).analyze();expect(result.violations.filter(item=>['serious','critical'].includes(item.impact))).toEqual([]);
   expect(errors).toEqual([]);
@@ -70,7 +70,7 @@ test('mentions, approval, real state rendering and saved results work in the mob
 test('participant tap inserts a mention and cancellation retains the mission',async({page})=>{
   await setup(page);await page.getByRole('button',{name:/Mention Atlas/}).click();await expect(page.locator('#input')).toHaveValue('@atlas ');
   await page.locator('#input').fill('@atlas improve the landing page');await page.getByRole('button',{name:'Send',exact:true}).click();
-  await page.getByRole('button',{name:'Cancel task',exact:true}).click();await expect(page.locator('.teammission').getByText('Cancelled',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:/^(Cancel project|Stop after this step)$/}).click();await expect(page.locator('.teammission').getByText('Cancelled',{exact:true})).toBeVisible();
 });
 
   });
