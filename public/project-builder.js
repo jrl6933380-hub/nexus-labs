@@ -73,7 +73,9 @@ export function mountProjectBuilder({projectId,label,html,buildId,conversation,m
   function renderFrame(content=currentHtml){frame.srcdoc=previewDocument(content,token,currentMode);}
   function setMode(value){
     if(value!==currentMode && ['preview','fine'].includes(value) && ['build','overview'].includes(currentMode))returnMode=currentMode;
+    const shelfFocused=projectShelf.contains(document.activeElement);
     currentMode=value;onMode?.(value);shell.dataset.mode=value;
+    if(shelfFocused&&['preview','fine'].includes(value))controls.find(c=>c.dataset.builderMode===value)?.focus();
     const backMode=['preview','fine'].includes(value)?returnMode:'overview';
     back.onclick=value==='overview'?onExit:()=>setMode(backMode);
     back.setAttribute('aria-label',value==='overview'?'Back to Projects':backMode==='build'?'Back to Build with Nex':'Back to project');
