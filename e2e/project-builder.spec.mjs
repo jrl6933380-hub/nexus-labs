@@ -135,3 +135,22 @@ test('a completed Nex edit that could not save stays marked unsaved and can retr
  await page.route('**/api/room-chat',route=>{modelCalls++;return route.fulfill({contentType:'text/event-stream',body:'data: '+JSON.stringify({action:'html',html:samplePage.replace('We care for your garden.','Your garden, cared for.')})+'\n\ndata: '+JSON.stringify({action:'save_error',message:'Storage is temporarily unavailable.'})+'\n\n'});});
  await page.locator('#input').fill('Make this copy clearer');await page.getByRole('button',{name:'Send',exact:true}).click();await expect(page.getByRole('status')).toContainText('Unsaved');await expect(page.getByRole('button',{name:'Publish',exact:true})).toBeDisabled();await page.getByRole('button',{name:'Preview',exact:true}).click();await expect(page.getByRole('button',{name:'Retry saving',exact:true})).toBeVisible();await page.getByRole('button',{name:'Retry saving',exact:true}).click();await expect(page.getByRole('status')).toContainText('Saved draft');expect(modelCalls).toBe(1);expect(f.writes.length).toBe(1);expect(f.projects().length).toBe(1);expect(f.writes[0].html).toContain('Your garden, cared for.');expect(f.errors).toEqual([]);
 });
+
+test('compact project controls restore home, pieces and team activity without resetting the site',async({page})=>{
+ const f=await setup(page);
+ const controls=page.locator('.pb-tools');
+ for(const name of ['Home page','Add a piece','Team activity','Project pieces','Versions','Project options'])await expect(controls.getByRole('button',{name,exact:true})).toBeVisible();
+ expect((await controls.boundingBox()).height).toBeLessThanOrEqual(90);
+ await controls.getByRole('button',{name:'Home page',exact:true}).click();
+ const preview=page.frameLocator('.pb-canvas iframe');await preview.getByRole('button',{name:'Test button',exact:true}).click();
+ await page.getByRole('button',{name:'Build with Nex',exact:true}).click();
+ await controls.getByRole('button',{name:'Team activity',exact:true}).click();
+ await expect(page.locator('.pb-sheet')).toContainText('Mason: The garden site is complete.');
+ await page.locator('.pb-sheet').getByRole('button',{name:'Close',exact:true}).click();
+ await controls.getByRole('button',{name:'Project pieces',exact:true}).click();
+ await expect(page.locator('.pb-sheet').getByRole('heading',{name:'Project pieces'})).toBeVisible();
+ await page.locator('.pb-sheet').getByRole('button',{name:'Close',exact:true}).click();
+ await controls.getByRole('button',{name:'Home page',exact:true}).click();
+ await expect(preview.getByRole('button',{name:'Clicked',exact:true})).toBeVisible();
+ expect(f.writes).toEqual([]);expect(f.errors).toEqual([]);
+});
