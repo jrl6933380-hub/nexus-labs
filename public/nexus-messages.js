@@ -77,6 +77,13 @@ export function buildOwnerCapabilityPrompt(section,{name='',purpose='',behavior=
   ].join('\n');
 }
 
+export function teamCardOverview(goal,members=[]){
+  const text=String(goal || '').replace(/```[\s\S]*?```/gu,'').replace(/\[([^\]]+)\]\([^)]*\)/gu,'$1').replace(/[#*_`]/gu,'').replace(/\s+/gu,' ').trim();
+  if(text)return text.length>180?text.slice(0,177)+'…':text;
+  const roles=[...new Set(members.map(member=>({research:'Research',build:'Building',life:'Life planning',review:'Review',custom:'Custom support'})[member.role]).filter(Boolean))];
+  return roles.length?roles.join(' · ')+'. Ready for your first task.':'A shared team ready for your first task.';
+}
+
 export async function renderMessages(ctx){
   const root=node('section',undefined,'nexusmessages');let state={specialists:[],groups:[],roles:{},scopes:[],pinned_system_ids:[]},projects=[];
   let lifeData={items:[],pulses:[],summary:null};
@@ -87,8 +94,8 @@ export async function renderMessages(ctx){
   async function loadFeed(){const read=async(url,key)=>{try{const response=await fetch(url,{credentials:'include',headers:{Accept:'application/json'},cache:'no-store'}),data=await response.json().catch(()=>({}));return response.ok&&Array.isArray(data[key])?data[key]:[];}catch{return [];}};[scheduleItems,reminderItems]=await Promise.all([read('/api/planner','items'),read('/api/reminders','items')]);}
   async function load(message){try{const [messages]=await Promise.all([api(),loadProjects(),loadLife(),loadFeed()]);state=messages;if(ctx.consumeMessagesNew?.())newConversation();else {const destination=ctx.consumeMessagesDestination?.();if(destination==='usage')accountControls('usage');else if(destination==='settings')accountControls();else if(SPACE_BUNDLES.some(bundle=>bundle.id===destination))bundleView(destination);else draw();}if(typeof message==='string' && message.trim())showFeedback(root,message);}catch(error){root.replaceChildren(node('p',friendlyError(error,{action:'load',subject:'Messages'})),button('Try again',()=>load()),button('Explore Nexus',()=>ctx.go('guide'),'guideopen'));}}
   function surface(el,type){const contract=HOME_SURFACE_FEATURES[type];if(contract)for(const [key,value] of Object.entries(contract))el.setAttribute(`data-${key}`,value);return el;}
-  function liveCard({type,tone,label,title,copy,visual,meta,run}){
-    const card=button('',run,`homelivecard ${tone}`);surface(card,type);card.append(node('span',label,'homecardlabel'),visual,node('strong',title),node('small',copy));const foot=node('span',undefined,'homelivefoot');foot.append(node('span',meta),node('i','›'));card.append(foot);return card;
+  function liveCard({type,tone,label,title,copy,visual,meta,run,members}){
+    const card=button('',run,`homelivecard ${tone}`);surface(card,type);card.append(node('span',label,'homecardlabel'),visual,node('strong',title));if(members)card.append(node('span',members,'hometeammembers'));card.append(node('small',copy,members?'hometeamoverview':''));const foot=node('span',undefined,'homelivefoot');foot.append(node('span',meta),node('i','›'));card.append(foot);return card;
   }
   function projectPreview(item){
     const visual=node('span',undefined,'projectvisual saved-preview');
@@ -152,7 +159,7 @@ export async function renderMessages(ctx){
     if(!projects.length){const visual=node('span',undefined,'projectvisual empty');visual.append(node('b','+'));cards.append(liveCard({type:'projects',tone:'homeprojectcard',label:'Projects',visual,title:'Build something',copy:'Start a page, app, tool, or visual with Nex.',meta:'New project',run:()=>ctx.go('workbench')}));}
     const ring=node('span',undefined,'lifering');ring.style?.setProperty?.('--energy',`${Math.max(0,Math.min(5,Number(pulse?.energy)||0))*20}%`);ring.append(node('i',pulse?.energy?'Energy':'Check in'),node('b',pulse?.energy?`${pulse.energy}/5`:'•'));
     cards.append(liveCard({type:'life',tone:'homelifecard',label:'Life today',visual:ring,title:upcoming?.title || 'Your alignment',copy:upcoming?`${timeLabel(Date.parse(upcoming.starts_at))} · ${upcoming.pillar || 'Life'}`:pulse?.energy?'Energy logged. See what fits your day.':'Check in to shape the day around your energy.',meta:`${lifeData.items.filter(item=>item.status!=='done').length} active`,run:()=>ctx.go('life')}));
-    for(const group of state.groups){const members=group.member_ids?.map(id=>state.specialists.find(item=>item.id===id)).filter(Boolean) || [],names=[...members.map(item=>item.name),...(group.include_nex?['Nex']:[])],visual=node('span',undefined,'hometeamvisual');for(const member of members.slice(0,4))visual.append(avatar(member.name,member.role));if(group.include_nex)visual.append(avatar('N','nex'));cards.append(liveCard({type:'teams',tone:'hometeamcard',label:'Team',visual,title:group.title,copy:names.join(' · ') || 'Shared agent workspace',meta:state.team_status?.[group.id] || `${members.length+(group.include_nex?1:0)} members`,run:()=>openRecord({kind:'group',item:group,status:state.team_status?.[group.id]})}));}
+    for(const group of state.groups){const members=group.member_ids?.map(id=>state.specialists.find(item=>item.id===id)).filter(Boolean) || [],names=[...members.map(item=>item.name),...(group.include_nex?['Nex']:[])],visual=node('span',undefined,'hometeamvisual');for(const member of members.slice(0,4))visual.append(avatar(member.name,member.role));if(group.include_nex)visual.append(avatar('N','nex'));const card=liveCard({type:'teams',tone:'hometeamcard',label:'Team',visual,title:group.title,copy:teamCardOverview(state.team_overviews?.[group.id]?.goal,members),members:names.join(' · ') || 'Shared agent workspace',meta:state.team_status?.[group.id] || `${members.length+(group.include_nex?1:0)} members`,run:()=>openRecord({kind:'group',item:group,status:state.team_status?.[group.id]})});cards.append(card);}
     const createVisual=node('span','+','teamcreatevisual');cards.append(liveCard({type:'teams',tone:'hometeamcard teamcreatecard',label:'Teams',visual:createVisual,title:'Create a team',copy:'Choose agents for one shared conversation.',meta:'New team',run:createGroup}));
     cards.setAttribute('data-project-usage',`${workbenchUsage.count ?? projects.length}/${workbenchUsage.limit ?? 'unlimited'}`);
     root.append(cards);
