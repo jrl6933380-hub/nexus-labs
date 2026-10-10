@@ -81,14 +81,34 @@ export async function renderMessages(ctx){
   const root=node('section',undefined,'nexusmessages');let state={specialists:[],groups:[],roles:{},scopes:[],pinned_system_ids:[]},projects=[];
   let lifeData={items:[],pulses:[],summary:null};
   let scheduleItems=[],reminderItems=[],workbenchUsage={count:0,limit:null,planName:'',canCreate:true},notificationTimer=null;
-  let ownerCatalog=null;
-  async function loadProjects(){try{const response=await fetch('/api/room-history',{credentials:'include',headers:{Accept:'application/json'},cache:'no-store'});const data=await response.json().catch(()=>({}));if(response.ok){projects=Array.isArray(data.projects)?data.projects:[];workbenchUsage=data.workbench || workbenchUsage;}}catch{projects=[];}}
+  let ownerCatalog=null;const projectPreviews=new Map();
+  async function loadProjects(){projectPreviews.clear();try{const response=await fetch('/api/room-history',{credentials:'include',headers:{Accept:'application/json'},cache:'no-store'});const data=await response.json().catch(()=>({}));if(response.ok){projects=Array.isArray(data.projects)?data.projects:[];workbenchUsage=data.workbench || workbenchUsage;}}catch{projects=[];}}
   async function loadLife(){try{const response=await fetch('/api/life',{credentials:'include',headers:{Accept:'application/json'},cache:'no-store'});const data=await response.json().catch(()=>({}));if(response.ok)lifeData={items:Array.isArray(data.items)?data.items:[],pulses:Array.isArray(data.pulses)?data.pulses:[],summary:data.summary || null};}catch{lifeData={items:[],pulses:[],summary:null};}}
   async function loadFeed(){const read=async(url,key)=>{try{const response=await fetch(url,{credentials:'include',headers:{Accept:'application/json'},cache:'no-store'}),data=await response.json().catch(()=>({}));return response.ok&&Array.isArray(data[key])?data[key]:[];}catch{return [];}};[scheduleItems,reminderItems]=await Promise.all([read('/api/planner','items'),read('/api/reminders','items')]);}
   async function load(message){try{const [messages]=await Promise.all([api(),loadProjects(),loadLife(),loadFeed()]);state=messages;if(ctx.consumeMessagesNew?.())newConversation();else {const destination=ctx.consumeMessagesDestination?.();if(destination==='usage')accountControls('usage');else if(destination==='settings')accountControls();else if(SPACE_BUNDLES.some(bundle=>bundle.id===destination))bundleView(destination);else draw();}if(typeof message==='string' && message.trim())showFeedback(root,message);}catch(error){root.replaceChildren(node('p',friendlyError(error,{action:'load',subject:'Messages'})),button('Try again',()=>load()),button('Explore Nexus',()=>ctx.go('guide'),'guideopen'));}}
   function surface(el,type){const contract=HOME_SURFACE_FEATURES[type];if(contract)for(const [key,value] of Object.entries(contract))el.setAttribute(`data-${key}`,value);return el;}
   function liveCard({type,tone,label,title,copy,visual,meta,run}){
     const card=button('',run,`homelivecard ${tone}`);surface(card,type);card.append(node('span',label,'homecardlabel'),visual,node('strong',title),node('small',copy));const foot=node('span',undefined,'homelivefoot');foot.append(node('span',meta),node('i','›'));card.append(foot);return card;
+  }
+  function projectPreview(item){
+    const visual=node('span',undefined,'projectvisual saved-preview');
+    visual.append(node('span','Loading preview…','projectpreviewstatus'));
+    const buildId=item.latestBuildId || item.id;
+    if(!buildId){visual.replaceChildren(node('span','Preview unavailable','projectpreviewstatus'));return visual;}
+    if(!projectPreviews.has(buildId))projectPreviews.set(buildId,(async()=>{
+      try{
+        const response=await fetch('/api/room-history?id='+encodeURIComponent(buildId),{credentials:'include',headers:{Accept:'application/json'},cache:'no-store'});
+        const data=await response.json();
+        return response.ok && typeof data.build?.html==='string' && data.build.html.trim()?data.build.html:'';
+      }catch{return '';}
+    })());
+    void projectPreviews.get(buildId).then(html=>{
+      if(!html){visual.replaceChildren(node('span','Preview unavailable','projectpreviewstatus'));return;}
+      const frame=node('iframe');frame.title=`Preview of ${item.mainLabel || item.label || 'saved project'}`;frame.tabIndex=-1;
+      frame.setAttribute('aria-hidden','true');frame.setAttribute('sandbox','allow-scripts');frame.setAttribute('referrerpolicy','no-referrer');frame.srcdoc=html;
+      visual.replaceChildren(frame);
+    });
+    return visual;
   }
   function draw(){
     document.body.classList.remove('messages-panel');document.body.classList.add('messages-home');
@@ -128,7 +148,7 @@ export async function renderMessages(ctx){
 
     root.append(node('h3','Live spaces','homeheading'));
     const cards=node('div',undefined,'homecards');cards.setAttribute('aria-label','Live projects, Life, and teams');
-    for(const item of projects){const visual=node('span',undefined,'projectvisual'),versions=item.versionCount || 1,pieces=1+(item.stackItems?.length || 0);visual.append(node('i'),node('i'),node('i'));cards.append(liveCard({type:'projects',tone:'homeprojectcard',label:item.liveUrl?'Live project':'Project',visual,title:item.label || 'Untitled project',copy:`${versions} version${versions===1?'':'s'} · ${pieces} piece${pieces===1?'':'s'}`,meta:item.liveUrl?'Live':'Draft',run:()=>ctx.go('workbench')}));}
+    for(const item of projects){const visual=projectPreview(item),versions=item.versionCount || 1,pieces=1+(item.stackItems?.length || 0);cards.append(liveCard({type:'projects',tone:'homeprojectcard',label:item.liveUrl?'Live project':'Project',visual,title:item.mainLabel || item.label || 'Untitled project',copy:`${versions} version${versions===1?'':'s'} · ${pieces} piece${pieces===1?'':'s'}`,meta:item.liveUrl?'Live':'Draft',run:()=>ctx.openWorkbenchPanel && (item.latestBuildId || item.id)?ctx.openWorkbenchPanel(item.latestBuildId || item.id,'overview'):ctx.go('workbench')}));}
     if(!projects.length){const visual=node('span',undefined,'projectvisual empty');visual.append(node('b','+'));cards.append(liveCard({type:'projects',tone:'homeprojectcard',label:'Projects',visual,title:'Build something',copy:'Start a page, app, tool, or visual with Nex.',meta:'New project',run:()=>ctx.go('workbench')}));}
     const ring=node('span',undefined,'lifering');ring.style?.setProperty?.('--energy',`${Math.max(0,Math.min(5,Number(pulse?.energy)||0))*20}%`);ring.append(node('i',pulse?.energy?'Energy':'Check in'),node('b',pulse?.energy?`${pulse.energy}/5`:'•'));
     cards.append(liveCard({type:'life',tone:'homelifecard',label:'Life today',visual:ring,title:upcoming?.title || 'Your alignment',copy:upcoming?`${timeLabel(Date.parse(upcoming.starts_at))} · ${upcoming.pillar || 'Life'}`:pulse?.energy?'Energy logged. See what fits your day.':'Check in to shape the day around your energy.',meta:`${lifeData.items.filter(item=>item.status!=='done').length} active`,run:()=>ctx.go('life')}));
