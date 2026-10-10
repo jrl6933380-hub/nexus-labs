@@ -33,7 +33,7 @@ test('mobile modes preserve the conversation draft, preview state and unsaved fi
  await page.getByRole('button',{name:'Before / after',exact:true}).click();await expect(preview.getByRole('heading',{name:'Creekside Lawn',exact:true})).toBeVisible();
  f.setFailure(true);await page.getByRole('button',{name:'Save change',exact:true}).click();await expect(page.getByRole('status')).toContainText('That change could not be saved');expect(f.writes.length).toBe(0);f.setFailure(false);
  await page.getByRole('button',{name:'Save change',exact:true}).click();await expect(page.getByRole('status')).toContainText('Saved');expect(f.projects().length).toBe(1);expect(f.writes.length).toBe(1);expect(f.writes[0].html).toContain('Garden team');expect(f.writes[0].html).not.toContain('nexusBuilder');
- await page.getByRole('button',{name:'Versions',exact:true}).click();await page.getByRole('button',{name:'Restore',exact:true}).click();await expect(page.getByRole('status')).toContainText('Version restored');expect(f.writes[1].html).toBe(samplePage);expect(f.projects().length).toBe(1);
+ await page.getByRole('button',{name:'Build with Nex',exact:true}).click();await page.locator('.pb-project-shelf summary').click();await page.getByRole('button',{name:'Versions',exact:true}).click();await page.getByRole('button',{name:'Restore',exact:true}).click();await expect(page.getByRole('status')).toContainText('Version restored');expect(f.writes[1].html).toBe(samplePage);expect(f.projects().length).toBe(1);
  await page.getByRole('button',{name:'Preview',exact:true}).click();await page.screenshot({path:'test-results/project-builder-mobile.png'});
  await page.getByRole('button',{name:'Build with Nex',exact:true}).click();await expect(page.locator('.pb-canvas')).toBeVisible();await expect(page.frameLocator('.pb-canvas iframe').locator('h1')).toHaveText('Creekside Lawn');await page.screenshot({path:'test-results/project-builder-chat-mobile.png'});
  expect(f.errors).toEqual([]);expect(f.modelCalls).toEqual([]);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
@@ -62,7 +62,7 @@ test('back navigation restores the project conversation and can leave Projects',
    page.getByRole('button',{name:'Back to Nexus',exact:true}).click(),
  ]);
 });
-test('Fine-tune returns to its entry screen and overview does not claim to be Build with Nex',async({page})=>{
+test('Fine-tune returns to its entry screen and collapsed chat stays on the middle tab',async({page})=>{
  const f=await setup(page);
  const builder=page.locator('.projectbuilder');
  await page.locator('#input').fill('Keep this draft while fine-tuning');
@@ -75,7 +75,7 @@ test('Fine-tune returns to its entry screen and overview does not claim to be Bu
   await expect(page.getByText('Build a garden site.',{exact:true})).toBeVisible();
  }
  await builder.getByRole('button',{name:'Back to project',exact:true}).click();
- await expect(page.locator('.pb-dock button[aria-pressed=true]')).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'Build with Nex',exact:true})).toHaveAttribute('aria-pressed','true');
  await page.getByRole('button',{name:'Fine-tune',exact:true}).click();
  await builder.getByRole('button',{name:'Back to project',exact:true}).click();
  await expect(builder).toHaveAttribute('data-mode','overview');
@@ -120,7 +120,7 @@ test('Projects shelf uses two columns on phone, owns filters and stays separate 
  await expect(page.locator('.projectcardactions')).toHaveCount(0);await expect(page.getByRole('button',{name:'More ways to build'})).toBeVisible();const columns=await page.locator('.projectgrid').evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(' ').length);expect(columns).toBe(2);await page.getByRole('button',{name:'Live',exact:true}).click();await expect(page.locator('.projectcard')).toBeHidden();await page.getByRole('button',{name:'Drafts',exact:true}).click();await expect(page.locator('.projectcard')).toBeVisible();await page.getByRole('button',{name:'Open Creekside Lawn',exact:true}).click();await expect(page.locator('.projectbuilder')).toHaveAttribute('data-mode','overview');await expect(page.locator('.pb-canvas')).toBeVisible();await expect(page.getByRole('button',{name:'Chat with Nex ↑',exact:true})).toBeVisible();await page.screenshot({path:'test-results/project-home-mobile.png'});expect(f.errors).toEqual([]);
 });
 test('desktop and short screens keep preview controls inside the usable canvas',async({page})=>{
- const f=await setup(page);for(const viewport of [{width:1440,height:900},{width:393,height:600}]){await page.setViewportSize(viewport);await page.getByRole('button',{name:'Preview',exact:true}).click();const top=await page.locator('.pb-top').boundingBox(),frame=await page.locator('.pb-canvas iframe').boundingBox(),dock=await page.locator('.pb-dock').boundingBox();expect(frame.y).toBeGreaterThanOrEqual(top.y+top.height);expect(frame.y+frame.height).toBeLessThanOrEqual(dock.y+1);await page.frameLocator('.pb-canvas iframe').getByRole('button',{name:/Test button|Clicked/}).click();await expect(page.getByRole('button',{name:'Versions',exact:true})).toBeVisible();}expect(f.errors).toEqual([]);
+ const f=await setup(page);for(const viewport of [{width:1440,height:900},{width:393,height:600}]){await page.setViewportSize(viewport);await page.getByRole('button',{name:'Preview',exact:true}).click();const top=await page.locator('.pb-top').boundingBox(),frame=await page.locator('.pb-canvas iframe').boundingBox(),dock=await page.locator('.pb-dock').boundingBox();expect(frame.y).toBeGreaterThanOrEqual(top.y+top.height);expect(frame.y+frame.height).toBeLessThanOrEqual(dock.y+1);await page.frameLocator('.pb-canvas iframe').getByRole('button',{name:/Test button|Clicked/}).click();await expect(page.locator('.pb-project-shelf')).toBeHidden();}expect(f.errors).toEqual([]);
 });
 
 test('automatic draft saving reports a failed save, retries, and deduplicates repeated rendering',async({page})=>{
@@ -139,6 +139,8 @@ test('a completed Nex edit that could not save stays marked unsaved and can retr
 test('project cards restore the visual overview without resetting the site',async({page})=>{
  const f=await setup(page);
  const controls=page.locator('.pb-tools');
+ await expect(controls).toBeHidden();
+ await page.locator('.pb-project-shelf summary').click();
  for(const name of ['Home page','Add a piece','Team activity','All pieces','Versions','Project options'])await expect(controls.getByRole('button',{name,exact:true})).toBeVisible();
  await expect(controls.locator('.pb-home-card iframe')).toHaveAttribute('srcdoc',samplePage);
  await expect(controls).toContainText('Main landing page');
@@ -157,4 +159,21 @@ test('project cards restore the visual overview without resetting the site',asyn
  await controls.getByRole('button',{name:'Home page',exact:true}).click();
  await expect(preview.getByRole('button',{name:'Clicked',exact:true})).toBeVisible();
  expect(f.writes).toEqual([]);expect(f.errors).toEqual([]);
+});
+
+test('project shelf collapses and only appears on the middle tab',async({page})=>{
+ const f=await setup(page),shelf=page.locator('.pb-project-shelf'),cards=page.locator('.pb-tools');
+ await expect(shelf).toBeVisible();await expect(cards).toBeHidden();
+ const collapsed=await page.locator('.pb-canvas').boundingBox();
+ await shelf.locator('summary').click();await expect(cards).toBeVisible();
+ await expect.poll(async()=>(await page.locator('.pb-canvas').boundingBox()).height).toBeLessThan(collapsed.height);
+ for(const mode of ['Preview','Fine-tune']){
+  await page.getByRole('button',{name:mode,exact:true}).click();await expect(shelf).toBeHidden();
+  expect((await page.locator('.pb-dock').boundingBox()).height).toBeLessThan(90);
+ }
+ await page.getByRole('button',{name:'Build with Nex',exact:true}).click();await expect(cards).toBeVisible();
+ await shelf.locator('summary').click();await expect(cards).toBeHidden();
+ await expect.poll(async()=>(await page.locator('.pb-canvas').boundingBox()).height).toBe(collapsed.height);
+ await shelf.locator('summary').click();await page.getByRole('button',{name:'Continue with Nex',exact:true}).click();
+ await expect(cards).toBeHidden();await expect(page.locator('#input')).toBeFocused();expect(f.errors).toEqual([]);
 });
