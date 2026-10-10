@@ -1,10 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="forge-loading">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#0b0c0f" />
 <title>Nexus Forge</title>
+<style>html.forge-loading body{visibility:hidden!important}</style>
 <script defer src="/_vercel/insights/script.js"></script>
 
 <!--
@@ -836,7 +837,7 @@ function railOpen(open){ screenEl.classList.toggle('open', open); }
 if(isWorkbench){el('burger').textContent='‹';el('burger').setAttribute('aria-label','Back to Nexus');}
 el('burger').onclick = () => {
   if(!isWorkbench)return railOpen(!screenEl.classList.contains('open'));
-  if(currentView==='project' && !builderWorkspace)return location.assign('/workspace.html?view=workbench');
+  if(currentView==='project' && !builderWorkspace)return location.assign('/workspace.html?view=messages');
   showView('project');
 };
 screenEl.addEventListener('click', (e) => {
@@ -1063,7 +1064,9 @@ function renderWorkbenchPreview(){
   return true;
 }
 
+let viewRenderId=0;
 async function showView(id){
+  const renderId=++viewRenderId;
   if(builderWorkspace && !['overview','chat','preview','fine'].includes(id)){builderWorkspace.destroy();builderWorkspace=null;}
   document.getElementById('workbenchFullPreview')?.remove();
   if (!viewAllowed(id)) id = 'project';
@@ -1088,9 +1091,11 @@ async function showView(id){
   bubble('sys', 'One second…');
   try {
     const nodes = await FORGE_VIEWS[id].render(ctx);
+    if(renderId!==viewRenderId)return;
     thread.innerHTML = '';
     for (const node of nodes) thread.appendChild(node);
   } catch (error) {
+    if(renderId!==viewRenderId)return;
     thread.innerHTML = '';
     bubble('sys', `Couldn't load that just now.`);
     thread.appendChild(chips([{ label: 'Ask Nex', run: () => ctx.ask(`Something didn't load. What's going on with my ${FORGE_VIEWS[id].label}?`) }]));
@@ -1598,6 +1603,7 @@ if (!await handleBrainResult()) {
     await showView(connectionSnapshot()?.connected ? 'chat' : 'brain');
   }
 }
+document.documentElement.classList.remove('forge-loading');
 if (signedIn) {
   const draft = sessionStorage.getItem('forge:login:draft');
   if (draft) { el('input').value = draft; sessionStorage.removeItem('forge:login:draft'); }

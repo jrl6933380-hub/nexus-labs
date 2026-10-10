@@ -964,7 +964,9 @@ function appendAssistantVisual(body,content,requestMessage=''){
 // replaces what's on screen but never touches `history` — the conversation
 // survives you looking around, which is the whole point of rooms living here.
 // ---------------------------------------------------------------------------
+let viewRenderId=0;
 async function showView(id){
+  const renderId=++viewRenderId;
   composerMenu.close();
   if(viewMounted)rememberWorkspaceScroll();
   teamChat.stop();
@@ -982,11 +984,13 @@ async function showView(id){
   const loading = bubble('sys', 'Reading…');
   try {
     const nodes = await VIEWS[id].render(ctx);
+    if(renderId!==viewRenderId)return;
     thread.innerHTML = '';
     const help=['life','workbench'].includes(id) ? null : renderFeatureHelp(id,ctx);if(help)thread.appendChild(help);
     for (const node of nodes) thread.appendChild(node);
     if(!['messages','approvals','guide','life','workbench'].includes(id)){if(!threadId)threadId='nex-main';teamChat.open(activeConversation,threadId);}
   } catch (error) {
+    if(renderId!==viewRenderId)return;
     thread.innerHTML = '';
     bubble('sys', esc(friendlyError(error,{action:'load',subject:VIEWS[id].label})));
     thread.appendChild(chips([{ label:'Try again', run:() => showView(id) }, { label: 'Ask Nex instead', run: () => ctx.ask(`Tell me what's going on in ${VIEWS[id].label}.`) }]));
