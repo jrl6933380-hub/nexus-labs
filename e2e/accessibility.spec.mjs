@@ -213,7 +213,11 @@ test.describe('mobile canvas room interactions', () => {
     await expect(page.locator('body')).toHaveAttribute('data-view', 'messages');
     await expect(page.getByRole('heading', { name: /Good (morning|afternoon|evening)/ })).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Your Nexus spaces' }).getByRole('button')).toHaveCount(4);
-    await expect(page.locator('.homecard')).toHaveCount(3);
+    const spaces = page.getByRole('navigation', { name: 'Your Nexus spaces' });
+    for (const name of [/Nex 0 agents connected/, /Projects Make something real/, /Life Your rhythm and schedule/, /More Explore and customize/]) {
+      await expect(spaces.getByRole('button', { name })).toBeVisible();
+    }
+    await expect(page.getByRole('region', { name: 'Upcoming events and updates' })).toBeVisible();
     await page.getByRole('button', { name: /Nex 0 agents connected/ }).click();
     await page.getByRole('button', { name: /Talk with Nex/ }).click();
     await expect(page.locator('body')).toHaveAttribute('data-view', 'chat');
