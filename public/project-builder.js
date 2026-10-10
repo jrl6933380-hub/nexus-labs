@@ -30,6 +30,8 @@ export function mountProjectBuilder({projectId,label,html,buildId,conversation,m
   const panel=make('section',undefined,'pb-sheet');panel.hidden=true;panel.setAttribute('aria-label','Fine-tune selection');shell.append(panel);
   const controls=[];const makeModeControl=(key,name)=>{const control=button(name,()=>setMode(key));control.dataset.builderMode=key;controls.push(control);return control;};
   const dock=make('footer',undefined,'pb-dock'),modes=make('nav');modes.setAttribute('aria-label','Builder mode');for(const [key,name] of [['preview','Preview'],['build','Build with Nex'],['fine','Fine-tune']])modes.append(makeModeControl(key,name));dock.append(modes);
+  const projectShelf=make('details',undefined,'pb-project-shelf');
+  const shelfToggle=make('summary','Project pieces & activity');projectShelf.append(shelfToggle);
   const actions=make('div',undefined,'pb-tools');actions.setAttribute('aria-label','Project controls');
   const card=(name,description,icon,run,cls='')=>{
     const control=button('',run,'pb-project-card '+cls);control.setAttribute('aria-label',name);
@@ -44,8 +46,8 @@ export function mountProjectBuilder({projectId,label,html,buildId,conversation,m
   actions.append(card('Add a piece','Create another page or section','+',onPiece));
   const teamCard=card('Team activity',sourceConversation?'View the work behind this project':'Project collaboration','◎',activity,'pb-team-card');
   actions.append(teamCard,card('Versions','Restore a previous version','↶',versions));
-  const continueButton=button('Continue with Nex',()=>{setMode('build');conversation.querySelector('input,textarea')?.focus();},'pb-continue pb-gold');
-  actions.append(continueButton,button('Project options',onOptions,'pb-project-options'));dock.append(actions);shell.append(dock);document.body.append(shell);
+  const continueButton=button('Continue with Nex',()=>{projectShelf.open=false;setMode('build');conversation.querySelector('input,textarea')?.focus();},'pb-continue pb-gold');
+  actions.append(continueButton,button('Project options',onOptions,'pb-project-options'));projectShelf.append(actions);dock.append(projectShelf);shell.append(dock);document.body.append(shell);
   async function loadSupportingPieces(){
     try{
       const response=await fetch('/api/room-history',{credentials:'include',cache:'no-store'}),data=await response.json();
@@ -78,7 +80,7 @@ export function mountProjectBuilder({projectId,label,html,buildId,conversation,m
     canvas.setAttribute('aria-hidden','false');frame.tabIndex=0;
     chatToggle.textContent=value==='build'?'Hide chat ↓':'Chat with Nex ↑';chatToggle.setAttribute('aria-expanded',String(value==='build'));
     conversation.querySelector('.thread').setAttribute('aria-hidden',String(value!=='build'));
-    for(const control of controls)control.setAttribute('aria-pressed',String(control.dataset.builderMode===value));
+    for(const control of controls)control.setAttribute('aria-pressed',String(control.dataset.builderMode===(value==='overview'?'build':value)));
     frame.contentWindow?.postMessage({nexusBuilder:token,type:'mode',mode:value},'*');panel.hidden=true;
     topAction.textContent='Publish';topAction.onclick=publishProject;
     if(value==='fine'){if(selection)editSheet();else status.textContent='Tap a heading, image, or button to fine-tune.';}
