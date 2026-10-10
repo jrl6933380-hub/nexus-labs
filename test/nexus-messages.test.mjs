@@ -147,7 +147,7 @@ test('Messages carries the old navigation as colored connected conversation rows
   const source=fs.readFileSync(new URL('../public/nexus-messages.js',import.meta.url),'utf8');
   const css=fs.readFileSync(new URL('../public/nexus-messages.css',import.meta.url),'utf8');
   const design=fs.readFileSync(new URL('../public/nexus-design-system.css',import.meta.url),'utf8');
-  for(const name of ['Schedule','Reminders','Nexus Life','Projects','Nexus Legacy','Nexus Teams','Command Deck','Capabilities'])assert.match(source,new RegExp(`name:'${name}'`));
+  for(const name of ['Calendar','Reminders','Nexus Life','Projects','Nexus Legacy','Nexus Teams','Command Deck','Capabilities'])assert.match(source,new RegExp(`name:'${name}'`));
   assert.match(design,/tone-schedule/);assert.match(design,/tone-reminders/);assert.match(design,/tone-life/);assert.match(design,/tone-projects/);
   assert.match(css,/messageitem\.tone-group/);assert.match(css,/messageitem\.tone-recent/);assert.match(css,/messageitem\.tone-research/);assert.match(css,/messageitem\.tone-review/);
   assert.match(css,/messageitem\.pinned/);assert.match(css,/rolechoice/);assert.match(css,/messageprimary/);

@@ -39,3 +39,10 @@ body[data-view=planner] .thread>.nexcalendar{display:flex;flex-direction:column;
 .nexcalendar>.calhint{padding:7px 0 0}.calnex>summary{min-height:44px;padding:12px 0}.calnex[open]{max-height:40%;overflow:auto}
 .calslot.taken{background:#ffffff02}.calmodes button{text-align:center}.caldatestrip button{text-align:center}
 .caldragcontrols{display:flex;gap:6px;flex-basis:100%}.caldragcontrols button{touch-action:none;user-select:none;min-height:44px}.caltimed.caldragging{z-index:10;outline:2px solid #e1bd72;opacity:.9}
+
+/* One scroll surface keeps the weekday headers and hour rail aligned. */
+.calcanvas,.calweekcanvas{overflow:hidden!important}.calheadviewport{overflow:hidden;flex-shrink:0;width:100%}.calhours{overflow:auto;min-width:0;position:relative}.calhourgrid,.caldayheads{grid-template-columns:56px repeat(var(--days),minmax(0,1fr))}.calweekcanvas .calhourgrid,.calweekcanvas .caldayheads{min-width:910px}
+.calhourlabels{position:sticky;left:0;z-index:5;background:#0c1510}.calhourlabels span{font-size:12px}.caldayheads>span:first-child{position:sticky;left:0;z-index:6;background:#13241b}.caldayheads button{font-size:12px;min-height:42px}
+body[data-view=planner] .top{padding-top:calc(env(safe-area-inset-top) + 6px);padding-bottom:4px;min-height:36px}.caltoolbar{padding-bottom:12px}.caldatestrip{padding-bottom:10px}.caldateheading{margin-bottom:8px}
+
+.calweekcanvas .caltimed{padding:6px 8px}.calweekcanvas .caltimed strong{font-size:13px}.calweekcanvas .caltimed small{font-size:10px;line-height:1.3}

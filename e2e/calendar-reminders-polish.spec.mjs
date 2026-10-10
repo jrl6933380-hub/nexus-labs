@@ -45,3 +45,16 @@ test('reminders display live records, snooze, repeat completion, and retain chan
   const axe=await new AxeBuilder({page}).include('.nexreminders').withTags(['wcag2a','wcag2aa']).analyze();expect(axe.violations.filter(v=>['critical','serious'].includes(v.impact))).toEqual([]);expect(errors).toEqual([]);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
 });
+
+
+test('week headers and hour rail stay pinned, and Today reveals the actual local day',async({page})=>{
+  await setup(page);await open(page,'calendar');await page.getByRole('button',{name:'Week',exact:true}).click();await expect(page.locator('.calhourcolumn')).toHaveCount(7);
+  const hours=page.locator('.calhours'),head=page.locator('.calheadviewport'),rail=page.locator('.calhourlabels'),initial=await rail.boundingBox(),top=await head.boundingBox();
+  await hours.evaluate(el=>{el.scrollLeft=400;el.scrollTop=1000;});
+  await expect.poll(()=>head.evaluate(el=>el.scrollLeft)).toBe(400);expect((await rail.boundingBox()).x).toBe(initial.x);expect((await head.boundingBox()).y).toBe(top.y);
+  const alignment=await page.evaluate(()=>{const h=document.querySelector('.caldayheads button').getBoundingClientRect(),c=document.querySelector('.calhourcolumn').getBoundingClientRect();return Math.abs(h.x-c.x);});expect(alignment).toBeLessThan(1);
+  await page.getByRole('button',{name:'Next period',exact:true}).click();await page.getByRole('button',{name:'Today',exact:true}).click();await expect(page.locator('.caldateheading')).toContainText('Saturday, October 10');
+  const today=page.locator('.calhourcolumn[data-day="2026-10-10"]');expect(await today.evaluate(el=>{const a=el.getBoundingClientRect(),b=el.closest('.calhours').getBoundingClientRect();return a.right>b.left+56&&a.left<b.right;})).toBe(true);
+  await expect.poll(()=>hours.evaluate(el=>el.scrollTop)).toBe(8*56);expect((await hours.boundingBox()).height).toBeGreaterThan(200);
+  await page.screenshot({path:'test-results/calendar-pinned-week.png',fullPage:true});
+});
