@@ -12,7 +12,7 @@ for(const width of [320,393,780])test(`live home cards stay compact with team ch
     if(path==='/api/room-history' && url.searchParams.has('id'))return route.fulfill({json:{build:{html:url.searchParams.get('id')==='garden-v2'?'<!doctype html><html><body style="margin:0;background:#d7edcb"><h1>Old garden</h1><script>document.querySelector("h1").textContent="Garden saved version two"</script></body></html>':'<!doctype html><html><body style="margin:0;background:#dbcbea"><h1>Studio saved page</h1></body></html>'}}});
     const data=path==='/api/nexus-messages'?{
       specialists:[{id:'atlas',name:'Atlas',role:'research'},{id:'mason',name:'Mason',role:'build'}],
-      groups:[{id:'team',title:'My team',member_ids:['atlas','mason'],include_nex:true}],roles:{},scopes:[],pinned_system_ids:[],
+      groups:[{id:'team',title:'My team',member_ids:['atlas','mason'],include_nex:true}],team_overviews:{team:{goal:'Research local garden businesses and build a launch website.'}},roles:{},scopes:[],pinned_system_ids:[],
     }:path==='/api/room-history'?{projects:[{projectId:'garden',latestBuildId:'garden-v2',label:'Garden site',versionCount:2},{projectId:'studio',latestBuildId:'studio-v1',label:'Studio site',versionCount:1}],usage:{count:1,limit:10}}:{items:[],pulses:[]};
     return route.fulfill({json:data});
   });
@@ -44,7 +44,9 @@ for(const width of [320,393,780])test(`live home cards stay compact with team ch
     expect(box.width).toBeLessThan(width);
   }
   const roster=page.locator('.hometeamvisual');
-  await expect(roster).toHaveCSS('height','104px');
+  await expect(roster).toHaveCSS('height','80px');
+  await expect(page.locator('.hometeamoverview')).toHaveText('Research local garden businesses and build a launch website.');
+  await expect(page.locator('.hometeammembers')).toHaveText('Atlas · Mason · Nex');
   await expect(roster).toHaveCSS('display','flex');
   await expect(roster).toHaveCSS('background-color','rgba(0, 0, 0, 0)');
   const positions=await roster.locator('.messageavatar').evaluateAll(els=>els.map(el=>({x:el.offsetLeft,y:el.offsetTop})));

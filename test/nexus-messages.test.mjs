@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {CORE_SPECIALISTS,createNexusMessagesStore,MESSAGE_SYSTEM_IDS} from '../lib/nexusMessagesStore.js';
 import {createNexusMessagesHandler} from '../api/nexus-messages.js';
-import {conversationThreadId,conversationPreview,buildOwnerCapabilityPrompt,buildHomeNotifications,HOME_SURFACE_FEATURES} from '../public/nexus-messages.js';
+import {conversationThreadId,conversationPreview,teamCardOverview,buildOwnerCapabilityPrompt,buildHomeNotifications,HOME_SURFACE_FEATURES} from '../public/nexus-messages.js';
 import {buildActiveTools,buildConversationAccessPolicy,formatLiveWorkspaceContext} from '../lib/nexBrain.js';
 import {isProtectedConversationThreadId} from '../lib/nexConversationStore.js';
 import fs from 'node:fs';
@@ -202,4 +202,23 @@ test('new groups default to no Nex and the owner can change participation',async
   assert.equal(changed.data.group.include_nex,true);assert.equal((await store.overview('Other')).groups.length,0);
   assert.equal((await store.overview('Justin')).groups[0].include_nex,true);
   await assert.rejects(store.setGroupNex('Other',group.id,false),/available/);
+});
+
+
+test('team overviews show the latest owned task without exposing run internals',async()=>{
+ const store=fixture(),member=await store.createSpecialist('Justin',{name:'Mason',role:'build'});
+ const group=await store.createGroup('Justin',{title:'Launch',member_ids:[member.id]});
+ const lookups=[];
+ const runs={list:async(owner,id)=>{lookups.push([owner,id]);return [{state:'cancelled',goal:'Cancelled task',steps:[]},{state:'completed',goal:'Build a website for our garden business.',steps:[],privateReasoning:'private'}];}};
+ const handler=createNexusMessagesHandler({getOwner:async()=>({id:'Justin'}),store,runs});
+ const res=response();await handler({method:'GET',query:{}},res);
+ assert.equal(res.code,200);assert.deepEqual(lookups,[['Justin',group.id]]);
+ assert.deepEqual(res.data.team_overviews[group.id],{goal:'Build a website for our garden business.'});
+ assert.equal(JSON.stringify(res.data).includes('privateReasoning'),false);
+});
+
+test('team card summaries stay concise and give new teams a role-based overview',()=>{
+ assert.equal(teamCardOverview('  Build **our site**\n with [garden ideas](https://example.test). ```html\n<h1>code</h1>\n```'),'Build our site with garden ideas.');
+ assert.equal(teamCardOverview('',[{role:'research'},{role:'build'},{role:'research'}]),'Research · Building. Ready for your first task.');
+ assert.equal(teamCardOverview('x'.repeat(300)).length,178);
 });

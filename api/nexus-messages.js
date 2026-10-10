@@ -9,23 +9,24 @@ import {saveTeamProjects} from '../lib/teamProjectSave.js';
 
 export const maxDuration = 300;
 
-export function createNexusMessagesHandler({getOwner=getNexusOwner,store=nexusMessagesStore,team=createTeamMessagesHandler({schedule:task=>waitUntil(task()),persistProjects:saveTeamProjects,checkCapacity:async(req,message,current)=>{const members=current.available_members || current.members;const mentions=parseTeamMentions(message,members);const ids=current.kind==='group'?current.member_ids:null;const assigned=members.filter(member=>mentions.some(item=>item.all) || !mentions.length ? !ids || ids.includes(member.id) || mentions.some(item=>item.member_id===member.id) : mentions.some(item=>item.member_id===member.id));if(assigned.some(member=>member.role==='build'))await checkNewVisualCapacity(req,message);}})}={}){
+export function createNexusMessagesHandler({getOwner=getNexusOwner,store=nexusMessagesStore,runs=teamRunStore,team=createTeamMessagesHandler({schedule:task=>waitUntil(task()),persistProjects:saveTeamProjects,checkCapacity:async(req,message,current)=>{const members=current.available_members || current.members;const mentions=parseTeamMentions(message,members);const ids=current.kind==='group'?current.member_ids:null;const assigned=members.filter(member=>mentions.some(item=>item.all) || !mentions.length ? !ids || ids.includes(member.id) || mentions.some(item=>item.member_id===member.id) : mentions.some(item=>item.member_id===member.id));if(assigned.some(member=>member.role==='build'))await checkNewVisualCapacity(req,message);}})}={}){
   return async function handler(req,res){
     res.setHeader('Cache-Control','private, no-store');
     const owner=await getOwner(req).catch(()=>null);if(!owner)return res.status(401).json({error:'Please sign in again'});
     try{
       if((req.method==='GET' && (req.query?.group_id || req.query?.thread_id)) || (req.method==='POST' && String(req.body?.action || '').startsWith('team_')))return await team(req,res,owner);
       if(req.method==='GET'){
-        const state=store.ensureCoreSpecialists?await store.ensureCoreSpecialists(owner.id):await store.overview(owner.id),team_status={},specialist_status={},specialist_stamps={};
+        const state=store.ensureCoreSpecialists?await store.ensureCoreSpecialists(owner.id):await store.overview(owner.id),team_status={},team_overviews={},specialist_status={},specialist_stamps={};
         const labels={planned:'Plan ready',queued:'Up next',running:'Working',needs_approval:'Needs you',blocked:'Needs attention',completed:'Result ready',stopping:'Stopping'};
         await Promise.all(state.groups.map(async group=>{try{
-          const [run]=await teamRunStore.list(owner.id,group.id);if(run && labels[run.state])team_status[group.id]=labels[run.state];
+          const saved=await runs.list(owner.id,group.id),[run]=saved;
+          const latest=saved.find(item=>item.state!=='cancelled' && item.goal);if(latest)team_overviews[group.id]={goal:String(latest.goal).slice(0,600)};if(run && labels[run.state])team_status[group.id]=labels[run.state];
           if(run && run.state!=='cancelled')for(const step of run.steps){
             const label={working:'Working',returned:'Result ready',needs_approval:'Needs you',blocked:'Needs attention',interrupted:'Interrupted'}[step.state];
             if(step.member_id && label && (!specialist_stamps[step.member_id] || run.updated_at>specialist_stamps[step.member_id])){specialist_status[step.member_id]=label;specialist_stamps[step.member_id]=run.updated_at;}
           }
         }catch{}}));
-        return res.status(200).json({...state,team_status,specialist_status,roles:SPECIALIST_ROLES,scopes:MESSAGE_SCOPES});
+        return res.status(200).json({...state,team_status,team_overviews,specialist_status,roles:SPECIALIST_ROLES,scopes:MESSAGE_SCOPES});
       }
       if(req.method!=='POST')return res.status(405).json({error:'Method Not Allowed'});
       const action=String(req.body?.action || '');
