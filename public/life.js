@@ -101,7 +101,7 @@ export async function renderLife(ctx){
     root.append(node('p','Small things to remember, with a home in your Life plan. Dates are optional.'));
     const active=data.items.filter(item=>item.kind==='reminder' && item.status!=='done');if(!active.length)root.append(node('p','Nothing waiting. Add something you want to remember.','lifeempty'));active.forEach(item=>root.append(row(item)));
     const done=data.items.filter(item=>item.kind==='reminder' && item.status==='done');if(done.length){const details=node('details');details.append(node('summary',`Completed · ${done.length}`));done.forEach(item=>details.append(row(item)));root.append(details);}
-    root.append(node('p','Timed reminders appear while Nexus is open. They do not send background phone notifications.','lifehint'));
+    root.append(node('p','Timed reminders can reach your phone while Nexus is closed. Enable phone notifications in Messages first.','lifehint'));
   }
   async function complete(item){try{await api('check_in',{id:item.id,status:item.status==='done' ? 'planned' : 'done'});await load();}catch(error){errorBox(error);}}
   function rhythm(day=state.rhythmDate){
@@ -291,6 +291,11 @@ export async function renderLife(ctx){
     const end=node('p',undefined,'lifeend');
     if(timed && sheet){form.append(end);const adjust=node('details',undefined,'lifeadjusttime');adjust.append(node('summary','Adjust selected time'),field('Day',date),field('Start time',time),field('Planned duration',duration));form.append(adjust);}
     else{form.append(field(timed ? 'Day' : 'Date (optional)',date),field(timed ? 'Start time' : 'Reminder time (optional)',time));if(timed)form.append(field('Planned duration',duration),end);}
+    const alertOptions=[['','Off'],[0,'At start'],[5,'5 minutes before'],[15,'15 minutes before'],[30,'30 minutes before'],[60,'1 hour before']];
+    if(item?.reminder_minutes != null && !alertOptions.some(([value])=>value===item.reminder_minutes))alertOptions.push([item.reminder_minutes,`${item.reminder_minutes} minutes before`]);
+    const alert=select(alertOptions,item?.reminder_minutes ?? '');
+    const endAlert=node('input');endAlert.type='checkbox';endAlert.checked=Boolean(item?.end_reminder);
+    if(kind==='activity')form.append(field('Phone alert',alert),field('Alert at planned finish',endAlert),node('p','Enable phone notifications in Messages. Saved alerts also work while Nexus is closed.','lifehint'));
     const more=node('details');more.append(node('summary','Optional details'));
     const person=node('input');person.value=item?.person || '';person.maxLength=160;const place=node('input');place.value=item?.place || '';place.maxLength=160;
     const protect=node('input');protect.type='checkbox';protect.checked=item?.protected || false;
@@ -302,7 +307,7 @@ export async function renderLife(ctx){
     date.onchange=time.onchange=duration.onchange=refresh;refresh();title.focus();
     form.onsubmit=async(event)=>{event.preventDefault();preview.disabled=true;status.textContent='';try{
       if(!timed && time.value!=='' && !date.value)throw new Error('Choose a date for this reminder time.');
-      const payload={id:item?.id,kind,title:title.value,pillar:pillar.value,notes:notes.value,person:person.value,place:place.value,protected:protect.checked,
+      const payload={id:item?.id,kind,title:title.value,pillar:pillar.value,notes:notes.value,person:person.value,place:place.value,protected:protect.checked,reminder_minutes:alert.value==='' ? null : Number(alert.value),end_reminder:endAlert.checked,
         ...(timed ? {starts_at:start().toISOString(),ends_at:new Date(+start()+Number(duration.value)*60000).toISOString()} : {due_date:date.value || null,due_at:date.value && time.value!=='' ? start().toISOString() : null})};
       const proposed=await api('preview',payload);review(proposed,item);
     }catch(error){status.textContent=friendlyError(error,{subject:'Life',keepDraft:true});preview.disabled=false;}};

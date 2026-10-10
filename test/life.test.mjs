@@ -257,3 +257,15 @@ test('weekly Life views connect saved feelings and reflections to their activity
     await all(root).find(el=>el.textContent==='Reflect on my week with Vida').onclick();assert.match(prompts[0],/supplied feelings/);
   }finally{globalThis.document=oldDocument;globalThis.fetch=oldFetch;}
 });
+
+
+test('Life saves phone alerts durably, updates linked calendar alerts, and keeps notification reads private',async()=>{
+  const {life,planner}=fixture();
+  let item=await save(life,{...activity,reminder_minutes:15,end_reminder:true},'room:a','linked');
+  let block=(await planner.listPlannerItems({},'room:a'))[0];assert.equal(block.reminder_minutes,15);assert.equal(block.end_reminder,true);
+  item=await save(life,{...item,reminder_minutes:0,end_reminder:false},'room:a','linked');
+  block=(await planner.listPlannerItems({},'room:a'))[0];assert.equal(block.reminder_minutes,0);assert.equal(block.end_reminder,false);
+  const saved=await life.notificationItems('room:a');assert.equal(saved[0].reminder_minutes,0);assert.equal(saved[0].link.id,block.id);
+  assert.deepEqual(await life.notificationItems('room:b'),[]);
+  await assert.rejects(save(life,{...activity,reminder_minutes:-1}),/valid phone alert/);
+});
