@@ -43,30 +43,10 @@ test('usage API publishes pricing beside the signed-in account balance', async (
   assert.deepEqual(body.pricing, publicForgePricing());
 });
 
-test('new-account tier screen explains Builder Brain and Nex usage-pack value', async () => {
-  const source = await readFile(new URL('../public/room-login.html', import.meta.url), 'utf8');
-  const pricing = publicForgePricing();
-  assert.match(source, /Build with your connected Brain/);
-  assert.match(source, /Builds use your connected Brain/);
-  assert.doesNotMatch(source, /credits per new build/);
-
-  // The page renders these from /api/room-usage at load, but the figures in
-  // the markup are the offline fallback — so they still have to be right.
-  // Checked against the canonical constant rather than restated here, since
-  // the two previously drifted ($6 on the page vs $4 in the constant) and the
-  // builder UI advertised a cheaper pack than checkout actually charged.
-  const packCredits = [...source.matchAll(/data-pricing="packCredits"[^>]*>([^<]*)</gu)].map((m) => m[1]);
-  const packPrices = [...source.matchAll(/data-pricing="packPrice"[^>]*>([^<]*)</gu)].map((m) => m[1]);
-  assert.ok(packCredits.length > 0, 'expected usage-pack credit figures to be marked with data-pricing');
-  assert.ok(packPrices.length > 0, 'expected usage-pack price figures to be marked with data-pricing');
-  for (const value of packCredits) {
-    assert.equal(value, String(pricing.usagePack.credits), 'fallback credit figure must match canonical pricing');
-  }
-  for (const value of packPrices) {
-    assert.equal(value, String(pricing.usagePack.priceUsd), 'fallback price figure must match canonical pricing');
-  }
-
-  // And the buy button must point at the credit-pack price, so the copy and
-  // the thing it charges cannot describe different products.
-  assert.match(source, /data-checkout="price_1UEjoFDh5Di7LYi3DGorrLRb"/);
+test('new-account screen shows agreed tiers and a $6 pack without unit counts',async()=>{
+ const source=await readFile(new URL('../public/room-login.html',import.meta.url),'utf8');
+ assert.match(source,/Nexus Life/);assert.match(source,/3 active projects/);assert.match(source,/6 active projects/);
+ assert.match(source,/Choose Pro — \$10\/month/);assert.match(source,/Choose Plus — \$20\/month/);
+ assert.match(source,/extra-usage pack — \$6/);assert.doesNotMatch(source,/data-pricing="packCredits"|\d+ credits/);
+ assert.match(source,/data-checkout="price_1UEjoFDh5Di7LYi3DGorrLRb"/);
 });

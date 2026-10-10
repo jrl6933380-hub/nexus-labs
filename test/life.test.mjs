@@ -39,7 +39,7 @@ test('planned time never becomes lived experience without a user confirmation',a
 });
 test('Life HTTP authentication derives account scope and refuses unknown actions',async()=>{
   const calls=[],res=()=>({setHeader(){},status(code){this.code=code;return this;},json(data){this.data=data;return this;}}),store={overview:async user=>{calls.push(user);return {items:[]};}};
-  const handler=createLifeHandler({getOwner:async()=>null,getUser:async()=> 'a',store});const response=res();await handler({method:'GET',query:{user:'owner:admin'}},response);assert.equal(calls[0],'room:a');
+  const handler=createLifeHandler({getOwner:async()=>null,getUser:async()=> 'a',resolvePlan:async()=> 'hosted',store});const response=res();await handler({method:'GET',query:{user:'owner:admin'}},response);assert.equal(calls[0],'room:a');
   const denied=createLifeHandler({getOwner:async()=>null,getUser:async()=>null,store});const reject=res();await denied({method:'GET'},reject);assert.equal(reject.code,401);
   const bad=res();await handler({method:'POST',body:{action:'invent'}},bad);assert.equal(bad.code,400);
 });

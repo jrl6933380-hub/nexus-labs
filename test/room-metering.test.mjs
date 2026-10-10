@@ -184,7 +184,7 @@ test('usage endpoint reports the signed-in account and stays read-only', async (
   const res = response();
   await handler({ method: 'GET' }, res);
   assert.equal(res.code, 200);
-  assert.equal(res.body.usage.limit, 20);
+  assert.equal('limit' in res.body.usage,false);
 });
 
 test('canExport tracks the plan, so the UI gate matches the server gate', async () => {
@@ -229,13 +229,13 @@ test('usage endpoint falls back to an anonymous session for signed-out guests', 
   const req = { method: 'GET', headers: {} };
   await createUsageHandler({ resolveUser: async () => null, meter })(req, guest);
   assert.equal(guest.code, 200);
-  assert.equal(guest.body.usage.limit, 20);
+  assert.equal('limit' in guest.body.usage,false);
 });
 
-test('usage endpoint rejects any method other than GET', async () => {
+test('usage endpoint rejects unknown extra-usage actions', async () => {
   const redis = fakeRedis();
   const meter = createRoomMeter({ command: redis.command, now, config: { creditsLimit: 20 } });
   const res = response();
   await createUsageHandler({ resolveUser: async () => 'alice', meter })({ method: 'POST' }, res);
-  assert.equal(res.code, 405);
+  assert.equal(res.code, 400);
 });

@@ -530,7 +530,7 @@ export const FORGE_VIEWS = {
       const headline = document.createElement('div');
       headline.style.cssText = 'font-weight:700;margin-bottom:3px';
       headline.textContent = usage.empty
-        ? 'Out of building for today'
+        ? 'Included AI usage used up'
         : percent <= 20 ? 'Running low' : 'Building available';
       const sub = document.createElement('div');
       sub.style.cssText = 'font-size:0.85rem;opacity:0.7';
@@ -542,9 +542,10 @@ export const FORGE_VIEWS = {
 
       nodes.push(say(usage.empty
         ? 'Grab a usage pack to keep building now, or come back when it refills.'
-        : 'Need more than the daily refill? A usage pack tops you up straight away.'));
+        : 'Need more AI usage? Buy an extra-usage pack, then enable it in Usage & limits.'));
 
       nodes.push(chips([
+        { label: 'Usage & limits', run: () => location.assign('/usage.html') },
         { label: 'Get a usage pack', run: () => ctx.buyUsagePack?.() },
       ]));
       return nodes;

@@ -343,33 +343,22 @@
       <article class="tier-card">
         <div class="tier-name">Free</div>
         <div class="tier-status">Included with your new account</div>
-        <ul class="tier-features"><li>Build with your connected Brain</li><li>Save private projects</li><li>Free credits for Nex conversations</li></ul>
+        <ul class="tier-features"><li>Limited Nex chat and one demo project</li><li>Calendar and Reminders</li><li>Phone notifications</li></ul>
         <button class="tier-action primary" id="continue-free" type="button">Continue with Free</button>
       </article>
       <article class="tier-card featured">
-        <div class="tier-name">Hosted</div>
-        <div class="tier-status">$12/mo · live hosting + custom domain</div>
-        <ul class="tier-features"><li>More Nex conversation credits</li><li>Nexus-managed hosting</li><li>Simple publishing flow</li></ul>
-        <button class="tier-action primary" type="button" data-checkout="price_1UEjnpDh5Di7LYi3L6SfmKOu">Go Hosted — $12/mo</button>
-        <button class="tier-action-annual" type="button" data-checkout="price_1UEjnvDh5Di7LYi3Mk6MpnmX">or $120/yr — 2 months free</button>
+        <div class="tier-name">Pro</div><div class="tier-status">$10/month</div>
+        <ul class="tier-features"><li>Nexus Life</li><li>Builder and 3 active projects</li><li>Standard AI usage with 5-hour and weekly resets</li></ul>
+        <button class="tier-action primary" type="button" data-checkout="nexus_pro_monthly">Choose Pro — $10/month</button>
       </article>
-      <article class="tier-card">
-        <div class="tier-name">Growth</div>
-        <div class="tier-status">$24/mo · higher limits, priority generation</div>
-        <ul class="tier-features"><li>Higher usage limits</li><li>More active projects</li><li>Priority generation path</li></ul>
-        <button class="tier-action" type="button" data-checkout="price_1UEjnzDh5Di7LYi3LDjvkHQY">Go Growth — $24/mo</button>
-        <button class="tier-action-annual" type="button" data-checkout="price_1UEjo3Dh5Di7LYi33tCAb4W8">or $240/yr — 2 months free</button>
-      </article>
-      <article class="tier-card">
-        <div class="tier-name">Unlimited</div>
-        <div class="tier-status">$59/mo · highest limits, for teams</div>
-        <ul class="tier-features"><li>Highest usage limits</li><li>Large project capacity</li><li>Best for teams and agencies</li></ul>
-        <button class="tier-action" type="button" data-checkout="price_1UEjo7Dh5Di7LYi3fAAwsqmy">Go Unlimited — $59/mo</button>
-        <button class="tier-action-annual" type="button" data-checkout="price_1UEjoBDh5Di7LYi3O69yUjQS">or $590/yr — 2 months free</button>
+      <article class="tier-card"><div class="tier-name">Plus</div><div class="tier-status">$20/month</div>
+        <ul class="tier-features"><li>Everything in Pro</li><li>6 active projects</li><li>Twice the included Pro AI allowance</li></ul>
+        <button class="tier-action" type="button" data-checkout="nexus_plus_monthly">Choose Plus — $20/month</button>
       </article>
     </div>
-    <p class="tier-note">Need more Nex conversations later? Usage packs add <span data-pricing="packCredits">30</span> Nex credits for $<span data-pricing="packPrice">6</span>. Builds use your connected Brain.</p>
-    <p class="tier-note"><button class="tier-action-annual" type="button" data-checkout="price_1UEjoFDh5Di7LYi3DGorrLRb" style="display:inline;width:auto;">Buy <span data-pricing="packCredits">30</span> credits now — $<span data-pricing="packPrice">6</span></button></p>
+    <p class="tier-note">Calendar, Reminders, and phone notifications are free. Nexus Life and additional projects are included with Pro and Plus.</p>
+    <p class="tier-note"><a href="/usage.html" style="color:#e1bd72">Usage &amp; limits</a></p>
+    <p class="tier-note"><button class="tier-action-annual" type="button" data-checkout="price_1UEjoFDh5Di7LYi3DGorrLRb">Buy an extra-usage pack — $6</button></p>
   </div>
 </section>
 
@@ -413,7 +402,7 @@
       if (!res.ok) return;
       const pack = (await res.json())?.pricing?.usagePack;
       if (!pack) return;
-      const values = { packCredits: pack.credits, packPrice: pack.priceUsd };
+      const values = { packPrice: pack.priceUsd };
       for (const node of targets) {
         const value = values[node.dataset.pricing];
         if (value !== undefined && value !== null) node.textContent = String(value);

@@ -57,7 +57,7 @@ import {
 import { logExchange, checkAgentLog } from '../lib/agentLog.js';
 import { addVaultItem, getVaultItem, searchVault, listVaultItems } from '../lib/codeVault.js';
 import { ingestSentryCrash, listCrashes, getCrash, verifySentrySignature } from '../lib/crashFeed.js';
-import { getRequestUser } from '../lib/roomAuth.js';
+import { getRequestUser,getUserPlan,isPaidPlan,isOperatorUser } from '../lib/roomAuth.js';
 import { createTenant, listTenantsForOwner, assertTenantAccess, registerConnection, unregisterConnection } from '../lib/tenantProvisioning.js';
 import { tenantMeter } from '../lib/tenantMetering.js';
 import { createOAuthState, verifyOAuthState } from '../lib/oauthState.js';
@@ -113,13 +113,14 @@ function developerSource(value) {
   return `developer:${/^[a-z0-9_-]{1,32}$/u.test(source) ? source : 'developer'}`;
 }
 
-export function createLifeHandler({getOwner=getNexusOwner,getUser=getRequestUser,store=lifeStore}={}) {
+export function createLifeHandler({getOwner=getNexusOwner,getUser=getRequestUser,resolvePlan=getUserPlan,store=lifeStore}={}) {
   return async(req,res)=>{
     res.setHeader('Cache-Control','private, no-store');
     const owner=await getOwner(req).catch(()=>null),roomUser=owner ? null : await getUser(req).catch(()=>null);
     if(!owner && !roomUser)return res.status(401).json({error:'Sign in to use Life.'});
     const user=owner ? `owner:${owner.id}` : `room:${roomUser}`;
     try{
+      if(!owner&&!isOperatorUser(roomUser)&&!isPaidPlan(await resolvePlan(roomUser)))return res.status(402).json({error:'Nexus Life is included with Pro and Plus.',code:'LIFE_REQUIRES_PRO'});
       if(req.method==='GET' && req.query?.photos)return res.status(200).json(await store.photos(req.query.photos,user));
       if(req.method==='GET')return res.status(200).json(req.query?.alerts==='1' ? {items:await store.alerts(user)} : await store.overview(user));
       if(req.method!=='POST')return res.status(405).json({error:'Method Not Allowed'});

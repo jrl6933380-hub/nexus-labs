@@ -22,7 +22,7 @@ export async function renderAccountControls(root,ctx,back,actions,initialView='a
     const data=await request();if(!root.contains(panel))return;panel.replaceChildren();applyControls(data.preferences);if(initialView==='usage'){usageView(data);return;}
     const account=group(panel,'Account');
     account.append(el('p',`Signed in as ${data.account.id}`,'controlsummary'));
-    row(account,'Plan','Owner · exempt from usage limits',()=>usageView(data));
+    row(account,'Plan',data.account.exempt?'Owner · exempt from usage limits':`${data.account.plan} plan`,()=>usageView(data));
     row(account,'Usage & limits','Live activity for Nex and your agents',()=>usageView(data));
     const customize=group(panel,'Customize Nexus');
     row(customize,'Reply preferences',`Reply length: ${data.preferences.responseStyle}`,()=>preferenceView(data));
@@ -58,18 +58,40 @@ export async function renderAccountControls(root,ctx,back,actions,initialView='a
     form.onsubmit=async event=>{event.preventDefault();save.disabled=true;status.textContent='Saving…';try{const updated=await request({responseStyle:style.value,accent:accent.value});applyControls(updated.preferences);status.textContent='Saved. Your next replies will use this preference.';}catch(error){status.textContent=error.message;}finally{save.disabled=false;}};
   }
   function usageView(initial){
-    head(root,'Usage & limits','Live activity for your owner account.',initialView==='usage' ? back : open);
+    head(root,'Usage & limits','Your included allowance and extra usage.',initialView==='usage' ? back : open);
     const usagePanel=el('div'),status=el('p',undefined,'messageformstatus');status.setAttribute('role','status');root.append(usagePanel,status);
     function paint(data){
-      usagePanel.replaceChildren();const usage=data.usage,today=usage.days[0],week=usage.days.reduce((sum,day)=>sum+day.turns,0);
-      const section=group(usagePanel,'Nex & specialists');
-      section.append(el('p','Owner account · no usage cap','controlsummary'),el('p',`${today.turns} completed turns today · ${week} in the last 7 UTC days`,'controlsummary'),el('p',usage.scope,'controlnote'));
-      const details=el('details'),summary=el('summary','Advanced usage');details.append(summary);
-      const totals=usage.days.reduce((sum,day)=>({input:sum.input+day.input,output:sum.output+day.output,elapsed:sum.elapsed+day.elapsedMs}),{input:0,output:0,elapsed:0});
-      details.append(el('p',`${totals.input.toLocaleString()} recorded input tokens · ${totals.output.toLocaleString()} recorded output tokens`),el('p',`${Math.round(totals.elapsed/60000)} minutes of combined completed agent turn time`),el('p','Token totals depend on provider reporting. Failed turns, routing calls, and pod idle time are not included. This is activity monitoring, not a pod bill.'));
-      section.append(details);
-      const forge=group(usagePanel,'Forge');row(forge,'Forge usage & limits','View the existing builder meter separately',()=>ctx.openSystem('forge'));
-      status.textContent=`Updated ${new Date(usage.updatedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',second:'2-digit'})} · refreshes every 15 seconds`;
+      usagePanel.replaceChildren();const usage=data.usage,limits=data.usageLimits,exempt=data.account.exempt;
+      const section=group(usagePanel,'AI usage');
+      section.append(el('p',exempt?'Owner account · no usage cap':`${data.account.plan} plan`,'controlsummary'));
+      function bar(label,pool){
+        const card=el('div',undefined,'usagecard'),heading=el('div',undefined,'usageheading');
+        heading.append(el('strong',label),el('span',exempt?'No limit':`${pool.percentRemaining}% remaining`));
+        const progress=el('progress');progress.max=100;progress.value=pool.percentRemaining;progress.setAttribute('aria-label',`${label} remaining`);
+        const reset=pool.resetAt?`Resets ${new Date(pool.resetAt).toLocaleString([],{weekday:'short',hour:'numeric',minute:'2-digit'})}`:exempt?'Your account is exempt':'No extra usage purchased';
+        card.append(heading,progress,el('p',reset,'controlnote'));section.append(card);
+      }
+      bar('5-hour allowance',limits?.short||{percentRemaining:100,resetAt:null});
+      bar('Weekly allowance',limits?.weekly||{percentRemaining:100,resetAt:null});
+      const extra=limits?.extra||{percentRemaining:0,available:false,enabled:false};
+      if(!exempt){
+        const extraSection=group(usagePanel,'Extra usage'),heading=el('div',undefined,'usageheading');heading.append(el('strong','Extra usage'),el('span',`${extra.percentRemaining}% remaining`));
+        const progress=el('progress');progress.max=100;progress.value=extra.percentRemaining;progress.setAttribute('aria-label','Extra usage remaining');extraSection.append(heading,progress,el('p','Included usage is used first. Extra usage carries forward and never unlocks additional plan features.','controlnote'));
+        const toggle=button(extra.enabled?'Stop using extra allowance':'Use extra allowance when included usage runs out',async()=>{
+          toggle.disabled=true;try{const response=await fetch('/api/room-usage',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'extra_usage',enabled:!extra.enabled})});const payload=await response.json();if(!response.ok)throw Error(payload.error||'Could not update extra usage');await refresh();}catch(error){status.textContent=error.message;toggle.disabled=false;}
+        });toggle.disabled=!extra.available;extraSection.append(toggle);
+        extraSection.append(button('Buy a usage pack · $6',()=>buyPack(), 'uxprimary messagecontinue'));
+      }
+      const plans=group(usagePanel,'Nexus plans');
+      plans.append(el('p','Free · Limited Nex chat, Calendar, Reminders, phone notifications, and one demo project.','controlnote'),el('p','Pro · $10/month · Nexus Life, builder, 3 projects, standard AI usage.','controlnote'),el('p','Plus · $20/month · Nexus Life, builder, 6 projects, twice the included Pro allowance.','controlnote'));
+      if(!exempt)plans.append(button('Choose Pro · $10/month',()=>buyPack('nexus_pro_monthly')),button('Choose Plus · $20/month',()=>buyPack('nexus_plus_monthly')));
+      section.append(el('p','Manual Calendar and Reminder actions and saved phone notifications never use your AI allowance.','controlnote'));
+      if(exempt&&usage?.days){const today=usage.days[0],week=usage.days.reduce((sum,day)=>sum+day.turns,0);section.append(el('p',`${today.turns} completed turns today · ${week} in the last 7 UTC days`,'controlnote'));}
+      status.textContent=`Updated ${new Date(limits?.updatedAt||usage?.updatedAt||Date.now()).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',second:'2-digit'})} · refreshes every 15 seconds`;
+
+    }
+    async function buyPack(priceId='price_1UEjoFDh5Di7LYi3DGorrLRb'){
+      status.textContent='Opening secure checkout…';try{const response=await fetch('/api/checkout',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({priceId})});const payload=await response.json();if(!response.ok)throw Error(payload.error||'Could not open checkout');const url=new URL(payload.url);if(url.protocol!=='https:'||!['checkout.stripe.com','billing.stripe.com'].includes(url.hostname))throw Error('Checkout could not open');location.assign(url.href);}catch(error){status.textContent=error.message;}
     }
     paint(initial);
     let refreshing=false;
