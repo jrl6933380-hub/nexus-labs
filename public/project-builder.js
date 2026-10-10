@@ -22,6 +22,7 @@ export function mountProjectBuilder({projectId,label,html,buildId,conversation,m
   const chat=make('div',undefined,'pb-chat');
   const chatToggle=button('Chat with Nex ↑',()=>{if(currentMode==='build'){conversation.querySelector('input')?.blur();setMode('overview');}else setMode('build');},'pb-chat-toggle');
   const originalConversationId=conversation.id;
+  const thread=conversation.querySelector('.thread'),originalThreadTabIndex=thread.getAttribute('tabindex');thread.tabIndex=0;
   chatToggle.setAttribute('aria-controls','pb-project-conversation');conversation.id='pb-project-conversation';
   const anchor=document.createComment('Project conversation');conversation.before(anchor);chat.append(chatToggle,conversation);stage.append(chat);shell.append(stage);
   const expandChat=()=>{if(currentMode==='overview')setMode('build');};
@@ -29,7 +30,31 @@ export function mountProjectBuilder({projectId,label,html,buildId,conversation,m
   const panel=make('section',undefined,'pb-sheet');panel.hidden=true;panel.setAttribute('aria-label','Fine-tune selection');shell.append(panel);
   const controls=[];const makeModeControl=(key,name)=>{const control=button(name,()=>setMode(key));control.dataset.builderMode=key;controls.push(control);return control;};
   const dock=make('footer',undefined,'pb-dock'),modes=make('nav');modes.setAttribute('aria-label','Builder mode');for(const [key,name] of [['preview','Preview'],['build','Build with Nex'],['fine','Fine-tune']])modes.append(makeModeControl(key,name));dock.append(modes);
-  const actions=make('div',undefined,'pb-tools');actions.setAttribute('aria-label','Project controls');actions.append(button('Home page',()=>setMode('preview')),button('Add a piece',onPiece),button('Team activity',activity),button('Project pieces',pieces),button('Versions',versions),button('Project options',onOptions));dock.append(actions);shell.append(dock);document.body.append(shell);
+  const actions=make('div',undefined,'pb-tools');actions.setAttribute('aria-label','Project controls');
+  const card=(name,description,icon,run,cls='')=>{
+    const control=button('',run,'pb-project-card '+cls);control.setAttribute('aria-label',name);
+    const visual=make('span',icon,'pb-card-icon'),copy=make('span',undefined,'pb-card-copy');visual.setAttribute('aria-hidden','true');
+    copy.append(make('strong',name),make('small',description));control.append(visual,copy,make('span','›','pb-card-arrow'));return control;
+  };
+  const heading=make('div',undefined,'pb-project-heading');heading.append(make('h2','Project pieces'),button('All pieces',pieces));actions.append(heading);
+  const homeCard=card('Home page','Main landing page','',()=>setMode('preview'),'pb-home-card');
+  const thumbnail=make('iframe');thumbnail.title='Home page thumbnail';thumbnail.tabIndex=-1;thumbnail.setAttribute('aria-hidden','true');thumbnail.setAttribute('sandbox','allow-scripts');thumbnail.setAttribute('referrerpolicy','no-referrer');thumbnail.srcdoc=html;
+  homeCard.querySelector('.pb-card-icon').append(thumbnail);actions.append(homeCard);
+  const supporting=make('div',undefined,'pb-supporting-pieces');actions.append(supporting);
+  actions.append(card('Add a piece','Create another page or section','+',onPiece));
+  const teamCard=card('Team activity',sourceConversation?'View the work behind this project':'Project collaboration','◎',activity,'pb-team-card');
+  actions.append(teamCard,card('Versions','Restore a previous version','↶',versions));
+  const continueButton=button('Continue with Nex',()=>{setMode('build');conversation.querySelector('input,textarea')?.focus();},'pb-continue pb-gold');
+  actions.append(continueButton,button('Project options',onOptions,'pb-project-options'));dock.append(actions);shell.append(dock);document.body.append(shell);
+  async function loadSupportingPieces(){
+    try{
+      const response=await fetch('/api/room-history',{credentials:'include',cache:'no-store'}),data=await response.json();
+      if(!response.ok)return;
+      const project=data.projects?.find(item=>item.projectId===projectId);
+      for(const piece of project?.stackItems || [])supporting.append(card(piece.label || 'Project piece','Supporting page or section','▱',pieces));
+    }catch{/* The current page and project actions remain available offline. */}
+  }
+  void loadSupportingPieces();
   let stableViewportHeight=window.visualViewport?.height || window.innerHeight;
   const fitViewport=()=>{
     const height=window.visualViewport?.height || window.innerHeight;
@@ -93,8 +118,8 @@ export function mountProjectBuilder({projectId,label,html,buildId,conversation,m
   async function publishProject(){try{status.textContent='Publishing…';await onPublish();status.textContent='Live link copied';}catch(error){status.textContent=error.message;}}
   function markSaving(){saving=true;topAction.disabled=true;status.textContent='Saving this version…';}
   function markUnsaved(message){saving=false;topAction.disabled=true;persistenceError=message;status.textContent='Unsaved · '+message;if(onRetrySave)status.append(button('Retry saving',async()=>{if(busy)return;busy=true;try{const saved=await onRetrySave(currentHtml,currentId);update(saved.html,saved.id);}catch(error){markUnsaved(error.message);}finally{busy=false;}}));}
-  function update(nextHtml,nextId){saving=false;topAction.disabled=false;persistenceError='';currentHtml=nextHtml;currentId=nextId;proposed=null;renderFrame();status.textContent='Saved draft';}
-  return {projectId,setMode,update,markUnsaved,markSaving,updateLabel(value){title.textContent=value;},destroy(){conversation.removeEventListener('focusin',expandChat);conversation.id=originalConversationId;conversation.querySelector('.thread').removeAttribute('aria-hidden');sizeObserver.disconnect();window.visualViewport?.removeEventListener('resize',fitViewport);window.visualViewport?.removeEventListener('scroll',fitViewport);window.removeEventListener('message',receive);anchor.replaceWith(conversation);shell.remove();}};
+  function update(nextHtml,nextId){saving=false;topAction.disabled=false;persistenceError='';currentHtml=nextHtml;currentId=nextId;proposed=null;thumbnail.srcdoc=nextHtml;renderFrame();status.textContent='Saved draft';}
+  return {projectId,setMode,update,markUnsaved,markSaving,updateLabel(value){title.textContent=value;},destroy(){conversation.removeEventListener('focusin',expandChat);conversation.id=originalConversationId;conversation.querySelector('.thread').removeAttribute('aria-hidden');if(originalThreadTabIndex===null)thread.removeAttribute('tabindex');else thread.setAttribute('tabindex',originalThreadTabIndex);sizeObserver.disconnect();window.visualViewport?.removeEventListener('resize',fitViewport);window.visualViewport?.removeEventListener('scroll',fitViewport);window.removeEventListener('message',receive);anchor.replaceWith(conversation);shell.remove();}};
 }
 
 async function prepareProjectPhoto(file,budget){
