@@ -13,7 +13,7 @@ for(const width of [320,393,780])test(`live home cards stay compact with team ch
     const data=path==='/api/nexus-messages'?{
       specialists:[{id:'atlas',name:'Atlas',role:'research'},{id:'mason',name:'Mason',role:'build'}],
       groups:[{id:'team',title:'My team',member_ids:['atlas','mason'],include_nex:true}],team_overviews:{team:{goal:'Research local garden businesses and build a launch website.'}},roles:{},scopes:[],pinned_system_ids:[],
-    }:path==='/api/room-history'?{projects:[{projectId:'garden',latestBuildId:'garden-v2',label:'Garden site',versionCount:2},{projectId:'studio',latestBuildId:'studio-v1',label:'Studio site',versionCount:1}],usage:{count:1,limit:10}}:{items:[],pulses:[]};
+    }:path==='/api/planner'?{items:[{id:'focus',title:'Focus session',status:'planned',starts_at:new Date(Date.now()+3600000).toISOString(),ends_at:new Date(Date.now()+7200000).toISOString(),category:'work'}]}:path==='/api/reminders'?{items:[{id:'invoice',title:'Send invoice',status:'planned'}]}:path==='/api/room-history'?{projects:[{projectId:'garden',latestBuildId:'garden-v2',label:'Garden site',versionCount:2},{projectId:'studio',latestBuildId:'studio-v1',label:'Studio site',versionCount:1}],usage:{count:1,limit:10}}:{items:[],pulses:[]};
     return route.fulfill({json:data});
   });
   await page.goto('/workspace.html');
@@ -21,10 +21,12 @@ for(const width of [320,393,780])test(`live home cards stay compact with team ch
     document.documentElement.classList.remove('workspace-loading');
     document.body.dataset.view='messages';
     const {renderMessages}=await import('/nexus-messages.js');
-    document.querySelector('.thread').replaceChildren(await renderMessages({recentThreads:()=>[],go(){},openConversation(){},openWorkbenchPanel(id,mode){window.openedProject={id,mode};}}));
+    document.querySelector('.thread').replaceChildren(await renderMessages({recentThreads:()=>[],go(view){window.homeDestination=view;},openConversation(){},openWorkbenchPanel(id,mode){window.openedProject={id,mode};}}));
   });
+  await expect(page.locator('.homecalendarcard')).toContainText('Focus session');await expect(page.locator('.homeremindercard')).toContainText('Send invoice');
+  await page.locator('.homecalendarcard').click();expect(await page.evaluate(()=>window.homeDestination)).toBe('planner');await page.locator('.homeremindercard').click();expect(await page.evaluate(()=>window.homeDestination)).toBe('reminders');
   const cards=page.locator('.homelivecard');
-  await expect(cards).toHaveCount(5);
+  await expect(cards).toHaveCount(7);
   await expect(page.locator('.homeprojectcard iframe')).toHaveCount(2);
   await expect(page.frameLocator('.homeprojectcard iframe').nth(0).locator('h1')).toHaveText('Garden saved version two');
   await expect(page.frameLocator('.homeprojectcard iframe').nth(1).locator('h1')).toHaveText('Studio saved page');
