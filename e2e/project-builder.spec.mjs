@@ -2,14 +2,14 @@ import {test,expect} from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import {fixture,samplePage} from '../test/project-builder-fixture.mjs';
 test.use({viewport:{width:393,height:852},isMobile:true,hasTouch:true,serviceWorkers:'block'});
-async function setup(page,{workspace=false}={}){
+async function setup(page,{workspace=false,authGate}={}){
  const f=fixture(),errors=[],modelCalls=[];page.on('pageerror',error=>errors.push(error.message));
  await page.route('**/_vercel/insights/script.js',route=>route.fulfill({body:'',contentType:'application/javascript'}));
  await page.route('**/api/**',async route=>{
   const request=route.request(),url=new URL(request.url());
   if(url.pathname==='/api/room-history'){const res=await f.request(request.method()==='POST'?request.postDataJSON():null,{method:request.method(),query:Object.fromEntries(url.searchParams)});return route.fulfill({status:res.code,json:res.data});}
   if(['/api/room-chat','/api/forge-help','/api/room-assistant'].includes(url.pathname) && request.method()==='POST')modelCalls.push(url.pathname);
-  let data={};if(url.pathname==='/api/room-auth')data={username:'alice'};
+  let data={};if(url.pathname==='/api/room-auth'){if(authGate)await authGate;data={username:'alice'};}
   if(url.pathname==='/api/forge-brain')data={connected:true,provider:'test',plan:'unlimited'};
   if(url.pathname==='/api/room-conversation')data={turns:[]};
   if(url.pathname==='/api/nexus-auth')data={authenticated:true,owner:{id:'alice'}};
@@ -58,7 +58,7 @@ test('back navigation restores the project conversation and can leave Projects',
  await page.locator('.projectbuilder').getByRole('button',{name:'Back to project',exact:true}).click();
  await page.locator('.projectbuilder').getByRole('button',{name:'Back to Projects',exact:true}).click();
  await Promise.all([
-   page.waitForURL('**/workspace.html?view=workbench'),
+   page.waitForURL('**/workspace.html?view=messages'),
    page.getByRole('button',{name:'Back to Nexus',exact:true}).click(),
  ]);
 });
@@ -176,4 +176,15 @@ test('project shelf collapses and only appears on the middle tab',async({page})=
  await expect.poll(async()=>(await page.locator('.pb-canvas').boundingBox()).height).toBe(collapsed.height);
  await shelf.locator('summary').click();await page.getByRole('button',{name:'Continue with Nex',exact:true}).click();
  await expect(cards).toBeHidden();await expect(page.locator('#input')).toBeFocused();expect(f.errors).toEqual([]);
+});
+
+test('Workbench startup hides the Forge shell until the requested project is ready',async({page})=>{
+ let release;const authGate=new Promise(resolve=>{release=resolve;});
+ const loading=setup(page,{authGate});
+ await page.waitForURL('**/forge.html?surface=workbench&view=chat&build=b1',{waitUntil:'domcontentloaded'});
+ await expect(page.locator('html')).toHaveClass('forge-loading');
+ await expect(page.locator('#screen')).toBeHidden();
+ release();await loading;
+ await expect(page.locator('html')).not.toHaveClass('forge-loading');
+ await expect(page.locator('.projectbuilder')).toBeVisible();
 });

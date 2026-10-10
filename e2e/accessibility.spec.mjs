@@ -228,6 +228,27 @@ test.describe('mobile canvas room interactions', () => {
     expect(composerBox.x + composerBox.width).toBeLessThanOrEqual(393);
   });
 
+  test('one Back tap leaves Projects even when its response arrives late', async ({ page }) => {
+    await stubCurrentWorkspace(page);
+    await page.goto('/workspace.html?view=messages');
+    await expect(page.getByRole('navigation', { name: 'Your Nexus spaces' })).toBeVisible();
+    let release, started;
+    const gate = new Promise(resolve => { release = resolve; });
+    const requested = new Promise(resolve => { started = resolve; });
+    let delayed = false;
+    await page.route('**/api/room-history', async route => {
+      if (!delayed) { delayed = true; started(); await gate; }
+      await route.fulfill({ json: { projects: [], builds: [] } });
+    });
+    await page.getByRole('navigation', { name: 'Your Nexus spaces' }).getByRole('button', { name: /Projects/ }).click();
+    await requested;
+    await page.getByRole('button', { name: 'Back to Messages', exact: true }).click();
+    release();
+    await expect(page.locator('body')).toHaveAttribute('data-view', 'messages');
+    await expect(page.getByRole('navigation', { name: 'Your Nexus spaces' })).toBeVisible();
+    await expect(page.locator('.projectshelf')).toHaveCount(0);
+  });
+
   test('retired operator URLs open their matching current workspace views without showing the old dashboard', async ({ page }) => {
     await stubCurrentWorkspace(page);
     const routes = [
