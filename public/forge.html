@@ -245,6 +245,7 @@
   }
 </style>
 <link rel="stylesheet" href="/project-builder.css" />
+<link rel="stylesheet" href="/build-options.css" />
 <link rel="stylesheet" href="/ux.css" />
 </head>
 <body>
@@ -550,11 +551,12 @@ const ctx = {
     }
     await showView('brief');
   },
-  startProject: () => {
+  startProject: async (draft = '') => {
     history.length = 0; threadId = null; currentBuild = ''; latestBuildId = null;
     currentProjectLabel = 'New project'; currentLiveUrl = ''; currentLiveNeedsUpdate = false; pendingStackItem = null; plannerEntry = '';
     currentProjectId = newProjectId();
-    showView(featureUnlocked(connectionSnapshot(), 'brief') ? 'brief' : 'chat');
+    await showView(draft ? 'chat' : featureUnlocked(connectionSnapshot(), 'brief') ? 'brief' : 'chat');
+    if(draft){el('input').value=draft;el('input').focus();}
   },
   answerBrief: async (questionId, values, comment) => {
     await briefAction('answer', { questionId, values, comment });
@@ -1592,7 +1594,8 @@ if (!await handleBrainResult()) {
   if (signedIn && requestedBuild && /^[a-zA-Z0-9_-]{1,160}$/u.test(requestedBuild)) {
     await ctx.openBuild(requestedBuild, ['overview','chat','preview','fine','add-piece'].includes(requestedView) ? requestedView : 'overview');
   } else if (signedIn && wantsNewProject) {
-    ctx.startProject();
+    let draft='';if(startupParams.get('guided')==='1'){draft=sessionStorage.getItem('nexus:guided-build') || '';sessionStorage.removeItem('nexus:guided-build');}
+    await ctx.startProject(draft);
   } else if (requestedView && FORGE_VIEWS[requestedView]) {
     await showView(requestedView);
   } else if (startupParams.get('onboarding') === '1') {

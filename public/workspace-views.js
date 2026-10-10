@@ -1,3 +1,4 @@
+import {renderBuildOptions} from './build-options.js';
 import {NEXUS_INTRO,QUICK_STARTS,renderExampleButtons,renderNexusGuide} from './nexus-guide.js';
 // /public/workspace-views.js
 //
@@ -271,7 +272,7 @@ export async function projectGallery(projects, ctx, {canCreate=true,count=projec
     gallery.appendChild(card);
   });
   const create=document.createElement('button');create.type='button';create.className='projectnew';create.innerHTML='<span aria-hidden="true">+</span><strong>New project</strong><small>Start with Nex</small>';create.onclick=()=>canCreate?(ctx.newWorkbenchPanel?ctx.newWorkbenchPanel():ctx.startProject()):ctx.ask('Show me project plan options.');if(!canCreate){create.querySelector('strong').textContent='Project limit reached';create.querySelector('small').textContent='See plan options';}gallery.append(create);
-  const ways=document.createElement('button');ways.type='button';ways.className='projectways';ways.innerHTML='<span class="projectwaysart" aria-hidden="true"><i>▣</i><i>▯</i><i>⌁</i></span><strong>More ways to build</strong><small>Site&nbsp;&nbsp;·&nbsp;&nbsp;App&nbsp;&nbsp;·&nbsp;&nbsp;Tool</small><b aria-hidden="true">›</b>';ways.onclick=()=>canCreate?(ctx.newWorkbenchPanel?ctx.newWorkbenchPanel():ctx.startProject()):ctx.ask('Show me project plan options.');gallery.append(ways);
+  const ways=document.createElement('button');ways.type='button';ways.className='projectways';ways.innerHTML='<span class="projectwaysart" aria-hidden="true"><i>▣</i><i>▯</i><i>⌁</i></span><strong>More ways to build</strong><small>Site&nbsp;&nbsp;·&nbsp;&nbsp;App&nbsp;&nbsp;·&nbsp;&nbsp;Tool</small><b aria-hidden="true">›</b>';ways.onclick=()=>{filters.hidden=true;gallery.hidden=true;const picker=renderBuildOptions({canCreate,onBack:()=>{picker.remove();filters.hidden=false;gallery.hidden=false;ways.focus();},onStart:brief=>ctx.newWorkbenchPanel?ctx.newWorkbenchPanel(brief):ctx.startProject(brief),onPlans:()=>ctx.openUsage?ctx.openUsage():ctx.ask('Show me project plan options.')});shelf.append(picker);picker.querySelector('h2').focus();};gallery.append(ways);
   return shelf;
 }
 
