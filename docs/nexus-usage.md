@@ -2,7 +2,7 @@
 
 Free includes limited Nex chat, Calendar, Reminders, phone notifications, and one demo project. Pro is $10/month with Life and three projects; Plus is $20/month with Life, six projects, and twice the Pro allowance. Operators remain exempt.
 
-The public API and account screen expose percentages and reset times, never internal units. Included allowances reset independently after five hours and seven days, anchored when the account first reads or uses its allowance. Manual scheduling, reminders, check-ins, and notification delivery do not reserve AI usage.
+Signed-in customers can open `/usage.html` directly from the pricing screen or builder; this page does not require the owner workspace login. Checkout and billing portal return here. The public API and account screen expose percentages and reset times, never internal units. Included allowances reset independently after five hours and seven days, anchored when the account first reads or uses its allowance. Manual scheduling, reminders, check-ins, and notification delivery do not reserve AI usage.
 
 `lib/nexusUsage.js` contains the initial tunable safety allocations and shares the ledger across customer model calls. These weighted action allocations are not measured GPU costs or token billing. Adjust them after measuring production costs and workload mixes. Internal action weights remain in `lib/forgePricing.js`; purchased $6 packs currently supply 30 internal units. Pack capacity is independent of a subscriber's percentage denominator.
 

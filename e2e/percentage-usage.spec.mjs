@@ -20,9 +20,7 @@ test('paid account sees percentages, opts into extra usage, refreshes, and opens
   if(handler){const res={code:200,setHeader(){},status(code){this.code=code;return this;},json(body){this.body=body;return this;}};await handler({method:route.request().method(),body:route.request().method()==='POST'?route.request().postDataJSON():undefined},res);return route.fulfill({status:res.code,json:res.body});}
   return route.fulfill({json:path==='/api/nexus-auth'?{authenticated:true,owner:{id:'justin'}}:path==='/api/nexus-messages'?{specialists:[],groups:[],pinned_system_ids:[]}:path==='/api/chat'?{threads:[],messages:[]}:{items:[]}});
  });
- await page.goto('/workspace.html?view=messages');
- await expect(page.getByRole('navigation',{name:'Your Nexus spaces'})).toBeVisible();
- await page.evaluate(async()=>{const {renderAccountControls}=await import('/nexus-controls.js');const root=document.querySelector('.homespacegrid').parentElement;await renderAccountControls(root,{go(){},openSystem(){}},()=>{}, {},'usage');});
+ await page.goto('/usage.html');
  await expect(page.getByText('65% remaining',{exact:true})).toBeVisible();await expect(page.getByText('80% remaining',{exact:true})).toBeVisible();await expect(page.getByText('75% remaining',{exact:true})).toBeVisible();
  await expect(page.getByText(/credits remaining|credits left|\d+ credits/i)).toHaveCount(0);
  await page.getByRole('button',{name:'Use extra allowance when included usage runs out',exact:true}).click();await expect(page.getByRole('button',{name:'Stop using extra allowance',exact:true})).toBeVisible();expect(enabled).toBe(true);

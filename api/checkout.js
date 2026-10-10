@@ -55,7 +55,7 @@ export function createCheckoutHandler({resolveUser=getRequestUser,resolvePlan=ge
     if (!resolved) return res.status(400).json({ error: 'Unknown price.' });
     if(resolved.kind==='plan'&&isPaidPlan(await resolvePlan(username))){
       const customer=await resolveCustomer(username);if(!customer)return res.status(409).json({error:'Your paid account needs billing support before changing plans.'});
-      const portal=await request('billing_portal/sessions',{customer,return_url:`${SITE_URL}/workspace.html?view=messages`});return res.status(200).json({url:portal.url});
+      const portal=await request('billing_portal/sessions',{customer,return_url:`${SITE_URL}/usage.html`});return res.status(200).json({url:portal.url});
     }
     const isProjectScoped = resolved.kind === 'site_agent' || resolved.kind === 'site_agent_reply_pack';
     if (isProjectScoped && (typeof projectId !== 'string' || !/^[a-zA-Z0-9_-]{1,120}$/.test(projectId))) {
@@ -73,8 +73,8 @@ export function createCheckoutHandler({resolveUser=getRequestUser,resolvePlan=ge
       ...(resolved.kind === 'credit_pack' ? { 'metadata[credits]': resolved.credits } : {}),
       ...(resolved.kind === 'site_agent' ? { 'metadata[projectId]': projectId, 'metadata[monthlyLimit]': resolved.monthlyLimit } : {}),
       ...(resolved.kind === 'site_agent_reply_pack' ? { 'metadata[projectId]': projectId, 'metadata[replies]': resolved.replies } : {}),
-      success_url: `${SITE_URL}/workspace.html?view=messages&checkout=success`,
-      cancel_url: `${SITE_URL}/workspace.html?view=messages&checkout=cancelled`,
+      success_url: `${SITE_URL}/usage.html?checkout=success`,
+      cancel_url: `${SITE_URL}/usage.html?checkout=cancelled`,
     });
 
     return res.status(200).json({ url: session.url });

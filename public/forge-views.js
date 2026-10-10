@@ -545,6 +545,7 @@ export const FORGE_VIEWS = {
         : 'Need more AI usage? Buy an extra-usage pack, then enable it in Usage & limits.'));
 
       nodes.push(chips([
+        { label: 'Usage & limits', run: () => location.assign('/usage.html') },
         { label: 'Get a usage pack', run: () => ctx.buyUsagePack?.() },
       ]));
       return nodes;
