@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createTeamRunStore,teamAssignmentMode,WORKER_LEASE_MS} from '../lib/teamRuns.js';
+import {teamQuestion} from '../public/team-question.js';
 import {createTeamRunner,ownerRepositoryResearch} from '../lib/teamRunner.js';
 import {createTeamMessagesHandler} from '../lib/teamMessagesHandler.js';
 import {parseTeamMentions,teamHandles} from '../public/team-mentions.js';
@@ -380,7 +381,7 @@ test('research recovers from more than three provider outages but stops for a us
   const runner=createTeamRunner({runs,now,messages:{overview:async()=>({groups:[{id:'group-launch',member_ids:[members[0].id]}],specialists:[members[0]]})},mode:async()=>({mode:'engaged'}),history:async()=>null,ask:async()=>++calls<5?{reply:'Provider unavailable',provider:'none'}:{reply:'Which private repository should I read?',provider:'nex-pod',question:{question:'Which repository?'},runState:{state:'waiting',blocker:'needs_user_input'}}});
   const run=await runs.create('justin','group-launch',[members[0]],'Research options','request-research-outage',{includeNex:false,autoStart:true});
   for(let i=0;i<5;i++){await runner.execute('justin','group-launch',run.id);advance(300001);}
-  const [saved]=await runs.list('justin','group-launch');assert.equal(calls,5);assert.equal(saved.state,'blocked');assert.equal(await runs.claim('justin','group-launch',run.id),null);
+  const [saved]=await runs.list('justin','group-launch');assert.equal(calls,5);assert.equal(saved.state,'waiting_input');assert.equal(await runs.claim('justin','group-launch',run.id),null);
 });
 
 test('owner source audits give research read tools without granting writes or customer access',async()=>{
@@ -397,4 +398,44 @@ test('owner source audits give research read tools without granting writes or cu
   }});
   const run=await runs.create(owner,'group-launch',[members[0]],'Audit nexus-labs repository auth','request-source-audit',{includeNex:false,autoStart:true});await runner.execute(owner,'group-launch',run.id);assert.equal(called,true);
   const ordinary=buildConversationAccessPolicy({...members[0],kind:'specialist',execution_mode:'read_only'});assert.equal(ordinary.allowedToolNames.has('read_repo_file'),false);
+});
+
+test('a team question is answerable and resumes the same approved step with prior handoffs',async()=>{
+  const {runs,now}=fixture(),calls=[];let builderCalls=0;
+  const runner=createTeamRunner({runs,now,messages:{overview:async()=>({groups:[{id:'group-launch',member_ids:members.map(item=>item.id)}],specialists:members})},mode:async()=>({mode:'engaged'}),history:async()=>null,ask:async(prompt,h,t,c,stage,options)=>{
+    calls.push({prompt,conversation:c.conversation,resume:options.resumeRunId});
+    if(c.conversation.role==='research')return {reply:'Research brief already checked.',provider:'nex-pod'};
+    builderCalls++;
+    return builderCalls===1?{reply:'How should it track your goals?',question:{question:'How should it track your goals?',options:['Daily checklist','Weekly totals']},provider:'nex-pod',runState:{state:'waiting',blocker:'awaiting_user_input'}}:{reply:'Saved the daily checklist preview.',provider:'nex-pod',savedProject:{project_id:'workout',build_id:'saved-checklist'}};
+  }});
+  const run=await runs.create('justin','group-launch',members,'Build a workout goals page','request-answer-flow',{includeNex:false,autoStart:true});
+  await runner.execute('justin','group-launch',run.id);await runner.execute('justin','group-launch',run.id);
+  let [saved]=await runs.list('justin','group-launch');const step=saved.steps[1];await runs.act('justin','group-launch',run.id,'approve_step',step.id);
+  await runner.execute('justin','group-launch',run.id);[saved]=await runs.list('justin','group-launch');
+  assert.equal(saved.state,'waiting_input');assert.equal(saved.steps[1].error,null);assert.equal(saved.steps[1].question.options.length,2);assert.equal(await runs.claim('justin','group-launch',run.id),null);
+  const question=saved.steps[1].question;const grants=JSON.stringify({scopes:saved.steps[1].scopes,approved:saved.steps[1].approved_at});
+  await assert.rejects(runs.act('justin','group-launch',run.id,'answer',step.id,null,{question_id:question.id,answer:' '}),/Enter an answer/);
+  await assert.rejects(runs.act('bob','group-launch',run.id,'answer',step.id,null,{question_id:question.id,answer:'Daily'}),/no longer available/);
+  await assert.rejects(runs.act('justin','group-launch',run.id,'answer',step.id,null,{question_id:'stale',answer:'Daily'}),/no longer waiting/);
+  const queued=await runs.act('justin','group-launch',run.id,'answer',step.id,null,{question_id:question.id,answer:'Daily checklist'});
+  assert.equal(queued.state,'queued');assert.equal(queued.steps[0].attempts,1);assert.equal(JSON.stringify({scopes:queued.steps[1].scopes,approved:queued.steps[1].approved_at}),grants);
+  await assert.rejects(runs.act('justin','group-launch',run.id,'answer',step.id,null,{question_id:question.id,answer:'duplicate'}),/no longer waiting/);
+  await runner.execute('justin','group-launch',run.id);[saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'completed');assert.equal(saved.steps[0].attempts,1);
+  assert.match(calls[2].prompt,/Daily checklist/);assert.match(calls[2].prompt,/Research brief already checked/);assert.equal(calls[1].resume,calls[2].resume);
+});
+
+test('legacy awaiting-input cards accept an answer and cancellation prevents stale answers',async()=>{
+  const {runs}=fixture();const run=await runs.create('justin','group-launch',[members[0]],'Research workouts','request-old-question',{includeNex:false,autoStart:true});
+  const claimed=await runs.claim('justin','group-launch',run.id);let saved=await runs.settle('justin','group-launch',run.id,claimed.step.id,claimed.step.token,{state:'blocked',result:'Which goal?',error:'The specialist could not finish: awaiting_user_input.'});
+  const q=teamQuestion(saved,saved.steps[0]);assert.equal(q.question,'Which goal?');
+  saved=await runs.act('justin','group-launch',run.id,'answer',claimed.step.id,null,{question_id:q.id,answer:'Strength'});assert.equal(saved.state,'queued');assert.equal(saved.steps[0].answers[0].answer,'Strength');
+  await runs.act('justin','group-launch',run.id,'cancel');await assert.rejects(runs.act('justin','group-launch',run.id,'answer',claimed.step.id,null,{question_id:q.id,answer:'More'}),/no longer waiting/);
+});
+
+test('team answer API schedules continuation and returns the saved answer without worker credentials',async()=>{
+ const {runs}=fixture();const run=await runs.create('justin','group-launch',[members[0]],'Research workouts','request-question-api',{includeNex:false,autoStart:true});const claimed=await runs.claim('justin','group-launch',run.id);
+ await runs.settle('justin','group-launch',run.id,claimed.step.id,claimed.step.token,{state:'waiting_input',question:{id:'question-one',question:'Which goal?',options:['Strength']}});
+ const scheduled=[],tracked=[];const handler=createTeamMessagesHandler({runs,runner:{group:async()=>({id:'group-launch',members}),execute:async()=>false},missions:{track:async(...args)=>tracked.push(args)},schedule:task=>scheduled.push(task)}),out=res();
+ await handler({method:'POST',body:{action:'team_answer',group_id:'group-launch',run_id:run.id,step_id:claimed.step.id,question_id:'question-one',answer:'Strength',owner:'someone-else'}},out,{id:'justin'});
+ assert.equal(out.code,200);assert.equal(out.body.run.state,'queued');assert.equal(out.body.run.steps[0].answers[0].answer,'Strength');assert.equal(out.body.run.steps[0].token,undefined);assert.equal(scheduled.length,1);assert.equal(tracked[0][0],'justin');await scheduled[0]();
 });
