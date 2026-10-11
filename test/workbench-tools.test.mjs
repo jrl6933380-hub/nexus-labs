@@ -89,3 +89,15 @@ test('two rejected saves lead to a corrected input and a real saved Projects pre
   assert.equal(saved[0].html,html);assert.equal(saved[0].owner,'alice');
   await assert.rejects(executeWorkbenchTool('save_workbench_project',{project_id:'ok',html:{body:'bad'}},context,deps),/Fix html/);
 });
+
+
+test('owner background saves use the same Workbench account as the visible shelf',async()=>{
+ const touched=[],projects=Array.from({length:12},(_,i)=>({projectId:'old-'+i}));
+ const deps={projectLock:async(owner,task)=>task(),historyFactory:options=>createHistoryHandler({...options,
+  readLatestProject:async(owner)=>{touched.push(owner);return null;},readProjects:async(owner)=>{touched.push(owner);return projects;},resolvePlan:async()=> 'free',
+  writeBuild:async(owner,input)=>{touched.push(owner);return {...input,id:'new-build'};},
+ })};
+ const result=await executeWorkbenchTool('save_workbench_project',{project_id:'fresh',html:'<!doctype html><html>Workout</html>'},{userId:'justin',workbenchUserId:'Mrlopez'},deps);
+ assert.equal(result.saved,true);assert.ok(touched.length>=3);assert.ok(touched.every(owner=>owner==='Mrlopez'));
+ await assert.rejects(executeWorkbenchTool('save_workbench_project',{project_id:'other',html:'<html>Other</html>'},{userId:'customer'},deps),error=>error.status===402);
+});
