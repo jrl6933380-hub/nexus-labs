@@ -59,10 +59,13 @@ export async function renderAccountControls(root,ctx,back,actions,initialView='a
   }
   function usageView(initial){
     head(root,'Usage & limits','Your included allowance and extra usage.',initialView==='usage' ? back : open);
-    const usagePanel=el('div'),status=el('p',undefined,'messageformstatus');status.setAttribute('role','status');root.append(usagePanel,status);
+    const navigation=el('nav',undefined,'usage-nav');navigation.setAttribute('aria-label','Usage page sections');
+    for(const [id,label] of [['allowance','Usage'],['packs','Usage packs'],['plans','Plans']])navigation.append(button(label,()=>{const section=usagePanel.querySelector(`[data-usage-section="${id}"]`);section?.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});section?.focus({preventScroll:true});},'usage-nav-button'));
+    const usagePanel=el('div',undefined,'usage-sections'),status=el('p',undefined,'messageformstatus');status.setAttribute('role','status');root.append(navigation,usagePanel,status);
+    function destination(section,id){section.dataset.usageSection=id;section.tabIndex=-1;section.classList.add('usage-section');return section;}
     function paint(data){
       usagePanel.replaceChildren();const usage=data.usage,limits=data.usageLimits,exempt=data.account.exempt;
-      const section=group(usagePanel,'AI usage');
+      const section=destination(group(usagePanel,'AI usage'),'allowance');
       section.append(el('p',exempt?'Owner account · no usage cap':`${data.account.plan} plan`,'controlsummary'));
       function bar(label,pool){
         const card=el('div',undefined,'usagecard'),heading=el('div',undefined,'usageheading');
@@ -75,16 +78,25 @@ export async function renderAccountControls(root,ctx,back,actions,initialView='a
       bar('Weekly allowance',limits?.weekly||{percentRemaining:100,resetAt:null});
       const extra=limits?.extra||{percentRemaining:0,available:false,enabled:false};
       if(!exempt){
-        const extraSection=group(usagePanel,'Extra usage'),heading=el('div',undefined,'usageheading');heading.append(el('strong','Extra usage'),el('span',`${extra.percentRemaining}% remaining`));
+        const extraSection=destination(group(usagePanel,'Usage packs'),'packs'),heading=el('div',undefined,'usageheading');heading.append(el('strong','Extra usage'),el('span',`${extra.percentRemaining}% remaining`));
         const progress=el('progress');progress.max=100;progress.value=extra.percentRemaining;progress.setAttribute('aria-label','Extra usage remaining');extraSection.append(heading,progress,el('p','Included usage is used first. Extra usage carries forward and never unlocks additional plan features.','controlnote'));
         const toggle=button(extra.enabled?'Stop using extra allowance':'Use extra allowance when included usage runs out',async()=>{
           toggle.disabled=true;try{const response=await fetch('/api/room-usage',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'extra_usage',enabled:!extra.enabled})});const payload=await response.json();if(!response.ok)throw Error(payload.error||'Could not update extra usage');await refresh();}catch(error){status.textContent=error.message;toggle.disabled=false;}
         });toggle.disabled=!extra.available;extraSection.append(toggle);
         extraSection.append(button('Buy a usage pack · $6',()=>buyPack(), 'uxprimary messagecontinue'));
       }
-      const plans=group(usagePanel,'Nexus plans');
-      plans.append(el('p','Free · Limited Nex chat, Calendar, Reminders, phone notifications, and one demo project.','controlnote'),el('p','Pro · $10/month · Nexus Life, builder, 3 projects, standard AI usage.','controlnote'),el('p','Plus · $20/month · Nexus Life, builder, 6 projects, twice the included Pro allowance.','controlnote'));
-      if(!exempt)plans.append(button('Choose Pro · $10/month',()=>buyPack('nexus_pro_monthly')),button('Choose Plus · $20/month',()=>buyPack('nexus_plus_monthly')));
+      if(exempt)destination(group(usagePanel,'Usage packs'),'packs').append(el('p','Your owner account has no usage cap. You do not need a usage pack.','controlnote'));
+      const plans=destination(group(usagePanel,'Nexus plans'),'plans'),grid=el('div',undefined,'usage-plan-grid');plans.append(el('p','Choose the space and AI allowance that fit how you use Nexus.','controlnote'),grid);
+      const current=String(data.account.plan).toLowerCase();
+      for(const plan of [
+        {id:'free',name:'Free',price:'$0',copy:'Start with the everyday essentials.',features:['Limited Nex chat','Calendar & Reminders','Phone notifications','1 demo project']},
+        {id:'pro',name:'Pro',price:'$10',copy:'Plan your life and build your ideas.',features:['Everything in Free','Nexus Life','Builder · 3 projects','Standard AI allowance'],checkout:'nexus_pro_monthly'},
+        {id:'plus',name:'Plus',price:'$20',copy:'More room for everything you’re making.',features:['Everything in Pro','6 projects','2× the included Pro allowance'],checkout:'nexus_plus_monthly'}
+      ]){
+        const card=el('article',undefined,`usage-plan usage-plan-${plan.id}`),top=el('div',undefined,'usage-plan-top');top.append(el('h4',plan.name));if(!exempt&&current===plan.id)top.append(el('span','Your plan','usage-plan-badge'));else if(plan.id==='plus')top.append(el('span','More capacity','usage-plan-badge'));
+        const price=el('p',undefined,'usage-plan-price');price.append(el('strong',plan.price),el('span',plan.id==='free'?' / forever':' / month'));const list=el('ul');for(const feature of plan.features)list.append(el('li',feature));card.append(top,price,el('p',plan.copy,'usage-plan-copy'),list);
+        if(!exempt&&plan.checkout){const choose=button(current===plan.id?'Current plan':`Choose ${plan.name} · ${plan.price}/month`,()=>buyPack(plan.checkout),'usage-plan-action');choose.disabled=current===plan.id;card.append(choose);}grid.append(card);
+      }
       section.append(el('p','Manual Calendar and Reminder actions and saved phone notifications never use your AI allowance.','controlnote'));
       if(exempt&&usage?.days){const today=usage.days[0],week=usage.days.reduce((sum,day)=>sum+day.turns,0);section.append(el('p',`${today.turns} completed turns today · ${week} in the last 7 UTC days`,'controlnote'));}
       status.textContent=`Updated ${new Date(limits?.updatedAt||usage?.updatedAt||Date.now()).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',second:'2-digit'})} · refreshes every 15 seconds`;
