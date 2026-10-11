@@ -25,7 +25,7 @@ function chat(){const area=node('section');area.setAttribute('aria-label','Nex c
 async function sendMessage(message){if(!message?.trim()||busy)return;busy=true;el('send').disabled=true;
   try{if(view!=='chat')await go('chat');turns.push({role:'user',text:message});root.replaceChildren(chat());const chatRevision=revision;const pending=node('p','Nex is thinking…','customer-turn');pending.setAttribute('role','status');root.append(pending);
     const context={};for(const [name,url] of [['calendar','/api/planner'],['reminders','/api/reminders'],['life','/api/life']]){try{context[name]=await api(url);}catch{}}
-    const result=await api('/api/room-assistant',{surface:'nexus',message,context});turns.push({role:'assistant',text:result.message||'What would you like to do next?'});if(view!=='chat'||revision!==chatRevision)return;root.replaceChildren(chat());
+    const result=await api('/api/room-assistant',{surface:'nexus',message,context,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone});turns.push({role:'assistant',text:result.message||'What would you like to do next?'});if(view!=='chat'||revision!==chatRevision)return;root.replaceChildren(chat());
     if(result.kind==='build'&&result.instruction){const actions=node('div',undefined,'customer-actions');actions.append(button('Build with Nex',()=>{sessionStorage.setItem('nexus:guided-build',result.instruction);workbench('view=chat&new=1&guided=1');}));root.append(actions);}
   }catch(error){if(view==='chat')root.append(node('p',error.message,'customer-error'));el('message').value=message;}finally{busy=false;el('send').disabled=false;}
 }
