@@ -66,6 +66,7 @@ export async function renderAccountControls(root,ctx,back,actions,initialView='a
     function paint(data){
       usagePanel.replaceChildren();const usage=data.usage,limits=data.usageLimits,exempt=data.account.exempt;
       const section=destination(group(usagePanel,'AI usage'),'allowance');
+      section.append(el('p','AI usage reflects conversation context, generated answers, reasoning, and each model call in a task. Manual actions and waiting in the app do not use AI allowance. If the runtime cannot report usage, a conservative estimate applies.','controlnote'));
       section.append(el('p',exempt?'Owner account · no usage cap':`${data.account.plan} plan`,'controlsummary'));
       function bar(label,pool){
         const card=el('div',undefined,'usagecard'),heading=el('div',undefined,'usageheading');
@@ -79,7 +80,7 @@ export async function renderAccountControls(root,ctx,back,actions,initialView='a
       const extra=limits?.extra||{percentRemaining:0,available:false,enabled:false};
       if(!exempt){
         const extraSection=destination(group(usagePanel,'Usage packs'),'packs'),heading=el('div',undefined,'usageheading');heading.append(el('strong','Extra usage'),el('span',`${extra.percentRemaining}% remaining`));
-        const progress=el('progress');progress.max=100;progress.value=extra.percentRemaining;progress.setAttribute('aria-label','Extra usage remaining');extraSection.append(heading,progress,el('p','Included usage is used first. Extra usage carries forward and never unlocks additional plan features.','controlnote'));
+        const progress=el('progress');progress.max=100;progress.value=extra.percentRemaining;progress.setAttribute('aria-label','Extra usage remaining');extraSection.append(heading,progress,el('p','Included usage is used first. Packs add AI allowance, not a fixed number of messages or builds. Extra usage carries forward and never unlocks additional plan features.','controlnote'));
         const toggle=button(extra.enabled?'Stop using extra allowance':'Use extra allowance when included usage runs out',async()=>{
           toggle.disabled=true;try{const response=await fetch('/api/room-usage',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'extra_usage',enabled:!extra.enabled})});const payload=await response.json();if(!response.ok)throw Error(payload.error||'Could not update extra usage');await refresh();}catch(error){status.textContent=error.message;toggle.disabled=false;}
         });toggle.disabled=!extra.available;extraSection.append(toggle);
