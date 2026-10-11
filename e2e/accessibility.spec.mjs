@@ -321,3 +321,6 @@ test.describe('mobile build feedback', () => {
 // Exercise group missions alongside the existing mobile/browser checks.
 import {registerTeamChatChecks} from './team-chat-checks.mjs';
 registerTeamChatChecks();
+
+import {registerUnifiedEntryChecks} from './unified-entry-checks.mjs';
+registerUnifiedEntryChecks();

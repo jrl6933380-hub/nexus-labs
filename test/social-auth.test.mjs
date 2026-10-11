@@ -30,7 +30,7 @@ test('social callback creates a normal private account session',async()=>{
 });
 
 test('Forge signup offers Google, Apple, and a simple manual account',()=>{
-  const html=fs.readFileSync(new URL('../public/room-login.html',import.meta.url),'utf8');
+  const html=fs.readFileSync(new URL('../public/index.html',import.meta.url),'utf8');
   const forge=fs.readFileSync(new URL('../public/forge.html',import.meta.url),'utf8');
   assert.match(html,/Continue with Google/u);assert.match(html,/Continue with Apple/u);assert.match(html,/simple-signup/u);
   assert.match(html,/placeholder="Your name"/u);assert.match(html,/placeholder="Email"/u);assert.doesNotMatch(html,/id="signup-security-question"/u);

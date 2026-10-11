@@ -37,7 +37,7 @@ export async function renderAccountControls(root,ctx,back,actions,initialView='a
     row(app,'Notifications','Turn phone alerts on or off for this device',actions.notifications);
     row(app,'Install Nexus','Open Nexus from your Home Screen',actions.install);
     const security=group(panel,'Security & data');
-    row(security,'Security and login','Manage your Nexus unlock code',()=>ctx.openSecurity());
+    row(security,'Security and login','Manage your account sign-in',()=>ctx.openSecurity());
     row(security,'Lock Nexus','Secure Nexus on this device',()=>ctx.lockNex());
     row(security,'Chat data','Keep key memories and clear recent chats',actions.clearChats);
     row(security,'Privacy','Read how your information is handled',()=>location.assign('/privacy.html'));

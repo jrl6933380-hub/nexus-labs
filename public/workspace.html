@@ -316,7 +316,7 @@ const session = await fetch('/api/nexus-auth', {
 }).catch(() => null);
 if (!session?.ok) {
   const next = encodeURIComponent(`${location.pathname}${location.search}${location.hash}`);
-  location.replace(`/nexus-login.html?next=${next}`);
+  location.replace(`/index.html?mode=owner&next=${next}`);
   await new Promise(() => {});
 }
 syncControls();
@@ -351,11 +351,11 @@ const ctx = {
   consumeMessagesDestination: () => {const value=messagesDestination;messagesDestination=null;return value;},
   focusComposer: () => { el('input').focus(); },
   draftPrompt: (text) => draftNexusExample({input:el('input'),openMain:()=>openMessagesConversation({kind:'nex',name:'Nex'})},text),
-  openSecurity: () => location.assign('/nexus-login.html?pin-setup=1&next=%2Fworkspace.html'),
+  openSecurity: () => location.assign('/index.html?mode=owner&next=%2Fworkspace.html'),
   lockNex: async () => {
     if (!confirm('Lock Nexus on this device?')) return;
     await fetch('/api/nexus-auth', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ action:'lock' }) });
-    location.replace('/nexus-login.html?next=%2Fworkspace.html');
+    location.replace('/index.html?mode=owner&next=%2Fworkspace.html');
   },
   openWorkbenchPanel: (buildId, mode = 'overview') => location.assign(`/forge.html?surface=workbench&view=${mode === 'edit' ? 'chat' : ['overview','preview','fine','add-piece'].includes(mode) ? mode : 'overview'}&build=${encodeURIComponent(buildId)}`),
   newWorkbenchPanel: (brief) => {if(brief){sessionStorage.setItem('nexus:guided-build',brief);location.assign('/forge.html?surface=workbench&view=chat&new=1&guided=1');}else location.assign('/forge.html?surface=workbench&view=chat&new=1');},
