@@ -153,7 +153,7 @@ export default async function handler(req, res) {
       const projects = await listProjects(username);
       const isExisting = projects.some((project) => (project.projectId || project.key) === resolvedProjectId);
       const allowance = workbenchProjectAllowance(await getUserPlan(username), isOperatorUser(username));
-      if (!isExisting && projects.length >= allowance.limit) {
+      if (!isExisting && allowance.limit !== null && projects.length >= allowance.limit) {
         return res.status(402).json({
           error: allowance.limit
             ? `Your ${allowance.planName} plan includes ${allowance.limit} Workbench projects. Upgrade or remove a project before starting another.`
@@ -437,7 +437,7 @@ export default async function handler(req, res) {
         if(surface==='workbench'){
           const projects=await listProjects(username);const existing=projects.some(project=>(project.projectId || project.key)===resolvedProjectId);
           const allowance=workbenchProjectAllowance(await getUserPlan(username),isOperatorUser(username));
-          if(!existing && projects.length>=allowance.limit)throw new Error('Your Projects limit was reached while this build was running. Remove a project before saving another.');
+          if(!existing && allowance.limit !== null && projects.length>=allowance.limit)throw new Error('Your Projects limit was reached while this build was running. Remove a project before saving another.');
         }
         const previous=resolvedProjectId?await getLatestBuildByProject(username,resolvedProjectId):null;
         return saveBuild(username, {
