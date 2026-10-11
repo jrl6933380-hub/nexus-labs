@@ -24,7 +24,7 @@ function fixture(){
     }
     throw new Error('Unexpected Redis command '+verb);
   };
-  return {runs:createTeamRunStore({command,now:()=>clock,id:()=>`test-${++sequence}`}),tick:()=>{clock+=WORKER_LEASE_MS+1;},advance:milliseconds=>{clock+=milliseconds;},now:()=>clock};
+  return {data,runs:createTeamRunStore({command,now:()=>clock,id:()=>`test-${++sequence}`}),tick:()=>{clock+=WORKER_LEASE_MS+1;},advance:milliseconds=>{clock+=milliseconds;},now:()=>clock};
 }
 const create=(runs,owner='justin',text='@Maya research launch ideas @Atlas build a page',request='request-one')=>runs.create(owner,'group-launch',members,text,request);
 const res=()=>({setHeader(){},status(code){this.code=code;return this;},json(body){this.body=body;return this;}});
@@ -56,7 +56,7 @@ test('chat-only visuals stay conversational even when the builder has project ac
   const runner=createTeamRunner({runs,messages:{overview:async()=>({groups:[{id:'group-launch',member_ids:[builder.id]}],specialists:[builder]})},mode:async()=>({mode:'engaged'}),history:async()=>null,ask:async(prompt,history,tier,context,onStage,toolContext)=>{calls.push({prompt,context,toolContext});return {reply:'```html\n<h1>Landscaping</h1>\n```',provider:'gateway',completionReceipt:{status:'not_required',observed:[]}};}});
   const run=await runs.create('justin','group-launch',[builder],`@Atlas ${instruction}`,'request-chat-visual',{includeNex:false,autoStart:true});
   assert.equal(run.steps[0].requires_approval,false);assert.equal(run.steps[0].execution_mode,'chat_only');assert.deepEqual(run.steps[0].scopes,['conversation']);
-  await runner.execute('justin','group-launch',run.id);const [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'completed');assert.equal(calls[0].context.conversation.execution_mode,'read_only');assert.equal(calls[0].toolContext.cognitiveLane,'chat');assert.match(calls[0].prompt,/not a square poster/);assert.match(calls[0].prompt,/Do not stack every item/);assert.match(calls[0].prompt,/specialist name is not a GitHub owner/);
+  await runner.execute('justin','group-launch',run.id);const [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'completed');assert.equal(calls[0].context.conversation.execution_mode,'read_only');assert.equal(calls[0].toolContext.cognitiveLane,'chat');assert.match(calls[0].prompt,/not a square poster/);assert.match(calls[0].prompt,/Do not stack every item/);assert.doesNotMatch(calls[0].prompt,/verify the GitHub owner\/repository/);
 });
 test('chat visuals retain their editable source for promotion to Projects',()=>{
   const source='<!doctype html><html><body><main>Editable site</main></body></html>';
@@ -468,4 +468,46 @@ test('Vida scopes the content and tracking needs before Mason builds from the ha
  await runs.act('justin','group-launch',run.id,'approve_step',saved.steps[1].id);await runner.execute('justin','group-launch',run.id);assert.match(calls[1].prompt,/Track completed workouts and weekly totals/);
  const wrongPage='Useful workout scope.\n```html\n<html><body>Wrong role implementation</body></html>\n```';
  for(const role of ['life','review','custom']){assert.match(specialistResultText(role,wrongPage),/Useful workout scope/);assert.doesNotMatch(specialistResultText(role,wrongPage),/Wrong role implementation/);}
+});
+
+
+test('explicit mentions keep every reviewer after builders and pass the exact saved result with read-only tools',async()=>{
+ const {runs}=fixture(),roster=[{id:'vera',name:'Vera',role:'review',job:'Review the result',scopes:['conversation','projects']},{...members[1],name:'Mason'}],calls=[];
+ const runner=createTeamRunner({runs,messages:{overview:async()=>({groups:[{id:'group-launch',member_ids:roster.map(m=>m.id)}],specialists:roster})},mode:async()=>({mode:'engaged'}),history:async()=>null,ask:async(prompt,h,t,context)=>{
+  calls.push({prompt,context});return calls.length===1?{reply:'Saved workout '+ 'x'.repeat(18000),provider:'gateway',savedProject:{project_id:'bodyweight-project',build_id:'workout-build',label:'Bodyweight'}}:{reply:'Checked the saved workout.',provider:'gateway'};
+ }});
+ const run=await runs.create('justin','group-launch',roster,'@Vera check the workout @Mason build a workout page','request-review-last',{includeNex:true,autoStart:true});
+ assert.deepEqual(run.steps.map(s=>s.name),['Mason','Vera','Nex']);
+ await runner.execute('justin','group-launch',run.id);await runs.act('justin','group-launch',run.id,'approve_step',run.steps[0].id);await runner.execute('justin','group-launch',run.id);await runner.execute('justin','group-launch',run.id);
+ const policy=buildConversationAccessPolicy(calls[1].context.conversation);
+ assert.equal(policy.allowedToolNames.has('read_workbench_project'),true);assert.equal(policy.allowedToolNames.has('list_workbench_projects'),true);
+ for(const name of ['save_workbench_project','commit_repo_files','manage_life'])assert.equal(policy.allowedToolNames.has(name),false);
+ const handoffs=JSON.parse(calls[1].prompt.split('Saved handoffs: ')[1].split('\n\n')[0]);
+ assert.deepEqual(handoffs[0].saved_project,{project_id:'bodyweight-project',build_id:'workout-build',label:'Bodyweight'});assert.equal(handoffs[0].truncated,true);
+ assert.match(calls[0].prompt,/create a new project for this team goal immediately/);assert.match(calls[1].prompt,/that exact project_id/);
+});
+
+test('unfinished legacy plans rerun premature reviews after the builder without reopening completed runs',async()=>{
+ const {runs,data}=fixture(),roster=[{id:'vera',name:'Vera',role:'review',scopes:['conversation','projects']},members[1]];
+ const run=await runs.create('justin','group-launch',roster,'Build a workout page','request-legacy-review',{includeNex:true,autoStart:true});
+ const builder=run.steps[0],reviewer=run.steps[1];reviewer.state='returned';reviewer.result='No build exists yet.';
+ run.steps=[reviewer,builder,run.steps[2]];data.set('nexus:team:justin:group-launch:v1',JSON.stringify([run]));
+ await runs.claim('justin','group-launch',run.id);await runs.act('justin','group-launch',run.id,'approve_step',builder.id);
+ const build=await runs.claim('justin','group-launch',run.id);assert.equal(build.step.id,builder.id);
+ await runs.settle('justin','group-launch',run.id,builder.id,build.step.token,{state:'returned',result:'Saved workout',saved_project:{project_id:'workout'}});
+ const review=await runs.claim('justin','group-launch',run.id);assert.equal(review.step.id,reviewer.id);assert.equal(review.step.previous_result,'No build exists yet.');
+ await runs.settle('justin','group-launch',run.id,reviewer.id,review.step.token,{state:'returned',result:'Checked workout'});
+ const nex=await runs.claim('justin','group-launch',run.id);await runs.settle('justin','group-launch',run.id,nex.step.id,nex.step.token,{state:'returned',result:'Done'});
+ const [done]=await runs.list('justin','group-launch');assert.equal(done.state,'completed');assert.equal(await runs.claim('justin','group-launch',run.id),null);
+});
+
+test('Mason retains his saved destination through a timeout and continues without searching unrelated projects',async()=>{
+ const {runs,advance,now}=fixture(),builder=members[1],prompts=[];
+ const runner=createTeamRunner({runs,now,messages:{overview:async()=>({groups:[{id:'group-launch',member_ids:[builder.id]}],specialists:[builder]})},mode:async()=>({mode:'engaged'}),history:async()=>null,ask:async(prompt)=>{
+  prompts.push(prompt);return prompts.length===1?{reply:'Saved checkpoint',provider:'gateway',savedProject:{project_id:'workout',build_id:'checkpoint'},runState:{state:'waiting',blocker:'runaway_safety_ceiling_hit'}}:{reply:'Finished workout.',provider:'gateway'};
+ }});
+ const run=await runs.create('justin','group-launch',[builder],'Build a workout page','request-target-resume',{includeNex:false,autoStart:true});
+ await runner.execute('justin','group-launch',run.id);await runs.act('justin','group-launch',run.id,'approve_step',run.steps[0].id);await runner.execute('justin','group-launch',run.id);advance(300000);await runner.execute('justin','group-launch',run.id);
+ assert.match(prompts[1],/Your saved build target \(resume this project\):.*"project_id":"workout"/);
+ const [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'completed');assert.equal(saved.steps[0].saved_project.project_id,'workout');
 });
