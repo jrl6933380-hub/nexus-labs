@@ -35,20 +35,14 @@ export function nextPhaseTick(plan, index, remaining, phase) {
   return { index, phase: 'rest', remaining: 0, done: true };
 }
 
-export function createCountdown({ initialSeconds, onTick, onDone }) {
+export function createCountdown({ initialSeconds, onTick, onDone, timer } = {}) {
+  const clock = timer || globalThis;
+  const setInterval = clock.setInterval.bind(clock);
+  const clearInterval = clock.clearInterval.bind(clock);
   let remaining = Math.max(0, Math.ceil(Number(initialSeconds) || 0));
   let interval = null;
   let finished = false;
   onTick?.(remaining);
-  const start = () => {
-    if (interval != null) return;
-    if (remaining <= 0) { finish(); return; }
-    interval = window.setInterval(() => {
-      remaining -= 1;
-      if (remaining <= 0) { remaining = 0; finish(); return; }
-      onTick?.(remaining);
-    }, 1000);
-  };
   const finish = () => {
     if (finished) return;
     finished = true;
@@ -57,7 +51,16 @@ export function createCountdown({ initialSeconds, onTick, onDone }) {
     onDone?.();
   };
   const stop = () => {
-    if (interval != null) { window.clearInterval(interval); interval = null; }
+    if (interval != null) { clearInterval(interval); interval = null; }
+  };
+  const start = () => {
+    if (interval != null) return;
+    if (remaining <= 0) { finish(); return; }
+    interval = setInterval(() => {
+      remaining -= 1;
+      if (remaining <= 0) { remaining = 0; finish(); return; }
+      onTick?.(remaining);
+    }, 1000);
   };
   const reset = (seconds) => {
     stop();
@@ -70,7 +73,7 @@ export function createCountdown({ initialSeconds, onTick, onDone }) {
     remaining = Math.max(0, Math.ceil(Number(seconds) || 0));
     onTick?.(remaining);
     if (remaining <= 0) { finish(); return; }
-    interval = window.setInterval(() => {
+    interval = setInterval(() => {
       remaining -= 1;
       if (remaining <= 0) { remaining = 0; finish(); return; }
       onTick?.(remaining);
