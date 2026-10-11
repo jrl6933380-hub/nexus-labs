@@ -68,3 +68,12 @@ test('a failed tool blocks the run and forces inspection before retry', () => {
   assert.match(next.nextSafeAction, /Inspect/);
   assert.equal(shouldCheckpointNexRun({ name: 'anything' }, { is_error: true }), true);
 });
+
+
+test('a new scoped team pointer persists under the same id that its next slice resumes',async()=>{
+  const runId='nex-turn-team-build-1234';
+  const first=await loadNexRunState({resumeRunId:runId,scopeId:'justin'},{getExecutionResume:async()=>null});
+  assert.equal(first.runId,runId);assert.equal(first.resumed,false);
+  const next=await loadNexRunState({resumeRunId:runId,scopeId:'justin'},{getExecutionResume:async()=>({run_id:first.runId,scope_hash:first.scopeHash,state:'waiting',last_completed_tool:'save_workbench_project',last_result:'Saved draft b1'})});
+  assert.equal(next.resumed,true);assert.equal(next.lastCompletedTool,'save_workbench_project');assert.equal(next.lastResult,'Saved draft b1');
+});

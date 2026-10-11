@@ -5,6 +5,7 @@ import {executeWorkbenchTool,projectDestination,restrictToWorkbench} from '../li
 import {buildConversationAccessPolicy} from '../lib/nexBrain.js';
 import {planCognitiveRun} from '../lib/nexCognitiveController.js';
 import {createEvidenceTracker} from '../lib/nexEvidenceGate.js';
+import {createReasoningState,registerReasoningToolCall,recordReasoningToolResult,finalizeReasoningState} from '../lib/nexReasoningLoop.js';
 import {saveTeamProjects} from '../lib/teamProjectSave.js';
 
 test('agent builds save, reopen and edit in the real Projects handler with ownership and baseline checks',async()=>{
@@ -64,4 +65,27 @@ test('a native saved team project is not duplicated by legacy HTML promotion',as
   let calls=0;
   await saveTeamProjects({},'group-workout',[{state:'completed',steps:[{state:'returned',role:'build',saved_project:{project_id:'workout'},result:'```html\n<h1>Workout</h1>\n```'}]}],{handler:async()=>{calls++;}});
   assert.equal(calls,0);
+});
+
+
+test('two rejected saves lead to a corrected input and a real saved Projects preview',async()=>{
+  const saved=[];
+  const deps={projectLock:async(owner,task)=>task(),historyFactory:options=>createHistoryHandler({...options,readLatestProject:async()=>null,readProjects:async()=>[],resolvePlan:async()=> 'pro',writeBuild:async(owner,build)=>{saved.push({...build,owner});return {...build,id:'verified-build'};}})};
+  const state=createReasoningState({message:'Build a workout timer',budgets:{continueUntilPreview:true}}),context={userId:'alice',threadId:'group-workout'};
+  const html='<!doctype html><html><title>Workout</title><body><button>Start</button></body></html>';
+  const call={name:'save_workbench_project',input:{project_id:'Body weight 1',html}};
+  for(let i=0;i<2;i++){
+    assert.equal(registerReasoningToolCall(state,call).allowed,true);
+    let message;try{await executeWorkbenchTool(call.name,call.input,context,deps);}catch(error){message=error.message;}
+    assert.match(message,/Fix project_id/);recordReasoningToolResult(state,call,{is_error:true,content:message});
+  }
+  assert.equal(state.status,'running');assert.equal(saved.length,0);
+  const fixed={...call,input:{...call.input,project_id:'bodyweight-1'}};
+  assert.equal(registerReasoningToolCall(state,fixed).allowed,true);
+  const result=await executeWorkbenchTool(fixed.name,fixed.input,context,deps);
+  recordReasoningToolResult(state,fixed,{content:JSON.stringify(result)});
+  finalizeReasoningState(state,{status:'verified',missing:[]});
+  assert.equal(state.status,'completed');assert.equal(result.saved,true);assert.equal(result.build_id,'verified-build');
+  assert.equal(saved[0].html,html);assert.equal(saved[0].owner,'alice');
+  await assert.rejects(executeWorkbenchTool('save_workbench_project',{project_id:'ok',html:{body:'bad'}},context,deps),/Fix html/);
 });

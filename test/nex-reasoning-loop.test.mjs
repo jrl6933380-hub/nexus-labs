@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   createReasoningState,
+  canReplanCompletion,
   formatReasoningState,
   recordReasoningToolResult,
   reasoningStateForCheckpoint,
@@ -199,4 +200,34 @@ test('budget exhaustion pauses both model and tool execution until resume', () =
   assert.equal(registerReasoningToolCall(state, { name: 'read_repo_file', input: { path: 'README.md' } }).allowed, false);
   assert.equal(state.status, 'waiting');
   assert.equal(registerModelStep(state).allowed, false);
+});
+
+
+test('continuing builders repair failed saves without the old step, tool, search, or replan caps',()=>{
+  const state=createReasoningState({message:'Build the workout page',now:1000,budgets:{continueUntilPreview:true,maxElapsedMs:240000}});
+  const bad={name:'save_workbench_project',input:{project_id:'Body weight 1',html:'<html>draft</html>'}};
+  for(let i=0;i<2;i++){
+    assert.equal(registerReasoningToolCall(state,bad,1000).allowed,true);
+    assert.equal(recordReasoningToolResult(state,bad,{is_error:true,content:'Fix project_id: no spaces'}).blocked,false);
+  }
+  assert.equal(state.status,'running');assert.equal(registerReasoningToolCall(state,bad,1000).allowed,false);
+  const fixed={...bad,input:{...bad.input,project_id:'bodyweight-1'}};
+  assert.equal(registerReasoningToolCall(state,fixed,1000).allowed,true);
+  recordReasoningToolResult(state,fixed,{content:'Saved build b1'});
+  for(let i=0;i<100;i++){
+    assert.equal(registerModelStep(state,1000).allowed,true);
+    assert.equal(registerReasoningToolCall(state,{name:'read_workbench_project',input:{project_id:'project-'+i}},1000).allowed,true);
+    assert.equal(registerToolSearch(state,'capability-'+i).allowed,true);
+    assert.equal(canReplanCompletion(state),true);
+  }
+  assert.equal(registerModelStep(state,241000).allowed,false);
+  assert.equal(state.status,'waiting');assert.match(state.currentStep,/continue in the next execution window/);
+});
+
+test('continuing builders resume an old blocked checkpoint but still pause for access',()=>{
+  const state=createReasoningState({message:'Repair saved workout',runState:{state:'blocked',blocker:'repeated_failure:save_workbench_project',toolCalls:90},budgets:{continueUntilPreview:true}});
+  assert.equal(state.status,'planning');assert.equal(registerModelStep(state).allowed,true);
+  const call={name:'save_workbench_project',input:{project_id:'workout'}};
+  recordReasoningToolResult(state,call,{is_error:true,needs_user_input:true,content:'Please sign in again'});
+  assert.equal(state.status,'blocked');assert.equal(state.blocker,'needs_user_input:save_workbench_project');
 });

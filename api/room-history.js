@@ -35,7 +35,9 @@ return async function handler(req, res) {
       const body = req.body && typeof req.body === 'object' ? req.body : {};
       if(body.action==='save_project_draft'){
         const projectId=String(body.projectId || ''),html=body.html;
-        if(!/^[a-zA-Z0-9_-]{1,120}$/.test(projectId) || typeof html!=='string' || !html.trim() || html.length>100000)return res.status(400).json({error:'That project draft is not valid.'});
+        if(!/^[a-zA-Z0-9_-]{1,120}$/.test(projectId))return res.status(400).json({error:'Fix projectId: use 1–120 letters, digits, underscores or hyphens, without spaces or paths.'});
+        if(typeof html!=='string' || !html.trim())return res.status(400).json({error:'Fix html: provide the complete page as a non-empty HTML string.'});
+        if(html.length>100000)return res.status(400).json({error:`Fix html: the draft has ${html.length} characters; the maximum is 100000. Remove bulk embedded data and retry.`});
         const existing=await readLatestProject(username,projectId);
         if(existing){if(existing.html===html)return res.status(200).json({build:existing,projectId,alreadySaved:true});return res.status(409).json({error:'This project already has a saved version. Reopen it before saving.'});}
         const [projects,plan]=await Promise.all([readProjects(username),resolvePlan(username)]);const allowance=workbenchProjectAllowance(plan,isOperatorUser(username));
