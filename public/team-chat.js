@@ -1,5 +1,5 @@
 import {createTaskProgress} from './task-progress.js';
-import { appendChatVisual } from './chat-visual.js';
+import { appendChatVisual, canPreviewSpecialistPage, specialistResultText } from './chat-visual.js';
 import { teamHandles } from './team-mentions.js';
 
 const node=(tag,text,cls='')=>{const element=document.createElement(tag);if(text!==undefined)element.textContent=text;element.className=cls;return element;};
@@ -80,6 +80,7 @@ export function createTeamChat({input,thread,onMessage=()=>{},onGroup=()=>{},ope
     const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error || 'The team could not save that update.');return data;
   }
   async function keepVisual(run,step,{html}){
+    if(!canPreviewSpecialistPage(step.role))throw new Error('Only the builder’s page can be saved as a team project.');
     const response=await fetch('/api/room-history',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'save_chat_visual',html,label:run.goal || `${step.name} build`,requestMessage:run.message || step.instruction || '',promotionId:`${run.id}-${step.id}`,sourceConversation:{kind:'team',id:group.id,runId:run.id}})});
     const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error || 'This build could not be saved to Projects.');
     return data;
@@ -135,8 +136,8 @@ export function createTeamChat({input,thread,onMessage=()=>{},onGroup=()=>{},ope
         if(step.approval_source==='conversation_grant')copy.append(node('small','Already approved for this project.','teamscopes'));
         if(step.updates?.length){const key=`progress-${run.id}-${step.id}`,task=createTaskProgress(step.updates,{running:!step.result && !step.error,open:expanded.has(key) || (!step.result && !step.error)});task.element.dataset.step=key;copy.append(task.element);}
         if(step.result){
-          const visual=appendChatVisual(copy,step.result,step.name,{saveKey:`${run.id}-${step.id}`,onPromote:payload=>keepVisual(run,step,payload)});
-          if(!visual){const details=node('details');details.dataset.step=step.id;details.open=expanded.has(step.id);details.append(node('summary',resultLabel(step)),node('div',step.result,'teamresult'));if(step.evidence?.status==='verified')details.append(node('small','Checked against the available information.','teamevidence'));else if(step.evidence?.missing?.length)details.append(node('small','Some details could not be fully checked.','teamevidence'));copy.append(details);}
+          const visual=canPreviewSpecialistPage(step.role)?appendChatVisual(copy,step.result,step.name,{saveKey:`${run.id}-${step.id}`,onPromote:payload=>keepVisual(run,step,payload)}):null;
+          if(!visual){const details=node('details');details.dataset.step=step.id;details.open=expanded.has(step.id);details.append(node('summary',resultLabel(step)),node('div',specialistResultText(step.role,step.result),'teamresult'));if(step.evidence?.status==='verified')details.append(node('small','Checked against the available information.','teamevidence'));else if(step.evidence?.missing?.length)details.append(node('small','Some details could not be fully checked.','teamevidence'));copy.append(details);}
         }
         if(step.error)copy.append(node('p',step.error,'teamerror'));
         if(step.pending_approval)mergeApproval(copy,step.pending_approval,announce,async()=>{await api('team_resolve_approval',{run_id:run.id,step_id:step.id,approval_id:step.pending_approval.id});signature='';await refresh();});

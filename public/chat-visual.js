@@ -5,6 +5,16 @@ export function chatVisualHtml(result) {
   if(!match || match[1].length>50000)return null;
   return match[1];
 }
+export function canPreviewSpecialistPage(role) { return role==='build'; }
+export function hasCompletePage(result) {
+  const html=chatVisualHtml(result);
+  return Boolean(html && /<!doctype\s+html|<html(?:\s|>)|<body(?:\s|>)/iu.test(html));
+}
+export function specialistResultText(role,result) {
+  if(role!=='research' || !hasCompletePage(result))return String(result || '');
+  const brief=String(result).replace(/```html\s*\n[\s\S]*?\n```/giu,'').trim();
+  return [brief,'This response included a page instead of a research brief. Mason handles page building.'].filter(Boolean).join('\n\n');
+}
 export function chatVisualDocument(result) {
   const html=chatVisualHtml(result);if(!html)return null;
   return '<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'none\'; style-src \'unsafe-inline\'; img-src data:; font-src data:; connect-src \'none\'; form-action \'none\'; base-uri \'none\'"></head><body>'+html+'</body></html>';
