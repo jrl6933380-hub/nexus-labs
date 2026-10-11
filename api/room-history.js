@@ -41,7 +41,7 @@ return async function handler(req, res) {
         const existing=await readLatestProject(username,projectId);
         if(existing){if(existing.html===html)return res.status(200).json({build:existing,projectId,alreadySaved:true});return res.status(409).json({error:'This project already has a saved version. Reopen it before saving.'});}
         const [projects,plan]=await Promise.all([readProjects(username),resolvePlan(username)]);const allowance=workbenchProjectAllowance(plan,isOperatorUser(username));
-        if(projects.length>=allowance.limit)return res.status(402).json({error:'Your Projects limit is reached.',code:'PROJECT_LIMIT_REACHED'});
+        if(allowance.limit !== null && projects.length>=allowance.limit)return res.status(402).json({error:'Your Projects limit is reached.',code:'PROJECT_LIMIT_REACHED'});
         const build=await writeBuild(username,{projectId,html,label:projectDocumentTitle(html,body.label),requestMessage:String(body.requestMessage || '').slice(0,4000),sourceConversation:body.sourceConversation});
         return res.status(201).json({build,projectId});
       }
@@ -69,7 +69,7 @@ return async function handler(req, res) {
       if (existing) return res.status(200).json({ build: existing, projectId, alreadySaved: true });
       const [projects, plan] = await Promise.all([readProjects(username), resolvePlan(username)]);
       const allowance = workbenchProjectAllowance(plan, isOperatorUser(username));
-      if (projects.length >= allowance.limit) {
+      if (allowance.limit !== null && projects.length >= allowance.limit) {
         return res.status(402).json({ error: `Your ${allowance.planName} plan has reached its Projects limit.`, code: 'PROJECT_LIMIT_REACHED' });
       }
       const build = await writeBuild(username, {
@@ -171,7 +171,7 @@ return async function handler(req, res) {
         count: withLive.length,
         limit: allowance.limit,
         planName: allowance.planName,
-        canCreate: withLive.length < allowance.limit,
+        canCreate: allowance.limit === null || withLive.length < allowance.limit,
       },
     });
   } catch (err) {

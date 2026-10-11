@@ -40,7 +40,7 @@ export function appendChatVisual(host,result,name,{onPromote,saveKey}={}) {
         keep.onclick=()=>location.assign(`/forge.html?surface=workbench&view=chat&build=${encodeURIComponent(saved.build.id)}`);
       }catch(error){savedVisuals.delete(key);keep.disabled=false;keep.textContent='Retry saving';note.textContent=error?.message || 'This build could not be saved.';note.classList.add('teamerror');keep.onclick=save;}
     };
-    save();
+    keep.onclick=save;
     actions.append(keep,note);host.append(actions);
   }
   return frame;

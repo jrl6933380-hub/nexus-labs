@@ -560,7 +560,7 @@ export const FORGE_VIEWS = {
       if (ctx.surface?.() === 'workbench') {
         const payload=await getJSON('/api/room-history');
         const projects=pick(payload,'projects','builds');
-        return [await projectGallery(projects,ctx,{canCreate:payload.workbench?.canCreate!==false,count:projects.length,limit:payload.workbench?.limit ?? 10})];
+        return [await projectGallery(projects,ctx,{canCreate:payload.workbench?.canCreate!==false,count:projects.length,limit:payload.workbench?.limit === null ? null : payload.workbench?.limit ?? 10})];
       }
       const nodes = [];
       let history = null;

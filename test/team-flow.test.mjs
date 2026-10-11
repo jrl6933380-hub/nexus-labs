@@ -511,3 +511,14 @@ test('Mason retains his saved destination through a timeout and continues withou
  assert.match(prompts[1],/Your saved build target \(resume this project\):.*"project_id":"workout"/);
  const [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'completed');assert.equal(saved.steps[0].saved_project.project_id,'workout');
 });
+
+
+test('blocked save cards show the actual required action instead of an internal blocker code',async()=>{
+ const {runs}=fixture(),builder=members[1];
+ const runner=createTeamRunner({runs,messages:{overview:async()=>({groups:[{id:'group-launch',member_ids:[builder.id]}],specialists:[builder]})},mode:async()=>({mode:'engaged'}),history:async()=>null,ask:async(p,h,t,c,stage,tools)=>{
+  assert.equal(tools.userId,'justin');assert.equal(tools.workbenchUserId,'Mrlopez');
+  return {reply:'The build needs your attention: Your Projects limit is reached. Open Projects to manage saved work.',provider:'gateway',runState:{state:'blocked',blocker:'needs_user_input:save_workbench_project'}};
+ }});
+ const run=await runs.create('justin','group-launch',[builder],'Build a workout page','request-save-action',{includeNex:false,autoStart:true});await runner.execute('justin','group-launch',run.id);await runs.act('justin','group-launch',run.id,'approve_step',run.steps[0].id);await runner.execute('justin','group-launch',run.id);
+ const [saved]=await runs.list('justin','group-launch');assert.match(saved.steps[0].error,/Open Projects/);assert.doesNotMatch(saved.steps[0].error,/needs_user_input/);
+});

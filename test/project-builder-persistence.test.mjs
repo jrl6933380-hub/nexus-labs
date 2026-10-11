@@ -31,7 +31,7 @@ test('completed team output saves once with its original run; unrelated activity
  await saveTeamProjects({},'group-garden',[{...runs[0],state:'running'}],{handler:f.handler});assert.equal(f.writes.length,1);
 });
 test('new visual requests stop at capacity before model work; ordinary conversation remains available',async()=>{
- const f=fixture({plan:'free',initial:[]});await assert.rejects(checkNewVisualCapacity({},'Build a website',{handler:f.handler}),error=>error.status===402);await checkNewVisualCapacity({},'Research lawn pricing',{handler:f.handler});
+ const f=fixture({plan:'free',initial:[{id:'free-existing',projectId:'existing',html:samplePage}]});await assert.rejects(checkNewVisualCapacity({},'Build a website',{handler:f.handler}),error=>error.status===402);await checkNewVisualCapacity({},'Research lawn pricing',{handler:f.handler});
 });
 test('concurrent save cannot enter another account-scoped save; lock releases on failure',async()=>{
  const held=new Map();const command=async([op,key,value])=>{if(op==='SET'){if(held.has(key))return null;held.set(key,value);return 'OK';}if(op==='EVAL'){held.clear();return 1;}};
@@ -57,5 +57,14 @@ test('a failed first builder save can recover idempotently without overwriting a
  const f=fixture({initial:[]}),body={action:'save_project_draft',projectId:'builder-first',html:samplePage};
  f.setFailure(true);assert.equal((await f.request(body)).code,500);f.setFailure(false);const saved=await f.request(body);assert.equal(saved.code,201);assert.equal((await f.request(body)).code,200);assert.equal(f.writes.length,1);
  assert.equal((await f.request({...body,html:'<p>Overwrite</p>'})).code,409);assert.equal(f.writes.length,1);
- const free=fixture({plan:'free',initial:[]});assert.equal((await free.request(body)).code,402);assert.equal(free.writes.length,0);
+ const free=fixture({plan:'free',initial:[{id:'free-existing',projectId:'existing',html:samplePage}]});assert.equal((await free.request(body)).code,402);assert.equal(free.writes.length,0);
+});
+
+
+test('HTML examples and chat-only previews do not automatically become Projects',async()=>{
+ const f=fixture({initial:[]});
+ assert.equal(await saveChatProject({},'nex-main','```html\n<h1>Example</h1>\n```','Explain this HTML',{handler:f.handler}),null);
+ assert.equal(await saveChatProject({},'nex-main','```html\n'+samplePage+'\n```','Build a site in this chat only',{handler:f.handler}),null);
+ await saveTeamProjects({},'team',[{state:'completed',steps:[{state:'returned',role:'build',execution_mode:'chat_only',result:'```html\n'+samplePage+'\n```'}]}],{handler:f.handler});
+ assert.equal(f.writes.length,0);
 });
