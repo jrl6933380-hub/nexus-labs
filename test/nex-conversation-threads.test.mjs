@@ -63,3 +63,15 @@ test('thread ids fail closed and deletion is scoped to the selected id', async (
   assert.equal(await loadConversationThread('mrlopez', 'first'), null);
   assert.ok(await loadConversationThread('mrlopez', 'second'));
 });
+
+test('public progress stays attached above its final answer after cloud reload', async () => {
+  await saveConversationThread('mrlopez', {id:'progress',messages:[
+    {role:'user',content:'Build this',progress:[{text:'user metadata'}]},
+    {role:'assistant',content:'Finished.',progress:[{text:'Checking the result.',thinking:'private',input:{secret:'hidden'}},{text:'Checking the result.'},{text:'```json\n{"secret":true}\n```Saved the result.'}]},
+  ]});
+  const {messages}=await loadConversationThread('mrlopez','progress');
+  assert.equal(messages.length,2);
+  assert.equal(messages[0].progress,undefined);
+  assert.deepEqual(messages[1].progress,[{text:'Checking the result.'},{text:'Saved the result.'}]);
+  assert.equal(messages[1].content,'Finished.');
+});
