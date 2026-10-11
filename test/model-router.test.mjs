@@ -20,6 +20,20 @@ function response({ ok = true, status = 200, json = {}, text = '' } = {}) {
   };
 }
 
+test('a reasoning-only exhausted pod response recovers once without exposing reasoning or replaying tools',async()=>{
+  _resetPodCacheForTests();const requests=[];
+  const result=await routeMessage({preferPod:true,thinkingEnabled:true,body:{messages:[{role:'user',content:'Build my timer'}]},env:{NEX_QWEN_ONLY:'true',RUNPOD_API_KEY:'rp',NEX_POD_KEY:'pk'},fetchFn:async(url,options)=>{
+    if(url==='https://rest.runpod.io/v1/pods')return response({json:[{id:'pod-1',name:'nex-pod',desiredStatus:'RUNNING'}]});
+    if(url.endsWith('/v1/models'))return response();
+    requests.push(JSON.parse(options.body));
+    return response({json:{choices:[requests.length===1?{finish_reason:'length',message:{content:null,reasoning_content:'private reasoning'}}:{finish_reason:'stop',message:{content:'Saved the timer.'}}]}});
+  }});
+  assert.equal(requests.length,2);
+  assert.equal(requests[1].chat_template_kwargs.enable_thinking,false);
+  assert.deepEqual(requests[0].messages,requests[1].messages);
+  assert.equal(result.data.content[0].text,'Saved the timer.');
+});
+
 test('customer streaming can use AI Gateway as the primary with no Anthropic key', async () => {
   const calls = [];
   const result = await routeMessageStream({
