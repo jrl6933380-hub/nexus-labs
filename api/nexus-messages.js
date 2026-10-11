@@ -27,12 +27,12 @@ export function createNexusMessagesHandler({getOwner=getNexusOwner,getUser=getRe
       if((req.method==='GET' && (req.query?.group_id || req.query?.thread_id)) || (req.method==='POST' && String(req.body?.action || '').startsWith('team_')))return await team(req,res,owner);
       if(req.method==='GET'){
         const state=store.ensureCoreSpecialists?await store.ensureCoreSpecialists(owner.id):await store.overview(owner.id),team_status={},team_overviews={},specialist_status={},specialist_stamps={};
-        const labels={planned:'Plan ready',queued:'Up next',running:'Working',needs_approval:'Needs you',blocked:'Needs attention',completed:'Result ready',stopping:'Stopping'};
+        const labels={waiting_input:'Waiting for your answer',planned:'Plan ready',queued:'Up next',running:'Working',needs_approval:'Needs you',blocked:'Needs attention',completed:'Result ready',stopping:'Stopping'};
         await Promise.all(state.groups.map(async group=>{try{
           const saved=await runs.list(owner.id,group.id),[run]=saved;
           const latest=saved.find(item=>item.state!=='cancelled' && item.goal);if(latest)team_overviews[group.id]={goal:String(latest.goal).slice(0,600)};if(run && labels[run.state])team_status[group.id]=labels[run.state];
           if(run && run.state!=='cancelled')for(const step of run.steps){
-            const label={working:'Working',returned:'Result ready',needs_approval:'Needs you',blocked:'Needs attention',interrupted:'Interrupted'}[step.state];
+            const label={waiting_input:'Waiting for your answer',working:'Working',returned:'Result ready',needs_approval:'Needs you',blocked:'Needs attention',interrupted:'Interrupted'}[step.state];
             if(step.member_id && label && (!specialist_stamps[step.member_id] || run.updated_at>specialist_stamps[step.member_id])){specialist_status[step.member_id]=label;specialist_stamps[step.member_id]=run.updated_at;}
           }
         }catch{}}));
