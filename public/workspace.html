@@ -302,7 +302,7 @@ import { registerNexusApp } from '/app-install.js';
 import { renderFeatureHelp, draftNexusExample } from '/nexus-guide.js';
 import { createTeamChat } from '/team-chat.js';
 import {chatVisualPromotionId as visualPromotionId} from '/project-identity.js';
-import { appendChatVisual, chatVisualHtml } from '/chat-visual.js';
+import { appendChatVisual, chatVisualHtml, canPreviewSpecialistPage, specialistResultText } from '/chat-visual.js';
 
 // Owner gate. The previous root page checked this before rendering anything, and
 // this shell now sits at the root, so it has to hold the same line — without it,
@@ -954,6 +954,7 @@ function paragraphs(text){
   return String(text).split(/\n{2,}/).map((p) => `<p>${esc(p).replace(/\n/g,'<br>')}</p>`).join('');
 }
 function assistantReplyMarkup(content){
+  if(activeConversation?.kind==='specialist' && !canPreviewSpecialistPage(activeConversation.role))return paragraphs(specialistResultText(activeConversation.role,content));
   if(!chatVisualHtml(content))return paragraphs(content);
   const plain=String(content).replace(/```html\s*\n[\s\S]*?\n```/iu,'').trim();
   return paragraphs(plain || 'Here’s the visual build. You can preview it below or keep building it in Projects.');
@@ -965,6 +966,7 @@ async function keepChatVisual({html},content,requestMessage=''){
   return data;
 }
 function appendAssistantVisual(body,content,requestMessage=''){
+  if(activeConversation?.kind==='specialist' && !canPreviewSpecialistPage(activeConversation.role))return null;
   return appendChatVisual(body,content,activeConversation?.name || 'Nex',{saveKey:chatVisualPromotionId(content),onPromote:payload=>keepChatVisual(payload,content,requestMessage)});
 }
 

@@ -372,7 +372,7 @@ export default async function handler(req, res) {
       { role: 'assistant', content: reply, model: answeredModel, usage, progress: progress.snapshot().updates.filter(update=>update.text!==reply).map(({text})=>({text})) },
     ];
     await saveConversation(operatorUser, finalHistory, threadId);
-    let projectSaveError=null;try{if(!savedProject)await saveChatProject(req,collaborationThread,reply,message);}catch(error){projectSaveError=error.message;console.error('Chat project save failed:',error.message);}
+    let projectSaveError=null;try{if(!savedProject && (clientContext.conversation?.kind!=='specialist' || clientContext.conversation.role==='build'))await saveChatProject(req,collaborationThread,reply,message);}catch(error){projectSaveError=error.message;console.error('Chat project save failed:',error.message);}
 
     const response = {
       progress: finalHistory.at(-1).progress,

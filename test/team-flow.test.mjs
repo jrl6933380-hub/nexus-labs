@@ -5,7 +5,7 @@ import {createTeamRunner} from '../lib/teamRunner.js';
 import {createTeamMessagesHandler} from '../lib/teamMessagesHandler.js';
 import {parseTeamMentions,teamHandles} from '../public/team-mentions.js';
 import {createAgentDelegation} from '../lib/agentDelegation.js';
-import {chatVisualDocument,chatVisualHtml} from '../public/chat-visual.js';
+import {chatVisualDocument,chatVisualHtml,canPreviewSpecialistPage,hasCompletePage,specialistResultText} from '../public/chat-visual.js';
 import {teamStepDescription} from '../public/team-chat.js';
 import {buildConversationAccessPolicy} from '../lib/nexBrain.js';
 import {planCognitiveRun} from '../lib/nexCognitiveController.js';
@@ -279,4 +279,59 @@ test('team public progress is saved while the assignment continues',async()=>{
   const run=await runs.create('justin','nex-main',[researcher],'@Maya research launch ideas','request-visible-progress',{includeNex:false,autoStart:true});
   await runner.execute('justin','nex-main',run.id);
   const [saved]=await runs.list('justin','nex-main');assert.equal(saved.steps[0].updates[0],'I found the strongest direction. Now I’m checking its sources.');assert.equal(saved.state,'completed');
+});
+
+
+test('a shared build goal becomes a research brief for Atlas and implementation for Mason',async()=>{
+  const {runs}=fixture();
+  const roster=[{...members[0],name:'Atlas'},{...members[1],name:'Mason'}];
+  const run=await runs.create('justin','group-launch',roster,'Build a bodyweight workout page','request-role-split',{includeNex:false});
+  assert.match(run.steps[0].instruction,/Research this request/);
+  assert.match(run.steps[0].instruction,/Do not implement/);
+  assert.match(run.steps[0].instruction,/Build a bodyweight workout page/);
+  assert.equal(run.steps[1].instruction,'Build a bodyweight workout page');
+  assert.equal(run.steps[0].requires_approval,false);
+  assert.equal(run.steps[1].requires_approval,true);
+});
+
+test('research page output retries as a brief before Mason receives the handoff',async()=>{
+  const {runs,advance,now}=fixture(),calls=[];
+  const page='```html\n<!doctype html><html><body><h1>Wrong role page</h1></body></html>\n```';
+  const roster=[{...members[0],name:'Atlas'},{...members[1],name:'Mason'}];
+  const runner=createTeamRunner({runs,now,messages:{overview:async()=>({groups:[{id:'group-launch',member_ids:roster.map(item=>item.id)}],specialists:roster})},mode:async()=>({mode:'engaged'}),history:async()=>null,ask:async(prompt,h,t,context)=>{
+    calls.push({prompt,context});return {reply:calls.length===1?page:calls.length===2?'Research brief: use accessible exercise cards with sets and rest times.':page.replace('Wrong role page','Mason workout page'),provider:'nex-pod',savedProject:calls.length===1?{id:'wrong-role-project'}:null};
+  }});
+  const run=await runs.create('justin','group-launch',roster,'Build a workout page','request-role-retry',{includeNex:false,autoStart:true});
+  await runner.execute('justin','group-launch',run.id);
+  let [saved]=await runs.list('justin','group-launch');
+  assert.equal(saved.steps[0].state,'retrying');assert.equal(saved.steps[0].saved_project,null);
+  assert.equal(hasCompletePage(saved.steps[0].result),false);assert.match(saved.steps[0].error,/research brief/);
+  await runner.execute('justin','group-launch',run.id);assert.equal(calls.length,1,'retry respects its delay');
+  advance(30001);await runner.execute('justin','group-launch',run.id);
+  [saved]=await runs.list('justin','group-launch');assert.equal(saved.steps[0].state,'returned');
+  await runner.execute('justin','group-launch',run.id);
+  [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'needs_approval');
+  await runs.act('justin','group-launch',run.id,'approve_step',saved.steps[1].id);
+  await runner.execute('justin','group-launch',run.id);
+  assert.match(calls[2].prompt,/Research brief: use accessible exercise cards/);assert.doesNotMatch(calls[2].prompt,/Wrong role page/);
+  [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'completed');assert.equal(hasCompletePage(saved.steps[1].result),true);
+});
+
+test('repeated research page output blocks after three attempts instead of reaching the builder',async()=>{
+  const {runs,advance,now}=fixture();let calls=0;
+  const runner=createTeamRunner({runs,now,messages:{overview:async()=>({groups:[{id:'group-launch',member_ids:members.map(item=>item.id)}],specialists:members})},mode:async()=>({mode:'engaged'}),history:async()=>null,ask:async()=>{calls++;return {reply:'```html\n<html><body>Not research</body></html>\n```',provider:'nex-pod'};}});
+  const run=await runs.create('justin','group-launch',members,'Build a workout page','request-role-stop',{includeNex:false,autoStart:true});
+  for(let i=0;i<3;i++){await runner.execute('justin','group-launch',run.id);advance(300001);}
+  const [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'blocked');assert.equal(calls,3);assert.equal(saved.steps[1].attempts,0);
+});
+
+test('only builder results qualify for page preview and historical research pages become a clear notice',()=>{
+  const page='Research findings.\n\n```html\n<html><body>Old Atlas page</body></html>\n```';
+  assert.equal(canPreviewSpecialistPage('build'),true);
+  for(const role of ['research','review','life','custom'])assert.equal(canPreviewSpecialistPage(role),false);
+  assert.match(specialistResultText('research',page),/Research findings/);
+  assert.doesNotMatch(specialistResultText('research',page),/Old Atlas page/);
+  assert.match(specialistResultText('research',page),/Mason handles page building/);
+  assert.equal(specialistResultText('build',page),page);
+  assert.equal(hasCompletePage('Example: ```html\n<strong>text</strong>\n```'),false);
 });
