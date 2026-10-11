@@ -208,3 +208,17 @@ test('an overrun with no remaining room leaves the schedule unchanged',async()=>
   await assert.rejects(()=>store.adjustScheduleOverrun({...params,apply:true,baseline:preview.baseline}),/remaining conflicts/);
   assert.equal((await store.listPlannerItems()).find((item)=>item.id===next.id).starts_at,next.starts_at);
 });
+
+test('clock-aware corrections move existing blocks and clear only the chosen account items',async()=>{
+  const {schedulingInput}=await import('../lib/userClock.js');
+  const store=testStore(),owner='owner:justin',other='room:tester';
+  const old=await store.createPlannerItem({title:'Workout',starts_at:'2026-10-07T10:00:00Z',ends_at:'2026-10-07T11:00:00Z',notes:'Keep my routine',reminder_minutes:15},owner);
+  const family=await store.createPlannerItem({title:'Time with my son',starts_at:'2026-10-07T11:00:00Z',ends_at:'2026-10-07T15:00:00Z'},owner);
+  const otherItem=await store.createPlannerItem({title:'Another account',starts_at:'2026-10-11T10:00:00Z'},other);
+  const updated=await store.updatePlannerItem(schedulingInput({id:old.id,starts_at:'2026-10-11T10:00',ends_at:'2026-10-11T11:00'},'America/Chicago'),owner);
+  assert.equal(updated.id,old.id);assert.equal(updated.starts_at,'2026-10-11T15:00:00.000Z');assert.equal(updated.notes,'Keep my routine');assert.equal(updated.reminder_minutes,15);
+  assert.equal((await store.listPlannerItems({},owner)).length,2,'rescheduling must not duplicate');
+  await store.deletePlannerItem(family.id,owner);
+  assert.deepEqual((await store.listPlannerItems({},owner)).map(item=>item.id),[old.id]);
+  assert.equal((await store.listPlannerItems({},other))[0].id,otherItem.id);
+});

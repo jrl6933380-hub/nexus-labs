@@ -1363,7 +1363,7 @@ function workspaceContext() {
   const visible = [...thread.querySelectorAll('.msg, .lrow, .lhead')]
     .filter((node) => !node.closest('.secret-card'));
   const mode = currentView === 'workbench' ? 'workbench' : 'chat';
-  return { active_view: `${location.pathname}#${currentView}`, mode, build_tools: NEX_CHAT_MODES[mode].buildTools,
+  return { timezone:Intl.DateTimeFormat().resolvedOptions().timeZone, active_view: `${location.pathname}#${currentView}`, mode, build_tools: NEX_CHAT_MODES[mode].buildTools,
     conversation: activeConversation && ['specialist','group'].includes(activeConversation.kind) ? {kind:activeConversation.kind,id:activeConversation.id} : null,
     screen: { title: currentView === 'chat' ? 'Nex Chat' : VIEWS[currentView].label,
       viewport_text: visible.map((node) => node.innerText).filter(Boolean).slice(0, 30),

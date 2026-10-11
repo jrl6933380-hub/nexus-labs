@@ -1,3 +1,4 @@
+import {validTimezone,resolveUserTimezone} from '../lib/userClock.js';
 import crypto from 'node:crypto';
 import {saveChatProject,checkNewVisualCapacity} from '../lib/chatProjectSave.js';
 import { waitUntil } from '@vercel/functions';
@@ -87,6 +88,7 @@ function normalizeClientContext(input) {
     active_view: activeView.startsWith('/') && !activeView.startsWith('//')
       ? activeView.slice(0, 160)
       : null,
+    timezone: validTimezone(input?.timezone),
     screen: normalizeScreenSnapshot(input?.screen),
     visual: normalizeVisualFrame(input?.visual),
     conversation: conversationKind && conversationId ? { kind:conversationKind, id:conversationId } : null,
@@ -298,6 +300,7 @@ export default async function handler(req, res) {
     // supplied by the browser. Fail clearly when an old conversation points
     // at a record that was removed instead of silently turning it into Nex.
     const clientContext = normalizeClientContext(workspace);
+    clientContext.timezone=await resolveUserTimezone(`owner:${operatorUser}`,clientContext.timezone);
     const requestedConversation = clientContext.conversation;
     clientContext.conversation = await resolveConversationContext(operatorUser, requestedConversation).catch(() => null);
     if (requestedConversation && !clientContext.conversation) {
