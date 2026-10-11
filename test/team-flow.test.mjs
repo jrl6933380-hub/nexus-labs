@@ -152,8 +152,8 @@ test('worker leases prevent duplicate execution and read-only interruptions reco
   await runs.settle('justin','group-launch',run.id,next.step.id,next.step.token,{state:'returned',result:'Fresh output'});
   [saved]=await runs.list('justin','group-launch');assert.equal(saved.steps[0].result,'Fresh output');
 });
-test('expired write-capable workers stop for review instead of repeating side effects',async()=>{
-  const {runs,tick}=fixture(),run=await runs.create('justin','group-launch',[members[1]],'@Atlas build it','request-write-lease',{includeNex:false,autoStart:true});
+test('expired repository workers stop for review instead of repeating side effects',async()=>{
+  const {runs,tick}=fixture(),run=await runs.create('justin','group-launch',[members[1]],'@Atlas build the GitHub repository','request-write-lease',{includeNex:false,autoStart:true});
   await runs.claim('justin','group-launch',run.id);let [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'needs_approval');
   await runs.act('justin','group-launch',run.id,'approve_step',saved.steps[0].id);await runs.claim('justin','group-launch',run.id);tick();assert.equal(await runs.claim('justin','group-launch',run.id),null);
   [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'blocked');assert.equal(saved.steps[0].state,'interrupted');
@@ -178,9 +178,9 @@ test('provider failures block handoffs; removed members never run; scopes cannot
   advance(30_001);people=[members[1]];await runner.execute('justin','group-launch',run.id);assert.equal(calls,1);[saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'blocked');assert.match(saved.steps[0].error,/removed/);
   const policy=buildConversationAccessPolicy({kind:'group',members,scopes:['conversation','projects','life'],execution_mode:'read_only'});assert.ok(policy.allowedToolNames.has('read_repo_file'));assert.ok(!policy.allowedToolNames.has('patch_repo_file'));assert.ok(!policy.allowedToolNames.has('manage_life'));
 });
-test('write-capable assignments never auto-retry an uncertain failure',async()=>{
+test('repository assignments never auto-retry an uncertain failure',async()=>{
   const {runs,now}=fixture(),people=[members[1]],runner=createTeamRunner({runs,now,messages:{overview:async()=>({groups:[{id:'group-launch',member_ids:['agent-atlas']}],specialists:people})},mode:async()=>({mode:'engaged'}),history:async()=>null,ask:async()=>({reply:'Provider stopped after partial work.',provider:'none'})});
-  const run=await runs.create('justin','group-launch',people,'@Atlas build it','request-write-failure',{includeNex:false,autoStart:true});
+  const run=await runs.create('justin','group-launch',people,'@Atlas build the GitHub repository','request-write-failure',{includeNex:false,autoStart:true});
   await runner.execute('justin','group-launch',run.id);let [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'needs_approval');
   await runs.act('justin','group-launch',run.id,'approve_step',saved.steps[0].id);await runner.execute('justin','group-launch',run.id);[saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'blocked');assert.equal(saved.steps[0].state,'blocked');
   assert.match(saved.steps[0].error,/model request failed or timed out/i);
@@ -334,4 +334,28 @@ test('only builder results qualify for page preview and historical research page
   assert.match(specialistResultText('research',page),/Mason handles page building/);
   assert.equal(specialistResultText('build',page),page);
   assert.equal(hasCompletePage('Example: ```html\n<strong>text</strong>\n```'),false);
+});
+
+
+test('Mason continues through more than three checkpoints and finishes at a saved preview',async()=>{
+  const {runs,advance,now}=fixture();let calls=0;
+  const runner=createTeamRunner({runs,now,messages:{overview:async()=>({groups:[{id:'group-launch',member_ids:[members[1].id]}],specialists:[members[1]]})},mode:async()=>({mode:'engaged'}),history:async()=>null,ask:async(prompt,h,t,c,stage,context)=>{
+    calls++;assert.equal(context.reasoningBudgets.continueUntilPreview,true);
+    return calls<5?{reply:'Working at a checkpoint',provider:'nex-pod',runState:{state:'waiting',blocker:'runaway_safety_ceiling_hit'}}:{reply:'Workout preview saved to Projects.',provider:'nex-pod',savedProject:{project_id:'workout',build_id:'b1'},completionReceipt:{status:'verified',missing:[]}};
+  }});
+  const run=await runs.create('justin','group-launch',[members[1]],'Build a workout timer app','request-unlimited-build',{includeNex:false,autoStart:true});
+  await runner.execute('justin','group-launch',run.id);let [saved]=await runs.list('justin','group-launch');
+  await runs.act('justin','group-launch',run.id,'approve_step',saved.steps[0].id);
+  for(let i=0;i<5;i++){await runner.execute('justin','group-launch',run.id);advance(300001);}
+  [saved]=await runs.list('justin','group-launch');assert.equal(calls,5);assert.equal(saved.state,'completed');assert.equal(saved.steps[0].saved_project.build_id,'b1');
+});
+
+test('an expired approved Workbench worker resumes from saved state and remains cancellable',async()=>{
+  const {runs,tick}=fixture();
+  const run=await runs.create('justin','group-launch',[members[1]],'Build a workout timer','request-resume-build',{includeNex:false,autoStart:true});
+  await runs.claim('justin','group-launch',run.id);let [saved]=await runs.list('justin','group-launch');
+  await runs.act('justin','group-launch',run.id,'approve_step',saved.steps[0].id);
+  await runs.claim('justin','group-launch',run.id);tick();assert.equal(await runs.claim('justin','group-launch',run.id),null);
+  [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'queued');assert.equal(saved.steps[0].state,'retrying');assert.match(saved.steps[0].error,/Reopen saved project state/);
+  await runs.act('justin','group-launch',run.id,'cancel');assert.equal(await runs.claim('justin','group-launch',run.id),null);
 });
