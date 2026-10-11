@@ -122,7 +122,7 @@ test('separate calls pass actual research to builder, pause for approval, then r
   await runs.act('justin','group-launch',run.id,'approve_step',saved.steps[1].id);currentMembers[1].scopes.push('life');await runner.execute('justin','group-launch',run.id);
   assert.match(calls[1].prompt,/Research finding: local gardening/);assert.match(calls[1].prompt,/Your assignment: build a page/);assert.equal(calls[1].context.conversation.id,'agent-atlas');
   assert.equal(calls[1].context.conversation.scopes.includes('life'),false,'approval cannot silently expand a worker’s access');
-  assert.equal(calls[1].toolContext.cognitiveLane,'code');
+  assert.equal(calls[1].toolContext.cognitiveLane,'chat');assert.equal(calls[1].toolContext.buildDestination,'workbench');assert.equal(calls[1].toolContext.workbenchBuild,true);
   await runner.execute('justin','group-launch',run.id);assert.equal(calls[2].context.conversation.execution_mode,'read_only');assert.match(calls[2].prompt,/Draft PR prepared/);
   assert.equal(calls[2].toolContext.cognitiveLane,'chat');
   [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'completed');assert.equal(saved.steps.every(step=>step.state==='returned'),true);assert.ok(saved.events.some(event=>event.message.includes('passed it')));

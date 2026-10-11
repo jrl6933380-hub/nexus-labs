@@ -1,0 +1,67 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createHistoryHandler} from '../api/room-history.js';
+import {executeWorkbenchTool,projectDestination,restrictToWorkbench} from '../lib/workbenchTools.js';
+import {buildConversationAccessPolicy} from '../lib/nexBrain.js';
+import {planCognitiveRun} from '../lib/nexCognitiveController.js';
+import {createEvidenceTracker} from '../lib/nexEvidenceGate.js';
+import {saveTeamProjects} from '../lib/teamProjectSave.js';
+
+test('agent builds save, reopen and edit in the real Projects handler with ownership and baseline checks',async()=>{
+  let sequence=0;const saved=new Map();
+  const latest=async(owner,id)=>saved.get(owner+':'+id) || null;
+  const deps={readLatest:latest,projectLock:async(owner,task)=>task(),historyFactory:options=>createHistoryHandler({...options,
+    readLatestProject:latest,readProjects:async owner=>[...saved].filter(([key])=>key.startsWith(owner+':')).map(([,value])=>value),
+    resolvePlan:async()=> 'pro',writeBuild:async(owner,value)=>{const build={...value,id:'b'+(++sequence)};saved.set(owner+':'+value.projectId,build);return build;},
+  })};
+  const context={userId:'alice',threadId:'group-workout'};
+  const html='<!doctype html><html><title>Workout Timer</title><button onclick="start()">Start</button><script>function start(){}</script></html>';
+  const result=await executeWorkbenchTool('save_workbench_project',{project_id:'workout',html},context,deps);
+  assert.equal(result.location,'Projects');assert.equal(result.published,false);
+  assert.equal(saved.get('alice:workout').html,html);
+  assert.equal((await executeWorkbenchTool('save_workbench_project',{project_id:'workout',html},context,deps)).build_id,result.build_id);
+  const read=await executeWorkbenchTool('read_workbench_project',{project_id:'workout'},context,deps);
+  await assert.rejects(executeWorkbenchTool('read_workbench_project',{project_id:'workout'},{userId:'bob'},deps),/not found/);
+  const edited=await executeWorkbenchTool('save_workbench_project',{project_id:'workout',baseline:read.baseline,html:html.replace('Start','Begin')},context,deps);
+  assert.notEqual(edited.build_id,read.baseline);
+  await assert.rejects(executeWorkbenchTool('save_workbench_project',{project_id:'workout',baseline:read.baseline,html},context,deps),/changed/);
+  await assert.rejects(executeWorkbenchTool('save_workbench_project',{project_id:'workout',html},{},deps),/Sign in/);
+});
+
+test('project allowance is enforced through the existing handler',async()=>{
+  const deps={projectLock:async(owner,task)=>task(),historyFactory:options=>createHistoryHandler({...options,readLatestProject:async()=>null,readProjects:async()=>[{id:'already-full'}],resolvePlan:async()=> 'free',writeBuild:async()=>{throw Error('must not write');}})};
+  await assert.rejects(executeWorkbenchTool('save_workbench_project',{project_id:'another',html:'<h1>App</h1>'},{userId:'alice'},deps),/limit/);
+});
+
+test('project mutation stays behind approved specialist scope and build completion requires a save',()=>{
+  const readonly=buildConversationAccessPolicy({kind:'specialist',role:'review',scopes:['projects'],execution_mode:'read_only'});
+  assert.equal(readonly.allowedToolNames.has('save_workbench_project'),false);
+  assert.equal(readonly.allowedToolNames.has('read_workbench_project'),true);
+  assert.equal(projectDestination('Build a workout timer app'),'workbench');
+  assert.equal(projectDestination('Patch the GitHub repository'),'repository');
+  assert.equal(projectDestination('List my repos'),'repository');
+  const plan=planCognitiveRun({message:'Build a workout timer app',toolContext:{buildDestination:'workbench',workbenchBuild:true,cognitiveLane:'chat'}});
+  const evidence=createEvidenceTracker(plan);
+  assert.equal(evidence.receipt().status,'incomplete');
+  evidence.record({name:'save_workbench_project',input:{}},{is_error:true,content:'limit reached'});
+  assert.equal(evidence.receipt().status,'incomplete');
+  evidence.record({name:'save_workbench_project',input:{}},{content:'{"saved":true}'});
+  assert.equal(evidence.receipt().status,'verified');
+});
+
+test('Workbench routing removes repository access without expanding a scoped assignment',()=>{
+  const tools=['list_repos','create_branch','save_workbench_project','read_workbench_project','run_sandbox'].map(name=>({name}));
+  const repository=['list_repos','create_branch','run_sandbox'];
+  const owner=restrictToWorkbench({allowedToolNames:null},tools,repository);
+  assert.equal(owner.allowedToolNames.has('create_branch'),false);
+  assert.equal(owner.allowedToolNames.has('list_repos'),false);
+  assert.equal(owner.allowedToolNames.has('save_workbench_project'),true);
+  const scoped=restrictToWorkbench({allowedToolNames:new Set(['read_workbench_project'])},tools,repository);
+  assert.deepEqual([...scoped.allowedToolNames],['read_workbench_project']);
+});
+
+test('a native saved team project is not duplicated by legacy HTML promotion',async()=>{
+  let calls=0;
+  await saveTeamProjects({},'group-workout',[{state:'completed',steps:[{state:'returned',role:'build',saved_project:{project_id:'workout'},result:'```html\n<h1>Workout</h1>\n```'}]}],{handler:async()=>{calls++;}});
+  assert.equal(calls,0);
+});

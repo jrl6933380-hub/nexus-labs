@@ -342,6 +342,7 @@ export default async function handler(req, res) {
 
     const {
       reply,
+      savedProject,
       updatedHistory,
       model: answeredModel,
       provider,
@@ -371,11 +372,11 @@ export default async function handler(req, res) {
       { role: 'assistant', content: reply, model: answeredModel, usage, progress: progress.snapshot().updates.filter(update=>update.text!==reply).map(({text})=>({text})) },
     ];
     await saveConversation(operatorUser, finalHistory, threadId);
-    let projectSaveError=null;try{await saveChatProject(req,collaborationThread,reply,message);}catch(error){projectSaveError=error.message;console.error('Chat project save failed:',error.message);}
+    let projectSaveError=null;try{if(!savedProject)await saveChatProject(req,collaborationThread,reply,message);}catch(error){projectSaveError=error.message;console.error('Chat project save failed:',error.message);}
 
     const response = {
       progress: finalHistory.at(-1).progress,
-      reply,projectSaveError,
+      reply,projectSaveError,savedProject,
       model: answeredModel,
       provider,
       usage,
