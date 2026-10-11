@@ -228,7 +228,7 @@ export async function projectGallery(projects, ctx, {canCreate=true,count=projec
   gallery.className = 'projectgrid';
   const shelf=document.createElement('section');shelf.className='projectshelf';const filters=document.createElement('nav');filters.className='projectfilters';filters.setAttribute('aria-label','Project filters');
   for(const label of ['All','Drafts','Live']){const control=document.createElement('button');control.type='button';control.textContent=label;control.setAttribute('aria-pressed',String(label==='All'));control.onclick=()=>{for(const b of filters.querySelectorAll('button'))b.setAttribute('aria-pressed',String(b===control));for(const card of gallery.querySelectorAll('[data-state]'))card.hidden=label!=='All' && card.dataset.state!==(label==='Live'?'live':'draft');};filters.append(control);}
-  const usage=document.createElement('span');usage.textContent=`${count} of ${limit} project slots`;filters.append(usage);shelf.append(filters,gallery);
+  const usage=document.createElement('span');usage.textContent=limit===null?`${count} projects · Owner access`:`${count} of ${limit} project slots`;filters.append(usage);shelf.append(filters,gallery);
   const open=(id,mode='overview',title='')=>ctx.openWorkbenchPanel ? ctx.openWorkbenchPanel(id,mode) : ctx.openBuild(id,mode,title);
   const previews = await Promise.all(projects.map((project) => projectPreviewHtml(field(project, 'latestBuildId', 'id'))));
   projects.forEach((project, index) => {
@@ -360,8 +360,8 @@ export const VIEWS = {
       const payload = await getJSON('/api/room-history');
       const projects = pick(payload, 'projects', 'builds');
       const workbench = payload?.workbench || {};
-      const limit = Number.isFinite(Number(workbench.limit)) ? Number(workbench.limit) : NEX_CHAT_PLANS.plus.panels;
-      const canCreate = workbench.canCreate !== false && projects.length < limit;
+      const limit = workbench.limit === null ? null : Number.isFinite(Number(workbench.limit)) ? Number(workbench.limit) : NEX_CHAT_PLANS.plus.panels;
+      const canCreate = workbench.canCreate !== false && (limit === null || projects.length < limit);
       ctx.setProjectUsage?.(projects.length, limit);
       return [await projectGallery(projects,ctx,{canCreate,count:projects.length,limit})];
     },
