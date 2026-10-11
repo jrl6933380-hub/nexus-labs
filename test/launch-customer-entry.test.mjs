@@ -42,11 +42,11 @@ test('Free plan returns to current Forge chat from direct and legacy sign-ins', 
     location: { search: query },
     sessionStorage: { getItem: () => null },
   });
-  assert.equal(destination(''), '/forge.html?view=chat');
-  assert.equal(destination('?next=%2Froom.html'), '/forge.html?view=chat');
-  assert.equal(destination('?next=%2Froom.html%3Fbuilder%3D1'), '/forge.html?view=chat');
+  assert.equal(destination(''), '/nexus.html');
+  assert.equal(destination('?next=%2Froom.html'), '/nexus.html');
+  assert.equal(destination('?next=%2Froom.html%3Fbuilder%3D1'), '/nexus.html');
   assert.equal(destination('?next=%2Fstory-studio.html'), '/story-studio.html');
-  assert.equal(destination('?next=https%3A%2F%2Fother.test'), '/forge.html?view=chat');
+  assert.equal(destination('?next=https%3A%2F%2Fother.test'), '/nexus.html');
   assert.match(login, /continueFree.addEventListener\('click',[\s\S]*window.location.href = nextPath/u);
 });
 

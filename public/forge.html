@@ -444,6 +444,9 @@ const history = [];
 const startupParams = new URLSearchParams(location.search);
 const surfaceMode = startupParams.get('surface') === 'workbench' ? 'workbench' : 'forge';
 const isWorkbench = surfaceMode === 'workbench';
+const nexusReturn=startupParams.get('return')==='/nexus.html'?'/nexus.html':'/workspace.html?view=messages';
+if(!isWorkbench && !startupParams.has('brain') && !startupParams.has('onboarding')){location.replace('/nexus.html');await new Promise(()=>{});}
+
 const WORKBENCH_VIEW_ORDER = ['project', 'live', 'roadmap', 'stack', 'brief'];
 const WORKBENCH_VIEWS = new Set([...WORKBENCH_VIEW_ORDER, 'overview', 'preview', 'fine', 'pages', 'help']);
 let builderWorkspace=null,sourceConversation=null;
@@ -720,7 +723,7 @@ const ctx = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'logout' }),
     }).catch(() => {});
-    location.replace(isWorkbench ? '/workspace.html' : '/forge.html');
+    location.replace(isWorkbench ? nexusReturn : '/nexus.html');
   },
 
   // --- Builder Brain ------------------------------------------------------
@@ -839,7 +842,7 @@ function railOpen(open){ screenEl.classList.toggle('open', open); }
 if(isWorkbench){el('burger').textContent='‹';el('burger').setAttribute('aria-label','Back to Nexus');}
 el('burger').onclick = () => {
   if(!isWorkbench)return railOpen(!screenEl.classList.contains('open'));
-  if(currentView==='project' && !builderWorkspace)return location.assign('/workspace.html?view=messages');
+  if(currentView==='project' && !builderWorkspace)return location.assign(nexusReturn);
   showView('project');
 };
 screenEl.addEventListener('click', (e) => {
@@ -1169,7 +1172,7 @@ drawRecents();
     const back = document.createElement('button');
     back.className = 'item';
     back.innerHTML = '<span class="ic">←</span><span class="tr">All projects</span>';
-    back.onclick = () => location.assign('/workspace.html?view=workbench');
+    back.onclick = () => location.assign(nexusReturn==='/nexus.html'?'/forge.html?surface=workbench&return=%2Fnexus.html&view=project':'/workspace.html?view=workbench');
     host.appendChild(back);
     return;
   }
@@ -1355,8 +1358,8 @@ async function runBuild(raw, displayMessage = raw, showUser = true, planMode = u
       if (response.status === 402 && data?.code === 'WORKBENCH_PROJECT_LIMIT') {
         pending.innerHTML = `<p style="color:#d09a82">${esc(data.error || 'This plan has no open project slots.')}</p>`;
         pending.appendChild(chips([
-          { label: 'View Projects', run: () => location.assign('/workspace.html?view=workbench') },
-          { label: 'Compare plans', run: () => location.assign('/workspace.html?view=workbench') },
+          { label: 'View Projects', run: () => location.assign(nexusReturn==='/nexus.html'?'/forge.html?surface=workbench&return=%2Fnexus.html&view=project':'/workspace.html?view=workbench') },
+          { label: 'Compare plans', run: () => location.assign(nexusReturn==='/nexus.html'?'/forge.html?surface=workbench&return=%2Fnexus.html&view=project':'/workspace.html?view=workbench') },
         ]));
         return;
       }

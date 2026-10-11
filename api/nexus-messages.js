@@ -1,3 +1,5 @@
+import {createHash} from 'node:crypto';
+import {getRequestUser} from '../lib/roomAuth.js';
 import {getNexusOwner} from '../lib/nexusOwnerAuth.js';
 import {nexusMessagesStore,SPECIALIST_ROLES,MESSAGE_SCOPES} from '../lib/nexusMessagesStore.js';
 import {waitUntil} from '@vercel/functions';
@@ -9,10 +11,17 @@ import {saveTeamProjects} from '../lib/teamProjectSave.js';
 
 export const maxDuration = 300;
 
-export function createNexusMessagesHandler({getOwner=getNexusOwner,store=nexusMessagesStore,runs=teamRunStore,team=createTeamMessagesHandler({schedule:task=>waitUntil(task()),persistProjects:saveTeamProjects,checkCapacity:async(req,message,current)=>{const members=current.available_members || current.members;const mentions=parseTeamMentions(message,members);const ids=current.kind==='group'?current.member_ids:null;const assigned=members.filter(member=>mentions.some(item=>item.all) || !mentions.length ? !ids || ids.includes(member.id) || mentions.some(item=>item.member_id===member.id) : mentions.some(item=>item.member_id===member.id));if(assigned.some(member=>member.role==='build'))await checkNewVisualCapacity(req,message);}})}={}){
+export function createNexusMessagesHandler({getOwner=getNexusOwner,getUser=getRequestUser,store=nexusMessagesStore,runs=teamRunStore,team=createTeamMessagesHandler({schedule:task=>waitUntil(task()),persistProjects:saveTeamProjects,checkCapacity:async(req,message,current)=>{const members=current.available_members || current.members;const mentions=parseTeamMentions(message,members);const ids=current.kind==='group'?current.member_ids:null;const assigned=members.filter(member=>mentions.some(item=>item.all) || !mentions.length ? !ids || ids.includes(member.id) || mentions.some(item=>item.member_id===member.id) : mentions.some(item=>item.member_id===member.id));if(assigned.some(member=>member.role==='build'))await checkNewVisualCapacity(req,message);}})}={}){
   return async function handler(req,res){
     res.setHeader('Cache-Control','private, no-store');
-    const owner=await getOwner(req).catch(()=>null);if(!owner)return res.status(401).json({error:'Please sign in again'});
+    const owner=await getOwner(req).catch(()=>null);
+    if(!owner){
+      const user=await getUser(req).catch(()=>null);if(!user)return res.status(401).json({error:'Please sign in again'});
+      // Customer navigation metadata is isolated from founder state. This does
+      // not grant access to the founder team runner or owner capabilities.
+      if(req.method!=='GET'||req.query?.group_id||req.query?.thread_id)return res.status(403).json({error:'This operation requires an owner account.'});
+      try{const id='customer-'+createHash('sha256').update(user).digest('hex').slice(0,40);const state=await store.overview(id);return res.status(200).json({...state,specialists:[],groups:[],roles:{},scopes:[],customer:true});}catch{return res.status(503).json({error:'Messages could not load. Please try again.'});}
+    }
     try{
       if((req.method==='GET' && (req.query?.group_id || req.query?.thread_id)) || (req.method==='POST' && String(req.body?.action || '').startsWith('team_')))return await team(req,res,owner);
       if(req.method==='GET'){

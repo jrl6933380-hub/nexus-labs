@@ -17,7 +17,7 @@ async function entry(page, {owner=false,customer=false,error=false}={}) {
     }
     return route.fulfill({json:{}});
   });
-  for(const destination of ['forge.html','workspace.html'])await page.route(`**/${destination}*`,route=>route.fulfill({contentType:'text/html',body:'<h1>Workspace opened</h1>'}));
+  for(const destination of ['nexus.html','forge.html','workspace.html'])await page.route(`**/${destination}*`,route=>route.fulfill({contentType:'text/html',body:'<h1>Workspace opened</h1>'}));
   return posts;
 }
 
@@ -36,14 +36,14 @@ test('customer password login goes directly to the existing customer workspace',
   const posts=await entry(page);await page.goto('/index.html?next=%2Fworkspace.html');
   await page.locator('#open-signin').click();await page.locator('#login-username').fill('customer@example.com');
   await page.locator('#login-password').fill('customer-password');await page.locator('#login-submit').click();
-  await expect(page).toHaveURL(/\/forge.html\?view=chat$/);
+  await expect(page).toHaveURL(/\/nexus.html$/);
   expect(posts).toEqual([{path:'/api/room-auth',action:'login',username:'customer@example.com',password:'customer-password'}]);
 });
 
 test('new customers can create an account without a PIN or provider setup',async({page})=>{
   const posts=await entry(page);await page.goto('/');await page.locator('#open-signin').click();await page.locator('#tab-signup').click();
   await page.locator('#signup-name').fill('New customer');await page.locator('#signup-email').fill('new@example.com');await page.locator('#signup-password').fill('customer-password');
-  await page.locator('#signup-submit').click();await expect(page).toHaveURL(/\/forge.html\?view=chat$/);
+  await page.locator('#signup-submit').click();await expect(page).toHaveURL(/\/nexus.html$/);
   expect(posts).toEqual([{path:'/api/room-auth',action:'simple-signup',name:'New customer',email:'new@example.com',password:'customer-password'}]);
 });
 
@@ -57,7 +57,7 @@ test('old owner PIN links now use the owner password and preserve the destinatio
 for(const owner of [true,false])test(`saved ${owner?'owner':'customer'} session requires one Continue click`,async({page})=>{
   await entry(page,{owner,customer:!owner});await page.goto('/index.html');
   await expect(page.locator('#open-signin')).toHaveText('Continue to Nexus →');await expect(page).toHaveURL(/\/index.html$/);
-  await page.locator('#open-signin').click();await expect(page).toHaveURL(owner?/\/workspace.html\?view=messages$/:/\/forge.html\?view=chat$/);
+  await page.locator('#open-signin').click();await expect(page).toHaveURL(owner?/\/workspace.html\?view=messages$/:/\/nexus.html$/);
 });
 
 test('owner sign-in failure stays on the page and allows retry',async({page})=>{
@@ -74,7 +74,7 @@ test('setup links still work and remove the ticket from browser history',async({
 
 test('old customer links and social callbacks return to the same entry',async({page})=>{
   await entry(page);await page.goto('/room-login.html?next=%2Fusage.html');await expect(page).toHaveURL(/\/index.html\?next=%2Fusage.html$/);
-  await page.goto('/index.html?social=complete&next=https%3A%2F%2Foutside.test');await expect(page).toHaveURL(/\/forge.html\?view=chat$/);
+  await page.goto('/index.html?social=complete&next=https%3A%2F%2Foutside.test');await expect(page).toHaveURL(/\/nexus.html$/);
 });
 
 test('mobile entry and both sign-in forms have no serious accessibility violations',async({page})=>{
