@@ -1,0 +1,6 @@
+.task-progress{margin:0 0 12px;color:var(--muted,#a9bab0);font-size:13px;line-height:1.5;text-align:left;white-space:normal}
+.task-progress>summary{display:list-item;cursor:pointer;width:fit-content;padding:6px 11px;border:1px solid #486153;border-radius:18px;background:#192820;color:#c5d9cc;font:inherit;touch-action:manipulation}
+.task-progress>summary:focus-visible{outline:2px solid #e5c577;outline-offset:3px}
+.task-progress>ol{margin:10px 0 0;padding-left:24px;max-height:260px;overflow:auto;overscroll-behavior:contain}
+.task-progress li{margin:6px 0;overflow-wrap:anywhere}
+.task-progress[hidden]{display:none}

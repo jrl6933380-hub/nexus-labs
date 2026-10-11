@@ -247,6 +247,7 @@
 <link rel="stylesheet" href="/project-builder.css" />
 <link rel="stylesheet" href="/build-options.css" />
 <link rel="stylesheet" href="/ux.css" />
+<link rel="stylesheet" href="/task-progress.css">
 </head>
 <body>
 
@@ -308,6 +309,7 @@
 <script type="module">
 import {mountProjectBuilder} from '/project-builder.js';
 import { friendlyError, showFeedback } from '/ux.js';
+import {createTaskProgress} from '/task-progress.js';
 import { FORGE_VIEWS, matchForgeView, featureUnlocked, loadConnection, connectionSnapshot, primaryAction, secondaryActions } from '/forge-views.js';
 import { say, chips, esc } from '/workspace-views.js';
 
@@ -1120,6 +1122,7 @@ function replay(){
     if (message.role === 'user') bubble('u', esc(message.content));
     else {
       const body = bubble('a', paragraphs(message.content));
+      if(message.progress?.length)body.prepend(createTaskProgress(message.progress).element);
       if (message.guidance?.checklist) renderDecisionGuidance(body, { checklist: message.guidance.checklist });
     }
   }
@@ -1321,6 +1324,7 @@ async function runBuild(raw, displayMessage = raw, showUser = true, planMode = u
   if (!threadId) threadId = `f${Date.now().toString(36)}`;
   busy = true; el('send').disabled = true;
   const pending = bubble('a', '<p style="color:#9297a2">Working on it…</p>');
+  const taskProgress=createTaskProgress([],{running:true});pending.prepend(taskProgress.element);
 
   // /api/room-chat is a BUILD endpoint and answers with an SSE stream, not
   // JSON. Calling response.json() on it throws, which is why this used to
@@ -1388,17 +1392,17 @@ async function runBuild(raw, displayMessage = raw, showUser = true, planMode = u
           jobId = data.jobId;
           rememberPendingBuild({ jobId, projectId: data.projectId, displayMessage });
         } else if (data.action === 'progress') {
-          pending.innerHTML = `<p style="color:#9297a2">${esc(data.message || 'Working on it…')}</p>`;
+          taskProgress.add(data.message || 'Working on it…');
         } else if (data.action === 'html') {
           finished = true;
           currentBuild = data.html || '';
           if (currentLiveUrl) currentLiveNeedsUpdate = true;
-          pending.innerHTML = '<p>Here it is.</p>';
+          pending.innerHTML = '<p>Here it is.</p>';taskProgress.finish();pending.prepend(taskProgress.element);
           drawNav();
           el('connectionsProjectBtn').hidden = !isWorkbench || !currentBuild || ['project', 'live'].includes(currentView);
           if (isWorkbench){syncWorkbenchEditor();builderWorkspace?.markSaving();}
           else renderVisual(currentBuild, 'Your site');
-          history.push({ role:'user', content:displayMessage }, { role:'assistant', content:'Built it.' });
+          history.push({ role:'user', content:displayMessage }, { role:'assistant', content:'Built it.', progress:taskProgress.updates });
           saveThread();
         } else if (data.action === 'saved') {
           currentProjectId = data.projectId || currentProjectId;
@@ -1425,7 +1429,7 @@ async function runBuild(raw, displayMessage = raw, showUser = true, planMode = u
   } catch (error) {
     pending.innerHTML = `<p style="color:#d09a82">${esc(friendlyError(error))}</p>`;
     void recoverPendingBuild();
-  } finally { busy = false; el('send').disabled = false; }
+  } finally { if(taskProgress.updates.length)pending.prepend(taskProgress.element);busy = false; el('send').disabled = false; }
 }
 el('send').onclick = submit;
 el('input').addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });

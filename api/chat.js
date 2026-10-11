@@ -365,13 +365,13 @@ export default async function handler(req, res) {
     // reload — not just visible on the live response.
     const finalHistory = [
       ...updatedHistory,
-      ...progress.snapshot().updates.filter(update=>update.text!==reply).map(update=>({role:'assistant',content:update.text})),
-      { role: 'assistant', content: reply, model: answeredModel, usage },
+      { role: 'assistant', content: reply, model: answeredModel, usage, progress: progress.snapshot().updates.filter(update=>update.text!==reply).map(({text})=>({text})) },
     ];
     await saveConversation(operatorUser, finalHistory, threadId);
     let projectSaveError=null;try{await saveChatProject(req,collaborationThread,reply,message);}catch(error){projectSaveError=error.message;console.error('Chat project save failed:',error.message);}
 
     const response = {
+      progress: finalHistory.at(-1).progress,
       reply,projectSaveError,
       model: answeredModel,
       provider,
