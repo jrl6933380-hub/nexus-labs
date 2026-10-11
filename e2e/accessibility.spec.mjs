@@ -324,3 +324,6 @@ registerTeamChatChecks();
 
 import {registerUnifiedEntryChecks} from './unified-entry-checks.mjs';
 registerUnifiedEntryChecks();
+
+import {registerCustomerNexusChecks} from './customer-nexus-checks.mjs';
+registerCustomerNexusChecks();

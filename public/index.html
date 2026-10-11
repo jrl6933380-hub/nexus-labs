@@ -477,17 +477,17 @@
   const requested = new URLSearchParams(window.location.search).get('next') || (new URLSearchParams(location.search).has('brain') ? sessionStorage.getItem('forge:login:return') : null);
   // Callers land on Forge Field, admins on Ops / Accounts. Each page checks
   // its own permissions server-side; this list only decides where to go.
-  const customerWorkspaces = new Set(['/forge.html', '/room.html', '/story-studio.html', '/usage.html', '/forge-caller.html', '/forge-dashboard.html', '/forge-accounts.html']);
+  const customerWorkspaces = new Set(['/nexus.html', '/forge.html', '/room.html', '/story-studio.html', '/usage.html', '/forge-caller.html', '/forge-dashboard.html', '/forge-accounts.html']);
   const nextPath = (() => {
     try {
-      const candidate = new URL(requested || '/forge.html?view=chat', window.location.origin);
-      if (candidate.origin !== window.location.origin || !customerWorkspaces.has(candidate.pathname)) return '/forge.html?view=chat';
+      const candidate = new URL(requested || '/nexus.html', window.location.origin);
+      if (candidate.origin !== window.location.origin || !customerWorkspaces.has(candidate.pathname)) return '/nexus.html';
       // Older builder links still send /room.html as their return path.
       // Bring those customers into the current Forge chat after sign-in.
-      if (candidate.pathname === '/room.html') return '/forge.html?view=chat';
-      if (candidate.pathname === '/forge.html' && !candidate.search && !candidate.hash) return '/forge.html?view=chat';
+      if (candidate.pathname === '/room.html') return '/nexus.html';
+      if (candidate.pathname === '/forge.html') {if(candidate.searchParams.get('surface')==='workbench')return `${candidate.pathname}${candidate.search}${candidate.hash}`;return '/nexus.html';}
       return `${candidate.pathname}${candidate.search}${candidate.hash}`;
-    } catch { return '/forge.html?view=chat'; }
+    } catch { return '/nexus.html'; }
   })();
   // Forge Field is a work tool for callers, not a builder workspace:
   // send anyone who came from it straight back after sign-in, skipping
