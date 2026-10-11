@@ -71,3 +71,22 @@ test('paid accounts manage billing rather than accidentally opening a second sub
  const calls=[],res=response();const handler=createCheckoutHandler({resolveUser:async()=> 'pro',resolvePlan:async()=> 'hosted',resolveCustomer:async()=> 'cus_existing',configured:()=>true,request:async(path,body)=>{calls.push({path,body});return {url:'https://billing.stripe.com/test'};}});
  await handler({method:'POST',body:{priceId:'nexus_plus_monthly'}},res);assert.equal(res.code,200);assert.equal(calls[0].path,'billing_portal/sessions');assert.equal(calls[0].body.customer,'cus_existing');
 });
+
+test('measured holds fit remaining capacity, reconcile fractions, and refuse competing calls atomically',ledgerOptions,async()=>{
+ const {meter}=fixture();const work={messages:[],maxOutputTokens:4000};const first=await meter.reserveBuild({userId:'free',work});assert.equal(first.maxOutputTokens,2000);assert.equal(first.reserved,2);
+ assert.equal((await meter.reserveBuild({userId:'free',work})).ok,false);
+ await meter.settleBuild({userId:'free',reservationId:first.reservationId,success:true,chargedCredits:.5,usage:{input:0,output:500,estimated:false}});
+ assert.equal((await meter.summary('free')).short.percentRemaining,75);
+ const again=await meter.reserveBuild({userId:'free',work});assert.equal(again.maxOutputTokens,1500);assert.equal(again.reserved,1.5);
+ await meter.settleBuild({userId:'free',reservationId:again.reservationId,success:false});assert.equal((await meter.summary('free')).short.percentRemaining,75);
+});
+test('measured work uses paid capacity only after included capacity, keeps pack balance across resets',ledgerOptions,async()=>{
+ const {meter,advance}=fixture();await meter.reserveBuild({userId:'free',work:{messages:[],maxOutputTokens:2000}});await meter.grantBonusCredits('free',3,{purchaseId:'cs_measured'});await meter.setExtraEnabled('free',true);
+ const hold=await meter.reserveBuild({userId:'free',work:{messages:[],maxOutputTokens:1000}});assert.equal(hold.source,'extra');await meter.settleBuild({userId:'free',reservationId:hold.reservationId,success:true,chargedCredits:.25});assert.equal((await meter.summary('free')).extra.percentRemaining,91);
+ advance(8*86400000);assert.equal((await meter.summary('free')).extra.percentRemaining,91);
+});
+test('a mixed hold consumes included usage first and refunds unused pack capacity',ledgerOptions,async()=>{
+ const {meter}=fixture();await meter.reserveBuild({userId:'free'});await meter.grantBonusCredits('free',3,{purchaseId:'cs_mixed'});await meter.setExtraEnabled('free',true);
+ const hold=await meter.reserveBuild({userId:'free',work:{messages:[],maxOutputTokens:2000}});assert.equal(hold.source,'mixed');await meter.settleBuild({userId:'free',reservationId:hold.reservationId,success:true,chargedCredits:.5});
+ assert.equal((await meter.summary('free')).short.percentRemaining,25);assert.equal((await meter.summary('free')).extra.percentRemaining,100);
+});
