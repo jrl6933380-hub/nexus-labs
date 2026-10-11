@@ -1,3 +1,4 @@
+import {loadPodMeasurements} from '../lib/podMeasurements.js';
 import { getNexusOwner } from '../lib/nexusOwnerAuth.js';
 import { controlPod, podStatus, testPod } from '../lib/podController.js';
 
@@ -7,7 +8,11 @@ export default async function handler(req, res) {
   if (!owner) return res.status(401).json({ error: 'Nexus owner authentication required.' });
 
   try {
-    if (req.method === 'GET') return res.status(200).json(await podStatus());
+    if (req.method === 'GET') {
+      const status=await podStatus();
+      try {status.measurements=await loadPodMeasurements();}catch {status.measurements={unavailable:true};}
+      return res.status(200).json(status);
+    }
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
     const action = String(req.body?.action || '');

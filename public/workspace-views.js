@@ -739,6 +739,20 @@ export const VIEWS = {
         ...(pod.costPerHr != null ? [row({ title: 'RunPod rate when running', meta: `$${pod.costPerHr.toFixed(2)}/hr` })] : []),
       ]));
 
+      const measured=status.measurements;
+      const seconds=value=>value==null?'not measured yet':`${(value/1000).toFixed(1)} seconds`;
+      if(measured?.configured)nodes.push(group('Recent pod measurements', [
+        row({title:'Requests measured',meta:`${measured.sampleCount} recent calls · ${measured.failed} failed`}),
+        row({title:'Runtime token counts',meta:`${measured.reportedUsageSamples} calls reported usage · ${measured.missingUsageSamples} missing counts`}),
+        row({title:'Typical request duration',meta:seconds(measured.latencyMs.p50)}),
+        row({title:'Slower requests (95th percentile)',meta:seconds(measured.latencyMs.p95)}),
+        row({title:'Typical first token (build streams)',meta:seconds(measured.firstTokenMs.p50)}),
+        row({title:'Input / output / reasoning tokens',meta:`${measured.totals.input} / ${measured.totals.output} / ${measured.totals.reasoning}`}),
+        row({title:'Output tokens per request second',meta:measured.outputTokensPerRequestSecondP50==null?'not measured yet':measured.outputTokensPerRequestSecondP50.toFixed(1)}),
+      ]));
+      else nodes.push(say(measured?.unavailable?'Pod measurements are temporarily unavailable.':'Pod measurements need the existing Nexus Redis connection.'));
+      nodes.push(say('Measurements include owner tests, Nex requests, and build rounds. Durations include request waiting time. GPU utilization and whole-pod concurrent throughput are not measured here.'));
+
       const act = async (action) => {
         if (['stop', 'restart'].includes(action) && !window.confirm(`${action === 'stop' ? 'Turn off' : 'Restart'} the Nex pod now?`)) return;
         try {
