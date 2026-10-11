@@ -5,13 +5,14 @@ import {nexusMessagesStore,SPECIALIST_ROLES,MESSAGE_SCOPES} from '../lib/nexusMe
 import {waitUntil} from '@vercel/functions';
 import {createTeamMessagesHandler} from '../lib/teamMessagesHandler.js';
 import {teamRunStore} from '../lib/teamRuns.js';
+import {teamMissionIndex} from '../lib/teamMissionIndex.js';
 import {checkNewVisualCapacity} from '../lib/chatProjectSave.js';
 import {parseTeamMentions} from '../public/team-mentions.js';
 import {saveTeamProjects} from '../lib/teamProjectSave.js';
 
 export const maxDuration = 300;
 
-export function createNexusMessagesHandler({getOwner=getNexusOwner,getUser=getRequestUser,store=nexusMessagesStore,runs=teamRunStore,team=createTeamMessagesHandler({schedule:task=>waitUntil(task()),persistProjects:saveTeamProjects,checkCapacity:async(req,message,current)=>{const members=current.available_members || current.members;const mentions=parseTeamMentions(message,members);const ids=current.kind==='group'?current.member_ids:null;const assigned=members.filter(member=>mentions.some(item=>item.all) || !mentions.length ? !ids || ids.includes(member.id) || mentions.some(item=>item.member_id===member.id) : mentions.some(item=>item.member_id===member.id));if(assigned.some(member=>member.role==='build'))await checkNewVisualCapacity(req,message);}})}={}){
+export function createNexusMessagesHandler({getOwner=getNexusOwner,getUser=getRequestUser,store=nexusMessagesStore,runs=teamRunStore,missions=teamMissionIndex,team=createTeamMessagesHandler({schedule:task=>waitUntil(task()),persistProjects:saveTeamProjects,checkCapacity:async(req,message,current)=>{const members=current.available_members || current.members;const mentions=parseTeamMentions(message,members);const ids=current.kind==='group'?current.member_ids:null;const assigned=members.filter(member=>mentions.some(item=>item.all) || !mentions.length ? !ids || ids.includes(member.id) || mentions.some(item=>item.member_id===member.id) : mentions.some(item=>item.member_id===member.id));if(assigned.some(member=>member.role==='build'))await checkNewVisualCapacity(req,message);}})}={}){
   return async function handler(req,res){
     res.setHeader('Cache-Control','private, no-store');
     const owner=await getOwner(req).catch(()=>null);
@@ -43,7 +44,20 @@ export function createNexusMessagesHandler({getOwner=getNexusOwner,getUser=getRe
       if(action==='create_group')return res.status(201).json({group:await store.createGroup(owner.id,req.body)});
       if(action==='set_group_nex')return res.status(200).json({group:await store.setGroupNex(owner.id,req.body?.group_id,req.body?.include_nex)});
       if(action==='set_pinned_systems')return res.status(200).json({pinned_system_ids:await store.setPinnedSystems(owner.id,req.body?.pinned_system_ids)});
-      if(action==='remove')return res.status(200).json({removed:await store.remove(owner.id,req.body?.type,req.body?.id)});
+      if(action==='remove'){
+        const {type,id}=req.body || {};
+        if(type==='group'){
+          const state=await store.overview(owner.id);
+          if(!state.groups.some(group=>group.id===id))return res.status(404).json({error:'That team is no longer available.'});
+          // Stop queued handoffs before removing the roster. A current worker
+          // may finish its assignment, but cannot pass work to another member.
+          for(const run of await runs.list(owner.id,id)){
+            if(!['completed','cancelled'].includes(run.state))await runs.act(owner.id,id,run.id,'cancel');
+            await missions.remove(owner.id,id,run.id);
+          }
+        }
+        return res.status(200).json({removed:await store.remove(owner.id,type,id)});
+      }
       return res.status(400).json({error:'Choose a supported Messages action'});
     }catch(error){
       if(error.status)return res.status(error.status).json({error:error.message});

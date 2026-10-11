@@ -6,6 +6,7 @@ import {conversationThreadId,conversationPreview,teamCardOverview,buildOwnerCapa
 import {buildActiveTools,buildConversationAccessPolicy,formatLiveWorkspaceContext} from '../lib/nexBrain.js';
 import {isProtectedConversationThreadId} from '../lib/nexConversationStore.js';
 import fs from 'node:fs';
+import {createTeamRunStore} from '../lib/teamRuns.js';
 
 function fixture(){
   const values=new Map();let sequence=0;
@@ -221,4 +222,42 @@ test('team card summaries stay concise and give new teams a role-based overview'
  assert.equal(teamCardOverview('  Build **our site**\n with [garden ideas](https://example.test). ```html\n<h1>code</h1>\n```'),'Build our site with garden ideas.');
  assert.equal(teamCardOverview('',[{role:'research'},{role:'build'},{role:'research'}]),'Research · Building. Ready for your first task.');
  assert.equal(teamCardOverview('x'.repeat(300)).length,178);
+});
+
+
+test('deleting a team cancels pending handoffs and removes only the signed-in owner roster',async()=>{
+  const store=fixture(),data=new Map();let sequence=0;
+  const command=async([verb,key,...args])=>{
+    if(verb==='GET')return data.get(key) || null;
+    if(verb==='SET'){if(args.includes('NX') && data.has(key))return null;data.set(key,args[0]);return 'OK';}
+    if(verb==='EVAL'){
+      const [count,lock,...rest]=args;
+      if(Number(count)===1){if(data.get(lock)===rest[0]){data.delete(lock);return 1;}return 0;}
+      const [base,token,value]=rest;if(data.get(lock)!==token)return 0;data.set(base,value);data.delete(lock);return 1;
+    }
+    throw new Error('Unexpected Redis command');
+  };
+  const runs=createTeamRunStore({command,id:()=>`delete-test-${++sequence}`});
+  const agent=await store.createSpecialist('Justin',{name:'Atlas',role:'research'});
+  const group=await store.createGroup('Justin',{title:'Body workouts',member_ids:[agent.id]});
+  const other=await store.createGroup('Justin',{title:'Keep me',member_ids:[agent.id]});
+  const run=await runs.create('Justin',group.id,[agent],'Research workout options','delete-request',{autoStart:true});
+  const removedMissions=[];
+  const handler=createNexusMessagesHandler({getOwner:async()=>({id:'Justin'}),store,runs,missions:{remove:async(...args)=>removedMissions.push(args)}});
+  const res=response();await handler({method:'POST',body:{action:'remove',type:'group',id:group.id,owner:'someone-else'}},res);
+  assert.equal(res.code,200);assert.equal(res.data.removed,true);
+  assert.deepEqual((await store.overview('Justin')).groups.map(item=>item.id),[other.id]);
+  assert.equal((await store.overview('Justin')).specialists[0].id,agent.id);
+  assert.equal((await runs.list('Justin',group.id))[0].state,'cancelled');
+  assert.equal(await runs.claim('Justin',group.id,run.id),null);
+  assert.deepEqual(removedMissions,[['Justin',group.id,run.id]]);
+  const again=response();await handler({method:'POST',body:{action:'remove',type:'group',id:group.id}},again);assert.equal(again.code,404);
+});
+
+test('a failed team cancellation leaves its roster available for a retry',async()=>{
+  const store=fixture(),agent=await store.createSpecialist('Justin',{name:'Atlas',role:'research'});
+  const group=await store.createGroup('Justin',{title:'Keep on failure',member_ids:[agent.id]});
+  const handler=createNexusMessagesHandler({getOwner:async()=>({id:'Justin'}),store,runs:{list:async()=>[{id:'run-pending',state:'queued'}],act:async()=>{throw new Error('Storage unavailable');}},missions:{remove:async()=>{throw new Error('Must not reach cleanup');}}});
+  const res=response();await handler({method:'POST',body:{action:'remove',type:'group',id:group.id}},res);
+  assert.equal(res.code,503);assert.equal((await store.overview('Justin')).groups[0].id,group.id);
 });

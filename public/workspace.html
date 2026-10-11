@@ -1410,7 +1410,23 @@ el('newTop').onclick = () => {
         await showView('chat');bubble('a',`<p>Chat cleared. ${Number(result.memoriesSaved) || 0} new key details remembered. Your existing memories are still available.</p>`);
       }catch(error){notice.textContent=error.message;clear.disabled=false;fresh.disabled=false;inbox.disabled=false;}
     };
-    card.append(title,...(persistentConversation?[]:[fresh]),clear,inbox,notice);thread.append(card);thread.scrollTop=thread.scrollHeight;return;
+    const removeTeam=document.createElement('button');removeTeam.className='messagesecondary';removeTeam.textContent='Delete team';
+    const selectedTeam=activeConversation?.kind==='group'?{id:activeConversation.id,title:activeConversation.title}:null;
+    removeTeam.onclick=async()=>{
+      if(!selectedTeam || !confirm(`Delete “${selectedTeam.title || 'this team'}”? This removes the team from Messages and stops further handoffs. Your agents and saved projects stay available.`))return;
+      removeTeam.disabled=true;clear.disabled=true;inbox.disabled=true;notice.textContent='Deleting team…';
+      try{
+        const response=await fetch('/api/nexus-messages',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'remove',type:'group',id:selectedTeam.id})});
+        const result=await response.json().catch(()=>({}));if(response.status!==404 && (!response.ok || !result.removed))throw new Error(result.error || 'This team could not be deleted. Try again.');
+        if(activeConversation?.id===selectedTeam.id)teamChat.stop();
+        writeStore(THREADS_KEY,readStore(THREADS_KEY).filter(item=>item?.id!==selectedTeam.id));
+        recentThreads=recentThreads.filter(item=>item.id!==selectedTeam.id);
+        try{const savedRuns=savedChatRuns();delete savedRuns[selectedTeam.id];localStorage.setItem('nexus:chat-runs:v1',JSON.stringify(savedRuns));}catch{}
+        if(activeConversation?.id===selectedTeam.id){activeConversation=null;threadId=null;history.length=0;}
+        await showView('messages');
+      }catch(error){notice.textContent=error.message;removeTeam.disabled=false;clear.disabled=false;inbox.disabled=false;}
+    };
+    card.append(title,...(persistentConversation?[]:[fresh]),clear,...(selectedTeam?[removeTeam]:[]),inbox,notice);thread.append(card);thread.scrollTop=thread.scrollHeight;return;
   }
   messagesStartNew=true;activeConversation=null;history.length=0;threadId=null;showView('messages');
 };
