@@ -19,7 +19,7 @@ test('feedback endpoint requires an account',async()=>{
 });
 
 test('launch surfaces include feedback, privacy, terms, and private analytics',()=>{
-  const files=['room-login.html','forge.html','workspace.html'].map(name=>fs.readFileSync(new URL(`../public/${name}`,import.meta.url),'utf8'));
+  const files=['index.html','forge.html','workspace.html'].map(name=>fs.readFileSync(new URL(`../public/${name}`,import.meta.url),'utf8'));
   for(const html of files)assert.match(html,/\/_vercel\/insights\/script\.js/u);
   const login=files[0],messages=fs.readFileSync(new URL('../public/nexus-messages.js',import.meta.url),'utf8');
   assert.match(login,/\/terms\.html/u);assert.match(login,/\/privacy\.html/u);assert.match(messages,/Report a problem/u);

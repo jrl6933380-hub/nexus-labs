@@ -44,7 +44,7 @@ test('usage API publishes pricing beside the signed-in account balance', async (
 });
 
 test('new-account screen shows agreed tiers and a $6 pack without unit counts',async()=>{
- const source=await readFile(new URL('../public/room-login.html',import.meta.url),'utf8');
+ const source=await readFile(new URL('../public/index.html',import.meta.url),'utf8');
  assert.match(source,/Nexus Life/);assert.match(source,/3 active projects/);assert.match(source,/6 active projects/);
  assert.match(source,/Choose Pro — \$10\/month/);assert.match(source,/Choose Plus — \$20\/month/);
  assert.match(source,/extra-usage pack — \$6/);assert.doesNotMatch(source,/data-pricing="packCredits"|\d+ credits/);

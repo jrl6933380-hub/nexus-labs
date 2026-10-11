@@ -7,20 +7,16 @@ import {
   clearOwnerLoginAttempts,
   consumeOwnerLoginAttempt,
   createOwnerSession,
-  deviceHasOwnerPin,
   destroyOwnerSession,
   forgetOwnerDevice,
   getNexusOwner,
   issueOwnerSetupTicket,
   ownerPasswordIsSet,
-  ownerPinIsSet,
   parseCookies,
   serializeDeviceCookie,
   serializeOwnerCookie,
   setOwnerPasswordWithTicket,
-  trustOwnerDevice,
   verifyOwnerPassword,
-  verifyOwnerPin,
 } from '../lib/nexusOwnerAuth.js';
 
 function safeEqual(left, right) {
@@ -43,12 +39,12 @@ function requestIdentity(req) {
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'private, no-store');
 
+  if(req.method==='POST'&&['set_pin','pin_login'].includes(req.body?.action))return res.status(410).json({error:'Code access has been retired. Sign in with your Nexus password.'});
   try {
     if (req.method === 'GET') {
       const owner = await getNexusOwner(req);
-      const pinAvailable = await deviceHasOwnerPin(req);
-      if (!owner) return res.status(401).json({ authenticated: false, setupRequired: !(await ownerPasswordIsSet()), pinAvailable });
-      return res.status(200).json({ authenticated: true, owner, pinAvailable, pinConfigured: await ownerPinIsSet() });
+      if (!owner) return res.status(401).json({ authenticated: false, setupRequired: !(await ownerPasswordIsSet()) });
+      return res.status(200).json({ authenticated: true, owner });
     }
 
     if (req.method !== 'POST') {
@@ -56,14 +52,14 @@ export default async function handler(req, res) {
       return res.status(405).json({ error: 'Method Not Allowed' });
     }
 
-    const { action, password, ticket, pin } = req.body || {};
+    const { action, password, ticket } = req.body || {};
 
     if (action === 'issue_setup_link') {
       if (!internalAgentAuthorized(req)) return res.status(401).json({ error: 'Internal agent authorization required.' });
       const issued = await issueOwnerSetupTicket();
       const base = String(process.env.NEXUS_PUBLIC_URL || 'https://nexus-labs-sigma.vercel.app').replace(/\/$/u, '');
       return res.status(200).json({
-        setupUrl: `${base}/nexus-login.html?setup=${encodeURIComponent(issued.ticket)}`,
+        setupUrl: `${base}/index.html?mode=owner&setup=${encodeURIComponent(issued.ticket)}`,
         mode: issued.mode,
         expiresIn: issued.expiresIn,
       });
@@ -72,8 +68,8 @@ export default async function handler(req, res) {
     if (action === 'setup') {
       const owner = await setOwnerPasswordWithTicket(ticket, password);
       const token = await createOwnerSession();
-      res.setHeader('Set-Cookie', serializeOwnerCookie(token));
-      return res.status(200).json({ authenticated: true, owner, pinConfigured: false });
+      res.setHeader('Set-Cookie', [serializeOwnerCookie(token),serializeDeviceCookie(null,{clear:true})]);
+      return res.status(200).json({ authenticated: true, owner });
     }
 
     if (action === 'login') {
@@ -85,24 +81,7 @@ export default async function handler(req, res) {
       if (!owner) return res.status(401).json({ error: 'Wrong Nexus password.' });
       await clearOwnerLoginAttempts(identity);
       const token = await createOwnerSession();
-      res.setHeader('Set-Cookie', serializeOwnerCookie(token));
-      return res.status(200).json({ authenticated: true, owner, pinAvailable: await deviceHasOwnerPin(req) });
-    }
-
-    if (action === 'set_pin') {
-      const owner = await getNexusOwner(req);
-      if (!owner) return res.status(401).json({ error: 'Sign in to Nexus first.' });
-      const device = await trustOwnerDevice(pin);
-      res.setHeader('Set-Cookie', serializeDeviceCookie(device));
-      return res.status(200).json({ ok: true });
-    }
-
-    if (action === 'pin_login') {
-      const owner = await verifyOwnerPin(req, pin);
-      if (owner?.locked) return res.status(429).json({ error: 'Too many code attempts. Try later or use your Nexus password.' });
-      if (!owner) return res.status(401).json({ error: 'Wrong Nexus code.' });
-      const token = await createOwnerSession();
-      res.setHeader('Set-Cookie', serializeOwnerCookie(token));
+      res.setHeader('Set-Cookie', [serializeOwnerCookie(token),serializeDeviceCookie(null,{clear:true})]);
       return res.status(200).json({ authenticated: true, owner });
     }
 
@@ -122,7 +101,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Unknown action.' });
   } catch (error) {
     console.error('nexus-auth:', error.message);
-    const expected = /password|four digits|setup link|already been created|invalid or expired/iu.test(error.message);
+    const expected = /password|setup link|already been created|invalid or expired/iu.test(error.message);
     return res.status(expected ? 400 : 500).json({ error: expected ? error.message : 'Could not authenticate with Nexus.' });
   }
 }

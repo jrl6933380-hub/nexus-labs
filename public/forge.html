@@ -331,7 +331,7 @@ const signedIn = Boolean(me?.username);
 function goSignIn() {
   const draft = document.getElementById('input')?.value || '';
   if (draft) sessionStorage.setItem('forge:login:draft', draft);
-  location.href = '/room-login.html?next=' + encodeURIComponent(`${location.pathname}${location.search}`);
+  location.href = '/index.html?next=' + encodeURIComponent(`${location.pathname}${location.search}`);
 }
 
 const FORGE_ACCOUNT_CARD = 'forge:account-card:v1';
@@ -497,7 +497,7 @@ async function deleteMyAccount(){
   const response=await fetch('/api/account',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',confirmation})});
   const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error || 'Your account could not be deleted.');
   try{localStorage.removeItem(FORGE_ACCOUNT_CARD);}catch{}
-  location.replace('/room-login.html?deleted=1');return true;
+  location.replace('/index.html?deleted=1');return true;
 }
 
 async function sendFeedback(){

@@ -67,18 +67,28 @@ test('password policy rejects short credentials before consuming a ticket', asyn
   await auth.setOwnerPasswordWithTicket(issued.ticket, 'long enough replacement');
 });
 
-test('four-digit owner code needs the trusted device cookie and limits guesses', async () => {
-  const device = await auth.trustOwnerDevice('0427');
-  const trusted = { headers: { cookie: `nexus_owner_device=${device}` } };
-  assert.equal(await auth.deviceHasOwnerPin(trusted), true);
-  assert.equal(await auth.deviceHasOwnerPin({ headers: {} }), false);
-  assert.equal(await auth.verifyOwnerPin({ headers: {} }, '0427'), null);
-  assert.equal((await auth.verifyOwnerPin(trusted, '0427'))?.id, 'justin');
-  for (let attempt = 0; attempt < 5; attempt++) assert.equal(await auth.verifyOwnerPin(trusted, '0000'), null);
-  assert.deepEqual(await auth.verifyOwnerPin(trusted, '0427'), { locked: true });
-  assert.doesNotMatch(auth.serializeDeviceCookie(device), /nexus_room_session/u);
-  await auth.forgetOwnerDevice(trusted);
-  assert.equal(await auth.deviceHasOwnerPin(trusted), false);
+test('retired code actions cannot authenticate or create a device', async () => {
+  const { default: handler } = await import('../api/nexus-auth.js');
+  for (const action of ['set_pin', 'pin_login']) {
+    const headers = {}; let status, body;
+    const res = { setHeader: (k,v) => headers[k]=v, status(n){status=n;return this;}, json(v){body=v;} };
+    await handler({method:'POST',body:{action,pin:'0427'},headers:{}},res);
+    assert.equal(status,410); assert.match(body.error,/retired/u);
+    assert.equal(headers['Set-Cookie'],undefined);
+  }
+  assert.equal(auth.verifyOwnerPin,undefined);
+  assert.equal(auth.trustOwnerDevice,undefined);
+});
+
+test('password sign-in opens Nexus and clears the legacy device cookie', async () => {
+  const { default: handler } = await import('../api/nexus-auth.js');
+  const headers = {}; let status, body;
+  const res = { setHeader: (k,v) => headers[k]=v, status(n){status=n;return this;}, json(v){body=v;} };
+  await handler({method:'POST',body:{action:'login',password:'long enough replacement'},headers:{}},res);
+  assert.equal(status,200); assert.equal(body.authenticated,true);
+  assert.equal(body.pinSet,undefined);assert.equal(body.pinAvailable,undefined);
+  assert.ok(headers['Set-Cookie'].some(value=>value.startsWith('nexus_owner_session=')));
+  assert.ok(headers['Set-Cookie'].some(value=>value.startsWith('nexus_owner_device=')&&value.includes('Max-Age=0')));
 });
 
 test('a valid Nexus owner session opens Forge under the owner identity without a Forge login', async () => {

@@ -5,20 +5,18 @@ import { runInNewContext } from 'node:vm';
 
 const [root, login, forge, forgeViews, room] = await Promise.all([
   readFile(new URL('../public/index.html', import.meta.url), 'utf8'),
-  readFile(new URL('../public/room-login.html', import.meta.url), 'utf8'),
+  readFile(new URL('../public/index.html', import.meta.url), 'utf8'),
   readFile(new URL('../public/forge.html', import.meta.url), 'utf8'),
   readFile(new URL('../public/forge-views.js', import.meta.url), 'utf8'),
   readFile(new URL('../public/room.html', import.meta.url), 'utf8'),
 ]);
 
-test('root opens the Nexus launch station, including after an owner session expires', () => {
-  assert.match(root, /fetch\('\/api\/nexus-auth'/u);
-  assert.match(root, /location\.replace\('\/workspace\.html'\)/u);
-  assert.doesNotMatch(root, /fetch\('\/api\/room-auth'/u);
-  assert.match(root, /location\.replace\('\/nexus-login\.html\?next=%2Fworkspace\.html'\)/u);
-  assert.match(root, /href="\/forge\.html"/u);
-  assert.doesNotMatch(root, /location\.replace\('\/forge\.html'\)/u);
-  assert.doesNotMatch(root, /http-equiv="refresh"/u);
+test('root provides one stable entry for customers and the owner', () => {
+  assert.match(root, /sessionCheck\('\/api\/nexus-auth'\)/u);
+  assert.match(root, /sessionCheck\('\/api\/room-auth'\)/u);
+  assert.match(root, /id="owner-form"/u);
+  assert.match(root, /button.onclick=\(\)=>location.assign/u);
+  assert.doesNotMatch(root, /pin_login|set_pin|pin-setup/u);
 });
 
 test('Builder Brain explains a 401 and offers Forge sign-in instead of an outage message', () => {
@@ -28,19 +26,15 @@ test('Builder Brain explains a 401 and offers Forge sign-in instead of an outage
   assert.match(forge, /connectBrain: async \(tier\) => \{\s*if \(!signedIn\) \{ goSignIn\(\); return; \}/u);
 });
 
-test('customer account flow connects Builder Brain on sign-in before returning to work', () => {
-  assert.match(login, /new Set\(\['\/forge\.html', '\/room\.html', '\/story-studio\.html'/u);
-  assert.match(login, /id="brain-step"/u);
-  assert.match(login, /returnTo:'login'/u);
-  assert.match(login, /location\.href = nextPath/u);
-  assert.match(forge, /startupParams\.get\('onboarding'\) === '1'/u);
-  assert.match(forge, /await showView\('brain'\)/u);
-  assert.match(forge, /forge:onboarding:return/u);
+test('customer sign-in returns directly to work without mandatory provider setup', () => {
+  assert.match(login, /location.assign\(nextPath\)/u);
+  assert.match(login, /social=complete/u);
+  assert.match(login, /simple-signup/u);
 });
 
 test('Free plan returns to current Forge chat from direct and legacy sign-ins', () => {
   const start = login.indexOf('  const requested = new URLSearchParams');
-  const end = login.indexOf('  const operatorNextPath =', start);
+  const end = login.indexOf('  // Forge Field', start);
   assert.ok(start > 0 && end > start);
   const destination = (query) => runInNewContext(login.slice(start, end) + '\nnextPath', {
     URL, URLSearchParams,
@@ -80,7 +74,7 @@ test('missing Builder Brain responses provide a real setup action in the custome
 
 test('saved projects open directly instead of becoming a new build prompt', () => {
   assert.match(forgeViews, /open\.onclick = \(\) => ctx\.openBuild\(buildId\)/u);
-  assert.match(forge, /openBuild: async \(id, destination = \(preferredBuilderMode\(\)/u);
+  assert.match(forge, /openBuild: async \(id, destination = 'overview'/u);
   assert.match(forge, /\/api\/room-history\?id=/u);
   assert.match(forge, /currentBuild = data\.build\.html/u);
   assert.match(forge, /currentProjectId = data\.build\.projectId \|\| data\.build\.id/u);
