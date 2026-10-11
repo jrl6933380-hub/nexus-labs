@@ -126,7 +126,9 @@ export function createTeamChat({input,thread,onMessage=()=>{},onGroup=()=>{},ope
       if(!coordinated)card.classList.add('teammission-solo');
       const top=node('div',undefined,'teammissionhead');top.append(node('strong',`◎ ${group.title || group.name || 'Team'} project`,'teamtasktitle'),node('span',LABELS[run.state] || run.state,'teamstate'));
       card.append(top);
-      if(run.autonomous && !['completed','cancelled'].includes(run.state))card.append(node('p','You can leave this chat. Your team will keep working.','teamautonomy'));
+      if(run.autonomous && ['queued','running'].includes(run.state))card.append(node('p','You can leave this chat. Your team will keep working.','teamautonomy'));
+      else if(run.state==='stopping')card.append(node('p','Stopping after the current assignment.','teamautonomy'));
+      else if(['blocked','needs_approval'].includes(run.state))card.append(node('p','The team is waiting for the issue below to be resolved.','teamautonomy'));
       const returned=run.steps.filter(step=>step.state==='returned').length,progress=node('progress');progress.max=run.steps.length;progress.value=returned;progress.setAttribute('aria-label',`${returned} of ${run.steps.length} assignments returned`);card.append(progress);
       const steps=node('ol',undefined,'teamsteps');
       for(const step of run.steps){

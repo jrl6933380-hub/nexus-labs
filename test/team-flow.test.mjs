@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createTeamRunStore,teamAssignmentMode,WORKER_LEASE_MS} from '../lib/teamRuns.js';
-import {createTeamRunner} from '../lib/teamRunner.js';
+import {createTeamRunner,ownerRepositoryResearch} from '../lib/teamRunner.js';
 import {createTeamMessagesHandler} from '../lib/teamMessagesHandler.js';
 import {parseTeamMentions,teamHandles} from '../public/team-mentions.js';
 import {createAgentDelegation} from '../lib/agentDelegation.js';
@@ -78,7 +78,7 @@ test('approved Mason builds get a long provider window and resume from a safe ba
     : {reply:'Build complete.',provider:'nex-pod',runState:{state:'completed'},completionReceipt:{status:'verified',observed:['tests']}};}});
   const run=await runs.create('justin','group-launch',[builder],'@Atlas build the customer website','request-durable-build',{includeNex:false,autoStart:true});
   await runner.execute('justin','group-launch',run.id);let [saved]=await runs.list('justin','group-launch');await runs.act('justin','group-launch',run.id,'approve_step',saved.steps[0].id);
-  await runner.execute('justin','group-launch',run.id);[saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'queued');assert.equal(saved.steps[0].state,'retrying');assert.match(saved.steps[0].error,/continue it in the background/);
+  await runner.execute('justin','group-launch',run.id);[saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'queued');assert.equal(saved.steps[0].state,'retrying');assert.match(saved.steps[0].error,/continue this assignment in the background/);
   assert.equal(calls[0].providerTimeoutMs,240000);assert.equal(calls[0].reasoningBudgets.maxElapsedMs,240000);assert.match(calls[0].resumeRunId,/^nex-turn-[a-f0-9]{32}$/u);
   advance(30_001);await runner.execute('justin','group-launch',run.id);[saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'completed');assert.equal(calls[1].resumeRunId,calls[0].resumeRunId);
 });
@@ -317,12 +317,13 @@ test('research page output retries as a brief before Mason receives the handoff'
   [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'completed');assert.equal(hasCompletePage(saved.steps[1].result),true);
 });
 
-test('repeated research page output blocks after three attempts instead of reaching the builder',async()=>{
+test('repeated research page output keeps repairing the brief without reaching the builder',async()=>{
   const {runs,advance,now}=fixture();let calls=0;
   const runner=createTeamRunner({runs,now,messages:{overview:async()=>({groups:[{id:'group-launch',member_ids:members.map(item=>item.id)}],specialists:members})},mode:async()=>({mode:'engaged'}),history:async()=>null,ask:async()=>{calls++;return {reply:'```html\n<html><body>Not research</body></html>\n```',provider:'nex-pod'};}});
   const run=await runs.create('justin','group-launch',members,'Build a workout page','request-role-stop',{includeNex:false,autoStart:true});
-  for(let i=0;i<3;i++){await runner.execute('justin','group-launch',run.id);advance(300001);}
-  const [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'blocked');assert.equal(calls,3);assert.equal(saved.steps[1].attempts,0);
+  for(let i=0;i<5;i++){await runner.execute('justin','group-launch',run.id);advance(300001);}
+  const [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'queued');assert.equal(calls,5);assert.equal(saved.steps[1].attempts,0);
+  await runs.act('justin','group-launch',run.id,'cancel');assert.equal(await runs.claim('justin','group-launch',run.id),null);
 });
 
 test('only builder results qualify for page preview and historical research pages become a clear notice',()=>{
@@ -358,4 +359,42 @@ test('an expired approved Workbench worker resumes from saved state and remains 
   await runs.claim('justin','group-launch',run.id);tick();assert.equal(await runs.claim('justin','group-launch',run.id),null);
   [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'queued');assert.equal(saved.steps[0].state,'retrying');assert.match(saved.steps[0].error,/Reopen saved project state/);
   await runs.act('justin','group-launch',run.id,'cancel');assert.equal(await runs.claim('justin','group-launch',run.id),null);
+});
+
+test('Nex continues across five execution windows and reuses the research handoff',async()=>{
+  const {runs,advance,now}=fixture();let reviews=0;const ids=[];
+  const runner=createTeamRunner({runs,now,messages:{overview:async()=>({groups:[{id:'group-launch',member_ids:[members[0].id]}],specialists:[members[0]]})},mode:async()=>({mode:'engaged'}),history:async()=>null,ask:async(prompt,h,t,context,stage,options)=>{
+    assert.equal(options.reasoningBudgets.continueUntilDone,true);
+    if(context.conversation.kind==='specialist')return {reply:'Research checked: reference source.',provider:'nex-pod'};
+    reviews++;ids.push(options.resumeRunId);assert.match(prompt,/Research checked: reference source/);
+    return reviews<5?{reply:'Review checkpoint '+reviews,provider:'nex-pod',runState:{state:'waiting',blocker:'runaway_safety_ceiling_hit'}}:{reply:'Verified final recommendation.',provider:'nex-pod',completionReceipt:{status:'verified'}};
+  }});
+  const run=await runs.create('justin','group-launch',[members[0]],'Research options','request-nex-continuation',{includeNex:true,autoStart:true});
+  await runner.execute('justin','group-launch',run.id);
+  for(let i=0;i<5;i++){await runner.execute('justin','group-launch',run.id);advance(300001);}
+  const [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'completed');assert.equal(reviews,5);assert.equal(new Set(ids).size,1);assert.equal(saved.steps[0].attempts,1);
+});
+
+test('research recovers from more than three provider outages but stops for a user question',async()=>{
+  const {runs,advance,now}=fixture();let calls=0;
+  const runner=createTeamRunner({runs,now,messages:{overview:async()=>({groups:[{id:'group-launch',member_ids:[members[0].id]}],specialists:[members[0]]})},mode:async()=>({mode:'engaged'}),history:async()=>null,ask:async()=>++calls<5?{reply:'Provider unavailable',provider:'none'}:{reply:'Which private repository should I read?',provider:'nex-pod',question:{question:'Which repository?'},runState:{state:'waiting',blocker:'needs_user_input'}}});
+  const run=await runs.create('justin','group-launch',[members[0]],'Research options','request-research-outage',{includeNex:false,autoStart:true});
+  for(let i=0;i<5;i++){await runner.execute('justin','group-launch',run.id);advance(300001);}
+  const [saved]=await runs.list('justin','group-launch');assert.equal(calls,5);assert.equal(saved.state,'blocked');assert.equal(await runs.claim('justin','group-launch',run.id),null);
+});
+
+test('owner source audits give research read tools without granting writes or customer access',async()=>{
+  const owner=String(process.env.NEXUS_OWNER_ID || 'justin').trim().toLowerCase();
+  assert.equal(ownerRepositoryResearch(owner,'Audit nexus-labs repository auth'),true);
+  assert.equal(ownerRepositoryResearch('customer-else','Audit nexus-labs repository auth'),false);
+  assert.equal(ownerRepositoryResearch(owner,'Research bodyweight workouts'),false);
+  const {runs}=fixture();let called=false;
+  const runner=createTeamRunner({runs,messages:{overview:async()=>({groups:[{id:'group-launch',member_ids:[members[0].id]}],specialists:[members[0]]})},mode:async()=>({mode:'engaged'}),history:async()=>null,ask:async(prompt,h,t,context)=>{
+    called=true;assert.equal(context.conversation.platform_read_only,true);assert.match(prompt,/simulated demo is not evidence/);
+    const policy=buildConversationAccessPolicy(context.conversation);assert.equal(policy.allowedToolNames.has('read_repo_file'),true);assert.equal(policy.allowedToolNames.has('search_repo_code'),true);
+    for(const tool of ['commit_files','patch_repo_file','create_pull_request','merge_pull_request','save_workbench_project'])assert.equal(policy.allowedToolNames.has(tool),false);
+    return {reply:'Read actual auth source; no claimed simulated defects.',provider:'nex-pod'};
+  }});
+  const run=await runs.create(owner,'group-launch',[members[0]],'Audit nexus-labs repository auth','request-source-audit',{includeNex:false,autoStart:true});await runner.execute(owner,'group-launch',run.id);assert.equal(called,true);
+  const ordinary=buildConversationAccessPolicy({...members[0],kind:'specialist',execution_mode:'read_only'});assert.equal(ordinary.allowedToolNames.has('read_repo_file'),false);
 });
