@@ -4,10 +4,8 @@
 // protocol handshake correctly (session headers, version negotiation)
 // so we don't have to reimplement that ourselves.
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { z } from 'zod';
 import { createOrUpdateFile, deleteFile, listFiles, readFile } from '../lib/github.js';
+import { privatePlatformAuthorized } from '../lib/privatePlatformAuth.js';
 import { authorizeCapability } from '../lib/capabilityGateway.js';
 
 // Safety nets — log anything that would otherwise fail completely
@@ -26,12 +24,15 @@ export default async function handler(req, res) {
     res.status(405).json({ error: 'Method Not Allowed — MCP uses POST' });
     return;
   }
+  res.setHeader('Cache-Control', 'private, no-store');
+  if (!(await privatePlatformAuthorized(req))) {
+    return res.status(401).json({ error: 'Nexus owner or internal agent authentication required.' });
+  }
   if (!process.env.GITHUB_TOKEN) {
     res.status(500).json({ error: 'Missing GITHUB_TOKEN environment variable.' });
     return;
   }
 
-  console.log('MCP body:', JSON.stringify(req.body));
   const authorize = (tool, action, args, read_write) => authorizeCapability(req, {
     tool,
     action,
@@ -40,6 +41,11 @@ export default async function handler(req, res) {
   });
 
   try {
+    const [{ McpServer }, { StreamableHTTPServerTransport }, { z }] = await Promise.all([
+      import('@modelcontextprotocol/sdk/server/mcp.js'),
+      import('@modelcontextprotocol/sdk/server/streamableHttp.js'),
+      import('zod'),
+    ]);
     console.log('MCP step: creating server');
     const server = new McpServer({ name: 'github-write', version: '0.1.0' });
 
