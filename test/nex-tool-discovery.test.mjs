@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {matchToolCategories, toolCategoryDirectory} from '../lib/nex/toolDiscovery.js';
 
 import {
   CORE_TOOL_NAMES,
@@ -16,6 +17,33 @@ test('obvious coding work is preloaded before the model has to search', () => {
     inferPreloadedToolCategories('List my repos and inspect the GitHub code on a branch'),
     ['coding'],
   );
+});
+
+test('natural requests discover the relevant capabilities without substring collisions', () => {
+  for (const [query, expected] of [
+    ['Fix the broken app', ['coding']],
+    ['Give the customer their money back', ['billing', 'collab']],
+    ['Ask the team to research and build a page', ['coding', 'collab', 'web']],
+    ['Check the deployment logs and patch the repo', ['coding', 'deploy']],
+    ['Build this and put it live', ['launch']],
+    ['Move my workout to Sunday', ['planner']],
+    ['Remind me to call Mom', ['planner']],
+  ]) assert.deepEqual(new Set(matchToolCategories(query)), new Set(expected), query);
+  assert.deepEqual(matchToolCategories('I appreciate you asking'), []);
+});
+
+test('explicit tool names can discover more than one category and exact keys stay precise', () => {
+  assert.deepEqual(new Set(matchToolCategories('patch_repo_file and get_vercel_build_logs')), new Set(['coding', 'deploy']));
+  assert.deepEqual(matchToolCategories('coding'), ['coding']);
+  assert.deepEqual(matchToolCategories(''), []);
+});
+
+test('capability directory exposes only tools permitted in the conversation', () => {
+  const directory = toolCategoryDirectory(new Set(['read_reminders', 'web_search']));
+  assert.match(directory, /planner/);
+  assert.match(directory, /web_search/);
+  assert.doesNotMatch(directory, /delete_planner_item|coding|propose_stripe_action/);
+  assert.equal(toolCategoryDirectory(new Set()), '');
 });
 
 test('room navigation receives room tools on the first model call', () => {

@@ -1,4 +1,4 @@
-import {createTaskProgress} from '/task-progress.js';
+import {createTaskProgress} from './task-progress.js';
 import { appendChatVisual } from './chat-visual.js';
 import { teamHandles } from './team-mentions.js';
 

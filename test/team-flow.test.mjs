@@ -55,7 +55,7 @@ test('chat-only visuals stay conversational even when the builder has project ac
   const runner=createTeamRunner({runs,messages:{overview:async()=>({groups:[{id:'group-launch',member_ids:[builder.id]}],specialists:[builder]})},mode:async()=>({mode:'engaged'}),history:async()=>null,ask:async(prompt,history,tier,context,onStage,toolContext)=>{calls.push({prompt,context,toolContext});return {reply:'```html\n<h1>Landscaping</h1>\n```',provider:'gateway',completionReceipt:{status:'not_required',observed:[]}};}});
   const run=await runs.create('justin','group-launch',[builder],`@Atlas ${instruction}`,'request-chat-visual',{includeNex:false,autoStart:true});
   assert.equal(run.steps[0].requires_approval,false);assert.equal(run.steps[0].execution_mode,'chat_only');assert.deepEqual(run.steps[0].scopes,['conversation']);
-  await runner.execute('justin','group-launch',run.id);const [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'completed');assert.equal(calls[0].context.conversation.execution_mode,'read_only');assert.equal(calls[0].toolContext.cognitiveLane,'chat');assert.match(calls[0].prompt,/not a square poster/);assert.match(calls[0].prompt,/Do not stack every item/);
+  await runner.execute('justin','group-launch',run.id);const [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'completed');assert.equal(calls[0].context.conversation.execution_mode,'read_only');assert.equal(calls[0].toolContext.cognitiveLane,'chat');assert.match(calls[0].prompt,/not a square poster/);assert.match(calls[0].prompt,/Do not stack every item/);assert.match(calls[0].prompt,/specialist name is not a GitHub owner/);
 });
 test('chat visuals retain their editable source for promotion to Projects',()=>{
   const source='<!doctype html><html><body><main>Editable site</main></body></html>';
@@ -183,6 +183,9 @@ test('write-capable assignments never auto-retry an uncertain failure',async()=>
   const run=await runs.create('justin','group-launch',people,'@Atlas build it','request-write-failure',{includeNex:false,autoStart:true});
   await runner.execute('justin','group-launch',run.id);let [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'needs_approval');
   await runs.act('justin','group-launch',run.id,'approve_step',saved.steps[0].id);await runner.execute('justin','group-launch',run.id);[saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'blocked');assert.equal(saved.steps[0].state,'blocked');
+  assert.match(saved.steps[0].error,/model request failed or timed out/i);
+  assert.match(saved.steps[0].error,/Saved handoffs and any committed changes are preserved/);
+  assert.equal(saved.steps[0].result,'Provider stopped after partial work.');
 });
 test('team API strips worker lease tokens, retains caller scope, and schedules approved work',async()=>{
   const {runs}=fixture(),scheduled=[];const runner={group:async()=>({id:'group-launch',members}),execute:async()=>{}};

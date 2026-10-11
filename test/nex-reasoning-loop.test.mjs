@@ -42,6 +42,14 @@ test('tool search is bounded and duplicate searches are rejected', () => {
   assert.equal(registerToolSearch(state, 'billing').allowed, false);
 });
 
+test('an empty query can inspect the directory once and still consumes the search budget', () => {
+  const state = createReasoningState({ message: 'Find the right capability.', budgets: { maxToolSearches: 2 } });
+  assert.equal(registerToolSearch(state, '').allowed, true);
+  assert.equal(registerToolSearch(state, '  ').reason, 'duplicate_tool_search');
+  assert.equal(registerToolSearch(state, 'coding', ['coding']).allowed, true);
+  assert.equal(registerToolSearch(state, 'billing').reason, 'tool_search_budget_exhausted');
+});
+
 test('tool search rejects a category that is already loaded', () => {
   const state = createReasoningState({ message: 'Build it.', runState: { loadedCapabilities: ['coding'] } });
   const result = registerToolSearch(state, 'coding', ['coding']);
