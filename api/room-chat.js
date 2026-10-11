@@ -1,3 +1,4 @@
+import { CUSTOMER_PLATFORM_POLICY, PRIVATE_PLATFORM_REPLY, requestsPrivatePlatform } from '../lib/customerPlatformBoundary.js';
 import {withProjectSaveLock} from '../lib/projectSaveLock.js';
 import {projectDocumentTitle} from '../lib/projectName.js';
 // api/room-chat.js
@@ -132,6 +133,7 @@ export default async function handler(req, res) {
   const typedMessage = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
   const message = typedMessage || (attachments.length ? 'Use the attached image in the project.' : '');
   if (!message) return res.status(400).json({ error: 'Missing message' });
+  if (requestsPrivatePlatform(message)) return res.status(403).json({ error: PRIVATE_PLATFORM_REPLY, code: 'PRIVATE_PLATFORM_REQUEST' });
 
   let username = await getRequestUser(req);
   const signedIn = Boolean(username);
@@ -297,7 +299,7 @@ export default async function handler(req, res) {
       isEdit,
       body: {
         max_tokens: 16000,
-        system: isEdit ? EDIT_SYSTEM_PROMPT : FRESH_SYSTEM_PROMPT,
+        system: (isEdit ? EDIT_SYSTEM_PROMPT : FRESH_SYSTEM_PROMPT) + '\n' + CUSTOMER_PLATFORM_POLICY,
         messages: [
           {
             role: 'user',
