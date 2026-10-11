@@ -8,5 +8,5 @@ test('Nex Chat project allowances match Free, Pro, and Plus product limits', () 
   assert.deepEqual(workbenchProjectAllowance(PLANS.HOSTED), { limit: 3, planName: 'Pro' });
   assert.deepEqual(workbenchProjectAllowance(PLANS.GROWTH), { limit: 6, planName: 'Plus' });
   assert.deepEqual(workbenchProjectAllowance(PLANS.UNLIMITED), { limit: 6, planName: 'Plus' });
-  assert.deepEqual(workbenchProjectAllowance(PLANS.FREE, true), { limit: 10, planName: 'Plus' });
+  assert.deepEqual(workbenchProjectAllowance(PLANS.FREE, true), { limit: null, planName: 'Owner' });
 });
