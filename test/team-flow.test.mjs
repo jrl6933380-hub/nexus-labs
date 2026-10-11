@@ -333,7 +333,7 @@ test('only builder results qualify for page preview and historical research page
   for(const role of ['research','review','life','custom'])assert.equal(canPreviewSpecialistPage(role),false);
   assert.match(specialistResultText('research',page),/Research findings/);
   assert.doesNotMatch(specialistResultText('research',page),/Old Atlas page/);
-  assert.match(specialistResultText('research',page),/Mason handles page building/);
+  assert.match(specialistResultText('research',page),/Mason or Nex handles page building/);
   assert.equal(specialistResultText('build',page),page);
   assert.equal(hasCompletePage('Example: ```html\n<strong>text</strong>\n```'),false);
 });
@@ -438,4 +438,34 @@ test('team answer API schedules continuation and returns the saved answer withou
  const scheduled=[],tracked=[];const handler=createTeamMessagesHandler({runs,runner:{group:async()=>({id:'group-launch',members}),execute:async()=>false},missions:{track:async(...args)=>tracked.push(args)},schedule:task=>scheduled.push(task)}),out=res();
  await handler({method:'POST',body:{action:'team_answer',group_id:'group-launch',run_id:run.id,step_id:claimed.step.id,question_id:'question-one',answer:'Strength',owner:'someone-else'}},out,{id:'justin'});
  assert.equal(out.code,200);assert.equal(out.body.run.state,'queued');assert.equal(out.body.run.steps[0].answers[0].answer,'Strength');assert.equal(out.body.run.steps[0].token,undefined);assert.equal(scheduled.length,1);assert.equal(tracked[0][0],'justin');await scheduled[0]();
+});
+
+test('new specialist roles cannot inherit project writes but Vida retains authorized life tools',()=>{
+ for(const role of ['research','review','life','custom','future-specialty']){
+  const policy=buildConversationAccessPolicy({kind:'specialist',role,scopes:['conversation','projects','schedule','reminders','life'],execution_mode:'approved'});
+  for(const tool of ['save_workbench_project','create_branch','create_repo_file','update_repo_file','patch_repo_file','commit_repo_files','create_pull_request','run_sandbox','test_code'])assert.equal(policy.allowedToolNames.has(tool),false,role+' '+tool);
+ }
+ const vida=buildConversationAccessPolicy({kind:'specialist',role:'life',scopes:['conversation','schedule','reminders','life'],execution_mode:'approved'});assert.equal(vida.allowedToolNames.has('manage_life'),true);assert.equal(vida.allowedToolNames.has('create_planner_item'),true);
+ const mason=buildConversationAccessPolicy({kind:'specialist',role:'build',scopes:['conversation','projects'],execution_mode:'approved'});assert.equal(mason.allowedToolNames.has('save_workbench_project'),true);
+ assert.equal(teamAssignmentMode({role:'life',scopes:['conversation','schedule','life']},'Build a workout tracker page'),'chat_only');
+ assert.equal(teamAssignmentMode({role:'life',scopes:['conversation','schedule','life']},'Schedule my workout tomorrow'),'project_write');
+ assert.equal(teamAssignmentMode({role:'custom',scopes:['conversation','projects']},'Build an app'),'chat_only');
+});
+
+test('automatic team order prepares domain scope, builds, then reviews',async()=>{
+ const {runs}=fixture();const roster=[members[0],{id:'agent-vida',name:'Vida',role:'life',job:'Life',scopes:['conversation','life','schedule']},{id:'agent-vera',name:'Vera',role:'review',job:'Review',scopes:['conversation','projects']},members[1]];
+ const run=await runs.create('justin','group-launch',roster,'Build a bodyweight workout tracker','request-role-order',{includeNex:true,autoStart:true});
+ assert.deepEqual(run.steps.map(step=>step.role),['research','life','build','review','review']);assert.equal(run.steps[1].requires_approval,false);assert.match(run.steps[1].instruction,/leaving page layout, visual design, technology and implementation decisions to the builder/);
+});
+
+test('Vida scopes the content and tracking needs before Mason builds from the handoff',async()=>{
+ const {runs,now}=fixture();const vida={id:'agent-vida',name:'Vida',role:'life',job:'Life plan',scopes:['conversation','life','schedule']},roster=[vida,members[1]],calls=[];
+ const runner=createTeamRunner({runs,now,messages:{overview:async()=>({groups:[{id:'group-launch',member_ids:roster.map(item=>item.id)}],specialists:roster})},mode:async()=>({mode:'engaged'}),history:async()=>null,ask:async(prompt,h,t,c)=>{
+  calls.push({prompt,c});return {reply:c.conversation.role==='life'?'Goal: consistency. Track completed workouts and weekly totals; leave design and implementation to the builder.':'Workout tracker saved.',provider:'nex-pod'};
+ }});
+ const run=await runs.create('justin','group-launch',roster,'Build a workout tracker','request-vida-handoff',{includeNex:false,autoStart:true});await runner.execute('justin','group-launch',run.id);await runner.execute('justin','group-launch',run.id);
+ let [saved]=await runs.list('justin','group-launch');assert.equal(saved.steps[0].state,'returned');assert.equal(saved.steps[1].state,'needs_approval');assert.equal(calls[0].c.conversation.execution_mode,'read_only');assert.match(calls[0].prompt,/Define what is needed, not how to build it/);
+ await runs.act('justin','group-launch',run.id,'approve_step',saved.steps[1].id);await runner.execute('justin','group-launch',run.id);assert.match(calls[1].prompt,/Track completed workouts and weekly totals/);
+ const wrongPage='Useful workout scope.\n```html\n<html><body>Wrong role implementation</body></html>\n```';
+ for(const role of ['life','review','custom']){assert.match(specialistResultText(role,wrongPage),/Useful workout scope/);assert.doesNotMatch(specialistResultText(role,wrongPage),/Wrong role implementation/);}
 });

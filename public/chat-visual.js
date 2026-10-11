@@ -11,9 +11,9 @@ export function hasCompletePage(result) {
   return Boolean(html && /<!doctype\s+html|<html(?:\s|>)|<body(?:\s|>)/iu.test(html));
 }
 export function specialistResultText(role,result) {
-  if(role!=='research' || !hasCompletePage(result))return String(result || '');
+  if(role==='build' || !hasCompletePage(result))return String(result || '');
   const brief=String(result).replace(/```html\s*\n[\s\S]*?\n```/giu,'').trim();
-  return [brief,'This response included a page instead of a research brief. Mason handles page building.'].filter(Boolean).join('\n\n');
+  return [brief,`This response included a page instead of ${role==='research'?'a research brief':role==='life'?'a life plan and scope':role==='review'?'review findings':'a specialist brief'}. Mason or Nex handles page building.`].filter(Boolean).join('\n\n');
 }
 export function chatVisualDocument(result) {
   const html=chatVisualHtml(result);if(!html)return null;

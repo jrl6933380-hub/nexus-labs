@@ -50,8 +50,11 @@ function mergeApproval(copy,approval,announce,resolve){
 }
 function avatar(person){const mark=node('span',person.name==='Nex'?'N':undefined,`messageavatar teamavatar tone-${person.role} ${person.role}`);mark.setAttribute('aria-hidden','true');if(['research','build','life','review'].includes(person.role) && person.name!=='Nex')mark.append(node('i'));else mark.textContent=person.name.slice(0,1).toUpperCase();return mark;}
 export function createTeamChat({input,thread,onMessage=()=>{},onGroup=()=>{},openApprovals=()=>{},openUsage=()=>{}}) {
+  let interacting=false,deferredRender=false;
   let group=null,host=null,timer=null,generation=0,refreshing=null,signature='',runs=[],roster=[],request=null;
   const answerDrafts=new Map();
+  document.addEventListener('pointerup',()=>{setTimeout(()=>{interacting=false;if(deferredRender){deferredRender=false;render();}},180);});
+  document.addEventListener('pointercancel',()=>{interacting=false;if(deferredRender){deferredRender=false;render();}});
   const suggestions=node('div',undefined,'teammentions');suggestions.hidden=true;suggestions.setAttribute('aria-label','Mention a teammate');
   input.parentElement.append(suggestions);input.setAttribute('aria-controls','teamMentionSuggestions');suggestions.id='teamMentionSuggestions';
   const announce=node('p',undefined,'teamannounce');announce.setAttribute('role','status');announce.setAttribute('aria-live','polite');
@@ -87,7 +90,7 @@ export function createTeamChat({input,thread,onMessage=()=>{},onGroup=()=>{},ope
     const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error || 'This build could not be saved to Projects.');
     return data;
   }
-  function stop(){answerDrafts.clear();generation++;refreshing=null;clearTimeout(timer);timer=null;group=null;host?.remove();host=null;roster=[];runs=[];request=null;signature='';suggestions.hidden=true;input.removeAttribute('aria-expanded');}
+  function stop(){interacting=false;deferredRender=false;answerDrafts.clear();generation++;refreshing=null;clearTimeout(timer);timer=null;group=null;host?.remove();host=null;roster=[];runs=[];request=null;signature='';suggestions.hidden=true;input.removeAttribute('aria-expanded');}
   function renderRoster(){
     const banner=thread.querySelector('.conversationbanner');if(!banner)return;
     const strip=node('div',undefined,'teamroster');strip.setAttribute('aria-label','Team members');
@@ -95,8 +98,8 @@ export function createTeamChat({input,thread,onMessage=()=>{},onGroup=()=>{},ope
       const toggle=button(group.include_nex===false?'Add Nex':'Nex participating · Remove',async()=>{try{await api('set_group_nex',{include_nex:group.include_nex===false});signature='';await refresh();}catch(error){announce.textContent=error.message;}},'teamcoordinator');strip.append(toggle);
     }
     for(const person of roster.filter(person=>group.kind!=='group' || group.member_ids.includes(person.id))){const step=runs[0]?.state==='cancelled'?null:runs[0]?.steps.find(step=>step.member_id===person.id);
-      const item=button('',()=>mention(person),`teamchip tone-${person.role}`);item.append(avatar(person),node('span',person.name),node('small',(teamQuestion(runs[0] || {},step)?'Waiting for your answer':LABELS[step?.state]) || 'Ready'));item.setAttribute('aria-label',`Mention ${person.name}, ${(teamQuestion(runs[0] || {},step)?'waiting for your answer':LABELS[step?.state]) || 'ready'}`);strip.append(item);}
-    banner.replaceChildren(strip,node('p','Tap a teammate or type @ to assign work.','teamhint'));
+      const item=button('',()=>{if(step)showActivity(runs[0],step);else mention(person);},`teamchip tone-${person.role}`);item.append(avatar(person),node('span',person.name),node('small',(teamQuestion(runs[0] || {},step)?'Waiting for your answer':LABELS[step?.state]) || 'Ready'));item.setAttribute('aria-label',`Mention ${person.name}, ${(teamQuestion(runs[0] || {},step)?'waiting for your answer':LABELS[step?.state]) || 'ready'}`);strip.append(item);}
+    banner.replaceChildren(strip,node('p','Tap a teammate to see their work. Type @ to assign work.','teamhint'));
   }
   async function act(action,run,step=null,control=null){
     const stamp=generation;if(control)control.disabled=true;
@@ -140,8 +143,23 @@ export function createTeamChat({input,thread,onMessage=()=>{},onGroup=()=>{},ope
     form.append(node('strong',`${step.name} needs your answer`),label,choices,field,send,node('small','Your answer continues this task. You can also reply in the chat bar.'));
     copy.append(form);
   }
+  function showActivity(run,step){
+    const key=`activity-${run.id}-${step.id}`,panel=[...host.querySelectorAll('details')].find(item=>item.dataset.step===key);
+    if(panel){panel.open=true;const result=[...host.querySelectorAll('details')].find(item=>item.dataset.step===step.id);if(result)result.open=true;panel.scrollIntoView({block:'nearest',behavior:'smooth'});}
+  }
+  function activityPanel(run,step,expanded){
+    const panel=node('details',undefined,'teamactivity'),key=`activity-${run.id}-${step.id}`;panel.dataset.step=key;panel.open=expanded.has(key);
+    panel.append(node('summary',`See ${step.name}’s work`),node('strong','Assignment'),node('p',step.instruction,'teamresult'));
+    panel.append(node('strong','Latest activity'),node('p',step.activity || (step.state==='working'?'Starting this assignment. Updates will appear here as they are saved.':step.state==='queued'?'Waiting for the previous teammate.':LABELS[step.state] || step.state),'teamresult'));
+    if(step.updates?.length){const list=node('ol');for(const text of step.updates)list.append(node('li',text));panel.append(list);}
+    if(step.answers?.length){panel.append(node('strong','Your answers'));for(const answer of step.answers)panel.append(node('p',`${answer.question}\n${answer.answer}`,'teamresult'));}
+    if(step.previous_result && step.previous_result!==step.result)panel.append(node('strong','Saved checkpoint'),node('p',specialistResultText(step.role,step.previous_result),'teamresult'));
+    if(step.member_id){const person=roster.find(person=>person.id===step.member_id);if(person)panel.append(button(`Ask ${step.name}`,()=>mention(person),'teamsecondary'));}
+    return panel;
+  }
   function render(){
     if(!host)return;
+    if(interacting){deferredRender=true;return;}
     const focused=document.activeElement?.dataset?.question,selection=focused?[document.activeElement.selectionStart,document.activeElement.selectionEnd]:null;
     const expanded=new Set([...host.querySelectorAll('details[open]')].map(item=>item.dataset.step));
     host.replaceChildren(announce);renderRoster();
@@ -165,6 +183,8 @@ export function createTeamChat({input,thread,onMessage=()=>{},onGroup=()=>{},ope
         const question=teamQuestion(run,step);
         const item=node('li',undefined,`teamstep state-${step.state}`),copy=node('div',undefined,'teamstepcopy'),heading=node('div',undefined,'teamstephead');
         heading.append(node('strong',step.name),node('small',question?'Waiting for your answer':LABELS[step.state] || step.state,'teamstate'));copy.append(heading,node('p',teamStepDescription(step)));
+        heading.onclick=()=>showActivity(run,step);heading.tabIndex=0;heading.setAttribute('role','button');heading.setAttribute('aria-label',`See ${step.name}’s activity`);heading.onkeydown=event=>{if(['Enter',' '].includes(event.key)){event.preventDefault();showActivity(run,step);}};
+        copy.append(activityPanel(run,step,expanded));
         if(step.requires_approval && !step.approved_at && ['planned','queued'].includes(run.state))copy.append(node('small','Will ask you before making changes.','teamattention'));
         if(step.approval_source==='conversation_grant')copy.append(node('small','Already approved for this project.','teamscopes'));
         if(step.updates?.length){const key=`progress-${run.id}-${step.id}`,task=createTaskProgress(step.updates,{running:!step.result && !step.error,open:expanded.has(key) || (!step.result && !step.error)});task.element.dataset.step=key;copy.append(task.element);}
@@ -207,7 +227,7 @@ export function createTeamChat({input,thread,onMessage=()=>{},onGroup=()=>{},ope
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='hidden' && group)refresh(generation);});
   return {
     stop,
-    open(conversation,chatId=null){stop();group={...conversation,id:chatId || conversation?.id || 'nex-main',kind:conversation?.kind || 'nex'};host=node('div',undefined,'teamboard');host.append(announce);thread.append(host);const stamp=generation;refresh(stamp);},
+    open(conversation,chatId=null){stop();group={...conversation,id:chatId || conversation?.id || 'nex-main',kind:conversation?.kind || 'nex'};host=node('div',undefined,'teamboard');host.addEventListener('pointerdown',()=>{interacting=true;});host.append(announce);thread.append(host);const stamp=generation;refresh(stamp);},
     handlesMessage(text){return Boolean(group && (waitingQuestion() || (group.kind==='group' && group.include_nex===false) || /(^|\s)@[\p{L}\p{N}_"-]/u.test(text)));},
     async submit(text){
       const stamp=generation;request=request?.text===text?request:{text,id:`team-${crypto.randomUUID()}`};
