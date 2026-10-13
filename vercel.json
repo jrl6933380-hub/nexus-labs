@@ -3,22 +3,93 @@
     "NEX_QWEN_ONLY": "true"
   },
   "functions": {
-    "api/nexus-messages.js": { "maxDuration": 300 },
-    "api/team-sweep.js": { "maxDuration": 300 },
-    "api/room-chat.js": { "maxDuration": 300 }
+    "api/nexus-messages.js": {
+      "maxDuration": 300
+    },
+    "api/team-sweep.js": {
+      "maxDuration": 300
+    },
+    "api/room-chat.js": {
+      "maxDuration": 300
+    }
   },
   "redirects": [
-    { "source": "/mission-control.html", "destination": "/workspace.html?view=deck", "permanent": true },
-    { "source": "/conference-room.html", "destination": "/workspace.html?view=agents", "permanent": true },
-    { "source": "/memory.html", "destination": "/workspace.html?view=memory", "permanent": true },
-    { "source": "/queue.html", "destination": "/workspace.html?view=approvals", "permanent": true },
-    { "source": "/connectors.html", "destination": "/workspace.html?view=skills", "permanent": true },
-    { "source": "/tenants.html", "destination": "/workspace.html?view=forge", "permanent": true },
-    { "source": "/nexus-canvas.html", "destination": "/workspace.html?view=messages", "permanent": true },
-    { "source": "/thoughtspace.html", "destination": "/workspace.html?view=messages", "permanent": true },
-    { "source": "/nexus-space.html", "destination": "/workspace.html?view=messages", "permanent": true }
+    {
+      "source": "/workspace-key-setup.html",
+      "destination": "/workspace-connection-guide.html",
+      "permanent": false
+    },
+    {
+      "source": "/mission-control.html",
+      "destination": "/workspace.html?view=deck",
+      "permanent": true
+    },
+    {
+      "source": "/conference-room.html",
+      "destination": "/workspace.html?view=agents",
+      "permanent": true
+    },
+    {
+      "source": "/memory.html",
+      "destination": "/workspace.html?view=memory",
+      "permanent": true
+    },
+    {
+      "source": "/queue.html",
+      "destination": "/workspace.html?view=approvals",
+      "permanent": true
+    },
+    {
+      "source": "/connectors.html",
+      "destination": "/workspace.html?view=skills",
+      "permanent": true
+    },
+    {
+      "source": "/tenants.html",
+      "destination": "/workspace.html?view=forge",
+      "permanent": true
+    },
+    {
+      "source": "/nexus-canvas.html",
+      "destination": "/workspace.html?view=messages",
+      "permanent": true
+    },
+    {
+      "source": "/thoughtspace.html",
+      "destination": "/workspace.html?view=messages",
+      "permanent": true
+    },
+    {
+      "source": "/nexus-space.html",
+      "destination": "/workspace.html?view=messages",
+      "permanent": true
+    }
   ],
   "rewrites": [
+    {
+      "source": "/authorize",
+      "destination": "/api/workspace-oauth?route=authorize"
+    },
+    {
+      "source": "/token",
+      "destination": "/api/workspace-oauth?route=token"
+    },
+    {
+      "source": "/register",
+      "destination": "/api/workspace-oauth?route=register"
+    },
+    {
+      "source": "/revoke",
+      "destination": "/api/workspace-oauth?route=revoke"
+    },
+    {
+      "source": "/.well-known/oauth-authorization-server",
+      "destination": "/api/workspace-oauth?route=metadata"
+    },
+    {
+      "source": "/.well-known/oauth-protected-resource/api/workspace-mcp",
+      "destination": "/api/workspace-oauth?route=resource"
+    },
     {
       "source": "/api/hyperfocus",
       "destination": "/api/board"
