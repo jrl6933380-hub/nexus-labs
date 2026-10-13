@@ -11,7 +11,7 @@ function fixture(){
     if(command==='EVAL'){
       assert.match(key,/HINCRBY/u);assert.match(key,/EXPIRE/u);
       const hashKey=parts[3],value=hashes.get(hashKey)||{};
-      for(const [name,amount] of [['turns',1],['input',parts[4]],['output',parts[5]],['reported',parts[6]],['elapsed',parts[7]]])value[name]=String(Number(value[name]||0)+Number(amount));
+      for(const [name,amount] of [['turns',1],['input',parts[4]],['output',parts[5]],['reported',parts[6]],['elapsed',parts[7]],['failedWindows',parts[8] || 0],['resumedWindows',parts[9] || 0]])value[name]=String(Number(value[name]||0)+Number(amount));
       hashes.set(hashKey,value);return 1;
     }
     throw new Error('Unexpected command');
@@ -49,4 +49,10 @@ test('storage failures do not become fake saved settings or zero usage',async()=
   const handler=createNexusControlsHandler({getOwner:async()=>({id:'justin'}),store});
   await handler({method:'GET'},res);assert.equal(res.code,503);assert.equal(res.body.usage,undefined);
   await handler({method:'POST',body:{accent:'blue'}},res);assert.equal(res.code,503);
+});
+
+
+test('interrupted windows retain known usage and are marked partial while resumptions remain visible',async()=>{
+ const {store}=fixture();await store.record('justin',{input_tokens:800,output_tokens:100},9000,{failed:true});await store.record('justin',{input_tokens:500,output_tokens:70},3000,{resumed:true});
+ const [day]=(await store.usage('justin')).days;assert.equal(day.turns,2);assert.equal(day.input,1300);assert.equal(day.failedWindows,1);assert.equal(day.resumedWindows,1);assert.equal(day.reported,1);
 });
