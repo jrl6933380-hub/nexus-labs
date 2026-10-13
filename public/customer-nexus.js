@@ -1,3 +1,4 @@
+import {createSimpleChat} from './simple-chat.js';
 import {renderMessages} from './nexus-messages.js';
 import {renderScheduleCalendar,calendarKey} from './schedule-calendar.js';
 import {renderReminders} from './reminders.js';
@@ -17,7 +18,7 @@ function draft(text){go('chat').then(()=>{el('message').value=text;el('message')
 function errorView(error){root.replaceChildren(node('p',error.message,'customer-error'),button('Try again',()=>go(view)));}
 async function go(id){
   if(id==='workbench')return workbench();if(id==='usage')return location.assign('/usage.html');if(id==='guide')id='messages';
-  const token=++revision;view=id;document.body.classList.remove('messages-home','messages-panel');root.replaceChildren(node('p','Loading…'));el('title').textContent=({messages:'Messages',chat:'Nex',planner:'Calendar',reminders:'Reminders',life:'Nexus Life',settings:'Settings'})[id]||'Nexus';
+  const token=++revision;view=id;document.body.dataset.view=id;document.body.classList.remove('messages-home','messages-panel');root.replaceChildren(node('p','Loading…'));el('title').textContent=({messages:'Messages',chat:'Nex',planner:'Calendar',reminders:'Reminders',life:'Nexus Life',settings:'Settings'})[id]||'Nexus';
   history.replaceState(null,'','/nexus.html'+(id==='messages'?'':'?view='+encodeURIComponent(id)));
   try{let content;if(id==='messages')content=await renderMessages(ctx);else if(id==='planner')content=await renderScheduleCalendar(ctx);else if(id==='reminders')content=await renderReminders(ctx);else if(id==='life')content=await renderLife(ctx);else if(id==='settings')content=await settings();else if(id==='chat'){const data=await api('/api/room-assistant');turns=data.turns||[];content=chat();}else content=node('p','Choose a Nexus space from Home.');if(token===revision)root.replaceChildren(content);}catch(error){if(token===revision)errorView(error);}
 }
@@ -26,6 +27,7 @@ async function sendMessage(message){if(!message?.trim()||busy)return;busy=true;e
   try{if(view!=='chat')await go('chat');turns.push({role:'user',text:message});root.replaceChildren(chat());const chatRevision=revision;const pending=node('p','Nex is thinking…','customer-turn');pending.setAttribute('role','status');root.append(pending);
     const context={};for(const [name,url] of [['calendar','/api/planner'],['reminders','/api/reminders'],['life','/api/life']]){try{context[name]=await api(url);}catch{}}
     const result=await api('/api/room-assistant',{surface:'nexus',message,context,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone});turns.push({role:'assistant',text:result.message||'What would you like to do next?'});if(view!=='chat'||revision!==chatRevision)return;root.replaceChildren(chat());
+    if(simpleChat.enabled)await simpleChat.contextual(message);
     if(result.kind==='build'&&result.instruction){const actions=node('div',undefined,'customer-actions');actions.append(button('Build with Nex',()=>{sessionStorage.setItem('nexus:guided-build',result.instruction);workbench('view=chat&new=1&guided=1');}));root.append(actions);}
   }catch(error){if(view==='chat')root.append(node('p',error.message,'customer-error'));el('message').value=message;}finally{busy=false;el('send').disabled=false;}
 }
@@ -42,4 +44,5 @@ function scheduleForm(item,date,minutes,duration=60){++revision;view='planner';c
 async function settings(){const data=await api('/api/nexus-controls'),area=node('section');area.append(node('h2','Your account'),node('p',`Signed in as ${account}`));const actions=node('div',undefined,'customer-actions');actions.append(button('Usage & plans',()=>go('usage')),button('Enable phone notifications',async()=>{try{await enableNotifications();go('settings');}catch(error){area.append(node('p',error.message,'customer-error'));}}),button('Turn off phone notifications',async()=>{try{await disableNotifications();go('settings');}catch(error){area.append(node('p',error.message,'customer-error'));}}),button('Install Nexus',installNexus),button('Sign out',async()=>{try{await api('/api/room-auth',{action:'logout'});location.assign('/index.html');}catch(error){area.append(node('p',error.message,'customer-error'));}}));area.append(actions);
   const form=node('form',undefined,'customer-form'),select=node('select');for(const value of ['concise','balanced','detailed']){const option=node('option',value);option.value=value;select.append(option);}select.value=data.preferences?.responseStyle||'balanced';const label=node('label','Reply length');label.append(select);const save=node('button','Save preferences');save.type='submit';const status=node('p');status.setAttribute('role','status');form.append(label,save,status);form.onsubmit=async event=>{event.preventDefault();save.disabled=true;try{await api('/api/nexus-controls',{responseStyle:select.value});status.textContent='Saved.';}catch(error){status.textContent=error.message;}finally{save.disabled=false;}};area.append(form);return area;}
 el('home').onclick=()=>go('messages');el('refresh').onclick=()=>go(view);el('new').onclick=()=>go('chat');el('composer').onsubmit=event=>{event.preventDefault();const value=el('message').value.trim();if(!value||busy)return;el('message').value='';sendMessage(value);};el('message').oninput=()=>{el('message').style.height='auto';el('message').style.height=Math.min(140,el('message').scrollHeight)+'px';};
-await go(new URLSearchParams(location.search).get('view')||'messages');
+const simpleChat=createSimpleChat({header:document.querySelector('.customer-head'),host:root,key:`nexus:simple-view:customer:${account}`,ctx,openChat:()=>view==='chat'?Promise.resolve():go('chat'),openWorkspace:()=>go('messages'),isChat:()=>view==='chat'});
+await go(new URLSearchParams(location.search).get('view')||(simpleChat.enabled?'chat':'messages'));

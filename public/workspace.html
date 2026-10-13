@@ -243,6 +243,7 @@ try{const colors={gold:'#e1bd72',blue:'#74a7ff',green:'#72d896',violet:'#bd9aff'
 <link rel="stylesheet" href="/build-options.css">
 <link rel="stylesheet" href="/nexus-guide.css">
 <link rel="stylesheet" href="/team-chat.css">
+<link rel="stylesheet" href="/simple-chat.css">
 <link rel="stylesheet" href="/ux.css" />
 <link rel="stylesheet" href="/nexus-design-polish.css" />
 <link rel="stylesheet" href="/task-progress.css">
@@ -289,6 +290,7 @@ try{const colors={gold:'#e1bd72',blue:'#74a7ff',green:'#72d896',violet:'#bd9aff'
 </div>
 
 <script type="module">
+import {createSimpleChat} from '/simple-chat.js';
 import {syncControls} from '/nexus-controls.js';
 import {mountComposerMenu} from '/nexus-navigation.js';
 import { friendlyError, showFeedback } from '/ux.js';
@@ -1325,6 +1327,7 @@ async function submit(){
   el('input').value = '';
 
   const target = matchView(raw);
+  if(simpleChat.enabled && ['planner','reminders','workbench','life'].includes(target)){await simpleChat.surface(target);return;}
   if (target) { showView(target); return; }
 
   if (currentView !== 'chat') { askFromView(raw); return; }
@@ -1348,11 +1351,13 @@ async function submit(){
     history.push({role:'assistant',content:reply,progress:taskProgress.updates});
     saveThread();
     renderResponseActions(data);
+    if(simpleChat.enabled)await simpleChat.contextual(raw,pending);
     // Nex asking the workspace to move is honoured as a view switch, not a page load.
     const wanted = data.navigation?.room || data.navigation?.url;
     if (wanted) {
       const id = matchView(String(wanted).replace(/^\/|\.html$/g,'').replace(/-/g,' '));
-      if (id) showView(id);
+      if(id && simpleChat.enabled && ['planner','reminders','workbench','life'].includes(id))await simpleChat.surface(id);
+      else if (id) showView(id);
     }
   } catch (error) {
     if(!el('input').value)el('input').value=raw;
@@ -1538,11 +1543,13 @@ composerMenu=mountComposerMenu({buttons:[el('composerPlus'),el('dockPlus')],navi
 }});
 
 window.addEventListener('pagehide',()=>{rememberWorkspaceScroll();persistWorkspaceState();});
+const simpleChat=createSimpleChat({header:document.querySelector('.top'),host:thread,key:'nexus:simple-view:owner',ctx,openChat:()=>currentView==='chat'?Promise.resolve():openMessagesConversation({kind:'nex',name:'Nex'}),openWorkspace:()=>showView('messages'),isChat:()=>currentView==='chat'});
 const requestedView = new URLSearchParams(location.search).get('view');
 const savedWorkspace = readWorkspaceState();
 registerNexusApp();
 await loadThreads();
-if(requestedView==='chat' && savedWorkspace?.conversation)await openMessagesConversation(savedWorkspace.conversation,false,savedWorkspace.thread_id);
+if(!requestedView && simpleChat.enabled)await openMessagesConversation(savedWorkspace?.view==='chat'&&savedWorkspace.conversation?savedWorkspace.conversation:{kind:'nex',name:'Nex'},false,savedWorkspace?.view==='chat'?savedWorkspace.thread_id:null);
+else if(requestedView==='chat' && savedWorkspace?.conversation)await openMessagesConversation(savedWorkspace.conversation,false,savedWorkspace.thread_id);
 else if(!requestedView && savedWorkspace?.view==='chat' && savedWorkspace.conversation)await openMessagesConversation(savedWorkspace.conversation,false,savedWorkspace.thread_id);
 else await showView(requestedView && VIEWS[requestedView] ? requestedView : savedWorkspace?.view && VIEWS[savedWorkspace.view] ? savedWorkspace.view : 'messages');
 document.documentElement.classList.remove('workspace-loading');
