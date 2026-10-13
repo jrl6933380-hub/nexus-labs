@@ -13,6 +13,7 @@ export function reminderMatches(item,filter,today){
   return true;
 }
 async function api(action,input={}){
+  if(input.due_at && !input.timezone)input={...input,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone};
   const response=await fetch('/api/reminders',{credentials:'include',...(action ? {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...input})} : {})});
   const data=await response.json();if(!response.ok){const error=new Error(data.error || 'Could not save reminders');error.status=response.status;throw error;}return data;
 }
