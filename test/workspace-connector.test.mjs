@@ -78,3 +78,12 @@ test('HTTP boundary requires request IDs and refuses arbitrary tools or account 
  for(const body of [{action:'read_file',input:{}},{action:'board',input:{owner:'Mrlopez'}},{action:'board',user:'Mrlopez'},{action:'create_reminder',input:{title:'test'}}]){const res=response();await handler({method:'POST',body},res);assert.equal(res.code,400);}
  const res=response();await handler({method:'POST',body:{action:'create_reminder',input:{title:'real'},request_id:'http-12345'}},res);assert.equal(res.code,200);assert.equal(res.data.ok,true);
 });
+
+test('connector Calendar exposes private reminder markers that move and disappear with their source',async()=>{
+ const env=fixture(),service=env.execute;
+ const created=await service('create_reminder',{title:'Medicine',due_date:'2026-10-15',due_at:'2026-10-15T09:00:00Z',timezone:'UTC'},alice);
+ let result=await service('schedule',{},alice);assert.equal(result.items.length,1);assert.equal(result.items[0].reminder_id,created.item.id);assert.equal(result.items[0].calendar_marker,true);
+ assert.equal((await service('schedule',{},bob)).items.length,0);
+ await service('update_reminder',{id:created.item.id,due_at:'2026-10-15T10:00:00Z',due_date:'2026-10-15',timezone:'UTC'},alice);result=await service('schedule',{},alice);assert.equal(result.items[0].starts_at,'2026-10-15T10:00:00.000Z');
+ await service('update_reminder',{id:created.item.id,status:'done'},alice);assert.equal((await service('schedule',{},alice)).items.length,0);
+});

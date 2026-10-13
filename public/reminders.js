@@ -1,5 +1,8 @@
+import {openCalendarAt} from './calendar-navigation.js';
+let pendingReminder=null;
+export function openReminderDetail(ctx,id){pendingReminder=id;return ctx.go('reminders');}
 import { friendlyError, showFeedback } from './ux.js';
-import { calendarKey } from './schedule-calendar.js';
+import { calendarKey } from './calendar-layout.js';
 import { occupiedStart } from './schedule-availability.js';
 const state={filter:'today'};
 const node=(tag,text,cls='')=>{const el=document.createElement(tag);if(text!==undefined)el.textContent=text;el.className=cls;return el;};
@@ -19,7 +22,7 @@ async function api(action,input={}){
 }
 export async function renderReminders(ctx){
   const root=node('section',undefined,'nexreminders');let items=[];
-  async function load(message){try{items=((await api()).items || []).map(item=>item.source_calendar_id && item.due_at ? {...item,due_date:calendarKey(new Date(item.due_at))} : item);draw();if(typeof message==='string')showFeedback(root,message);}catch(error){root.replaceChildren(node('p',friendlyError(error,{action:'load',subject:'your reminders'})),button('Try again',load));}}
+  async function load(message){try{items=((await api()).items || []).map(item=>item.source_calendar_id && item.due_at ? {...item,due_date:calendarKey(new Date(item.due_at))} : item);draw();if(pendingReminder){const id=pendingReminder;pendingReminder=null;const target=items.find(item=>item.id===id);if(target)form(target);else showFeedback(root,'This reminder is no longer available.');}if(typeof message==='string')showFeedback(root,message);}catch(error){root.replaceChildren(node('p',friendlyError(error,{action:'load',subject:'your reminders'})),button('Try again',load));}}
   function header(){root.replaceChildren();const bar=node('div',undefined,'reminderhead');bar.append(node('span','N','nx-product-logo'),node('h2','Reminders'),button('↻',load),button('+',()=>form()));bar.children[2].setAttribute('aria-label','Refresh reminders');bar.children[3].setAttribute('aria-label','Add reminder');root.append(bar);}
   function draw(){
     header();const today=calendarKey(new Date()),tabs=node('div',undefined,'reminderfilters');
@@ -44,7 +47,7 @@ export async function renderReminders(ctx){
       const when=item.due_at ? new Date(item.due_at).toLocaleString('en-US',{dateStyle:'medium',timeStyle:'short'}) : item.due_date || 'No date';
       content.append(node('small',`${item.due_date && item.due_date<today && item.status!=='done' ? 'Overdue · ' : ''}${when}${item.scheduled_at ? ` · Time reserved ${new Date(item.scheduled_at).toLocaleString('en-US',{dateStyle:'short',timeStyle:'short'})}` : ''}`));
       if(item.source_calendar_id)content.append(node('span','▣ Calendar · automatic reminder','reminderlinked'));if(item.schedule_id)content.append(node('span','▣ Calendar','reminderlinked'));if(item.repeat && item.repeat!=='none')content.append(node('small',`Repeats ${item.repeat}`));
-      const actions=node('div',undefined,'reminderactions');if(item.status!=='done')actions.append(button('✓ Done',()=>done.click()),button('◷ Snooze',()=>snooze(item)));const options=node('details',undefined,'reminderoptions');options.append(node('summary','More'),button('Notes',()=>form(item,true)),button('Edit',()=>form(item)));actions.append(options);
+      const actions=node('div',undefined,'reminderactions');if(item.due_at || item.schedule_id || item.source_calendar_id)actions.append(button('View in Calendar',()=>openCalendarAt(ctx,{id:item.source_calendar_id || item.schedule_id || `reminder-marker-${item.id}`,starts_at:item.source_calendar_start || item.due_at || item.scheduled_at})));if(item.status!=='done')actions.append(button('✓ Done',()=>done.click()),button('◷ Snooze',()=>snooze(item)));const options=node('details',undefined,'reminderoptions');options.append(node('summary','More'),button('Notes',()=>form(item,true)),button('Edit',()=>form(item)));actions.append(options);
       if(item.status!=='done' && !item.source_calendar_id)options.append(button(item.scheduled_at ? 'Change reserved time' : 'Find time for this',()=>schedule(item)));
       content.append(actions);row.append(done,content);root.append(row);
     }
@@ -52,7 +55,7 @@ export async function renderReminders(ctx){
   }
   function snooze(item){header();const options=node('div',undefined,'reminderform'),status=node('p');status.setAttribute('role','status');root.append(node('h3',`Snooze ${item.title}`),options,status);for(const [label,minutes] of [['15 minutes',15],['1 hour',60],['Tomorrow',1440]])options.append(button(label,async()=>{try{const due=new Date(Date.now()+minutes*60000);await api('update',{id:item.id,due_date:calendarKey(due),due_at:due.toISOString()});await load('Reminder snoozed.');}catch(error){status.textContent=friendlyError(error,{subject:'snoozing reminder'});}}));options.append(button('Back',draw));}
   function form(item=null,notesOnly=false){
-    if(item?.source_calendar_id && !notesOnly){header();const area=node('section');area.append(node('h3',item.title),node('p','This reminder follows its Calendar event. Change the event time in Calendar; the reminder moves with it.'),button('Open Calendar',()=>ctx.go('planner')),button('Turn off reminder',async()=>{try{await api('delete',{id:item.id});await load('Calendar reminder turned off.');}catch(error){showFeedback(root,error.message);}}),button('Back',draw));root.append(area);return;}
+    if(item?.source_calendar_id && !notesOnly){header();const area=node('section');area.append(node('h3',item.title),node('p','This reminder follows its Calendar event. Change the event time in Calendar; the reminder moves with it.'),button('Open Calendar',()=>openCalendarAt(ctx,{id:item.source_calendar_id,starts_at:item.source_calendar_start})),button('Turn off reminder',async()=>{try{await api('delete',{id:item.id});await load('Calendar reminder turned off.');}catch(error){showFeedback(root,error.message);}}),button('Back',draw));root.append(area);return;}
 
     header();const form=document.createElement('form');form.className='reminderform';
     const title=node('input');title.value=item?.title || '';title.placeholder='What do you want to remember?';title.required=true;title.maxLength=160;title.setAttribute('aria-label','Reminder title');

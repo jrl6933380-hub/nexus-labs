@@ -1,3 +1,4 @@
+import {calendarWithReminders} from '../lib/calendarReminders.js';
 import { lifeStore } from '../lib/life.js';
 import { reminderStore } from '../lib/reminders.js';
 import { pushService } from '../lib/pushNotifications.js';
@@ -268,7 +269,8 @@ async function handlePlanner(req, res) {
   try {
     if (req.method === 'GET') {
       const { from, to, status } = req.query || {};
-      return res.status(200).json(await getScheduleOverview({ from, to, status }, scheduleUserId, storeOptions));
+      const overview=await getScheduleOverview({from,to,status},scheduleUserId,storeOptions);
+      return res.status(200).json({...overview,items:calendarWithReminders(overview.items,await reminderStore.list(scheduleUserId),{from,to,status})});
     }
     if (req.method === 'POST') {
       const { action, ...params } = req.body || {};

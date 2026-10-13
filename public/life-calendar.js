@@ -17,7 +17,7 @@ const button=(text,run,label=text)=>{const el=node('button','',text);el.type='bu
 
 // Life has one calendar. The lanes are the controls: draw a range, move a block,
 // or pull its bottom edge. Mouse and touch share the same save/preview path.
-export function renderLifeCalendar({items,state,onCreate,onOpen,onChange,onNavigate,mode='week',hideToolbar=false,onSelectDay,ariaLabel='Life calendar',colorFor}){
+export function renderLifeCalendar({items,state,onCreate,onOpen,onChange,onNavigate,mode='week',hideToolbar=false,onSelectDay,ariaLabel='Life calendar',colorFor,onOpenReminder}){
   const root=node('section','lifecalendar');root.setAttribute('aria-label',ariaLabel);root.dataset.days=String(mode==='day'?1:mode==='multi'?3:7);
   // Calendar gestures own long press; notes and chat retain native text copying.
   root.oncontextmenu=event=>event.preventDefault();
@@ -36,7 +36,7 @@ export function renderLifeCalendar({items,state,onCreate,onOpen,onChange,onNavig
   function captureScroll(){state.scrollTop=viewport.scrollTop;state.scrollLeft=viewport.scrollLeft;dayViewport.scrollLeft=viewport.scrollLeft;}
   function columnAt(x,fallback){return columns.find(column=>{const r=column.getBoundingClientRect();return x>=r.left && x<r.right;}) || fallback;}
   function minuteAt(y){return Math.max(0,Math.min(1440,(y-grid.getBoundingClientRect().top)/LIFE_HOUR_HEIGHT*60));}
-  function clashes(start,end,ignore){return items.some(item=>item.id!==ignore && item.status!=='cancelled' && item.status!=='done' && Date.parse(item.starts_at)<Date.parse(end) && Date.parse(item.ends_at)>Date.parse(start));}
+  function clashes(start,end,ignore){return items.some(item=>!item.calendar_marker && item.id!==ignore && item.status!=='cancelled' && item.status!=='done' && Date.parse(item.starts_at)<Date.parse(end) && Date.parse(item.ends_at)>Date.parse(start));}
   let lastAutoScroll=null;
   function autoScroll(x,y){
     const now=performance.now(),elapsed=lastAutoScroll===null ? 16 : Math.min(32,Math.max(0,now-lastAutoScroll));lastAutoScroll=now;
@@ -143,9 +143,9 @@ export function renderLifeCalendar({items,state,onCreate,onOpen,onChange,onNavig
     const block=node('div','lc-block');block.tabIndex=0;block.setAttribute('role','button');block.setAttribute('aria-label',`${item.title}, ${clock(item.starts_at)} to ${clock(item.ends_at)}. Drag to move. Press Enter to edit, arrows to move, Shift up or down to resize.`);
     block.dataset.itemId=item.id;block.dataset.pillar=item.pillar;if(item.photo_count && entry.end-entry.start>=45)block.dataset.photo='true';block.style.setProperty('--lc-color',colorFor?.(item) || colors[item.pillar] || colors.personal);
     const position=()=>{block.style.top=`${entry.start/60*LIFE_HOUR_HEIGHT}px`;block.style.height=`${Math.max(24,(entry.end-entry.start)/60*LIFE_HOUR_HEIGHT)}px`;block.style.left=`calc(${entry.column/entry.columns*100}% + 2px)`;block.style.width=`calc(${100/entry.columns}% - 4px)`;block.style.transform='';};position();
-    const text=node('div','lc-blocktext');text.append(node('small','',`${clock(item.starts_at)} – ${clock(item.ends_at)}`),node('strong','',item.title));
+    const text=node('div','lc-blocktext');text.append(node('small','',`${clock(item.starts_at)} – ${clock(item.ends_at)}`),node('strong','',item.reminder_id ? 'Reminder · '+item.title : item.title));
     const detail=node('div','lc-blockmeta');detail.append(node('span','',item.person ? '♧' : item.place ? '⌖' : ''),node('span','',item.energy==null ? '' : `${item.energy}/5 ⚡`));
-    const edge=node('span','lc-resize');edge.setAttribute('aria-hidden','true');edge.append(node('i',''));block.append(text,detail,edge);column.append(block);
+    const edge=node('span','lc-resize');edge.setAttribute('aria-hidden','true');edge.append(node('i',''));block.append(text,detail,edge);column.append(block);if(items.some(marker=>marker.calendar_marker && Date.parse(marker.starts_at)>=Date.parse(item.starts_at) && Date.parse(marker.starts_at)<Date.parse(item.ends_at || new Date(Date.parse(item.starts_at)+3600000).toISOString())))block.classList.add('lc-withmarker');
     let gesture=null,keyboard=null;
     function cancelKey(event){if(event.key==='Escape'){event.preventDefault();cancel();}}
     function cancel(){document.removeEventListener('keydown',cancelKey);gesture=null;keyboard=null;block.classList.remove('lc-moving','lc-conflict');position();}
@@ -185,7 +185,14 @@ export function renderLifeCalendar({items,state,onCreate,onOpen,onChange,onNavig
     const key=calendarKey(day),head=button('',()=>{state.date=day;heads.querySelectorAll('button').forEach(el=>el.classList.toggle('lc-selected',el.dataset.day===key));if(onSelectDay){captureScroll();onSelectDay(day);}},`Select ${day.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}`);head.dataset.day=key;
     head.append(node('small','',day.toLocaleDateString('en-US',{weekday:'short'})),node('strong','',day.getDate()));if(key===today)head.classList.add('lc-today');if(key===calendarKey(current))head.classList.add('lc-selected');heads.append(head);
     const column=node('div','lc-lane');column.dataset.day=key;columns.push(column);selectionLane(column,day);
-    for(const entry of calendarLayout(items.filter(item=>item.starts_at),day))directBlock(entry.item,entry,column,day);
+    for(const entry of calendarLayout(items.filter(item=>item.starts_at && !item.calendar_marker),day))directBlock(entry.item,entry,column,day);
+    const markers=items.filter(item=>item.calendar_marker && new Date(item.starts_at)>=day && new Date(item.starts_at)<at(day,1440));
+    const groups=new Map();let anchor=null;for(const item of [...markers].sort((a,b)=>Date.parse(a.starts_at)-Date.parse(b.starts_at))){const minute=(Date.parse(item.starts_at)-dayAt(day))/60000;if(anchor===null || minute-anchor>=30)anchor=minute;groups.set(anchor,[...(groups.get(anchor)||[]),item]);}
+    function markerButton(item,grouped=false){let touchAt=0;const marker=button(`Reminder · ${clock(item.starts_at)} · ${item.title}`,event=>{if(event?.detail>0 && Date.now()-touchAt<700)return;onOpenReminder?.(item);});marker.className=grouped ? 'lc-reminderchoice' : 'lc-remindermarker';marker.dataset.itemId=item.id;if(!grouped && items.some(event=>!event.calendar_marker && !event.all_day && Date.parse(event.starts_at)<=Date.parse(item.starts_at) && Date.parse(event.ends_at || new Date(Date.parse(event.starts_at)+3600000).toISOString())>Date.parse(item.starts_at))){marker.classList.add('lc-markeroverlap');marker.textContent='Reminder';}marker.setAttribute('aria-label',`Open reminder ${item.title} at ${clock(item.starts_at)}`);marker.onpointerdown=e=>e.stopPropagation();marker.onpointerup=e=>{if(e.pointerType==='touch'){e.preventDefault();e.stopPropagation();touchAt=Date.now();onOpenReminder?.(item);}};return marker;}
+    for(const [minute,group] of groups){
+      if(group.length===1){const marker=markerButton(group[0]);marker.style.top=`${minute/60*LIFE_HOUR_HEIGHT}px`;column.append(marker);}
+      else{const host=node('details','lc-remindergroup');host.style.top=`${minute/60*LIFE_HOUR_HEIGHT}px`;const summary=node('summary','',`${group.length} reminders · ${clock(group[0].starts_at)}`);summary.setAttribute('aria-label',`${group.length} reminders starting at ${clock(group[0].starts_at)}`);if(items.some(event=>!event.calendar_marker && !event.all_day && Date.parse(event.starts_at)<=Date.parse(group[0].starts_at) && Date.parse(event.ends_at || new Date(Date.parse(event.starts_at)+3600000).toISOString())>Date.parse(group[0].starts_at))){host.classList.add('lc-markeroverlap');summary.textContent=group.length+' alerts';}host.append(summary);host.onpointerdown=e=>e.stopPropagation();for(const item of group)host.append(markerButton(item,true));column.append(host);}
+    }
     if(key===today){const now=new Date(),line=node('div','lc-now');line.style.top=`${(now.getHours()+now.getMinutes()/60)*LIFE_HOUR_HEIGHT}px`;column.append(line);}grid.append(column);
   }
   const dayViewport=node('div','lc-dayviewport');dayViewport.append(heads);

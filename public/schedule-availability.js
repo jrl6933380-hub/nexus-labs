@@ -13,7 +13,7 @@ export function occupiedStart({days, startMinutes, durationMinutes, items, exclu
     const start = scheduleStart(day,startMinutes).getTime();
     const end = start+Number(durationMinutes)*60000;
     for (const item of items) {
-      if (item.id === excludeId || (item.status !== 'planned' && item.status !== 'draft')) continue;
+      if (item.calendar_marker || item.id === excludeId || (item.status !== 'planned' && item.status !== 'draft')) continue;
       const itemStart = Date.parse(item.starts_at);
       const itemEnd = item.ends_at ? Date.parse(item.ends_at) : itemStart+(item.all_day ? 86400000 : 3600000);
       if (start < itemEnd && end > itemStart) conflicts.push({day,item});

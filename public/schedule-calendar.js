@@ -1,10 +1,11 @@
+import {calendarState as globalCalendarState} from './calendar-navigation.js';
+import {openReminderDetail} from './reminders.js';
 import {calendarKey,calendarDayItems,calendarLayout,dayStart,shift,endOf} from './calendar-layout.js';
 export {calendarKey,calendarDayItems,calendarLayout};
 import {renderLifeCalendar} from './life-calendar.js';
 import { friendlyError } from './ux.js';
 // A calendar-first surface over the shared Schedule store.
 const COLORS = {sleep:'#879ade',personal:'#bd91d9',work:'#56a97b',project:'#9a7bea',gym:'#d5b366',health:'#65b8b2',family:'#e9a66f',social:'#b18cd2',appointment:'#e0c35c',errands:'#a5a19a',learning:'#74b7e8',creative:'#c883d8',rest:'#7b87a7',travel:'#d78b68',other:'#8e8a84'};
-const globalCalendarState = {date:new Date(),mode:'list'};
 function node(tag,className,text) { const element=document.createElement(tag);element.className=className;if(text !== undefined) element.textContent=text;return element; }
 function button(text,action,label=text) {
   const element=node('button','',text);element.type='button';element.setAttribute('aria-label',label);let touchAt=0;
@@ -31,7 +32,7 @@ export async function renderScheduleCalendar(ctx, extras={}) {
       if(id !== requestId) return;
       const items=(data.items || []).filter((item)=>new Date(item.starts_at)<to && endOf(item)>from && item.status !== 'cancelled');
       const category_minutes={}, conflicts=[];
-      const active=items.filter((item)=>item.status==='planned' || item.status==='draft');
+      const active=items.filter((item)=>!item.calendar_marker && (item.status==='planned' || item.status==='draft'));
       for(const item of active) {const minutes=Math.max(0,(Math.min(endOf(item),to)-Math.max(new Date(item.starts_at),from))/60000);category_minutes[item.category || 'other']=(category_minutes[item.category || 'other'] || 0)+minutes;}
       for(let a=0;a<active.length;a++)for(let b=a+1;b<active.length;b++)if(new Date(active[a].starts_at)<endOf(active[b]) && endOf(active[a])>new Date(active[b].starts_at))conflicts.push([active[a].id,active[b].id]);
       payload={...data,items,summary:{category_minutes,conflicts}}; ctx.setScheduleItems?.(data.items || []);draw();
@@ -96,6 +97,8 @@ export async function renderScheduleCalendar(ctx, extras={}) {
   }
   // Sibling controls keep actions on the block without nesting buttons.
   function activityBlock(item, className, compact=false) {
+    if(item.calendar_marker){const row=node('div',className+' calremindermarker');const pick=button('',()=>openReminderDetail(ctx,item.reminder_id),`Open reminder ${item.title}`);pick.append(node('strong','','Reminder · '+item.title),node('small','',clock(new Date(item.starts_at))));row.append(pick);return row;}
+
     const block=node('div',className);block.style.setProperty('--event',COLORS[item.category] || COLORS.other);
     const main=button('',()=>{
       const opening=actions.hidden;closeActivityActions?.();
@@ -134,11 +137,12 @@ export async function renderScheduleCalendar(ctx, extras={}) {
     function remember(){state.timelineScrollTop=timelineState.scrollTop;state.timelineScrollLeft=timelineState.scrollLeft;}
     const calendar=renderLifeCalendar({items,state:timelineState,mode:state.mode,hideToolbar:true,ariaLabel:'Calendar time slots',
       onCreate:range=>{remember();ctx.openScheduleStudio('block',range.day,range.minutes,range.duration);},
-      onOpen:item=>{remember();(ctx.editScheduleItem || ctx.openPlannerItem)?.(item);},
+      onOpen:item=>{remember();if(item.reminder_id)return openReminderDetail(ctx,item.reminder_id);(ctx.editScheduleItem || ctx.openPlannerItem)?.(item);},
       onChange:async(item,times)=>{remember();if(!ctx.changeCalendarTimes)throw new Error('Time editing is unavailable here. Open the activity editor.');await ctx.changeCalendarTimes(item,times);await load();},
       onNavigate:()=>{remember();state.date=timelineState.date;return load();},
       onSelectDay:day=>{remember();state.date=day;return load();},
       colorFor:item=>COLORS[item.category] || COLORS.other,
+      onOpenReminder:item=>openReminderDetail(ctx,item.reminder_id),
     });currentTimeline=calendar;host.append(calendar);
   }
   await load();return root;
