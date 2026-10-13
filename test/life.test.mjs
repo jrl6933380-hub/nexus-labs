@@ -6,9 +6,46 @@ import {createReminderStore} from '../lib/reminders.js';
 import {createLifeHandler} from '../api/board.js';
 import {renderLife as renderLifeRaw,lifeWeekItems,copyLifeTimes} from '../public/life.js';
 async function renderLife(ctx){const root=await renderLifeRaw(ctx);const today=all(root).find(el=>el.textContent==='Today');if(today)await today.onclick();return root;}
-function fixture(){const hashes=new Map();let id=0,time=1000;const command=async([verb,key,...args])=>{const hash=hashes.get(key) || new Map();hashes.set(key,hash);if(verb==='HSET'){for(let i=0;i<args.length;i+=2)hash.set(args[i],args[i+1]);return 1;}if(verb==='HGET')return hash.get(args[0]) || null;if(verb==='HGETALL')return [...hash].flat();if(verb==='HDEL')return hash.delete(args[0]) ? 1 : 0;throw Error(verb);};const now=()=>++time;const planner=createPlannerStore({command,now,idFactory:()=>`block-${++id}`}),reminders=createReminderStore({command,planner,now,idFactory:()=>`reminder-${++id}`});return {planner,reminders,life:createLifeStore({command,planner,reminders,now,idFactory:()=>`life-${++id}`})};}
+function fixture(){const hashes=new Map();let id=0,time=1000;const command=async([verb,key,...args])=>{const hash=hashes.get(key) || new Map();hashes.set(key,hash);if(verb==='HSET'){for(let i=0;i<args.length;i+=2)hash.set(args[i],args[i+1]);return 1;}if(verb==='HGET')return hash.get(args[0]) || null;if(verb==='HGETALL')return [...hash].flat();if(verb==='HDEL')return hash.delete(args[0]) ? 1 : 0;throw Error(verb);};const now=()=>++time;const planner=createPlannerStore({command,now,idFactory:()=>`block-${++id}`}),reminders=createReminderStore({command,planner,now,idFactory:()=>`reminder-${++id}`});return {command,planner,reminders,life:createLifeStore({command,planner,reminders,now,idFactory:()=>`life-${++id}`})};}
 const activity={title:'Walk',pillar:'health',kind:'activity',starts_at:'2026-10-05T15:00:00Z',ends_at:'2026-10-05T16:00:00Z'};
 async function save(life,input,user='room:a',destination='life'){const preview=await life.preview(input,user);return life.save({...preview.item,baseline:preview.baseline,destination},user);}
+
+test('clearing a linked reminder reservation removes its calendar block while retaining the reminder',async()=>{
+  const {life,planner,reminders}=fixture();
+  const item=await save(life,{...activity,kind:'reminder'},'room:a','linked');
+  assert.equal((await planner.listPlannerItems({},'room:a')).length,1);
+  await save(life,{...item,starts_at:null,ends_at:null},'room:a','linked');
+  assert.equal((await planner.listPlannerItems({},'room:a')).length,0);
+  assert.equal((await reminders.list('room:a')).length,1);
+  assert.equal((await reminders.list('room:a'))[0].schedule_id,null);
+  assert.equal((await life.overview('room:a')).items[0].starts_at,null);
+});
+
+test('invalid check-in metadata cannot complete a linked reminder or its reserved block',async()=>{
+  const {life,planner,reminders}=fixture();
+  const item=await save(life,{...activity,kind:'reminder'},'room:a','linked');
+  for(const invalid of [{memory_url:'http://invalid.example'},{feelings:['Invented']}]){
+    await assert.rejects(life.checkIn({id:item.id,status:'done',...invalid},'room:a'));
+    assert.equal((await reminders.list('room:a'))[0].status,'planned');
+    assert.equal((await planner.listPlannerItems({},'room:a'))[0].status,'planned');
+    assert.equal((await life.overview('room:a')).items[0].status,'planned');
+  }
+});
+
+test('late-night Life reminders retain the user time zone when linked and reject mismatched dates',async()=>{
+  const {life,reminders}=fixture();
+  const item=await save(life,{kind:'reminder',title:'Night reminder',due_date:'2026-10-13',due_at:'2026-10-14T04:30:00Z',timezone:'America/Chicago'},'room:a','linked');
+  assert.equal(item.timezone,'America/Chicago');
+  assert.equal((await reminders.list('room:a'))[0].timezone,'America/Chicago');
+  await assert.rejects(life.preview({id:item.id,due_date:'2026-10-14'},'room:a'),/date must match/);
+});
+
+test('agent Life schemas expose alert settings, reminder time clearing and local alert zone',async()=>{
+  const {LIFE_TOOLS}=await import('../lib/nex/tools/life.js');
+  const properties=LIFE_TOOLS.find(tool=>tool.name==='manage_life').input_schema.properties;
+  assert.deepEqual(properties.starts_at.type,['string','null']);assert.deepEqual(properties.ends_at.type,['string','null']);
+  assert.ok(properties.reminder_minutes);assert.ok(properties.end_reminder);assert.ok(properties.timezone);
+});
 test('Life owns private records and profiles without automatically importing or linking Nex',async()=>{
   const {life,planner}=fixture();await planner.createPlannerItem({title:'Nex only',starts_at:'2026-10-05T09:00:00Z'},'room:a');
   const item=await save(life,activity);assert.equal(item.link,null);assert.equal((await planner.listPlannerItems({},'room:a')).length,1);
@@ -268,4 +305,14 @@ test('Life saves phone alerts durably, updates linked calendar alerts, and keeps
   const saved=await life.notificationItems('room:a');assert.equal(saved[0].reminder_minutes,0);assert.equal(saved[0].link.id,block.id);
   assert.deepEqual(await life.notificationItems('room:b'),[]);
   await assert.rejects(save(life,{...activity,reminder_minutes:-1}),/valid phone alert/);
+});
+
+
+test('legacy Life reminders can be edited without inventing a zone and gain the confirmed zone on preview',async()=>{
+  const {command,life}=fixture(),user='room:legacy';
+  const old={id:'old-life',kind:'reminder',title:'Late night',pillar:'personal',due_date:'2026-10-13',due_at:'2026-10-14T04:30:00Z',status:'planned',created_at:1,updated_at:1};
+  await command(['HSET','nexus:life:v1:room%3Alegacy',old.id,JSON.stringify(old)]);
+  await save(life,{id:old.id,notes:'Keep this note'},user);
+  const corrected=await save(life,{id:old.id,timezone:'America/Chicago'},user,'linked');
+  assert.equal(corrected.timezone,'America/Chicago');assert.equal(corrected.due_date,'2026-10-13');
 });
