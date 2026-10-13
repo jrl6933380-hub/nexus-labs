@@ -31,7 +31,7 @@ test('Nex can read and mutate the same planner as the UI', () => {
 });
 
 test('Schedule is reachable from Messages and the home card', () => {
-  assert.match(messages, /id:'planner',name:'Schedule'/u);
+  assert.match(messages, /id:'planner',name:'Calendar'/u);
   assert.match(workspace, /renderWelcome\(ctx\)/u);
   assert.match(messages, /id:'deck',name:'Command Deck'/u);
   assert.match(views, /planner: \{/u);

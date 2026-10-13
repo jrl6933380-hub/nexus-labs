@@ -51,6 +51,7 @@ test('reminder and Life edits convert alert and nested week times without changi
   const updated=schedulingInput({action:'update',id:'reminder-id',due_date:'2026-10-11',due_at:'2026-10-11T10:00'},'America/Chicago');
   assert.equal(updated.due_date,'2026-10-11');assert.equal(updated.due_at,'2026-10-11T15:00:00.000Z');assert.equal(updated.timezone,'America/Chicago');
   assert.equal(schedulingInput({action:'update',id:'reminder-id',notes:'note'},'Asia/Tokyo').timezone,undefined);
+  assert.equal(schedulingInput({action:'preview',id:'legacy-life-reminder',notes:'note'},'America/Chicago').timezone,'America/Chicago');
   const week=schedulingInput({action:'preview_week',entries:[{source_id:'activity',starts_at:'2026-10-11T10:00',ends_at:'2026-10-11T11:00'}]},'America/Chicago');
   assert.equal(week.entries[0].source_id,'activity');assert.equal(week.entries[0].starts_at,'2026-10-11T15:00:00.000Z');
 });

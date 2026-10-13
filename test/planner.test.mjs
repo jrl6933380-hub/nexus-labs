@@ -23,6 +23,14 @@ function testStore(command = fakePlannerRedis()) {
   return createPlannerStore({ command, now: () => clock++, idFactory: () => `plan-${++id}` });
 }
 
+test('day reads include overnight commitments and exclude events ending at the boundary',async()=>{
+  const store=testStore(),user='room:overnight';
+  const sleep=await store.createPlannerItem({title:'Sleep',starts_at:'2026-10-12T23:00:00-05:00',ends_at:'2026-10-13T07:00:00-05:00'},user);
+  await store.createPlannerItem({title:'Previous day',starts_at:'2026-10-12T22:00:00-05:00',ends_at:'2026-10-13T00:00:00-05:00'},user);
+  await store.createPlannerItem({title:'Following day',starts_at:'2026-10-14T00:00:00-05:00'},user);
+  assert.deepEqual((await store.listPlannerItems({from:'2026-10-13T00:00:00-05:00',to:'2026-10-14T00:00:00-05:00'},user)).map(item=>item.id),[sleep.id]);
+});
+
 test('Schedule creates rich normalized items and lists them chronologically', async () => {
   const store = testStore();
   const later = await store.createPlannerItem({ title: ' Dinner ', starts_at: '2026-10-02T18:00:00-05:00', category: 'family', flexibility: 'flexible', reminder_minutes: 30 });
