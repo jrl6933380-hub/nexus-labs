@@ -33,11 +33,12 @@ await new Promise(r=>server.listen(0,'127.0.0.1',r));
 const browser=await chromium.launch({executablePath:process.env.NEXUS_BROWSER_EXECUTABLE,args:['--no-sandbox','--disable-dev-shm-usage','--disable-gpu']});
 try{for(const shell of ['workspace.html','nexus.html'])for(const width of [320,393]){
  teamMode='working';answer=null;
- const context=await browser.newContext({viewport:{width,height:850},isMobile:true,hasTouch:true,timezoneId:'America/Chicago'});const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ const context=await browser.newContext({viewport:{width,height:850},isMobile:true,hasTouch:true,timezoneId:'America/Chicago'});const page=await context.newPage();await page.addInitScript(()=>{document.addEventListener('DOMContentLoaded',()=>{document.documentElement.style.setProperty('--nexus-safe-area-top','59px');const status=document.createElement('div');status.id='iphone-status-area';status.style.cssText='position:fixed;top:0;left:0;right:0;height:59px;z-index:99999;background:#0b1410;pointer-events:auto';document.body.append(status);});});const errors=[];page.on('pageerror',e=>errors.push(e.message));
  const base=`http://127.0.0.1:${server.address().port}/${shell}`;
  await page.goto(base);assert.equal(await page.locator('.simple-chat-tools').count(),0);
  await page.getByRole('button',{name:/^More/}).tap();await page.getByRole('button',{name:shell==='workspace.html'?/^Account & Controls/:/^Settings/}).tap();
  await page.getByLabel('Choose your view on this device',{exact:true}).selectOption('simple');await page.getByRole('button',{name:'Save view',exact:true}).tap();await page.getByText('Your saved reply',{exact:true}).waitFor();
+ const menuBounds=await page.getByRole('button',{name:'Open workspace menu',exact:true}).boundingBox();assert.ok(menuBounds.y>=75,JSON.stringify(menuBounds));
  assert.equal(await page.getByRole('button',{name:'Current view',exact:true}).count(),0);assert.equal(await page.getByRole('button',{name:'Simple chat',exact:true}).count(),0);
  if(shell==='workspace.html'){
   await page.getByText('Your team is working',{exact:true}).waitFor();assert.equal(await page.locator('.simple-team-details').getAttribute('open'),null);
@@ -46,9 +47,13 @@ try{for(const shell of ['workspace.html','nexus.html'])for(const width of [320,3
  const menu=async name=>{await page.getByRole('button',{name:'Open workspace menu',exact:true}).tap();await page.getByRole('dialog',{name:'Your Nexus workspace'}).getByRole('button',{name,exact:true}).tap();};
  await menu('Calendar');await page.getByRole('button',{name:/Saved workout/}).waitFor();assert.equal(await page.getByText('Your saved reply',{exact:true}).count(),1);
  if(width===393&&shell==='workspace.html')await page.screenshot({path:'/workspace/scratch/9f0ce6cc8c12/simple-chat-polish.png',fullPage:true});
+ await page.locator('.simple-workspace-card').getByRole('button',{name:'Open',exact:true}).tap();await page.getByRole('button',{name:'Open workspace menu',exact:true}).tap();await page.getByRole('dialog').getByRole('button',{name:'Conversation',exact:true}).tap();await page.getByText('Your saved reply',{exact:true}).waitFor();
  await menu('Reminders');await page.getByRole('button',{name:/Bring water/}).waitFor();await menu('Projects');await page.getByRole('button',{name:/Saved studio/}).waitFor();
  fail=true;await menu('Calendar');await page.getByText('Schedule unavailable',{exact:true}).waitFor();fail=false;await page.getByRole('button',{name:'Try again',exact:true}).tap();await page.getByRole('button',{name:/Saved workout/}).waitFor();
  const overflow=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));assert.ok(overflow.scroll<=overflow.width,JSON.stringify({shell,...overflow}));
+ await page.goto(base+'?view=messages');await page.getByText('Your saved reply',{exact:true}).waitFor();assert.equal(await page.locator('body[data-view=chat].simple-chat').count(),1);assert.equal(await page.locator('.homespacegrid').count(),0);
+ if(shell==='workspace.html'){await page.locator('#newTop').tap();await page.getByRole('button',{name:'Back to Messages',exact:true}).tap();await page.getByText('Your saved reply',{exact:true}).waitFor();assert.equal(await page.locator('body[data-view=chat].simple-chat').count(),1);}
+ await page.goBack();await page.getByRole('button',{name:'Open workspace menu',exact:true}).waitFor();await page.getByText('Your saved reply',{exact:true}).waitFor();assert.equal(await page.locator('body[data-view=chat].simple-chat').count(),1);
  await page.reload();await page.getByRole('button',{name:'Open workspace menu',exact:true}).waitFor();await page.getByText('Your saved reply',{exact:true}).waitFor();
  if(shell==='workspace.html'){
   teamMode='question';await page.reload();await page.getByLabel('Which timer length do you want?',{exact:true}).waitFor();await page.getByRole('button',{name:'45 seconds',exact:true}).tap();await page.waitForFunction(()=>!document.querySelector('.teamquestion'));assert.equal(answer.answer,'45 seconds');assert.equal(answer.run_id,'run-one');
@@ -57,5 +62,5 @@ try{for(const shell of ['workspace.html','nexus.html'])for(const width of [320,3
  }
  await menu('Settings');await page.getByLabel('Choose your view on this device',{exact:true}).selectOption('workspace');await page.getByRole('button',{name:'Save view',exact:true}).tap();await page.getByRole('button',{name:/^More/}).waitFor();assert.equal(await page.getByRole('button',{name:'Open workspace menu',exact:true}).isVisible(),false);
  await page.reload();assert.equal(await page.locator('body.simple-chat').count(),0);assert.deepEqual(errors,[]);await context.close();
- }assert.ok(reads>0);console.log('Owner/customer 320/393px: Settings-only preference, clean chat, menu/cards, retry, reload, compact real team progress, answer/resume, saved preview, and overflow passed. Local fixtures; no model/pod calls.');
+ }assert.ok(reads>0);console.log('Owner/customer 320/393px: iPhone status-area taps, Back/deep-link mode retention, Settings-only preference, clean chat, menu/cards, retry, reload, compact real team progress, answer/resume, saved preview, and overflow passed. Local fixtures; no model/pod calls.');
 }finally{await browser.close();await new Promise(r=>server.close(r));}

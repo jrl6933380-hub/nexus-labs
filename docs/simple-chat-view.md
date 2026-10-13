@@ -3,7 +3,10 @@
 Owner Workspace and customer Nexus offer a Nexus view preference in Settings. Existing users
 retain their current view until they choose it. The choice is stored on the device;
 customer preferences use the signed-in username, separate from the owner key.
-Explicit deep links still open the requested destination.
+Explicit feature deep links still open that destination with Simple chat chrome.
+Home/Messages links return to Simple chat while it is selected; Settings is the
+only way to switch back to the current workspace. The owner’s last conversation
+metadata is saved separately so workspace visits cannot erase the return target.
 
 The simple surface uses the existing conversation and authenticated endpoints.
 It does not run another agent, create another store, or change entitlements.
@@ -32,3 +35,7 @@ fixtures and native mobile taps at 320px and 393px. It verifies Settings-only vi
 retry, preference reload, compact team progress, answering and resuming a real team
 question path, saved build links, and no horizontal overflow.
 No production accounts, model calls, or GPU pods are used.
+
+Headers and menus preserve the iPhone safe-area inset. Browser checks also
+simulate a 59px status area that intercepts taps, then verify accessible menu taps,
+workspace-screen return, old Messages deep links, and conversation Back controls.

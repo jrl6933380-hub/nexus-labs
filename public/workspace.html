@@ -332,6 +332,7 @@ const thread = el('thread');
 // Shell state
 // ---------------------------------------------------------------------------
 let currentView = 'messages';
+let simpleChat=null;
 let busy = false;
 let threadId = null;
 let activeConversation = null;
@@ -347,6 +348,8 @@ const ctx = {
   ask: (text) => askFromView(text),
   go: (id) => showView(id),
   openChatSettings: async () => {messagesDestination='settings';await showView('messages');},
+  openChatDirectory: async () => {messagesDestination='chats';await showView('messages');},
+  simpleChatEnabled:()=>Boolean(simpleChat?.enabled),
   openConversation: (conversation,fresh=false) => openMessagesConversation(conversation,fresh),
   openSystem: (id) => { activeConversation=null; showView(id); },
   openThread: (record) => openThread(record),
@@ -981,6 +984,7 @@ function appendAssistantVisual(body,content,requestMessage=''){
 // ---------------------------------------------------------------------------
 let viewRenderId=0;
 async function showView(id){
+  if(id==='messages' && simpleChat?.enabled && !messagesDestination && !messagesStartNew)return resumeSimpleChat();
   const renderId=++viewRenderId;
   composerMenu.close();
   if(viewMounted)rememberWorkspaceScroll();
@@ -1128,7 +1132,7 @@ function restoreWorkspaceScroll(){
 }
 function persistWorkspaceState(){
   const conversation=activeConversation?Object.fromEntries(Object.entries(activeConversation).filter(([key])=>['kind','id','name','title','role','job','scopes','include_nex','members'].includes(key))):null;
-  try{localStorage.setItem(WORKSPACE_STATE_KEY,JSON.stringify({view:currentView,thread_id:threadId,conversation}));}catch{}
+  try{localStorage.setItem(WORKSPACE_STATE_KEY,JSON.stringify({view:currentView,thread_id:threadId,conversation}));if(currentView==='chat')localStorage.setItem('nexus:simple-chat:last-conversation:v1',JSON.stringify({conversation,thread_id:threadId}));}catch{}
   const url=new URL(location.href);url.searchParams.set('view',currentView);window.history.replaceState(null,'',`${url.pathname}${url.search}${url.hash}`);
 }
 function saveThread(){
@@ -1197,6 +1201,11 @@ async function clearRecentConversationThreads(keepThreadIds=[]){
   recentThreads=recentThreads.filter(item=>!removed.has(item?.id));
   drawRecents();
   return {...data,deleted:removed.size};
+}
+async function resumeSimpleChat(){
+  if(currentView==='chat' && activeConversation)return showView('chat');
+  let saved;try{saved=JSON.parse(localStorage.getItem('nexus:simple-chat:last-conversation:v1')||'null');}catch{}
+  return openMessagesConversation(saved?.conversation || activeConversation || {kind:'nex',name:'Nex'},false,saved?.thread_id || threadId);
 }
 async function openMessagesConversation(conversation,fresh=false,restoredThreadId=null){
   activeConversation=conversation?.kind==='nex'?{kind:'nex',name:'Nex'}:conversation;
@@ -1545,12 +1554,12 @@ composerMenu=mountComposerMenu({buttons:[el('composerPlus'),el('dockPlus')],navi
 }});
 
 window.addEventListener('pagehide',()=>{rememberWorkspaceScroll();persistWorkspaceState();});
-const simpleChat=createSimpleChat({header:document.querySelector('.top'),host:thread,key:'nexus:simple-view:owner',ctx,openChat:()=>currentView==='chat'?Promise.resolve():openMessagesConversation({kind:'nex',name:'Nex'}),openWorkspace:()=>showView('messages'),isChat:()=>currentView==='chat'});
+simpleChat=createSimpleChat({header:document.querySelector('.top'),host:thread,key:'nexus:simple-view:owner',ctx,openChat:()=>currentView==='chat'?Promise.resolve():resumeSimpleChat(),openWorkspace:()=>showView('messages'),isChat:()=>currentView==='chat'});
 const requestedView = new URLSearchParams(location.search).get('view');
 const savedWorkspace = readWorkspaceState();
 registerNexusApp();
 await loadThreads();
-if(!requestedView && simpleChat.enabled)await openMessagesConversation(savedWorkspace?.view==='chat'&&savedWorkspace.conversation?savedWorkspace.conversation:{kind:'nex',name:'Nex'},false,savedWorkspace?.view==='chat'?savedWorkspace.thread_id:null);
+if(!requestedView && simpleChat.enabled)await resumeSimpleChat();
 else if(requestedView==='chat' && savedWorkspace?.conversation)await openMessagesConversation(savedWorkspace.conversation,false,savedWorkspace.thread_id);
 else if(!requestedView && savedWorkspace?.view==='chat' && savedWorkspace.conversation)await openMessagesConversation(savedWorkspace.conversation,false,savedWorkspace.thread_id);
 else await showView(requestedView && VIEWS[requestedView] ? requestedView : savedWorkspace?.view && VIEWS[savedWorkspace.view] ? savedWorkspace.view : 'messages');

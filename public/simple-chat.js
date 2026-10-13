@@ -21,7 +21,7 @@ export function createSimpleChat({header,host,storage=localStorage,key,ctx,openC
  const menu=make('dialog',undefined,'simple-chat-menu');menu.setAttribute('aria-label','Your Nexus workspace');
  const menuHead=make('div',undefined,'simple-card-head');menuHead.append(make('strong','Your Nexus'),action('Close',()=>menu.close()));menu.append(menuHead);
  menu.append(action('Conversation',()=>{menu.close();openChat();}));
- for(const [label,id] of spaces)menu.append(action(label,()=>{menu.close();if(id==='messages')ctx.go(id);else surface(id);}));
+ for(const [label,id] of spaces)menu.append(action(label,()=>{menu.close();if(id==='messages'){if(ctx.openChatDirectory)ctx.openChatDirectory();else openChat();}else surface(id);}));
  menu.append(action('Settings',()=>{menu.close();ctx.openChatSettings();}));document.body.append(menu);
  menu.addEventListener('click',event=>{if(event.target===menu){const box=menu.getBoundingClientRect();if(event.clientX<box.left||event.clientX>box.right||event.clientY<box.top||event.clientY>box.bottom)menu.close();}});
  function sync(){document.body.classList.toggle('simple-chat',preference==='simple');menu.close();}
