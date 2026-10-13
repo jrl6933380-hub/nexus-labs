@@ -82,16 +82,11 @@ test('changed nested tool input is a changed plan, not an identical retry', () =
   assert.notEqual(state.status, 'blocked');
 });
 
-test('repeating the exact same tool call with no new result trips stall detection, not a step count', () => {
-  const state = createReasoningState({ message: 'Keep checking.', budgets: { maxNoProgressSteps: 2 } });
-  const call = { name: 'read_repo_file', input: { path: 'lib/example.js' } };
-  assert.equal(registerReasoningToolCall(state, call).allowed, true);
-  recordReasoningToolResult(state, call, { is_error: false, content: 'ok' });
-  assert.equal(registerReasoningToolCall(state, call).allowed, true);
-  recordReasoningToolResult(state, call, { is_error: false, content: 'ok' });
-  assert.equal(registerReasoningToolCall(state, call).allowed, false);
-  assert.equal(state.status, 'blocked');
-  assert.equal(state.blocker, 'no_progress_stall_detected');
+test('stall detection compares real outcomes while changing poll results remain useful',()=>{
+ const state=createReasoningState({message:'Check progress',budgets:{continueUntilDone:true,maxNoProgressSteps:2}}),call={name:'read_workbench_project',input:{project_id:'workout'}};
+ for(const content of ['version 1','version 2','version 3']){assert.equal(registerReasoningToolCall(state,call).allowed,true);assert.equal(recordReasoningToolResult(state,call,{content}).blocked,false);}
+ assert.equal(recordReasoningToolResult(state,call,{content:'version 3'}).blocked,false);
+ assert.equal(recordReasoningToolResult(state,call,{content:'version 3'}).stalled,true);assert.equal(state.blocker,'no_progress_stall_detected');
 });
 
 test('long useful work checkpoints before the serverless request times out', () => {
@@ -230,4 +225,11 @@ test('continuing builders resume an old blocked checkpoint but still pause for a
   const call={name:'save_workbench_project',input:{project_id:'workout'}};
   recordReasoningToolResult(state,call,{is_error:true,needs_user_input:true,content:'Please sign in again'});
   assert.equal(state.status,'blocked');assert.equal(state.blocker,'needs_user_input:save_workbench_project');
+});
+
+
+test('unchanged pending external operations yield a checkpoint rather than a failed assignment',()=>{
+ const state=createReasoningState({message:'Wait for build',budgets:{continueUntilDone:true,maxNoProgressSteps:2}}),call={name:'get_workflow_status',input:{run_id:'one'}},result={content:'{"status":"running"}'};
+ for(let i=0;i<3;i++)recordReasoningToolResult(state,call,result);
+ assert.equal(state.status,'waiting');assert.equal(state.blocker,'external_work_pending');assert.equal(registerModelStep(state).allowed,false);
 });
