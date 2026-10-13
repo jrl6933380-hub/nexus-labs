@@ -22,8 +22,8 @@ test('overlapping calendar events receive separate columns; adjoining events use
 function fakeElement(tag) {
   return {tagName:tag,children:[],attrs:{},className:'',style:{setProperty(){}},classList:{toggle(){},add(){}},
     setAttribute(key,value){this.attrs[key]=value;},removeAttribute(key){delete this.attrs[key];},
-    append(...nodes){this.children.push(...nodes);},replaceChildren(...nodes){this.children=nodes;},
-    get childNodes(){return this.children;},querySelector(){return null;},scrollIntoView(){},
+    append(...nodes){this.children.push(...nodes);},prepend(...nodes){this.children.unshift(...nodes);},replaceChildren(...nodes){this.children=nodes;},
+    remove(){},get childNodes(){return this.children;},querySelector(selector){return descendants(this).slice(1).find(n=>selector==='button' ? n.tagName==='button' : n.className===selector.slice(1)) || null;},scrollIntoView(){},
   };
 }
 function descendants(root){return [root,...root.children.flatMap(descendants)];}
@@ -34,11 +34,13 @@ test('calendar view switches load ranges and time-slot clicks carry date and hou
   globalThis.fetch=async()=>({ok:true,json:async()=>({items:[],drafts:[]})});
   try {
     const root=await renderScheduleCalendar({openScheduleStudio:(...args)=>calls.push(args),setScheduleItems(){}},{balance:()=>fakeElement('div')});
-    assert.equal(descendants(root).filter((node)=>node.className==='calslot').length,24);
-    assert.equal(descendants(root).find(node=>node.className==='caldatestrip').children.length,9);
+    assert.equal(descendants(root).filter((node)=>node.className==='calslot').length,0);
+    assert.equal(root.attrs['data-mode'],'list');
+    assert.ok(descendants(root).find(node=>node.textContent==='Month'));
     await descendants(root).find((node)=>node.textContent==='Day').onclick();
     const slots=descendants(root).filter((node)=>node.className==='calslot');assert.equal(slots.length,24);
-    slots[9].onclick();assert.equal(calls[0][0],'block');assert.match(calls[0][1],/^\d{4}-\d{2}-\d{2}$/);assert.equal(calls[0][2],540);
+    slots[9].onclick();assert.equal(calls.length,0);
+    descendants(root).find(node=>node.textContent==='Add details').onclick();assert.equal(calls[0][0],'block');assert.match(calls[0][1],/^\d{4}-\d{2}-\d{2}$/);assert.equal(calls[0][2],540);assert.equal(calls[0][3],60);
     await descendants(root).find((node)=>node.textContent==='Week').onclick();
     assert.equal(descendants(root).filter((node)=>node.className==='calslot').length,168);
     assert.equal(descendants(root).filter((node)=>node.className==='calhourcolumn').length,7);
