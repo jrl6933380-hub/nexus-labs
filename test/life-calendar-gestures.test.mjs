@@ -64,3 +64,7 @@ test('edge scrolling stays gentle regardless of pointer-event frequency',()=>{
   const slow=scroll(60),fast=scroll(120);
   assert.ok(slow>70&&slow<85);assert.ok(fast>70&&fast<85);assert.ok(Math.abs(slow-fast)<2);
 });
+
+test('touch confirmation after dragging saves once without a compatibility click',()=>{
+ const h=setup();h.lane.selectRange(540,600);const confirm=h.actions.querySelector('button');confirm.onpointerup(pointer(confirm));assert.equal(h.created.length,1);confirm.onclick();assert.equal(h.created.length,1);assert.equal(h.root.querySelector('.lc-draft'),null);
+});
