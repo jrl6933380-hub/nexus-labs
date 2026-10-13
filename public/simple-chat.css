@@ -1,4 +1,62 @@
-.simple-view-toggle{flex-shrink:0!important;width:auto!important;min-height:44px;padding:8px 12px!important;border:1px solid #365442!important;border-radius:18px!important;background:#14221b!important;color:#e1bd72!important;font:500 13px system-ui!important}.simple-chat-tools{position:relative;z-index:22;display:flex;flex-wrap:wrap;gap:6px;padding:8px 14px;background:#0b120e;border-bottom:1px solid #293f31}.simple-chat-tools[hidden]{display:none}.simple-chat-tools button,.simple-chat-tools summary{box-sizing:border-box;min-height:44px;padding:11px 12px;border:0;border-radius:12px;background:#14221b;color:#d3dfd5;font:14px system-ui;cursor:pointer}.simple-workspace-menu{position:relative}.simple-workspace-menu summary{list-style:none;color:#e1bd72}.simple-workspace-links{position:absolute;top:calc(100% + 6px);left:0;width:220px;padding:8px;border:1px solid #365442;border-radius:16px;background:#14221b;box-shadow:0 12px 30px #0008}.simple-workspace-links button{display:block;width:100%;text-align:left}.simple-workspace-card{box-sizing:border-box;max-width:620px;margin:18px auto;padding:16px;border:1px solid #365442;border-radius:18px;background:#14221b;color:#edf3ee;overflow-wrap:anywhere}.simple-card-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.simple-workspace-card button{min-height:44px;padding:10px 12px;border:1px solid #365442;border-radius:12px;background:#0b120e;color:#e1bd72;font:14px system-ui;cursor:pointer}.simple-card-row{display:block;width:100%;margin-top:10px;text-align:left;color:#edf3ee!important}.simple-card-row small{display:block;margin-top:5px;color:#b0c0b4;font:12px/1.5 system-ui}.simple-card-note{color:#b0c0b4;font:13px/1.5 system-ui}.simple-chat[data-view=chat] .welcome h1{font-size:28px}.simple-chat[data-view=chat] .welcome .startergrid,.simple-chat[data-view=chat] .welcome .uxsecondary,.simple-chat[data-view=chat] .welcome .guideopen{display:none}.simple-chat[data-view=chat] .welcome{border:0;background:none;box-shadow:none}.simple-chat[data-view=chat] .conversationbanner{position:static}.simple-chat[data-view=chat] .teammission{margin-left:0}.simple-chat[data-view=chat] .teamboard{max-width:620px}.simple-chat .top .vsub{display:none}.simple-chat .teamhint{display:none}.simple-chat .teamautonomy{display:none}.simple-chat .customer-head h1{font-size:22px}.simple-chat button:focus-visible,.simple-chat summary:focus-visible{outline:2px solid #e1bd72;outline-offset:3px}@media(max-width:420px){.simple-view-toggle{font-size:12px!important;padding:8px!important}.top,.customer-head{gap:6px!important;padding-left:10px!important;padding-right:10px!important}.simple-chat .top .vt{font-size:20px}.simple-chat-tools{padding:6px 10px}.simple-chat-tools button,.simple-chat-tools summary{padding:11px 9px;font-size:13px}}
-
-.simple-chat-tools>[hidden]{display:none}.simple-chat-tools:has(.simple-view-toggle[aria-pressed=false]){justify-content:flex-end;padding-top:4px;padding-bottom:4px}
-.simple-chat[data-view=chat] .teamwelcome{border:0;background:none;box-shadow:none;padding:0;margin:12px 0}.simple-chat[data-view=chat] .teamwelcome>small,.simple-chat[data-view=chat] .teamwelcome>h3,.simple-chat[data-view=chat] .teamwelcome>p{display:none}.simple-chat[data-view=chat] .teamwelcome>.teamgold{background:#14221b;border:1px solid #365442;color:#e1bd72;box-shadow:none}.simple-chat[data-view=chat] .featurehelp{display:none}
+/* Simple view is a presentation of the existing conversation and saved records. */
+.simple-menu-button,.simple-chat-brand{display:none}
+body.simple-chat[data-view=chat]{background:#0b1410;color:#edf3ee}
+.simple-chat[data-view=chat] .top,.simple-chat[data-view=chat] .customer-head{position:relative;display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:86px;padding:16px 18px;background:#0b1410;border-bottom:1px solid #304739}
+.simple-chat[data-view=chat] .top>.messagebrand,.simple-chat[data-view=chat] #backMessages,.simple-chat[data-view=chat] .viewcopy,.simple-chat[data-view=chat] #headBtn,.simple-chat[data-view=chat] .top>.grow,.simple-chat[data-view=chat] #home,.simple-chat[data-view=chat] #title,.simple-chat[data-view=chat] #refresh{display:none}
+.simple-chat[data-view=chat] .simple-menu-button{display:grid;place-items:center;flex-shrink:0;min-width:44px;height:44px;border:0;border-radius:12px;background:none;color:#d7e4da;font:22px system-ui}
+.simple-chat[data-view=chat] .simple-chat-brand{display:flex;align-items:center;gap:10px;order:1;margin:auto;font:500 19px system-ui}
+.simple-chat-brand small{display:block;margin-top:4px;color:#a1b5a8;font:12px system-ui}
+.simple-chat-mark{display:grid;place-items:center;width:40px;height:40px;border:1px solid #dfbd6c;border-radius:50%;color:#dfbd6c;font:26px Georgia,serif}
+.simple-chat[data-view=chat] #newTop,.simple-chat[data-view=chat] #new{order:2;min-width:44px;height:44px;margin:0;background:none;border:0;color:#d7e4da;box-shadow:none}
+.simple-chat[data-view=chat] .thread{padding:24px 18px 12px}
+.simple-chat[data-view=chat] #content{max-width:720px;padding:24px 18px 150px}
+.simple-chat[data-view=chat] .msg{display:block;margin:0 0 26px}
+.simple-chat[data-view=chat] .msgstack{max-width:100%;gap:8px}
+.simple-chat[data-view=chat] .msgavatar,.simple-chat[data-view=chat] .msgtime{display:none}
+.simple-chat[data-view=chat] .msgspeaker{padding:0;color:#dfbd6c;font:500 15px system-ui}
+.simple-chat[data-view=chat] .msg.a .body{padding:0;border:0;background:none;box-shadow:none;color:#edf3ee;font:16px/1.6 system-ui}
+.simple-chat[data-view=chat] .msg.u .msgstack{max-width:88%;margin-left:auto}
+.simple-chat[data-view=chat] .msg.u .msgspeaker{display:none}
+.simple-chat[data-view=chat] .msg.u .body,.simple-chat[data-view=chat] .customer-turn.user{padding:14px 16px;border:0;border-radius:20px 20px 5px 20px;background:#26334a;color:#edf3ee;font:16px/1.5 system-ui}
+.simple-chat[data-view=chat] .customer-turn.assistant{padding:0;background:none;border:0;font:16px/1.6 system-ui}
+.simple-chat[data-view=chat] .customer-turn.assistant::before{content:'Nex';display:block;margin-bottom:8px;color:#dfbd6c;font:500 15px system-ui}
+.simple-chat[data-view=chat] .conversationbanner,.simple-chat[data-view=chat] .teamroster,.simple-chat[data-view=chat] .teamhint,.simple-chat[data-view=chat] .featurehelp,.simple-chat[data-view=chat] .teamwelcome{display:none}
+.simple-chat[data-view=chat] .foot,.simple-chat[data-view=chat] #composer{background:#0b1410;border:0}
+.simple-chat[data-view=chat] .comp,.simple-chat[data-view=chat] #composer{border-radius:24px}
+.simple-chat[data-view=chat] .comp{padding:8px;border:1px solid #304739;background:#14221b;box-shadow:none}
+.simple-chat[data-view=chat] .send,.simple-chat[data-view=chat] #send{background:#dfbd6c;color:#0b1410;border:0;min-width:44px;min-height:44px}
+.simple-chat[data-view=chat] #message{background:#14221b;border-color:#304739;font-size:16px}
+.simple-chat[data-view=chat] .teamcoordination{display:block;margin:24px 0}
+.simple-chat[data-view=chat] .teamcoordination>.teamavatar{display:none}
+.simple-chat[data-view=chat] .teamcoordinationcopy{max-width:100%}
+.simple-chat[data-view=chat] .teamcoordinationcopy>strong{margin:0 0 8px;color:#dfbd6c;font:500 15px system-ui}
+.simple-chat[data-view=chat] .teamcoordinationcopy>p{padding:0;border:0;background:none;box-shadow:none;font:16px/1.6 system-ui}
+.simple-chat[data-view=chat] .teammission{margin:16px 0;padding:18px;border:1px solid #304739;border-radius:18px;background:#14221b;box-shadow:none}
+.simple-chat[data-view=chat] .teamtasktitle{font:500 16px/1.4 system-ui}
+.simple-chat[data-view=chat] .teamstate{font:12px/1.4 system-ui;white-space:normal;text-align:right;color:#dfbd6c}
+.simple-chat[data-view=chat] .teammission>progress,.simple-chat[data-view=chat] .teammission>.teamautonomy{display:none}
+.simple-team-goal,.simple-team-status{margin:12px 0;color:#a1b5a8;font:14px/1.6 system-ui}
+.simple-team-people{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
+.simple-team-people button{display:grid;place-items:center;min-width:44px;min-height:44px;padding:8px;border:1px solid #304739;border-radius:50%;background:#0b1410;color:#edf3ee;font:14px system-ui}
+.simple-team-details{margin-top:12px}
+.simple-team-details>summary{min-height:44px;padding:12px 0;color:#a1b5a8;font:14px/1.5 system-ui;cursor:pointer}
+.simple-team-details .teamstepcopy>p{font-size:13px}
+.simple-team-details .teamstephead strong{font-size:14px}
+.simple-chat[data-view=chat] .teammission>.simple-team-preview{display:block;width:100%;min-height:44px;margin-top:14px;padding:13px;border:0;border-radius:12px;background:#dfbd6c;color:#0b1410;text-align:center;text-decoration:none;font:500 15px system-ui}
+.simple-chat-menu{box-sizing:border-box;position:fixed;inset:0 auto 0 0;margin:0;width:min(300px,calc(100vw - 32px));max-width:none;max-height:none;height:100dvh;padding:calc(env(safe-area-inset-top) + 20px) 18px 24px;background:#14221b;color:#edf3ee;border:0;border-right:1px solid #304739;overflow-y:auto}
+.simple-chat-menu::backdrop{background:#0009}
+.simple-chat-menu>button{display:block;width:100%;min-height:48px;padding:12px 8px;border:0;border-radius:12px;background:none;color:#edf3ee;text-align:left;font:16px system-ui}
+.simple-chat-menu .simple-card-head{margin-bottom:24px}
+.simple-card-head{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.simple-workspace-card{box-sizing:border-box;max-width:620px;margin:18px auto;padding:16px;border:1px solid #304739;border-radius:18px;background:#14221b;color:#edf3ee;overflow-wrap:anywhere}
+.simple-workspace-card button,.simple-chat-menu .simple-card-head button{min-height:44px;padding:10px 12px;border:1px solid #304739;border-radius:12px;background:#0b1410;color:#dfbd6c;font:14px system-ui}
+.simple-card-row{display:block;width:100%;margin-top:10px;text-align:left;color:#edf3ee!important}
+.simple-card-row small{display:block;margin-top:5px;color:#a1b5a8;font:12px/1.5 system-ui}
+.simple-card-note{color:#a1b5a8;font:13px/1.5 system-ui}
+.simple-view-settings{display:grid;gap:12px;max-width:620px;margin:14px 0;padding:16px;border:1px solid #304739;border-radius:16px;background:#14221b;color:#edf3ee}
+.simple-view-settings h3,.simple-view-settings p{margin:0}
+.simple-view-settings label{display:grid;gap:8px;font:14px/1.5 system-ui}
+.simple-view-settings select{width:100%;min-height:44px;padding:10px;border:1px solid #304739;border-radius:12px;background:#0b1410;color:#edf3ee;font:16px system-ui}
+.simple-view-settings button{min-height:44px;padding:12px;border:1px solid #304739;border-radius:12px;background:#0b1410;color:#dfbd6c;font:15px system-ui}
+.simple-chat button:focus-visible,.simple-chat summary:focus-visible,.simple-view-settings :focus-visible{outline:2px solid #dfbd6c;outline-offset:3px}
+@media(min-width:780px){.simple-chat[data-view=chat] .top{justify-content:space-between}.simple-chat[data-view=chat] .thread{max-width:720px}.simple-chat[data-view=chat] .foot{max-width:720px}}

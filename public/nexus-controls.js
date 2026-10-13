@@ -25,6 +25,7 @@ export async function renderAccountControls(root,ctx,back,actions,initialView='a
     row(account,'Plan',data.account.exempt?'Owner · exempt from usage limits':`${data.account.plan} plan`,()=>usageView(data));
     row(account,'Usage & limits','Live activity for Nex and your agents',()=>usageView(data));
     const customize=group(panel,'Customize Nexus');
+    if(ctx.chatViewSettings)customize.append(ctx.chatViewSettings());
     row(customize,'Reply preferences',`Reply length: ${data.preferences.responseStyle}`,()=>preferenceView(data));
     row(customize,'Memory','Review and manage what Nexus remembers',()=>ctx.openSystem('memory'));
     row(customize,'Connections','Manage connections for your projects',()=>ctx.openSystem('workbench'));

@@ -14,14 +14,26 @@ export function contextualSpace(text){
 }
 export function createSimpleChat({header,host,storage=localStorage,key,ctx,openChat,openWorkspace,isChat,read=async url=>{const response=await fetch(url,{credentials:'include',cache:'no-store'});const data=await response.json();if(!response.ok)throw Error(data.error||'Could not read your workspace.');return data;}}){
  let preference=readChatPreference(storage,key),version=0;
- const toggle=action('Simple chat',async()=>{preference=preference==='simple'?'workspace':'simple';writeChatPreference(storage,key,preference);sync();if(preference==='simple')await openChat();else await openWorkspace();});
- toggle.className='simple-view-toggle';
- const bar=make('div',undefined,'simple-chat-tools');
  const spaces=[['Calendar','planner'],['Reminders','reminders'],['Projects','workbench'],['Life','life'],['Agents & chats','messages']];
- const menu=make('details',undefined,'simple-workspace-menu');const summary=make('summary','Workspace');menu.append(summary);
- const links=make('div',undefined,'simple-workspace-links');for(const [label,id] of spaces)links.append(action(label,()=>{menu.open=false;ctx.go(id);}));links.append(action('Current view',()=>toggle.click()));menu.append(links);
- bar.append(toggle,menu);for(const [label,id] of [['Agenda','planner'],['Reminders','reminders'],['Projects','workbench'],['Life','life']])bar.append(action(label,()=>surface(id)));header.after(bar);
- function sync(){document.body.classList.toggle('simple-chat',preference==='simple');toggle.textContent=preference==='simple'?'Current view':'Simple chat';toggle.setAttribute('aria-pressed',String(preference==='simple'));for(const child of bar.children)if(child!==toggle)child.hidden=preference!=='simple';}
+ const menuButton=action('☰',()=>{menu.showModal();});menuButton.className='simple-menu-button';menuButton.setAttribute('aria-label','Open workspace menu');
+ const brand=make('div',undefined,'simple-chat-brand');brand.append(make('span','N','simple-chat-mark'));const copy=make('span','Nexus');copy.append(make('small','Simple view'));brand.append(copy);
+ header.prepend(menuButton);header.append(brand);
+ const menu=make('dialog',undefined,'simple-chat-menu');menu.setAttribute('aria-label','Your Nexus workspace');
+ const menuHead=make('div',undefined,'simple-card-head');menuHead.append(make('strong','Your Nexus'),action('Close',()=>menu.close()));menu.append(menuHead);
+ menu.append(action('Conversation',()=>{menu.close();openChat();}));
+ for(const [label,id] of spaces)menu.append(action(label,()=>{menu.close();if(id==='messages')ctx.go(id);else surface(id);}));
+ menu.append(action('Settings',()=>{menu.close();ctx.openChatSettings();}));document.body.append(menu);
+ menu.addEventListener('click',event=>{if(event.target===menu){const box=menu.getBoundingClientRect();if(event.clientX<box.left||event.clientX>box.right||event.clientY<box.top||event.clientY>box.bottom)menu.close();}});
+ function sync(){document.body.classList.toggle('simple-chat',preference==='simple');menu.close();}
+ function settings(){
+  const form=make('form',undefined,'simple-view-settings');form.append(make('h3','Nexus view'));
+  const label=make('label','Choose your view on this device');const select=make('select');
+  for(const [value,text] of [['workspace','Current workspace'],['simple','Simple chat']]){const option=make('option',text);option.value=value;select.append(option);}select.value=preference;select.id='nexus-chat-view-preference';label.htmlFor=select.id;form.append(label,select,make('p','Same Nexus, conversations, and saved work.','simple-card-note'));
+  const save=action('Save view',()=>{});save.type='submit';form.append(save);
+  form.onsubmit=async event=>{event.preventDefault();save.disabled=true;preference=select.value;writeChatPreference(storage,key,preference);sync();if(preference==='simple')await openChat();else await openWorkspace();};
+  return form;
+ }
+ ctx.chatViewSettings=settings;
  const format=value=>{const d=new Date(value);return Number.isFinite(+d)?d.toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'No date set';};
  async function surface(id,{target=host}={}){
   if(preference!=='simple')return;
