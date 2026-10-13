@@ -522,3 +522,23 @@ test('blocked save cards show the actual required action instead of an internal 
  const run=await runs.create('justin','group-launch',[builder],'Build a workout page','request-save-action',{includeNex:false,autoStart:true});await runner.execute('justin','group-launch',run.id);await runs.act('justin','group-launch',run.id,'approve_step',run.steps[0].id);await runner.execute('justin','group-launch',run.id);
  const [saved]=await runs.list('justin','group-launch');assert.match(saved.steps[0].error,/Open Projects/);assert.doesNotMatch(saved.steps[0].error,/needs_user_input/);
 });
+
+test('Vera findings return the exact saved build to Mason, then a new version is reviewed',async()=>{
+ const {runs}=fixture(),builder=members[1],reviewer={id:'vera',name:'Vera',role:'review',job:'Review',scopes:['conversation','projects']},roster=[builder,reviewer];let builds=0,reviews=0;
+ const runner=createTeamRunner({runs,messages:{overview:async()=>({groups:[{id:'group-launch',member_ids:roster.map(m=>m.id)}],specialists:roster})},mode:async()=>({mode:'engaged'}),history:async()=>null,ask:async(prompt,h,t,context)=>{
+  if(context.conversation.role==='build'){builds++;if(builds===2)assert.match(prompt,/Review findings to fix/);return {provider:'gateway',reply:'Saved draft',savedProject:{project_id:'workout',build_id:'b'+builds}};}
+  reviews++;return {provider:'gateway',reply:'Browser review',reviewFindings:{project_id:'workout',baseline:'b'+builds,status:reviews===1?'needs_repair':'passed',errors:reviews===1?['Timer exception']:[],assertions:[],viewports:[]}};
+ }});
+ const run=await runs.create('justin','group-launch',roster,'Build a workout page','request-review-repair',{includeNex:false,autoStart:true});await runner.execute('justin','group-launch',run.id);await runs.act('justin','group-launch',run.id,'approve_step',run.steps[0].id);
+ for(let i=0;i<4;i++)await runner.execute('justin','group-launch',run.id);
+ const [saved]=await runs.list('justin','group-launch');assert.equal(saved.state,'completed');assert.equal(builds,2);assert.equal(reviews,2);assert.equal(saved.steps[0].saved_project.build_id,'b2');
+});
+
+test('explicit Nex builds receive a scoped build step before Vera and require the existing write approval',async()=>{
+ const {runs}=fixture(),reviewer={id:'vera',name:'Vera',role:'review',job:'Review',scopes:['conversation','projects']},calls=[];
+ const runner=createTeamRunner({runs,messages:{overview:async()=>({groups:[{id:'group-launch',member_ids:[reviewer.id]}],specialists:[reviewer]})},mode:async()=>({mode:'engaged'}),history:async()=>null,ask:async(p,h,t,context)=>{calls.push(context);return {reply:'Saved scoped Nex draft',provider:'gateway',savedProject:{project_id:'workout',build_id:'b1'}};}});
+ const run=await runs.create('justin','group-launch',[reviewer],'@Vera review the result @Nex build a workout page','request-nex-build',{includeNex:true,autoStart:true});
+ assert.deepEqual(run.steps.map(s=>[s.name,s.role]),[['Nex','build'],['Vera','review'],['Nex','review']]);
+ await runner.execute('justin','group-launch',run.id);assert.equal(calls.length,0);await runs.act('justin','group-launch',run.id,'approve_step',run.steps[0].id);await runner.execute('justin','group-launch',run.id);
+ assert.equal(calls[0].conversation.role,'build');assert.equal(calls[0].conversation.execution_mode,'approved');assert.deepEqual(calls[0].conversation.scopes,['conversation','projects']);
+});

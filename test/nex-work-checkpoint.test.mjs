@@ -36,3 +36,13 @@ test('checkpoints redact credentials, preserve failure status and bound complete
  for(let i=0;i<10;i++)captureWorkCheckpoint(state,{name:'test_code',input:{code:'x'.repeat(40000)+i}},{content:'passed'});
  assert.ok(state.workRecords.length<=4);assert.ok(JSON.stringify(state.workRecords).length<=160000);assert.ok(state.workRecords.every(record=>record.input.code.length===40001));
 });
+
+
+test('an unsaved complete page stays pinned after recent tool records roll over and progress survives resume',async()=>{
+ const db=storage(),state=createNexRunState({scopeId:'alice',resumeRunId:'nex-turn-pinned-draft-12345678'}),html='<html>'+ 'draft '.repeat(5000)+'</html>';
+ captureWorkCheckpoint(state,{name:'save_workbench_project',input:{project_id:'workout',html}},{content:'Temporary save failure',is_error:true});
+ for(let i=0;i<8;i++)captureWorkCheckpoint(state,{name:'test_code',input:{code:'check '+i}},{content:'passed'});
+ state.outcomeSignatures=[['same-call','same-result']];state.unchangedOutcomes=3;await saveWorkCheckpoint(state,db);
+ const resumed={...state,resumed:true,workDraft:null,workRecords:[]};await loadWorkCheckpoint(resumed,db);
+ assert.equal(resumed.workDraft.html,html);assert.ok(resumed.workRecords.length<=4);assert.equal(resumed.unchangedOutcomes,3);assert.deepEqual(resumed.outcomeSignatures,state.outcomeSignatures);
+});

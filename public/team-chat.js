@@ -192,6 +192,8 @@ export function createTeamChat({input,thread,onMessage=()=>{},onGroup=()=>{},ope
           const visual=canPreviewSpecialistPage(step.role)?appendChatVisual(copy,step.result,step.name,{saveKey:`${run.id}-${step.id}`,onPromote:payload=>keepVisual(run,step,payload)}):null;
           if(!visual){const details=node('details');details.dataset.step=step.id;details.open=expanded.has(step.id);details.append(node('summary',resultLabel(step)),node('div',specialistResultText(step.role,step.result),'teamresult'));if(step.evidence?.status==='verified')details.append(node('small','Checked against the available information.','teamevidence'));else if(step.evidence?.missing?.length)details.append(node('small','Some details could not be fully checked.','teamevidence'));copy.append(details);}
         }
+        if(step.saved_project?.build_id){const link=node('a','Open saved draft','teamsecondary');link.href=`/forge.html?surface=workbench&view=overview&build=${encodeURIComponent(step.saved_project.build_id)}`;copy.append(link);}
+        if(step.review_findings){const review=step.review_findings;copy.append(node('small',review.status==='passed'?`Browser inspection passed · ${review.checks_run || 0} interaction steps`:review.status==='needs_repair'?'Browser inspection found issues to repair':'Browser behavior has not been verified.','teamevidence'));}
         if(question)questionPrompt(copy,run,step,question);
         if(step.error && !question)copy.append(node('p',step.error,'teamerror'));
         if(step.pending_approval)mergeApproval(copy,step.pending_approval,announce,async()=>{await api('team_resolve_approval',{run_id:run.id,step_id:step.id,approval_id:step.pending_approval.id});signature='';await refresh();});
