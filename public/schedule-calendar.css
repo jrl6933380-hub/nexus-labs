@@ -63,3 +63,12 @@ body[data-view=planner]:has(.nexcalendar) .foot{display:none}body[data-view=plan
 
 body[data-view=planner]:has(.calendar-event-editor) .foot{display:none}
 .calendar-event-editor input,.calendar-event-editor select{font-size:16px!important}
+/* Reminder markers identify an alert instant, not an occupied interval. */
+.lc-remindermarker{position:absolute;left:4px;right:4px;z-index:5;min-height:28px;padding:5px 8px;border:1px dashed #e1bd72;border-radius:8px;background:#242a18;color:#f0d99f;font-size:12px;line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;touch-action:manipulation}
+.calremindermarker{border:1px dashed #e1bd72!important;border-left:3px solid #e1bd72!important;background:#20291b!important}.calremindermarker button{display:block;width:100%;min-height:44px;text-align:left}.calremindermarker strong,.calremindermarker small{display:block}.calremindermarker strong{color:#ecd49b;font-size:15px}.calremindermarker small{margin-top:5px;color:#b7cebf;font-size:13px}
+
+.lc-remindergroup{position:absolute;left:4px;right:4px;z-index:6;border:1px dashed #e1bd72;border-radius:8px;background:#242a18;color:#f0d99f;font-size:12px}.lc-remindergroup summary{min-height:36px;padding:8px;touch-action:manipulation}.lc-reminderchoice{display:block;width:100%;min-height:44px;text-align:left;padding:8px;background:#242a18;border-top:1px solid #46523a;color:#f0d99f;touch-action:manipulation}
+
+.lc-remindermarker.lc-markeroverlap{left:auto;width:70px;text-align:center;padding:5px 3px}.lc-withmarker .lc-blocktext{padding-right:72px}
+
+.lc-remindergroup.lc-markeroverlap{left:auto;width:70px}.lc-remindergroup.lc-markeroverlap summary{padding:5px 3px;text-align:center;min-height:28px}.lc-remindergroup.lc-markeroverlap[open]{width:calc(100% - 8px)}
