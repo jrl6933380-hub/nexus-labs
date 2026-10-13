@@ -13,7 +13,7 @@ The product endpoint exposes only 15 workspace tools and the shared board. The b
 - SDK `mcpAuthRouter`, registration, authorization, token, revocation, and bearer middleware handle the protocol. The provider supplies durable Redis storage and existing Nexus owner consent. This is not a new password system.
 - Discovery: `/.well-known/oauth-authorization-server` and `/.well-known/oauth-protected-resource/api/workspace-mcp`.
 - Authorization-server routes: `/register`, `/authorize`, `/token`, `/revoke`, rewritten to the SDK handler. Registration is public-client (`none`) only; registered clients persist and have no client secret to paste.
-- Owner-only first rollout. Callback URLs must exactly match the supported ChatGPT stable or callback-ID-specific redirect. No arbitrary redirect origins, native loopback callbacks, SSRF metadata fetches, or unverified CIMD clients are accepted. Choose DCR in the app configuration.
+- Owner-only first rollout. Callback URLs must exactly match the supported ChatGPT stable or callback-ID-specific redirect, or the exact owner-pilot Gemini callback copied from its connection screen. No arbitrary redirect origins, native loopback callbacks, SSRF metadata fetches, or unverified CIMD clients are accepted. Choose DCR in the app configuration.
 - S256 PKCE is mandatory; the SDK validates it before exchange. Approval requests and codes expire, use atomic one-time consumption, and require the owner session plus same-origin/CSRF approval.
 - Exact issuer identification (`iss`), state echo, resource audience, client binding and permissions persist through authorization and token exchange.
 - Access tokens last at most one hour; refresh credentials rotate within a 30-day grant. Replayed refresh tokens revoke that grant's token family. Revocation and expiry are checked server-side on every tool call. Only credential hashes are used as storage keys.
@@ -33,3 +33,9 @@ Checks:
 `node scripts/verify-workspace-oauth-ui.mjs`
 
 The browser script uses the official OAuth client for discovery/DCR/PKCE/token exchange and real Nexus handlers/stores with isolated persistence. It verifies owner sign-in blocking, visible approval, callback return, actual FORM HTML import, Schedule creation, reminder completion, reload persistence, and 320px layout. Existing Workbench/planner/reminder regressions are also included in validation.
+
+## Gemini owner pilot
+
+Use the same `/api/workspace-mcp` URL in Gemini custom connected apps. Leave the advanced client ID/secret fields empty: this endpoint supports public-client DCR and S256 PKCE. The owner-pilot Google callback is explicitly allowed; neighboring account IDs, query strings, fragments, and other Google callback paths are rejected. This is not general Gemini customer onboarding. If Gemini changes the callback, approve and verify the new exact address before enabling it.
+
+Server-side Gemini-shaped registration/consent/token tests pass. Actual Gemini login and board rendering still require a host test after deployment; do not claim visual compatibility from protocol tests.
