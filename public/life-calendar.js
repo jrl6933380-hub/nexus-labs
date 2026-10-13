@@ -1,14 +1,11 @@
+import {calendarSelection as lifeSelection} from './calendar-selection.js';
+export {lifeSelection};
 import {calendarKey,calendarLayout} from './schedule-calendar.js';
 export const LIFE_HOUR_HEIGHT=80;
 const colors={work:'#278da5',sleep:'#9aa6ad',social:'#399b89',health:'#d1a325',personal:'#8a85b6'};
 const clock=date=>new Date(date).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
 function dayAt(value){if(typeof value==='string'){const [y,m,d]=value.split('-').map(Number);return new Date(y,m-1,d);}const day=new Date(value);day.setHours(0,0,0,0);return day;}
 function at(day,minute){const value=dayAt(day);value.setMinutes(minute);return value;}
-export function lifeSelection(day,anchor,current){
-  const a=Math.max(0,Math.min(1425,Math.round(anchor/15)*15)),b=Math.max(0,Math.min(1440,Math.round(current/15)*15));
-  const start=Math.min(a,b),end=Math.max(start+15,a,b);
-  return {day:calendarKey(dayAt(day)),minutes:start,duration:end-start,starts_at:at(day,start).toISOString(),ends_at:at(day,end).toISOString()};
-}
 export function lifeMovedTimes(item,visibleDay,targetDay,targetMinute,entryStart){
   const source=dayAt(visibleDay),original=new Date(item.starts_at);
   const originalMinutes=(Date.parse(item.starts_at)-source)/60000;

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
+import {calendarSelection as lifeSelection} from '../public/calendar-selection.js';
 
 // Exercise the actual pointer handlers with deterministic geometry and timers.
 class Element {
@@ -22,8 +23,8 @@ class Element {
 function setup(){
   let now=0,id=0;const timers=new Map(),created=[];
   const document={createElement(tag){const el=new Element();el.tag=tag;return el;},addEventListener(){},removeEventListener(){}};
-  const source=readFileSync(new URL('../public/life-calendar.js',import.meta.url),'utf8').replace(/^import .*\n/m,'').replace(/export /g,'');
-  const sandbox={document,Date,performance:{now:()=>now},setTimeout(fn,delay){timers.set(++id,{fn,at:now+delay});return id;},clearTimeout(key){timers.delete(key);},requestAnimationFrame(){},
+  const source=readFileSync(new URL('../public/life-calendar.js',import.meta.url),'utf8').replace(/^import .*\n/gm,'').replace(/^export \{lifeSelection\};\n/m,'').replace(/export /g,'');
+  const sandbox={document,Date,lifeSelection,performance:{now:()=>now},setTimeout(fn,delay){timers.set(++id,{fn,at:now+delay});return id;},clearTimeout(key){timers.delete(key);},requestAnimationFrame(){},
     calendarKey:date=>date.toISOString().slice(0,10),calendarLayout:()=>[]};
   vm.runInNewContext(source,sandbox);
   const root=sandbox.renderLifeCalendar({items:[],state:{date:new Date('2026-10-08T12:00:00Z')},onCreate:value=>created.push(value),onOpen(){},onChange(){},onNavigate(){}});

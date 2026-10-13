@@ -1,9 +1,10 @@
+import {attachCalendarSelection} from './calendar-selection.js';
 import {attachCalendarDrag} from './calendar-drag.js';
 import { friendlyError } from './ux.js';
 // A calendar-first surface over the shared Schedule store.
 import { occupiedStart } from './schedule-availability.js';
 const COLORS = {sleep:'#879ade',personal:'#bd91d9',work:'#56a97b',project:'#9a7bea',gym:'#d5b366',health:'#65b8b2',family:'#e9a66f',social:'#b18cd2',appointment:'#e0c35c',errands:'#a5a19a',learning:'#74b7e8',creative:'#c883d8',rest:'#7b87a7',travel:'#d78b68',other:'#8e8a84'};
-const globalCalendarState = {date:new Date(),mode:'day'};
+const globalCalendarState = {date:new Date(),mode:'list'};
 export function calendarKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 }
@@ -34,8 +35,9 @@ export function calendarLayout(items,date) {
 function node(tag,className,text) { const element=document.createElement(tag);element.className=className;if(text !== undefined) element.textContent=text;return element; }
 function button(text,action,label=text) { const element=node('button','',text);element.type='button';element.setAttribute('aria-label',label);element.onclick=action;return element; }
 const clock = (date) => date.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
-export async function renderScheduleCalendar(ctx, extras) {
+export async function renderScheduleCalendar(ctx, extras={}) {
   const state=ctx.calendarState || globalCalendarState;
+  if(!state.mode)state.mode='list';
   const root=node('section','nexcalendar');
   let payload={items:[]}, requestId=0, search='', closeActivityActions=null, savedScroll=null, revealSelectedDay=false;
   async function load() {
@@ -61,7 +63,7 @@ export async function renderScheduleCalendar(ctx, extras) {
     } finally {if(id === requestId) root.removeAttribute('aria-busy');}
   }
   function draw() {
-    closeActivityActions=null;root.replaceChildren();
+    closeActivityActions=null;root.replaceChildren();root.setAttribute('data-mode',state.mode);
     const items=(payload.items || []).filter((item) => item.status !== 'cancelled' && (!search || item.title.toLowerCase().includes(search.toLowerCase())));
     const toolbar=node('div','caltoolbar');
     const heading=node('h2','','Calendar');
@@ -69,23 +71,23 @@ export async function renderScheduleCalendar(ctx, extras) {
     const add=button('+',()=>ctx.openScheduleStudio('block',calendarKey(state.date)),'Add activity'); add.className='caladd';toolbar.append(add);root.append(toolbar);
     const controls=node('div','calcontrols');
     const modes=node('div','calmodes');modes.setAttribute('aria-label','Calendar views');
-    for(const [mode,label] of [['day','Day'],['week','Week']]) {
+    for(const [mode,label] of [['list','List'],['day','Day'],['week','Week'],['month','Month']]) {
       const control=button(label,()=>{state.mode=mode;return load();});control.classList.toggle('active',state.mode===mode);control.setAttribute('aria-pressed',String(state.mode===mode));modes.append(control);
     }
     controls.append(modes);root.append(controls);
     const strip=node('nav','caldatestrip');strip.setAttribute('aria-label','Choose calendar day');const monday=shift(state.date,-((state.date.getDay()+6)%7));
     strip.append(button('‹',()=>navigate(-1),'Previous period'));
     for(let i=0;i<7;i++){const day=shift(monday,i),pick=button('',()=>{state.date=day;revealSelectedDay=true;return load();},day.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}));pick.append(node('small','',day.toLocaleDateString('en-US',{weekday:'short'})),node('strong','',day.getDate()));pick.setAttribute('aria-pressed',String(calendarKey(day)===calendarKey(state.date)));strip.append(pick);}
-    strip.append(button('›',()=>navigate(1),'Next period'));root.append(strip);
-    const dayHeading=node('div','caldateheading');dayHeading.append(node('strong','',state.date.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})),button('Today',()=>{state.date=new Date();savedScroll=Math.max(0,(state.date.getHours()-1)*56);revealSelectedDay=true;return load();}));root.append(dayHeading);
+    strip.append(button('›',()=>navigate(1),'Next period'));if(state.mode==='day' || state.mode==='week' || state.mode==='multi')root.append(strip);
+    const dayHeading=node('div','caldateheading');dayHeading.append(node('strong','',state.date.toLocaleDateString('en-US',state.mode==='month' ? {month:'long',year:'numeric'} : {weekday:'long',month:'long',day:'numeric'})),button('Today',()=>{state.date=new Date();savedScroll=Math.max(0,(state.date.getHours()-1)*56);revealSelectedDay=true;return load();}));if(state.mode==='list' || state.mode==='month'){dayHeading.prepend(button('‹',()=>navigate(-1),'Previous period'));dayHeading.append(button('›',()=>navigate(1),'Next period'));}root.append(dayHeading);
     const tools=node('div','caltools');
     tools.append(button('✦ Plan with Nex',()=>ctx.planWithNex ? ctx.planWithNex() : ctx.openScheduleStudio('week')),button(ctx.balanceLabel || 'Time balance',()=>{
       const previous=root.querySelector('.calinsight');if(previous){previous.remove();return;}
-      const host=node('div','calinsight');host.append(extras.balance(payload.summary,payload.items || [],ctx));root.append(host);host.scrollIntoView({block:'nearest'});
+      const host=node('div','calinsight');host.append(extras.balance ? extras.balance(payload.summary,payload.items || [],ctx) : node('p','','Ask Nex to review how your time is balanced.'));root.append(host);host.scrollIntoView({block:'nearest'});
     }));
     const more=node('details','calmore');more.append(node('summary','','More'));
     more.append(button('Guided planner',()=>ctx.openScheduleStudio('week')),button(ctx.weekLabel || 'Build next week',()=>ctx.openWeekRollover()),button('Ask Nex to adjust',()=>ctx.ask(`Read my ${ctx.calendarSubject || 'schedule'} for ${calendarKey(state.date)}. Show me the tradeoffs and clickable ways to adjust it without moving protected commitments.`)));
-    for(const [mode,label] of [['month','Month view'],['multi','Three days'],['list','Agenda']])more.append(button(label,()=>{state.mode=mode;return load();}));
+    for(const [mode,label] of [['multi','Three days']])more.append(button(label,()=>{state.mode=mode;return load();}));
     const find=node('input','calsearch');find.type='search';find.placeholder='Find an activity';find.setAttribute('aria-label','Search schedule');find.value=search;
     find.onchange=()=>{search=find.value;state.mode='list';return load();};more.append(find);tools.append(more);
     for(const draftId of payload.drafts || []) {
@@ -95,7 +97,7 @@ export async function renderScheduleCalendar(ctx, extras) {
     if(state.mode === 'month') month(items);
     else if(state.mode === 'list') agenda(items);
     else timeline(items);
-    const nex=node('details','calnex');nex.append(node('summary','','✦ Plan with Nex'),tools);root.append(nex);
+    const nex=node('details','calnex');nex.append(node('summary','','Planning options'),tools);const ask=button('✦ Ask Nex',()=>ctx.planWithNex ? ctx.planWithNex() : ctx.ask?.('Help me plan my schedule.'));ask.className='calask';const footer=node('div','calfooter');footer.append(ask,nex);root.append(footer);
   }
   function navigate(direction) {
     if(state.mode === 'month') state.date=new Date(state.date.getFullYear(),state.date.getMonth()+direction,Math.min(state.date.getDate(),28));
@@ -109,14 +111,14 @@ export async function renderScheduleCalendar(ctx, extras) {
     const today=calendarKey(new Date());
     for(let i=0;i<42;i++) {
       const date=shift(start,i), key=calendarKey(date), events=calendarDayItems(items,date);
-      const cell=button('',()=>{state.date=date;state.mode='day';return load();},`${date.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}, ${events.length} activities`);cell.className='caldate';
+      const cell=button('',()=>{const sameMonth=date.getMonth()===state.date.getMonth() && date.getFullYear()===state.date.getFullYear();state.date=date;return sameMonth ? draw() : load();},`${date.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}, ${events.length} activities`);cell.className='caldate';
       cell.classList.toggle('outside',date.getMonth()!==first.getMonth());cell.classList.toggle('today',key===today);cell.classList.toggle('selected',key===calendarKey(state.date));
       cell.append(node('span','calnumber',date.getDate()));
       const markers=node('span','calmarkers');
       for(const event of events.slice(0,3)) {const mark=node('i','');mark.style.background=COLORS[event.category] || COLORS.other;markers.append(mark);}
       cell.append(markers);if(events.length>3)cell.append(node('small','',`+${events.length-3}`));grid.append(cell);
     }
-    root.append(grid,node('p','calhint','Tap a day to see its time slots.'));
+    const host=node('div','calmonthsurface');root.append(host);host.append(grid);const heading=node('div','calmonthday');heading.append(node('h3','',state.date.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'})),button('Open day',()=>{state.mode='day';return load();}));host.append(heading);const events=calendarDayItems(items,state.date);for(const item of events)host.append(activityBlock(item,'caleventrow'));if(!events.length)host.append(node('p','calempty','No activities this day. Open day to select a time.'));
   }
   // Sibling controls keep actions on the block without nesting buttons.
   function activityBlock(item, className, compact=false) {
@@ -141,7 +143,7 @@ export async function renderScheduleCalendar(ctx, extras) {
     const host=node('div','calagenda');root.append(host);let count=0;
     for(let i=0;i<30;i++) {
       const date=shift(state.date,i), events=calendarDayItems(items,date);if(!events.length)continue;count+=events.length;
-      host.append(node('h3','',date.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'})));
+      if(i!==0)host.append(node('h3','',date.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'})));
       for(const item of events) {
         host.append(activityBlock(item,'caleventrow'));
       }
@@ -163,7 +165,7 @@ export async function renderScheduleCalendar(ctx, extras) {
     for(const day of days) {
       const column=node('div','calhourcolumn');column.setAttribute('data-day',calendarKey(day));columns.push(column);
       for(let hour=0;hour<24;hour++) {
-        const slot=button('',()=>ctx.openScheduleStudio('block',calendarKey(day),hour*60),`Add activity ${day.toLocaleDateString('en-US',{weekday:'long'})} at ${hour%12 || 12} ${hour<12 ? 'AM' : 'PM'}`);slot.className='calslot';
+        const slot=button('',()=>column.selectTime(hour*60),`Add activity ${day.toLocaleDateString('en-US',{weekday:'long'})} at ${hour%12 || 12} ${hour<12 ? 'AM' : 'PM'}`);slot.className='calslot';
         const busy=occupiedStart({days:[calendarKey(day)],startMinutes:hour*60,durationMinutes:60,items}).length>0;
         slot.disabled=busy;if(busy){slot.classList.add('taken');slot.setAttribute('aria-label',`Taken hour ${hour%12 || 12} ${hour<12 ? 'AM' : 'PM'}`);}column.append(slot);
       }
@@ -175,9 +177,10 @@ export async function renderScheduleCalendar(ctx, extras) {
       }
       if(calendarKey(day)===calendarKey(new Date())) {const now=new Date();const line=node('div','calnow');line.style.top=`${(now.getHours()+now.getMinutes()/60)*56}px`;column.append(line);}
       grid.append(column);
+      attachCalendarSelection({column,day,grid,scroll,items,onCreate:range=>{savedScroll=scroll.scrollTop;ctx.openScheduleStudio('block',range.day,range.minutes,range.duration);}});
     }
     scroll.onscroll=()=>{headViewport.scrollLeft=scroll.scrollLeft;};
-    requestAnimationFrame(()=>{scroll.scrollTop=savedScroll ?? 8*56;savedScroll=null;if(revealSelectedDay){const index=days.findIndex(day=>calendarKey(day)===calendarKey(state.date));scroll.scrollLeft=Math.max(0,index)*((grid.scrollWidth-56)/days.length);revealSelectedDay=false;}headViewport.scrollLeft=scroll.scrollLeft;});root.append(node('p','calhint',ctx.changeCalendarTimes ? 'Tap a block, then drag Move to change its time or Duration to change its finish. Times snap to 15 minutes.' : 'Tap an open hour to add. Tap an activity for notes, editing, or more time.'));
+    requestAnimationFrame(()=>{scroll.scrollTop=savedScroll ?? 8*56;savedScroll=null;if(revealSelectedDay){const index=days.findIndex(day=>calendarKey(day)===calendarKey(state.date));scroll.scrollLeft=Math.max(0,index)*((grid.scrollWidth-56)/days.length);revealSelectedDay=false;}headViewport.scrollLeft=scroll.scrollLeft;});root.append(node('p','calhint',ctx.changeCalendarTimes ? 'Tap empty time, then drag to adjust. Tap an event for Move and Duration.' : 'Tap an open hour to add. Tap an activity for notes, editing, or more time.'));
   }
   await load();return root;
 }

@@ -557,7 +557,7 @@ async function readTakenSchedule() {
   if(!response.ok)throw new Error(data.error || 'Could not read taken times');
   return Array.isArray(data.items) ? data.items : [];
 }
-function openScheduleStudio(mode = 'block', preferredDate = '', preferredMinutes = null) {
+function openScheduleStudio(mode = 'block', preferredDate = '', preferredMinutes = null, preferredDuration = 60) {
   if (mode === 'week') return openWeekStudio();
   const base = preferredDate ? new Date(`${preferredDate}T09:00:00`) : new Date(Date.now()+3600000);
   base.setMinutes(0,0,0);
@@ -567,7 +567,7 @@ function openScheduleStudio(mode = 'block', preferredDate = '', preferredMinutes
   const name = document.createElement('input'); name.placeholder = 'What are you doing?';name.setAttribute('aria-label','Activity name');
   const form = document.createElement('div');form.className='schedulecompactform';card.appendChild(form);
   const category = optionField('Activity', scheduleCategories, 'work');
-  const duration = optionField('Planned duration', scheduleDurations.map((value)=>[String(value),durationLabel(value)]),'60');
+  const duration = optionField('Planned duration', [...new Set([...scheduleDurations,preferredDuration])].sort((a,b)=>a-b).map((value)=>[String(value),durationLabel(value)]),String(preferredDuration));
   const start = scheduleDateTime(localDateTime(base),'Start');
   const endReminder=optionField('When the block time is up',[['no','No reminder'],['yes','Remind me in the app']],'no');
   form.append(name,category.label,duration.label,start,endReminder.label);
