@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHistoryHandler} from '../api/room-history.js';
-import {executeWorkbenchTool,projectDestination,restrictToWorkbench} from '../lib/workbenchTools.js';
+import {executeWorkbenchTool,projectDestination,restrictToWorkbench,freshBuildTarget} from '../lib/workbenchTools.js';
 import {buildConversationAccessPolicy} from '../lib/nexBrain.js';
 import {planCognitiveRun} from '../lib/nexCognitiveController.js';
 import {createEvidenceTracker} from '../lib/nexEvidenceGate.js';
@@ -100,4 +100,11 @@ test('owner background saves use the same Workbench account as the visible shelf
  const result=await executeWorkbenchTool('save_workbench_project',{project_id:'fresh',html:'<!doctype html><html>Workout</html>'},{userId:'justin',workbenchUserId:'Mrlopez'},deps);
  assert.equal(result.saved,true);assert.ok(touched.length>=3);assert.ok(touched.every(owner=>owner==='Mrlopez'));
  await assert.rejects(executeWorkbenchTool('save_workbench_project',{project_id:'other',html:'<html>Other</html>'},{userId:'customer'},deps),error=>error.status===402);
+});
+
+
+test('new build destinations are reserved per run and cannot overwrite another page',async()=>{
+ assert.equal(freshBuildTarget('Build a fresh project','nex-turn-task-12345678'),'build-task-12345678');assert.equal(freshBuildTarget('Edit this existing project','nex-turn-task-12345678'),null);
+ assert.notEqual(freshBuildTarget('Build an app','nex-turn-task-12345678'),freshBuildTarget('Build an app','nex-turn-task-87654321'));
+ await assert.rejects(executeWorkbenchTool('save_workbench_project',{project_id:'audit-page',html:'<html>Workout</html>'},{userId:'alice',freshProjectId:'fresh-workout'}),/reserved fresh target/);
 });
