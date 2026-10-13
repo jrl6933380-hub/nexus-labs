@@ -346,6 +346,7 @@ const deliveredScheduleReminders = new Set();
 const ctx = {
   ask: (text) => askFromView(text),
   go: (id) => showView(id),
+  openChatSettings: async () => {messagesDestination='settings';await showView('messages');},
   openConversation: (conversation,fresh=false) => openMessagesConversation(conversation,fresh),
   openSystem: (id) => { activeConversation=null; showView(id); },
   openThread: (record) => openThread(record),
@@ -1050,6 +1051,7 @@ function conversationGreeting(){
       {label:'What can this team do?',run:()=>{el('input').value='What can this team help me accomplish?';submit();}},
     ]));return;
   }
+  if(simpleChat.enabled){bubble('a','<p>What would you like to work on?</p>');return;}
   greet();
 }
 function renderResponseActions(data,target=thread,onPick=label=>{el('input').value=label;submit();}){
