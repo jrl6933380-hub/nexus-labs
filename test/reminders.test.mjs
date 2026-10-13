@@ -56,8 +56,8 @@ test('reserving a reminder reuses its block, rejects overlaps, and completion sy
   assert.equal((await planner.listPlannerItems({},user)).find(block=>block.id===reserved.id).flexibility,'fixed');
   await store.update({id:item.id,status:'done'},user);blocks=await planner.listPlannerItems({},user);assert.equal(blocks.find(block=>block.source_id===item.id).status,'done');
   await store.update({id:item.id,status:'planned'},user);const linked=blocks.find(block=>block.source_id===item.id);
-  await planner.updatePlannerItem({id:linked.id,status:'done'},user);assert.equal((await store.list(user))[0].status,'done');
-  await store.update({id:item.id,notes:'New notes'},user);assert.equal((await store.list(user))[0].status,'done');
+  await planner.updatePlannerItem({id:linked.id,status:'done'},user);assert.equal((await store.list(user)).find(record=>record.id===item.id).status,'done');
+  await store.update({id:item.id,notes:'New notes'},user);assert.equal((await store.list(user)).find(record=>record.id===item.id).status,'done');
   await assert.rejects(store.remove(item.id,'room:b'),/not found/);
   await store.remove(item.id,user);assert.equal((await planner.listPlannerItems({},user)).length,1);
 });
@@ -139,6 +139,31 @@ test('legacy default-UTC reminders remain completable and editable before their 
   const old={id:'old',title:'Late night',due_date:'2026-10-13',due_at:'2026-10-14T04:30:00Z',timezone:'UTC',status:'planned',repeat:'none',created_at:1};
   await command(['HSET','nexus:reminders:v1:room%3Alegacy','old',JSON.stringify(old)]);
   await store.update({id:'old',notes:'Keep this note'},user);await store.update({id:'old',status:'done'},user);
-  assert.equal((await store.list(user))[0].status,'done');
+  assert.equal((await store.list(user)).find(record=>record.id===old.id).status,'done');
   await store.update({id:'old',timezone:'America/Chicago'},user);assert.equal((await store.list(user))[0].due_date,'2026-10-13');
+});
+
+
+test('planned calendar events automatically appear once in Reminders thirty minutes before their start',async()=>{
+ const {store,planner}=fixture(),user='room:auto';const event=await planner.createPlannerItem({title:'Workout',starts_at:'2026-11-01T01:15:00-06:00',ends_at:'2026-11-01T02:00:00-06:00'},user);
+ assert.equal(event.reminder_minutes,30);for(let i=0;i<3;i++){const rows=await store.list(user);assert.equal(rows.length,1);assert.equal(rows[0].id,`calendar-${event.id}`);assert.equal(rows[0].due_at,'2026-11-01T06:45:00.000Z');assert.equal(rows[0].source_calendar_id,event.id);}
+ await assert.rejects(store.update({id:`calendar-${event.id}`,status:'done'},'room:other'),/not found/);assert.deepEqual(await store.list('room:other'),[]);
+});
+test('automatic reminder follows rename and time changes; completion never completes the event',async()=>{
+ const {store,planner}=fixture(),user='room:auto';const event=await planner.createPlannerItem({title:'Old title',starts_at:'2026-10-15T12:00:00Z'},user);const id=`calendar-${event.id}`;
+ await store.update({id,status:'done'},user);assert.equal((await store.list(user))[0].status,'done');assert.equal((await planner.listPlannerItems({},user))[0].status,'planned');
+ await planner.updatePlannerItem({id:event.id,title:'New title',starts_at:'2026-10-15T14:00:00Z'},user);const rows=await store.list(user);assert.equal(rows.length,1);assert.equal(rows[0].title,'New title');assert.equal(rows[0].due_at,'2026-10-15T13:30:00.000Z');assert.equal(rows[0].status,'planned');
+ await store.remove(id,user);assert.equal((await planner.listPlannerItems({},user))[0].reminder_minutes,null);assert.deepEqual(await store.list(user),[]);
+});
+test('draft, cancelled, deleted and all-day events leave no active automatic reminders',async()=>{
+ const {store,planner}=fixture(),user='room:auto';const event=await planner.createPlannerItem({title:'Draft',starts_at:'2026-10-15T12:00:00Z',status:'draft'},user);assert.deepEqual(await store.list(user),[]);
+ await planner.updatePlannerItem({id:event.id,status:'planned'},user);assert.equal((await store.list(user)).length,1);
+ await planner.updatePlannerItem({id:event.id,status:'cancelled'},user);assert.deepEqual(await store.list(user),[]);
+ await planner.updatePlannerItem({id:event.id,status:'planned'},user);await planner.deletePlannerItem(event.id,user);assert.deepEqual(await store.list(user),[]);
+ await planner.createPlannerItem({title:'All day',starts_at:'2026-10-15T00:00:00Z',all_day:true},user);assert.deepEqual(await store.list(user),[]);
+});
+test('automatic reminder snooze persists but rescheduling reanchors the alert to the event',async()=>{
+ const {store,planner}=fixture(),user='room:auto';const event=await planner.createPlannerItem({title:'Early event',starts_at:'2026-10-15T05:15:00Z'},user);const id=`calendar-${event.id}`;
+ await store.update({id,due_at:'2026-10-15T05:00:00Z',due_date:'2026-10-15',timezone:'UTC'},user);assert.equal((await store.list(user))[0].due_at,'2026-10-15T05:00:00.000Z');
+ await planner.updatePlannerItem({id:event.id,starts_at:'2026-10-16T10:00:00Z'},user);assert.equal((await store.list(user))[0].due_at,'2026-10-16T09:30:00.000Z');
 });

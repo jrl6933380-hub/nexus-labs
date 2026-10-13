@@ -60,3 +60,6 @@ body[data-view=planner]:has(.nexcalendar) .foot{display:none}body[data-view=plan
 .lifecalendar[data-days="1"] .lc-days,.lifecalendar[data-days="1"] .lc-grid{grid-template-columns:42px minmax(0,1fr)}.lifecalendar[data-days="1"] .lc-canvas,.lifecalendar[data-days="1"] .lc-dayviewport>.lc-days{width:100%}
 .lifecalendar[data-days="3"] .lc-days,.lifecalendar[data-days="3"] .lc-grid{grid-template-columns:42px repeat(3,minmax(176px,1fr))}.lifecalendar[data-days="3"] .lc-canvas,.lifecalendar[data-days="3"] .lc-dayviewport>.lc-days{width:max(100%,570px)}
 #content>.nexcalendar .calsharedtimeline{height:65vh;min-height:340px;flex:none}.calsharedtimeline .lc-status{font-size:12px;min-height:32px;height:auto;line-height:1.4}.calsharedtimeline .lc-hourlabels span{font-size:11px}
+
+body[data-view=planner]:has(.calendar-event-editor) .foot{display:none}
+.calendar-event-editor input,.calendar-event-editor select{font-size:16px!important}

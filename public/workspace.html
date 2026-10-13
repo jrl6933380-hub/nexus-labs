@@ -491,13 +491,14 @@ function plannerForm(item = null, preferredDate = '') {
   const kind = optionField('Type', [['time_block','Time block'],['event','Event'],['task','Task'],['reminder','Reminder']], item?.kind || 'time_block');
   const flexibility = optionField('Timing', [['fixed','Fixed time'],['flexible','Nex can suggest another time']], item?.flexibility || 'fixed');
   const repeat = optionField('Repeat next week', [['none','One time'],['every_week','Every week'],['ask_weekly','Ask me each week']], item?.repeat_mode || 'none');
-  const reminder = optionField('Remind me', [['','No reminder'],['10','10 minutes before'],['30','30 minutes before'],['60','1 hour before'],['1440','1 day before']], item?.reminder_minutes == null ? '' : String(item.reminder_minutes));
+  const reminder = optionField('Remind me', [['','No reminder'],['10','10 minutes before'],['30','30 minutes before'],['60','1 hour before'],['1440','1 day before']], item ? item.reminder_minutes == null ? '' : String(item.reminder_minutes) : '30');
   const protectedInput = document.createElement('input'); protectedInput.type = 'checkbox'; protectedInput.checked = Boolean(item?.protected);
   const protectedLabel = field('Protect this time', protectedInput); protectedLabel.style.display = 'flex'; protectedLabel.style.alignItems = 'center'; protectedLabel.style.gap = '9px'; protectedInput.style.width = 'auto';
   const save = document.createElement('button'); save.type = 'submit'; save.textContent = item ? 'Save changes' : 'Add to Schedule';
   const error = document.createElement('span'); error.setAttribute('role', 'status');
   const more=document.createElement('details');more.className='uxsecondary';const summary=document.createElement('summary');summary.textContent='More details (optional)';more.append(summary,endReminder.label,kind.label,flexibility.label,repeat.label,reminder.label,protectedLabel,field('Notes (optional)',notes));
-  form.append(field('What is it?',title),category.label,field('Start time',start),duration.label,more,save,error);
+  more.append(category.label);
+  form.append(field('What is it?',title),field('Start time',start),duration.label,more,save,error);
   form.onsubmit = async (event) => { event.preventDefault(); save.disabled = true; error.textContent = '';
     try {
       const payload = { title:title.value.trim(), starts_at:new Date(start.value).toISOString(), ends_at:new Date(new Date(start.value).getTime()+Number(duration.select.value)*60000).toISOString(), end_reminder:endReminder.select.value==='yes', notes:notes.value.trim(), category:category.select.value, kind:kind.select.value, flexibility:flexibility.select.value, repeat_mode:repeat.select.value, protected:protectedInput.checked, reminder_minutes:reminder.select.value === '' ? null : Number(reminder.select.value) };
@@ -563,15 +564,14 @@ function openScheduleStudio(mode = 'block', preferredDate = '', preferredMinutes
   base.setMinutes(0,0,0);
   if (preferredMinutes !== null) base.setHours(Math.floor(preferredMinutes/60),preferredMinutes%60,0,0);
   const card = wizardShell('NEW ACTIVITY', 'Make time for it', 'Choose a day and time. Nex can help find an opening.');
-  card.classList.add('compactwizard');
+  card.classList.add('compactwizard','calendar-event-editor');
   const name = document.createElement('input'); name.placeholder = 'What are you doing?';name.setAttribute('aria-label','Activity name');
   const form = document.createElement('div');form.className='schedulecompactform';card.appendChild(form);
-  const category = optionField('Activity', scheduleCategories, 'work');
+  // Calendar captures an event name; Life owns richer activity categories.
   const duration = optionField('Planned duration', [...new Set([...scheduleDurations,preferredDuration])].sort((a,b)=>a-b).map((value)=>[String(value),durationLabel(value)]),String(preferredDuration));
   const start = scheduleDateTime(localDateTime(base),'Start');
-  const endReminder=optionField('When the block time is up',[['no','No reminder'],['yes','Remind me in the app']],'no');
-  form.append(name,category.label,duration.label,start,endReminder.label);
-  const reminderHint=document.createElement('p');reminderHint.textContent='Optional reminders appear while Nexus is open.';form.appendChild(reminderHint);
+  form.append(name,duration.label,start);
+  const reminderHint=document.createElement('p');reminderHint.textContent='A matching reminder is added automatically, 30 minutes before this event starts.';form.appendChild(reminderHint);
   const options=document.createElement('details');options.className='scheduleoptions';
   const summary=document.createElement('summary');summary.textContent='Timing & protection';options.append(summary);
   const timing=optionField('Timing',[['fixed','Fixed time'],['flexible','Flexible · Nex may suggest a move']],'fixed');
@@ -580,20 +580,21 @@ function openScheduleStudio(mode = 'block', preferredDate = '', preferredMinutes
   const endGuide=document.createElement('p');endGuide.className='scheduleendguide';form.appendChild(endGuide);
   const status=document.createElement('p');status.setAttribute('role','status');card.appendChild(status);
   let savedItems=[], availabilityReady=false;start.timeSelect.disabled=true;
-  const refreshSlots=()=>{const day=start.dateInput.value;const blocked=updateStartOptions(start.timeSelect,{days:day ? [day] : [],durationMinutes:Number(duration.select.value),items:savedItems});endGuide.textContent=day ? `Planned end: ${plannedEndLabel([day],Number(start.timeSelect.value),Number(duration.select.value))}` : 'Choose a day to see the planned end.';status.textContent=!availabilityReady ? 'Reading taken times…' : blocked ? 'That block overlaps taken time. Choose an open start.' : 'Taken starts are unavailable for this duration.';};
+  const refreshSlots=()=>{const day=start.dateInput.value;const blocked=updateStartOptions(start.timeSelect,{days:day ? [day] : [],durationMinutes:Number(duration.select.value),items:savedItems});endGuide.textContent=day ? `Planned end: ${plannedEndLabel([day],Number(start.timeSelect.value),Number(duration.select.value))}` : 'Choose a day to see the planned end.';status.textContent=!availabilityReady ? 'Reading taken times…' : blocked ? 'That block overlaps taken time. Choose an open start.' : '';};
   form.addEventListener('input',refreshSlots);form.addEventListener('change',refreshSlots);refreshSlots();
   const loadSlots=async()=>{try{savedItems=await readTakenSchedule();availabilityReady=true;start.timeSelect.disabled=false;refreshSlots();}catch(error){status.textContent=friendlyError(error);}};loadSlots();
-  choiceButtons(card,[['add','Add activity'],['nex','Find time with Nex'],['retry','Refresh taken times'],['back','Back to calendar']],async(value,button)=>{
+  choiceButtons(options,[['nex','Find time with Nex'],['retry','Refresh taken times']],value=>value==='retry' ? loadSlots() : askFromView('Help me find time for '+(name.value.trim() || 'an event')+'.'));
+  choiceButtons(card,[['add','Save event'],['back','Cancel']],async(value,button)=>{
     if(value==='back')return showView('planner');
     if(value==='retry')return loadSlots();
-    const title=name.value.trim() || scheduleCategories.find(([key])=>key===category.select.value)[1];
+    const title=name.value.trim();if(!title){status.textContent='Give your event a name.';name.focus();return;}
     if(value==='add' && (!availabilityReady || start.timeSelect.selectedOptions[0]?.disabled)){status.textContent='Choose an open start time after taken times load.';return;}
     if(!start.value)return;
-    if(value==='nex')return askFromView(`Read my schedule. Help me place ${title}, ${durationLabel(Number(duration.select.value))}, on ${start.value.slice(0,10)}. Category ${category.select.value}; timing ${timing.select.value}; protected ${protect.checked}. Show me relevant clickable choices before creating it.`);
+    if(value==='nex')return askFromView(`Read my schedule. Help me place ${title}, ${durationLabel(Number(duration.select.value))}, on ${start.value.slice(0,10)}. timing ${timing.select.value}; protected ${protect.checked}. Show me relevant clickable choices before creating it.`);
     button.disabled=true;status.textContent='Checking this time…';
     try {
       const starts=new Date(start.value);
-      const payload={title,category:category.select.value,starts_at:starts.toISOString(),ends_at:new Date(starts.getTime()+Number(duration.select.value)*60000).toISOString(),kind:'time_block',flexibility:timing.select.value,protected:protect.checked,end_reminder:endReminder.select.value==='yes'};
+      const payload={title,category:'other',starts_at:starts.toISOString(),ends_at:new Date(starts.getTime()+Number(duration.select.value)*60000).toISOString(),kind:'time_block',flexibility:timing.select.value,protected:protect.checked,reminder_minutes:30};
       const check=await postPlanner('preview',payload);
       if(check.conflicts?.length) {
         status.textContent=`Overlaps ${check.conflicts.map((item)=>item.title).join(', ')}.`;button.disabled=false;

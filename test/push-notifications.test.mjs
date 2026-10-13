@@ -119,3 +119,12 @@ test('concurrent cron passes send each device once and expired endpoints are rem
   await Promise.all([service.deliverAll(),service.deliverAll()]);assert.equal(sends,2);
   assert.equal((await service.deliverAll()).sent,0);assert.equal((await service.status('owner:a')).enabled,true);
 });
+
+
+test('Calendar-backed reminder sends once; snoozed or completed reminder suppresses the calendar duplicate',()=>{
+ const now=Date.parse('2026-10-15T11:30:00Z'),event={id:'a',title:'Workout',status:'planned',starts_at:'2026-10-15T12:00:00Z',reminder_minutes:30};
+ const reminder={id:'calendar-a',source_calendar_id:'a',title:'Workout',due_at:'2026-10-15T11:30:00Z',status:'planned'};
+ const due=duePushNotifications({reminders:[reminder],schedule:[event],now});assert.equal(due.length,1);assert.equal(due[0].tag,'nexus-reminder-calendar-a');
+ assert.equal(duePushNotifications({reminders:[{...reminder,status:'done'}],schedule:[event],now}).length,0);
+ assert.equal(duePushNotifications({reminders:[{...reminder,due_at:'2026-10-15T11:45:00Z'}],schedule:[event],now}).length,0);
+});
