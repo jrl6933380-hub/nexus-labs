@@ -15,8 +15,25 @@ function fixture(){
     throw new Error(`Unexpected command ${verb}`);
   };
   const planner=createPlannerStore({command,idFactory:()=>`block-${++sequence}`});
-  return {planner,store:createReminderStore({command,planner,idFactory:()=>`reminder-${++sequence}`})};
+  return {command,planner,store:createReminderStore({command,planner,idFactory:()=>`reminder-${++sequence}`})};
 }
+
+test('timed reminder dates match the declared local zone, including late-night UTC rollover',async()=>{
+  const {store}=fixture(),user='room:night';
+  const item=await store.create({title:'Night reminder',due_date:'2026-10-13',due_at:'2026-10-14T04:30:00Z',timezone:'America/Chicago'},user);
+  assert.equal(item.due_date,'2026-10-13');
+  await assert.rejects(store.update({id:item.id,due_date:'2026-10-14'},user),/date must match/);
+  assert.equal((await store.list(user))[0].due_date,'2026-10-13');
+});
+
+test('agent reminder schemas expose recurrence and describe conditional phone notification support',async()=>{
+  const {REMINDER_TOOLS}=await import('../lib/nex/tools/reminders.js');
+  const tool=REMINDER_TOOLS.find(tool=>tool.name==='manage_reminder');
+  assert.deepEqual(tool.input_schema.properties.repeat.enum,['none','daily','weekly']);
+  assert.ok(tool.input_schema.properties.timezone);
+  assert.match(tool.description,/enable notifications/);
+  assert.doesNotMatch(tool.description,/Never claim background notifications/);
+});
 test('reminders support undated capture and partial notes edits without accepting a client supplied link',async()=>{
   const {store}=fixture();const item=await store.create({title:' Groceries ',schedule_id:'someone-else'},'room:a');
   assert.equal(item.title,'Groceries');assert.equal(item.due_date,null);assert.equal(item.schedule_id,null);
@@ -114,4 +131,14 @@ test('recurring timed reminders preserve local time across daylight saving chang
   const item=await store.create({title:'Morning routine',repeat:'daily',timezone:'America/Chicago',due_date:'2026-10-31',due_at:'2026-10-31T14:00:00Z'},user);
   await store.update({id:item.id,status:'done'},user);
   const next=(await store.list(user)).find(i=>i.status==='planned');assert.equal(next.due_date,'2026-11-01');assert.equal(next.due_at,'2026-11-01T15:00:00.000Z');
+});
+
+
+test('legacy default-UTC reminders remain completable and editable before their timing is corrected',async()=>{
+  const {command,store}=fixture(),user='room:legacy';
+  const old={id:'old',title:'Late night',due_date:'2026-10-13',due_at:'2026-10-14T04:30:00Z',timezone:'UTC',status:'planned',repeat:'none',created_at:1};
+  await command(['HSET','nexus:reminders:v1:room%3Alegacy','old',JSON.stringify(old)]);
+  await store.update({id:'old',notes:'Keep this note'},user);await store.update({id:'old',status:'done'},user);
+  assert.equal((await store.list(user))[0].status,'done');
+  await store.update({id:'old',timezone:'America/Chicago'},user);assert.equal((await store.list(user))[0].due_date,'2026-10-13');
 });
