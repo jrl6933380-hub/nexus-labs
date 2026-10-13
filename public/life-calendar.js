@@ -1,6 +1,6 @@
 import {calendarSelection as lifeSelection} from './calendar-selection.js';
 export {lifeSelection};
-import {calendarKey,calendarLayout} from './schedule-calendar.js';
+import {calendarKey,calendarLayout} from './calendar-layout.js';
 export const LIFE_HOUR_HEIGHT=80;
 const colors={work:'#278da5',sleep:'#9aa6ad',social:'#399b89',health:'#d1a325',personal:'#8a85b6'};
 const clock=date=>new Date(date).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
@@ -17,17 +17,17 @@ const button=(text,run,label=text)=>{const el=node('button','',text);el.type='bu
 
 // Life has one calendar. The lanes are the controls: draw a range, move a block,
 // or pull its bottom edge. Mouse and touch share the same save/preview path.
-export function renderLifeCalendar({items,state,onCreate,onOpen,onChange,onNavigate}){
-  const root=node('section','lifecalendar');root.setAttribute('aria-label','Life calendar');
+export function renderLifeCalendar({items,state,onCreate,onOpen,onChange,onNavigate,mode='week',hideToolbar=false,onSelectDay,ariaLabel='Life calendar',colorFor}){
+  const root=node('section','lifecalendar');root.setAttribute('aria-label',ariaLabel);root.dataset.days=String(mode==='day'?1:mode==='multi'?3:7);
   // Calendar gestures own long press; notes and chat retain native text copying.
   root.oncontextmenu=event=>event.preventDefault();
   root.onselectstart=event=>event.preventDefault();
   const current=dayAt(state.date),monday=dayAt(current);monday.setDate(monday.getDate()-((monday.getDay()+6)%7));
-  const days=Array.from({length:7},(_,i)=>{const date=dayAt(monday);date.setDate(date.getDate()+i);return date;});
+  const days=Array.from({length:mode==='day'?1:mode==='multi'?3:7},(_,i)=>{const date=dayAt(mode==='week'?monday:current);date.setDate(date.getDate()+i);return date;});
   const toolbar=node('div','lc-toolbar'),title=node('div','lc-period');
-  title.append(node('strong','',current.toLocaleDateString('en-US',{month:'long',year:'numeric'})),node('small','',`${days[0].toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${days[6].toLocaleDateString('en-US',{month:'short',day:'numeric'})}`));
+  title.append(node('strong','',current.toLocaleDateString('en-US',{month:'long',year:'numeric'})),node('small','',`${days[0].toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${days.at(-1).toLocaleDateString('en-US',{month:'short',day:'numeric'})}`));
   function navigate(offset){captureScroll();state.date=new Date(+current);state.date.setDate(state.date.getDate()+offset);state.scrollLeft=0;onNavigate();}
-  toolbar.append(button('‹',()=>navigate(-7),'Previous week'),title,button('›',()=>navigate(7),'Next week'),button('Today',()=>{state.date=new Date();state.scrollTop=null;state.scrollLeft=null;onNavigate();}));root.append(toolbar);
+  toolbar.append(button('‹',()=>navigate(-days.length),'Previous week'),title,button('›',()=>navigate(days.length),'Next week'),button('Today',()=>{state.date=new Date();state.scrollTop=null;state.scrollLeft=null;onNavigate();}));root.append(toolbar);
   const viewport=node('div','lc-viewport'),canvas=node('div','lc-canvas'),heads=node('div','lc-days'),grid=node('div','lc-grid');
   const status=node('p','lc-status','Hold empty time to select, then drag to adjust. Tap Add details when ready.');status.setAttribute('role','status');status.setAttribute('aria-live','polite');
   const gutter=node('div','lc-hourlabels');for(let hour=0;hour<24;hour++)gutter.append(node('span','',`${hour%12 || 12} ${hour<12 ? 'AM' : 'PM'}`));
@@ -107,7 +107,11 @@ export function renderLifeCalendar({items,state,onCreate,onOpen,onChange,onNavig
     }
     function begin(start,end){
       dismissSelection?.();dismissSelection=clean;rangeDay=day;range=lifeSelection(day,start,end);
-      document.addEventListener('keydown',cancelKey);selectionActions.replaceChildren(button('Add details',finish),button('Cancel',clean));selectionActions.hidden=false;paint();
+      document.addEventListener('keydown',cancelKey);
+      const addDetails=button('Add details',finish),cancelSelection=button('Cancel',clean);
+      // Touch confirmation must not depend on a compatibility click after dragging.
+      for(const [control,run] of [[addDetails,finish],[cancelSelection,clean]])control.onpointerup=e=>{if(e.pointerType==='touch' && !control.disabled){e.preventDefault();e.stopPropagation();run();}};
+      selectionActions.replaceChildren(addDetails,cancelSelection);selectionActions.hidden=false;paint();
     }
     column.onpointerdown=e=>{
       if(saving || e.button!==0 || e.target.closest('.lc-block,.lc-selection'))return;
@@ -137,7 +141,7 @@ export function renderLifeCalendar({items,state,onCreate,onOpen,onChange,onNavig
   }
   function directBlock(item,entry,column,day){
     const block=node('div','lc-block');block.tabIndex=0;block.setAttribute('role','button');block.setAttribute('aria-label',`${item.title}, ${clock(item.starts_at)} to ${clock(item.ends_at)}. Drag to move. Press Enter to edit, arrows to move, Shift up or down to resize.`);
-    block.dataset.itemId=item.id;block.dataset.pillar=item.pillar;if(item.photo_count && entry.end-entry.start>=45)block.dataset.photo='true';block.style.setProperty('--lc-color',colors[item.pillar] || colors.personal);
+    block.dataset.itemId=item.id;block.dataset.pillar=item.pillar;if(item.photo_count && entry.end-entry.start>=45)block.dataset.photo='true';block.style.setProperty('--lc-color',colorFor?.(item) || colors[item.pillar] || colors.personal);
     const position=()=>{block.style.top=`${entry.start/60*LIFE_HOUR_HEIGHT}px`;block.style.height=`${Math.max(24,(entry.end-entry.start)/60*LIFE_HOUR_HEIGHT)}px`;block.style.left=`calc(${entry.column/entry.columns*100}% + 2px)`;block.style.width=`calc(${100/entry.columns}% - 4px)`;block.style.transform='';};position();
     const text=node('div','lc-blocktext');text.append(node('small','',`${clock(item.starts_at)} – ${clock(item.ends_at)}`),node('strong','',item.title));
     const detail=node('div','lc-blockmeta');detail.append(node('span','',item.person ? '♧' : item.place ? '⌖' : ''),node('span','',item.energy==null ? '' : `${item.energy}/5 ⚡`));
@@ -178,7 +182,7 @@ export function renderLifeCalendar({items,state,onCreate,onOpen,onChange,onNavig
     return block;
   }
   for(const day of days){
-    const key=calendarKey(day),head=button('',()=>{state.date=day;heads.querySelectorAll('button').forEach(el=>el.classList.toggle('lc-selected',el.dataset.day===key));},`Select ${day.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}`);head.dataset.day=key;
+    const key=calendarKey(day),head=button('',()=>{state.date=day;heads.querySelectorAll('button').forEach(el=>el.classList.toggle('lc-selected',el.dataset.day===key));if(onSelectDay){captureScroll();onSelectDay(day);}},`Select ${day.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}`);head.dataset.day=key;
     head.append(node('small','',day.toLocaleDateString('en-US',{weekday:'short'})),node('strong','',day.getDate()));if(key===today)head.classList.add('lc-today');if(key===calendarKey(current))head.classList.add('lc-selected');heads.append(head);
     const column=node('div','lc-lane');column.dataset.day=key;columns.push(column);selectionLane(column,day);
     for(const entry of calendarLayout(items.filter(item=>item.starts_at),day))directBlock(entry.item,entry,column,day);
@@ -186,9 +190,10 @@ export function renderLifeCalendar({items,state,onCreate,onOpen,onChange,onNavig
   }
   const dayViewport=node('div','lc-dayviewport');dayViewport.append(heads);
   canvas.append(grid);viewport.append(canvas);root.append(status,selectionActions,dayViewport,viewport);
-  const add=button('+ Time block',()=>{captureScroll();const column=columns.find(el=>el.dataset.day===calendarKey(dayAt(state.date)));column?.selectRange(9*60,10*60);});add.className='lc-add';add.textContent='+';toolbar.append(add);
+  const add=button('+ Time block',()=>{captureScroll();const column=columns.find(el=>el.dataset.day===calendarKey(dayAt(state.date)));column?.selectRange(9*60,10*60);});add.className='lc-add';add.textContent='+';toolbar.append(add);if(hideToolbar)toolbar.hidden=true;
   viewport.onscroll=captureScroll;
   const frame=typeof requestAnimationFrame==='function' ? requestAnimationFrame : callback=>callback();
   frame(()=>{viewport.scrollTop=state.scrollTop ?? 8*LIFE_HOUR_HEIGHT;const index=days.findIndex(day=>calendarKey(day)===calendarKey(current));viewport.scrollLeft=state.scrollLeft ?? Math.max(0,index)*columns[0].getBoundingClientRect().width;captureScroll();});
+  root.dispose=()=>dismissSelection?.();
   return root;
 }
