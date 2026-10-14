@@ -1,41 +1,38 @@
-# Optional Simple chat view
+# Simple chat over the Nexus workspace
 
-Owner Workspace and customer Nexus offer a Nexus view preference in Settings. Existing users
-retain their current view until they choose it. The choice is stored on the device;
-customer preferences use the signed-in username, separate from the owner key.
-Explicit feature deep links still open that destination with Simple chat chrome.
-Home/Messages links return to Simple chat while it is selected; Settings is the
-only way to switch back to the current workspace. The owner’s last conversation
-metadata is saved separately so workspace visits cannot erase the return target.
+Settings → Nexus view chooses the presentation on this device. Existing workspace
+screens remain available. Headers and menus preserve iPhone safe-area insets.
 
-The simple surface uses the existing conversation and authenticated endpoints.
-It does not run another agent, create another store, or change entitlements.
-A small chat menu surfaces Calendar, Reminders, Projects, and Life cards, opens
-Agents/chats, and provides Settings. Settings is the only place to change the view.
-Choosing Current workspace returns to Messages. Owner team cards show one live status and teammate buttons, with the existing
-assignment/progress/results controls inside See what everyone is doing. Questions,
-blocked work, and approvals expand that section automatically. Saved builders
-expose an Open saved build link; unsaved HTML previews use the existing safe frame.
+Entering Simple chat or opening its main chat page starts a fresh Nex conversation.
+The menu offers New conversation and Recent conversations. Opening a recent thread
+is explicit; visiting a workspace screen and returning to Conversation keeps that
+active thread. Reloading the chat starts fresh again. Empty conversations are not
+saved as recent chats. Owner threads use the existing authenticated chat store.
+Customer threads use validated nexus-chat-* IDs within their authenticated account,
+with a separate customer-scoped index and support for their earlier nex-main chat.
+No other customer or project conversation can be selected through the thread ID.
 
-Agenda, Reminders, Projects, and Life cards read saved account data on demand.
-Related messages surface a fresh card after the existing assistant finishes.
-Cards display at most three records and link to the full existing editing surface.
-They show data, not proof that the latest message performed a mutation. Empty
-states and unavailable endpoints are explicit; retry rereads the same service.
-Cards are ephemeral and can be restored with the chat menu; conversations
-continue to use the existing persistence. Life currently shows upcoming activities.
+Calendar and Reminders cards embed the same interactive components used by their
+full screens: calendar modes, time changes and existing entry controls; reminder
+completion, snooze, notes and editing. Life also reuses its existing component.
+Existing entitlement checks and server-side validation remain in force. Some
+Calendar entry/edit actions open the existing full form. Workspace cards are
+shown from the menu or after related conversation requests and are ephemeral.
 
-Customer chat retains its existing room-assistant capabilities: this UI does not
-add owner team execution or schedule mutation tools to that assistant. Builds
-continue through the existing Build with Nex action. No fabricated running-agent
-cards, fake confirmations, or live pod claims are introduced.
+Projects read the authenticated saved-project list and current saved HTML. The
+card contains a project picker and an interactive sandboxed preview, with Open
+project and Edit with Nex actions. Frames allow scripts and forms but retain opaque
+origins: no same-origin, parent navigation, popups or download permissions are added.
+A missing saved preview is an explicit error, not a replacement/generated mockup.
 
-Validation: scripts/verify-simple-chat.mjs boots both actual shells with local API
-fixtures and native mobile taps at 320px and 393px. It verifies Settings-only view preferences, saved conversations, menu/read cards,
-retry, preference reload, compact team progress, answering and resuming a real team
-question path, saved build links, and no horizontal overflow.
-No production accounts, model calls, or GPU pods are used.
+Owner team cards retain real progress, expandable agent work, questions/resume,
+existing approvals and safe build previews. Customer chat retains its current
+assistant abilities; this presentation does not add private owner tools or team
+execution. In-flight customer replies remain tied to the conversation that sent
+them even if the user starts another chat.
 
-Headers and menus preserve the iPhone safe-area inset. Browser checks also
-simulate a 59px status area that intercepts taps, then verify accessible menu taps,
-workspace-screen return, old Messages deep links, and conversation Back controls.
+Validation uses actual owner/customer browser shells at 320px and 393px with
+isolated Planner/Reminder/Workbench stores, fixture conversation responses, and
+no paid model/pod or production calls. Tests cover fresh entry, sidebar recents,
+new conversation, calendar modes and saved time changes, reminder completion
+persistence, actual saved HTML interaction, safe areas, reload and view settings.

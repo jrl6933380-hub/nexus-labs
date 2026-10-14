@@ -350,6 +350,7 @@ const ctx = {
   openChatSettings: async () => {messagesDestination='settings';await showView('messages');},
   openChatDirectory: async () => {messagesDestination='chats';await showView('messages');},
   simpleChatEnabled:()=>Boolean(simpleChat?.enabled),
+  loadRecentConversations:()=>loadThreads(),
   openConversation: (conversation,fresh=false) => openMessagesConversation(conversation,fresh),
   openSystem: (id) => { activeConversation=null; showView(id); },
   openThread: (record) => openThread(record),
@@ -1209,7 +1210,7 @@ async function resumeSimpleChat(){
 }
 async function openMessagesConversation(conversation,fresh=false,restoredThreadId=null){
   activeConversation=conversation?.kind==='nex'?{kind:'nex',name:'Nex'}:conversation;
-  threadId=restoredThreadId || (['specialist','group'].includes(conversation?.kind)?conversation.id:fresh?`t${Date.now().toString(36)}`:'nex-main');
+  threadId=restoredThreadId || (['specialist','group'].includes(conversation?.kind)?conversation.id:fresh?`t${Date.now().toString(36)}-${crypto.randomUUID().slice(0,8)}`:'nex-main');
   history.length=0;
   const outstanding=pendingChat();
   let outstandingState=null;
@@ -1363,6 +1364,7 @@ async function submit(){
     saveThread();
     renderResponseActions(data);
     if(simpleChat.enabled)await simpleChat.contextual(raw,pending);
+    if(threadId!==targetThread)return;
     // Nex asking the workspace to move is honoured as a view switch, not a page load.
     const wanted = data.navigation?.room || data.navigation?.url;
     if (wanted) {
@@ -1554,12 +1556,12 @@ composerMenu=mountComposerMenu({buttons:[el('composerPlus'),el('dockPlus')],navi
 }});
 
 window.addEventListener('pagehide',()=>{rememberWorkspaceScroll();persistWorkspaceState();});
-simpleChat=createSimpleChat({header:document.querySelector('.top'),host:thread,key:'nexus:simple-view:owner',ctx,openChat:()=>currentView==='chat'?Promise.resolve():resumeSimpleChat(),openWorkspace:()=>showView('messages'),isChat:()=>currentView==='chat'});
+simpleChat=createSimpleChat({header:document.querySelector('.top'),host:thread,key:'nexus:simple-view:owner',ctx,openChat:()=>currentView==='chat'?Promise.resolve():resumeSimpleChat(),startNew:()=>openMessagesConversation({kind:'nex',name:'Nex'},true),openWorkspace:()=>showView('messages'),isChat:()=>currentView==='chat'});
 const requestedView = new URLSearchParams(location.search).get('view');
 const savedWorkspace = readWorkspaceState();
 registerNexusApp();
 await loadThreads();
-if(!requestedView && simpleChat.enabled)await resumeSimpleChat();
+if(simpleChat.enabled && (!requestedView||['chat','messages'].includes(requestedView)))await openMessagesConversation({kind:'nex',name:'Nex'},true);
 else if(requestedView==='chat' && savedWorkspace?.conversation)await openMessagesConversation(savedWorkspace.conversation,false,savedWorkspace.thread_id);
 else if(!requestedView && savedWorkspace?.view==='chat' && savedWorkspace.conversation)await openMessagesConversation(savedWorkspace.conversation,false,savedWorkspace.thread_id);
 else await showView(requestedView && VIEWS[requestedView] ? requestedView : savedWorkspace?.view && VIEWS[savedWorkspace.view] ? savedWorkspace.view : 'messages');

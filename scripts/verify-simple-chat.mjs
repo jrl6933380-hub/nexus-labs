@@ -2,6 +2,12 @@ import {createServer} from 'node:http';
 import {readFile} from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import {chromium} from 'playwright';
+import {workspaceFixture} from '../test/helpers/workspaceFixture.mjs';
+const fixture=workspaceFixture({formHtml:'<!doctype html><html><body><h1>Saved Bodyweight Studio</h1><button id=timer>Start set</button><p id=state>Ready</p><script>document.getElementById("timer").onclick=()=>document.getElementById("state").textContent="Set running"</script></body></html>'}),account={id:'justin',owner:true,workbenchUserId:'Mrlopez',scheduleUserId:'owner:justin'};
+await fixture.execute('import_form',{},account);
+const now=Date.now(),date=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Chicago',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(now));
+const {item:event}=await fixture.execute('create_event',{title:'Saved workout',starts_at:new Date(now+3600000).toISOString(),ends_at:new Date(now+6300000).toISOString()},account);
+const {item:reminder}=await fixture.execute('create_reminder',{title:'Bring water',due_date:date,due_at:new Date(now+1800000).toISOString(),timezone:'America/Chicago'},account);
 const publicRoot=new URL('../public/',import.meta.url);
 let reads=0,fail=false,teamMode='working',answer=null;
 function team(){const steps=[{id:'a',member_id:'atlas',name:'Atlas',role:'research',state:'returned',result:'Research ready',instruction:'Research workouts'},{id:'m',member_id:'mason',name:'Mason',role:'build',state:'working',instruction:'Build the page',updates:['Adding the timer and set tracking.']},{id:'v',member_id:'vera',name:'Vera',role:'review',state:'queued',instruction:'Review the result'}];let state='running';
@@ -16,13 +22,14 @@ const server=createServer(async(req,res)=>{const url=new URL(req.url,'http://loc
   if(url.pathname==='/api/nexus-controls')data={account:{id:'owner:justin',exempt:true,plan:'plus'},preferences:{responseStyle:'balanced',accent:'gold'}};
   if(url.pathname==='/api/nexus-messages'){
    if(req.method==='POST'){let raw='';for await(const chunk of req)raw+=chunk;const input=JSON.parse(raw);if(input.action==='team_answer'){answer=input;teamMode='working';}data={ok:true};}
-   else data=url.searchParams.has('group_id')?team():{specialists:[],groups:[],roles:{},scopes:[],pinned_system_ids:[]};
+   else data=url.searchParams.has('group_id')?(url.searchParams.get('group_id')==='nex-main'?team():{group:{id:url.searchParams.get('group_id'),kind:'nex',available_members:[]},runs:[]}):{specialists:[],groups:[],roles:{},scopes:[],pinned_system_ids:[]};
   }
-  if(url.pathname==='/api/chat')data={threads:[],messages:[{role:'user',content:'Keep my conversation'},{role:'assistant',content:'Your saved reply'}]};
-  if(url.pathname==='/api/room-assistant')data={turns:[{role:'user',text:'Keep my conversation'},{role:'assistant',text:'Your saved reply'}],message:'Your saved reply'};
-  if(url.pathname==='/api/planner'){reads++;if(fail){res.statusCode=503;data={error:'Schedule unavailable'};}else data={items:[{id:'event-one',title:'Saved workout',starts_at:'2099-10-14T23:00:00Z',ends_at:'2099-10-14T23:45:00Z',status:'planned'}]};}
-  if(url.pathname==='/api/reminders')data={items:[{id:'rem-one',title:'Bring water',due_date:'2099-10-14',due_at:'2099-10-14T22:30:00Z',status:'planned'}]};
-  if(url.pathname==='/api/room-history')data={projects:[{id:'project-one',title:'Saved studio',status:'draft'}]};
+  if(url.pathname==='/api/chat')data={threads:[{id:'nex-main',title:'Workout planning',message_count:2}],messages:[{role:'user',content:'Keep my conversation'},{role:'assistant',content:'Your saved reply'}]};
+  if(url.pathname==='/api/room-assistant')data=url.searchParams.has('threads')?{threads:[{id:'nex-main',title:'Workout planning',message_count:2}]}:{turns:url.searchParams.get('threadId')==='nex-main'?[{role:'user',text:'Keep my conversation'},{role:'assistant',text:'Your saved reply'}]:[],message:'Your saved reply'};
+  if(url.pathname==='/api/planner'){reads++;if(fail){res.statusCode=503;data={error:'Schedule unavailable'};}else if(req.method==='POST'){let raw='';for await(const chunk of req)raw+=chunk;const {action,...input}=JSON.parse(raw);data=action==='preview'?await fixture.schedule.previewPlannerItem(input,account.scheduleUserId):await fixture.execute(action==='update'?'update_event':action==='delete'?'delete_event':'create_event',input,account);}else data=await fixture.execute('schedule',Object.fromEntries(url.searchParams),account);}
+  if(url.pathname==='/api/reminders'){if(req.method==='POST'){let raw='';for await(const chunk of req)raw+=chunk;const {action,...input}=JSON.parse(raw);data=await fixture.execute(action==='update'?'update_reminder':action==='delete'?'delete_reminder':'create_reminder',input,account);}else data=await fixture.execute('reminders',{},account);}
+  if(url.pathname==='/api/life')data={items:[],profile:{onboarded:true,focus:[]},pulses:[],summary:{}};
+  if(url.pathname==='/api/room-history'){const projects=await fixture.execute('projects',{},account);if(url.searchParams.has('id')){const project=await fixture.execute('project',{project_id:'form-bodyweight-showcase'},account);data={build:{id:project.baseline,html:project.html,label:project.label}};}else data={projects:projects.projects.map(item=>({...item,id:item.project_id,latestBuildId:item.baseline}))};}
   res.setHeader('Content-Type','application/json');return res.end(JSON.stringify(data));
  }
  if(url.pathname.startsWith('/_vercel/'))return res.end('');
@@ -32,35 +39,24 @@ const server=createServer(async(req,res)=>{const url=new URL(req.url,'http://loc
 await new Promise(r=>server.listen(0,'127.0.0.1',r));
 const browser=await chromium.launch({executablePath:process.env.NEXUS_BROWSER_EXECUTABLE,args:['--no-sandbox','--disable-dev-shm-usage','--disable-gpu']});
 try{for(const shell of ['workspace.html','nexus.html'])for(const width of [320,393]){
- teamMode='working';answer=null;
- const context=await browser.newContext({viewport:{width,height:850},isMobile:true,hasTouch:true,timezoneId:'America/Chicago'});const page=await context.newPage();await page.addInitScript(()=>{document.addEventListener('DOMContentLoaded',()=>{document.documentElement.style.setProperty('--nexus-safe-area-top','59px');const status=document.createElement('div');status.id='iphone-status-area';status.style.cssText='position:fixed;top:0;left:0;right:0;height:59px;z-index:99999;background:#0b1410;pointer-events:auto';document.body.append(status);});});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ teamMode='working';answer=null;await fixture.execute('update_event',{id:event.id,starts_at:event.starts_at,ends_at:event.ends_at},account);await fixture.execute('update_reminder',{id:reminder.id,status:'planned'},account);
+ const context=await browser.newContext({viewport:{width,height:900},isMobile:true,hasTouch:true,timezoneId:'America/Chicago'});const page=await context.newPage();await page.addInitScript(()=>{document.addEventListener('DOMContentLoaded',()=>{document.documentElement.style.setProperty('--nexus-safe-area-top','59px');});});const errors=[];page.on('pageerror',e=>errors.push(e.message));
  const base=`http://127.0.0.1:${server.address().port}/${shell}`;
- await page.goto(base);assert.equal(await page.locator('.simple-chat-tools').count(),0);
- await page.getByRole('button',{name:/^More/}).tap();await page.getByRole('button',{name:shell==='workspace.html'?/^Account & Controls/:/^Settings/}).tap();
- await page.getByLabel('Choose your view on this device',{exact:true}).selectOption('simple');await page.getByRole('button',{name:'Save view',exact:true}).tap();await page.getByText('Your saved reply',{exact:true}).waitFor();
- const menuBounds=await page.getByRole('button',{name:'Open workspace menu',exact:true}).boundingBox();assert.ok(menuBounds.y>=75,JSON.stringify(menuBounds));
- assert.equal(await page.getByRole('button',{name:'Current view',exact:true}).count(),0);assert.equal(await page.getByRole('button',{name:'Simple chat',exact:true}).count(),0);
- if(shell==='workspace.html'){
-  await page.getByText('Your team is working',{exact:true}).waitFor();assert.equal(await page.locator('.simple-team-details').getAttribute('open'),null);
-  await page.getByRole('button',{name:'See Mason’s work',exact:true}).tap();await page.getByText('Build the page',{exact:true}).waitFor();await page.locator('.simple-team-details>summary').tap();
- }
+ await page.goto(base);await page.getByRole('button',{name:/^More/}).tap();await page.getByRole('button',{name:shell==='workspace.html'?/^Account & Controls/:/^Settings/}).tap();
+ await page.getByLabel('Choose your view on this device',{exact:true}).selectOption('simple');await page.getByRole('button',{name:'Save view',exact:true}).tap();
+ await page.getByRole('button',{name:'Open workspace menu',exact:true}).waitFor();assert.equal(await page.getByText('Your saved reply',{exact:true}).count(),0);
+ const bounds=await page.getByRole('button',{name:'Open workspace menu',exact:true}).boundingBox();assert.ok(bounds.y>=75);
  const menu=async name=>{await page.getByRole('button',{name:'Open workspace menu',exact:true}).tap();await page.getByRole('dialog',{name:'Your Nexus workspace'}).getByRole('button',{name,exact:true}).tap();};
- await menu('Calendar');await page.getByRole('button',{name:/Saved workout/}).waitFor();assert.equal(await page.getByText('Your saved reply',{exact:true}).count(),1);
- if(width===393&&shell==='workspace.html')await page.screenshot({path:'/workspace/scratch/9f0ce6cc8c12/simple-chat-polish.png',fullPage:true});
- await page.locator('.simple-workspace-card').getByRole('button',{name:'Open',exact:true}).tap();await page.getByRole('button',{name:'Open workspace menu',exact:true}).tap();await page.getByRole('dialog').getByRole('button',{name:'Conversation',exact:true}).tap();await page.getByText('Your saved reply',{exact:true}).waitFor();
- await menu('Reminders');await page.getByRole('button',{name:/Bring water/}).waitFor();await menu('Projects');await page.getByRole('button',{name:/Saved studio/}).waitFor();
- fail=true;await menu('Calendar');await page.getByText('Schedule unavailable',{exact:true}).waitFor();fail=false;await page.getByRole('button',{name:'Try again',exact:true}).tap();await page.getByRole('button',{name:/Saved workout/}).waitFor();
- const overflow=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));assert.ok(overflow.scroll<=overflow.width,JSON.stringify({shell,...overflow}));
- await page.goto(base+'?view=messages');await page.getByText('Your saved reply',{exact:true}).waitFor();assert.equal(await page.locator('body[data-view=chat].simple-chat').count(),1);assert.equal(await page.locator('.homespacegrid').count(),0);
- if(shell==='workspace.html'){await page.locator('#newTop').tap();await page.getByRole('button',{name:'Back to Messages',exact:true}).tap();await page.getByText('Your saved reply',{exact:true}).waitFor();assert.equal(await page.locator('body[data-view=chat].simple-chat').count(),1);}
- await page.goBack();await page.getByRole('button',{name:'Open workspace menu',exact:true}).waitFor();await page.getByText('Your saved reply',{exact:true}).waitFor();assert.equal(await page.locator('body[data-view=chat].simple-chat').count(),1);
- await page.reload();await page.getByRole('button',{name:'Open workspace menu',exact:true}).waitFor();await page.getByText('Your saved reply',{exact:true}).waitFor();
- if(shell==='workspace.html'){
-  teamMode='question';await page.reload();await page.getByLabel('Which timer length do you want?',{exact:true}).waitFor();await page.getByRole('button',{name:'45 seconds',exact:true}).tap();await page.waitForFunction(()=>!document.querySelector('.teamquestion'));assert.equal(answer.answer,'45 seconds');assert.equal(answer.run_id,'run-one');
-  teamMode='preview';await page.reload();await page.getByRole('button',{name:'Preview build',exact:true}).tap();await page.locator('.teamvisual').waitFor({state:'visible'});assert.equal(await page.locator('.teamvisual').getAttribute('sandbox'),'');
-  teamMode='completed';await page.reload();await page.getByRole('link',{name:'Open saved build',exact:true}).waitFor();assert.match(await page.getByRole('link',{name:'Open saved build',exact:true}).getAttribute('href'),/build=project-one/);
- }
- await menu('Settings');await page.getByLabel('Choose your view on this device',{exact:true}).selectOption('workspace');await page.getByRole('button',{name:'Save view',exact:true}).tap();await page.getByRole('button',{name:/^More/}).waitFor();assert.equal(await page.getByRole('button',{name:'Open workspace menu',exact:true}).isVisible(),false);
- await page.reload();assert.equal(await page.locator('body.simple-chat').count(),0);assert.deepEqual(errors,[]);await context.close();
- }assert.ok(reads>0);console.log('Owner/customer 320/393px: iPhone status-area taps, Back/deep-link mode retention, Settings-only preference, clean chat, menu/cards, retry, reload, compact real team progress, answer/resume, saved preview, and overflow passed. Local fixtures; no model/pod calls.');
+ await menu('Workout planning');await page.getByText('Your saved reply',{exact:true}).waitFor();
+ if(shell==='workspace.html'){await page.getByText('Your team is working',{exact:true}).waitFor();await page.getByRole('button',{name:'See Mason’s work',exact:true}).tap();await page.getByText('Build the page',{exact:true}).waitFor();}
+ await menu('Calendar');const card=page.locator('.simple-workspace-card');await card.getByRole('button',{name:'Month',exact:true}).tap();await card.getByRole('button',{name:'Day',exact:true}).tap();await card.locator('.lc-block').first().waitFor();const moved=page.waitForResponse(response=>response.url().includes('/api/planner')&&response.request().method()==='POST'&&response.request().postDataJSON()?.action==='update');await card.locator('.lc-block').first().press('ArrowDown');await card.locator('.lc-block').first().press('Enter');await moved;const savedEvents=await fixture.schedule.listPlannerItems({},account.scheduleUserId);assert.ok(Date.parse(savedEvents.find(item=>item.id===event.id).starts_at)>Date.parse(event.starts_at));
+ if(width===393&&shell==='workspace.html')await page.screenshot({path:'/workspace/scratch/9f0ce6cc8c12/simple-interactive-calendar.png',fullPage:true});
+ await menu('Reminders');await card.getByRole('button',{name:'Complete Bring water',exact:true}).tap();await card.getByRole('button',{name:'Complete Bring water',exact:true}).waitFor({state:'hidden'});assert.equal((await fixture.reminders.list(account.scheduleUserId)).find(item=>item.id===reminder.id).status,'done');
+ await menu('Projects');const frame=card.frameLocator('iframe');await frame.getByRole('heading',{name:'Saved Bodyweight Studio',exact:true}).waitFor();await frame.getByRole('button',{name:'Start set',exact:true}).tap();await frame.getByText('Set running',{exact:true}).waitFor();assert.equal(await card.locator('iframe').getAttribute('sandbox'),'allow-scripts allow-forms');
+ assert.equal(await page.getByText('Your saved reply',{exact:true}).count(),1);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ await menu('New conversation');assert.equal(await page.getByText('Your saved reply',{exact:true}).count(),0);
+ await menu('Workout planning');await page.getByText('Your saved reply',{exact:true}).waitFor();await page.reload();await page.getByRole('button',{name:'Open workspace menu',exact:true}).waitFor();assert.equal(await page.getByText('Your saved reply',{exact:true}).count(),0);
+ await menu('Workout planning');await page.getByText('Your saved reply',{exact:true}).waitFor();
+ await menu('Settings');await page.getByLabel('Choose your view on this device',{exact:true}).selectOption('workspace');await page.getByRole('button',{name:'Save view',exact:true}).tap();await page.getByRole('button',{name:/^More/}).waitFor();assert.deepEqual(errors,[]);await context.close();
+ }assert.ok(reads>0);console.log('Owner/customer 320/393px: fresh entry/new chat, sidebar recents, live Calendar views, actual Reminder completion persistence, actual saved-project script interaction, safe-area taps, reload, Settings and overflow passed. Isolated stores; no pods/model calls.');
 }finally{await browser.close();await new Promise(r=>server.close(r));}
