@@ -66,6 +66,20 @@ try{
  for(const width of [320,390,736]){await page.setViewportSize({width,height:900});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);}
  await page.getByRole('tab',{name:'Projects',exact:true}).click();await page.setViewportSize({width:390,height:844});await page.screenshot({path:'/tmp/nexus-workspace-project.png',fullPage:true});
  await page.getByRole('button',{name:'← All projects'}).click();await page.getByRole('button',{name:'New project',exact:false}).click();await page.getByLabel('What would you like to build?').fill('A cooking timer');await page.locator('#editor').getByRole('button',{name:'Ask assistant',exact:true}).click();assert.match(messages.at(-1),/fresh stable project_id/);
+ // Reproduce host replay of the original board after import and selection.
+ const staleBoard=(await call('read_nexus_workspace')).structuredContent;
+ await page.evaluate(data=>{window.openai.toolOutput=data;const save=window.openai.setWidgetState;window.openai.setWidgetState=value=>{save(value);window.openai.widgetState=value;window.dispatchEvent(new CustomEvent('openai:set_globals',{detail:{globals:{toolOutput:data}}}));};},staleBoard);
+ await page.getByRole('button',{name:'Save FORM to Projects',exact:true}).click();
+ const formCard=page.locator('#project-list article').filter({has:page.getByRole('heading',{name:'FORM Bodyweight',exact:true})});await formCard.waitFor();
+ await page.evaluate(data=>window.dispatchEvent(new CustomEvent('openai:set_globals',{detail:{globals:{toolOutput:data}}})),staleBoard);
+ assert.equal(await formCard.isVisible(),true);assert.equal(await page.locator('#import-form').isVisible(),false);
+ await formCard.getByRole('button',{name:'Open project',exact:true}).click();await page.locator('#project-detail').getByRole('heading',{name:'FORM Bodyweight',exact:true}).waitFor();
+ const restoredState=await page.evaluate(()=>window.openai.widgetState);assert.equal(restoredState.selection.id,'form-bodyweight-showcase');
+ await page.addInitScript(({data,state})=>{window.openai.toolOutput=data;window.openai.widgetState=state;},{data:staleBoard,state:restoredState});
+ await page.reload();await page.locator('#project-detail').getByRole('heading',{name:'FORM Bodyweight',exact:true}).waitFor();
+ assert.equal(await page.locator('#import-form').isVisible(),false);
+ await page.getByRole('button',{name:'← All projects'}).click();assert.equal(await formCard.isVisible(),true);
+ await page.getByRole('button',{name:'Refresh',exact:true}).click();assert.equal(await formCard.isVisible(),true);
  assert.deepEqual(errors,[]);assert.ok(calls.every(c=>!('user_id' in c.args) && !('owner' in c.args)));
- console.log('PASS: three fresh-workspace starters, no auto-build or seed records, leading-question handoffs, first saved activity hides welcome, authenticated MCP reads, interactive isolated preview, read Retry, project-specific handoff, rename preserves HTML, stale rename rejected without overwrite, saved-state recovery reloads latest baseline, event/help identity and Chicago times, protected flag retained, reminder edit/help/completion/reopen, usage handoff, fresh project handoff, 320/390/736px layouts. No live data changed.');
+ console.log('PASS: three fresh-workspace starters, no auto-build or seed records, leading-question handoffs, first saved activity hides welcome, authenticated MCP reads, interactive isolated preview, read Retry, project-specific handoff, rename preserves HTML, stale rename rejected without overwrite, saved-state recovery reloads latest baseline, event/help identity and Chicago times, protected flag retained, reminder edit/help/completion/reopen, usage handoff, fresh project handoff, 320/390/736px layouts. FORM import survives stale host output, project selection and widget remount. No live data changed.');
 }finally{if(browser)await browser.close();if(client)await client.close();await env.close();}

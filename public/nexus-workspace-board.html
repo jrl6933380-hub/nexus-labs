@@ -137,7 +137,11 @@ function welcomeView(data){
 }
 function render(data){
  if(!data?.account || !Array.isArray(data.projects) || !Array.isArray(data.schedule) || !Array.isArray(data.reminders))return;
- const changedAccount=snapshot && snapshot.account.id!==data.account.id;if(changedAccount){selectedProject=null;closeEditor();persistSelection();}
+ const changedAccount=snapshot && snapshot.account.id!==data.account.id;
+ // Hosts can replay the initial tool output when widget state or layout changes.
+ // Never let that older snapshot replace data read by the board itself.
+ if(snapshot && !changedAccount){const incoming=Date.parse(data.updated_at),current=Date.parse(snapshot.updated_at);if(Number.isFinite(incoming) && Number.isFinite(current) && incoming<=current)return;}
+ if(changedAccount){selectedProject=null;closeEditor();persistSelection();}
  // Park the shared editor before rebuilding lists, so it cannot be removed with a row.
  const editorOpen=!editor.hidden;if(editorOpen)closeEditor();snapshot=data;by('account').textContent=data.account.id+' · '+(data.account.owner?'Owner workspace':'Your workspace');by('updated').textContent='Updated '+localDate(data.updated_at);by('project-count').textContent=data.projects.length+' saved projects';by('schedule-zone').textContent='Private Nexus Schedule · '+zone();by('import-form').hidden=!data.account.owner || data.projects.some(p=>p.project_id==='form-bodyweight-showcase');
  const projects=by('project-list');projects.replaceChildren();for(const p of data.projects){const card=node('article',undefined,'project');card.append(node('div','▣','project-mark'),node('h3',p.label || 'Untitled project'),node('div','Saved draft','muted small'));const actions=node('div',undefined,'actions');actions.append(button('Open project',()=>run(()=>openProject(p.project_id))));card.append(actions);projects.append(card);}if(!data.projects.length)empty(projects,'Start with an idea. Your saved projects will appear here.');
@@ -182,7 +186,9 @@ window.addEventListener('message',event=>{if(event.source!==window.parent)return
 window.addEventListener('openai:set_globals',event=>render(event.detail?.globals?.toolOutput));
 if(window.openai?.toolOutput)render(window.openai.toolOutput);
 if(savedState?.tab && by(savedState.tab+'-tab'))select(by(savedState.tab+'-tab'));
-if(!window.openai?.callTool){request('ui/initialize',{protocolVersion:'2026-01-26',appInfo:{name:'nexus-board',version:'2.1.0'},appCapabilities:{}}).then(()=>{hostReady=true;notify('ui/notifications/initialized',{});if(!snapshot)run(refresh);}).catch(e=>status(e.message,true));}else if(!snapshot)run(refresh);
+async function restoreBoard(){await refresh();const id=savedState?.selection?.kind==='project'?savedState.selection.id:null;if(id && snapshot?.projects.some(p=>p.project_id===id))await openProject(id);}
+// A remounted widget must read current storage, not rely on its original tool output.
+if(!window.openai?.callTool){request('ui/initialize',{protocolVersion:'2026-01-26',appInfo:{name:'nexus-board',version:'2.1.0'},appCapabilities:{}}).then(()=>{hostReady=true;notify('ui/notifications/initialized',{});run(restoreBoard);}).catch(e=>status(e.message,true));}else run(restoreBoard);
 })();
 </script>
 </body>
