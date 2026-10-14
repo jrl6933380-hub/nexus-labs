@@ -1,0 +1,4 @@
+interface:
+  display_name: "Nexus Board Creator"
+  short_description: "Scope and build private market boards"
+  default_prompt: "Use $nexus-board-creator to scope and build a private Nexus board."

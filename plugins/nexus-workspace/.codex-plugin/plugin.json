@@ -1,0 +1,24 @@
+{
+  "interface": {
+    "capabilities": [
+      "Interactive"
+    ],
+    "category": "Productivity",
+    "defaultPrompt": "Show my Nexus workspace board.",
+    "developerName": "Justin Lopez",
+    "displayName": "Nexus Workspace",
+    "longDescription": "Use the existing Nexus workspace board to inspect saved Projects, manage your private Nexus Schedule and Reminders, save requested HTML project drafts, and read hosted-AI usage. Connects to the existing Nexus server using its OAuth authentication.",
+    "shortDescription": "Projects, plans and reminders"
+  },
+  "name": "nexus-workspace",
+  "version": "0.2.0",
+  "description": "Connect to Nexus Projects, private Schedule, Reminders, usage, and the existing interactive workspace board.",
+  "author": {
+    "name": "Justin Lopez",
+    "email": "jrl6933380@gmail.com"
+  },
+  "keywords": [],
+  "skills": "./skills",
+  "mcpServers": "./.mcp.json"
+}
+
