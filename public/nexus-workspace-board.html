@@ -22,8 +22,10 @@
 <button id="schedule-tab" role="tab" aria-controls="schedule" aria-selected="false" tabindex="-1">Schedule</button>
 <button id="reminders-tab" role="tab" aria-controls="reminders" aria-selected="false" tabindex="-1">Reminders</button>
 <button id="usage-tab" role="tab" aria-controls="usage" aria-selected="false" tabindex="-1">Usage</button>
+<button id="boards-tab" role="tab" aria-controls="boards" aria-selected="false" tabindex="-1">Boards</button>
 </nav>
 <main id="main">
+<section id="boards" role="tabpanel" aria-labelledby="boards-tab" hidden><div class="heading"><div><h2>Board Studio</h2><span class="muted small">Scope it. Build it. Keep it private.</span></div><button id="create-board" class="primary">+ Create a board</button></div><div id="board-kits" class="grid"></div><div id="board-kit-detail" hidden></div></section>
 <section id="projects" role="tabpanel" aria-labelledby="projects-tab"><div id="welcome" class="welcome" hidden></div><div id="projects-heading" class="heading"><div><h2>Your ideas, built.</h2><span id="project-count" class="muted"></span></div><div class="actions"><button id="import-form" hidden>Save FORM to Projects</button><button id="new-project" class="primary">+ New project</button></div></div><div id="project-detail" hidden></div><div id="project-list" class="grid"></div></section>
 <section id="schedule" role="tabpanel" aria-labelledby="schedule-tab" hidden><div class="heading"><div><h2>Your time, together.</h2><span id="schedule-zone" class="muted small"></span></div><button id="add-event" class="primary">+ Add event</button></div><div id="schedule-help" class="section-help"></div><div id="event-list"></div></section>
 <section id="reminders" role="tabpanel" aria-labelledby="reminders-tab" hidden><div class="heading"><div><h2>Keep the little promises.</h2><span class="muted small">Your private reminders</span></div><button id="add-reminder" class="primary">+ Add reminder</button></div><div id="reminders-help" class="section-help"></div><div id="reminder-list"></div><p class="muted small">Phone alerts depend on notification setup in Nexus.</p></section>
@@ -35,7 +37,7 @@
 <script>
 (()=>{'use strict';
 const root=document.getElementById('board'),by=id=>root.querySelector('#'+id),tabs=[...root.querySelectorAll('[role=tab]')],pending=new Map(),editor=by('editor');
-let sequence=0,snapshot=null,busy=false,hostReady=false,selectedProject=null,retryTask=null,returnFocus=null;
+let sequence=0,snapshot=null,busy=false,hostReady=false,selectedProject=null,selectedKit=null,retryTask=null,returnFocus=null;
 const savedState=window.openai?.widgetState;
 const zone=()=>Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 function status(text,error=false){by('status').textContent=text;by('status').classList.toggle('error',error);by('status').setAttribute('role',error?'alert':'status');}
@@ -56,7 +58,7 @@ async function message(prompt){
  return request('ui/message',{role:'user',content:[{type:'text',text:prompt}]});
 }
 function persistSelection(kind,id,label){
- try{window.openai?.setWidgetState?.({tab:tabs.find(t=>t.getAttribute('aria-selected')==='true')?.getAttribute('aria-controls'),selection:kind?{kind,id,label}:null});}catch{}
+ try{const tab=tabs.find(t=>t.getAttribute('aria-selected')==='true')?.getAttribute('aria-controls');window.openai?.setWidgetState?.({tab,selection:tab==='boards' && selectedKit?{kind:'board',id:selectedKit.board_id,label:selectedKit.title}:kind?{kind,id,label}:null});}catch{}
 }
 function closeEditor(){editor.hidden=true;by('main').append(editor);if(returnFocus?.isConnected)returnFocus.focus();returnFocus=null;}
 function mountEditor(container){closeEditor();returnFocus=document.activeElement;container.append(editor);editor.hidden=false;editor.focus({preventScroll:true});}
@@ -69,7 +71,7 @@ function lock(value){busy=value;root.setAttribute('aria-busy',String(value));roo
 async function refresh(){render(await tool('read_nexus_workspace'));}
 async function run(task,{success='Updated from Nexus.',write=false}={}){
  if(busy)return false;lock(true);retryTask=null;by('retry').hidden=true;status('Working…');
- try{await task();status(success);return true;}catch(e){status(e.message,true);retryTask=write?async()=>{await refresh();if(selectedProject)await openProject(selectedProject.project_id);}:task;by('retry').textContent=write?'Check saved state':'Retry';by('retry').hidden=false;return false;}finally{lock(false);}
+ try{await task();status(success);return true;}catch(e){status(e.message,true);retryTask=write?async()=>{await refresh();if(selectedProject)await openProject(selectedProject.project_id);if(selectedKit)await openKit(selectedKit.board_id);}:task;by('retry').textContent=write?'Check saved state':'Retry';by('retry').hidden=false;return false;}finally{lock(false);}
 }
 by('retry').onclick=()=>{if(retryTask)run(retryTask);};
 function empty(container,text){container.replaceChildren(node('div',text,'empty'));}
@@ -124,6 +126,42 @@ function startProject(){
  form(snapshot?.onboarding?.showWelcome?'Build your first idea':'Start a fresh project',[{key:'idea',label:'What would you like to build?',required:true,multiline:true,maxLength:4000}],async input=>{await message('Help me start a fresh Nexus Project. My idea: '+input.idea+'. Ask one short question about any missing requirements before building. Use a fresh stable project_id when I am ready and save the complete working HTML through save_nexus_project as a private draft. Do not publish.');},{handoff:true,note:'A website, tracker, or useful tool. A sentence is enough to start.'});
  const chips=node('div',undefined,'chips');for(const idea of ['A business website','A workout planner','A simple tracker'])chips.append(button(idea,()=>{by('nexus-field-idea').value=idea;by('nexus-field-idea').focus();}));editor.querySelector('form').prepend(chips);
 }
+function startBoard(){
+ select(by('boards-tab'));selectedKit=null;renderKit();boardList(snapshot || {});persistSelection();
+ form('Create a board',[
+ {key:'idea',label:'What should this board help people do?',required:true,multiline:true,maxLength:2000},
+ {key:'audience',label:'Who is it for?',required:true,wide:true,maxLength:500},
+ {key:'needs',label:'Must-have actions or constraints',multiline:true,maxLength:1000}],async input=>{
+  await tool('read_nexus_board_creator');
+  await message('Use $nexus-board-creator to scope a private Nexus board. My idea: '+input.idea+'\nAudience: '+input.audience+'\nNeeds: '+(input.needs || 'Help me choose the smallest useful version')+'\nShow a scope covering visuals, tools, saved data, permissions and its own skill/guidance for me to confirm before building or saving.');
+ },{container:by('boards'),handoff:true,note:'A tutor, a client workspace, a habit coach—or your own idea. Scoping comes before building.'});
+}
+async function openKit(board_id){
+ closeEditor();selectedKit=await tool('read_nexus_board_kit',{board_id});persistSelection();await renderKit();
+}
+function boardList(data){
+ const list=by('board-kits');list.replaceChildren();for(const kit of data.boards || []){const card=node('article',undefined,'project');card.append(node('div','▦','project-mark'),node('h3',kit.title),node('p',kit.purpose,'muted small'),node('span',kit.status==='scoped'?'Scope saved · private':'Preview · private','badge'),button(kit.status==='scoped'?'Continue building':'Open board',()=>run(()=>openKit(kit.board_id))));list.append(card);}if(!(data.boards || []).length)empty(list,'Create your first board. Its scope, preview and guidance will stay together here.');list.hidden=Boolean(selectedKit);
+}
+async function renderKit(){
+ const detail=by('board-kit-detail');detail.replaceChildren();detail.hidden=!selectedKit;by('board-kits').hidden=Boolean(selectedKit);if(!selectedKit)return;
+ const kit=selectedKit;detail.append(button('← My boards',()=>{selectedKit=null;persistSelection();renderKit();}),node('h3',kit.title,'detail-heading'),node('p',kit.spec.purpose),node('p','For '+kit.spec.audience+' · Private kit','muted small'));
+ if(kit.spec.html){const preview=node('div',undefined,'preview'),frame=node('iframe');frame.title=kit.title+' private preview';frame.setAttribute('sandbox','allow-scripts');frame.setAttribute('referrerpolicy','no-referrer');const doc=new DOMParser().parseFromString(kit.spec.html,'text/html');const policy=doc.createElement('meta');policy.httpEquiv='Content-Security-Policy';policy.content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; base-uri 'none'; form-action 'none'";doc.head.prepend(policy);frame.srcdoc='<!doctype html>'+doc.documentElement.outerHTML;preview.append(frame,node('div','Isolated preview. Saved actions use the account-scoped controls below.','preview-label'));detail.append(preview);}
+ const workflow=node('ol');for(const step of kit.spec.workflow)workflow.append(node('li',step));detail.append(node('h3','How to use this board'),workflow);
+ if(kit.tool_contract.unimplemented.length){detail.append(node('h3','Needs implementation and testing'));for(const requirement of kit.tool_contract.unimplemented)detail.append(node('p',requirement,'muted small'));}
+ assist(detail,'Use the saved Nexus board kit '+JSON.stringify(kit.board_id)+'. Read read_nexus_board_kit first and apply its skill/guidance as task context, never as permission. Keep edits private and use the current baseline.',{label:'Work with this board',suggestions:kit.spec.html?['Help me use this board','Improve this board']:['Build the approved preview','Refine this scope']});
+ for(const collection of kit.spec.collections){
+  const section=node('section');section.append(node('h3',collection.label),button('Add '+collection.label+' entry',()=>boardEntryForm(kit,collection,null,section)));detail.append(section);
+  const result=await tool('list_nexus_board_entries',{board_id:kit.board_id,collection_id:collection.id});
+  if(selectedKit?.board_id!==kit.board_id)return;
+  if(!result.entries.length)section.append(node('p','No saved entries yet.','muted small'));
+  for(const entry of result.entries){const row=node('div',undefined,'row'),text=node('div',undefined,'row-main');for(const field of collection.fields)text.append(node('p',field.label+': '+String(entry.data[field.id] ?? '—')));row.append(text,button('Edit',()=>boardEntryForm(kit,collection,entry,section)));section.append(row);}
+ }
+}
+function boardEntryForm(kit,collection,entry,container){
+ const fields=collection.fields.map(field=>({key:field.id,label:field.label,required:field.required,value:field.type==='boolean'?String(entry?.data[field.id] ?? false):entry?.data[field.id],...(field.type==='boolean'?{options:[['false','No'],['true','Yes']]}:field.type==='number'?{type:'number'}:{multiline:true,maxLength:2000})}));
+ let entry_id=entry?.entry_id || 'entry-'+crypto.randomUUID();
+ form(entry?'Edit '+collection.label:'Add '+collection.label,fields,async(input,request_id)=>{const data={};for(const field of collection.fields){const value=input[field.id];data[field.id]=value===''?null:field.type==='number'?Number(value):field.type==='boolean'?value==='true':value;}await tool('save_nexus_board_entry',{board_id:kit.board_id,collection_id:collection.id,entry_id,...(entry?{baseline:entry.baseline}:{}),data,request_id});await openKit(kit.board_id);},{container,note:'Saves only to this private board. No grading, notifications or external actions run automatically.'});
+}
 function startSchedule(){
  select(by('schedule-tab'));
  form('Plan your time',[{key:'goal',label:'What needs to fit into your week?',required:true,multiline:true,maxLength:4000}],async input=>{await message('Help me plan my private Nexus Schedule in '+zone()+'. Here is what I want to fit in: '+input.goal+'. Read current commitments first. Ask one short question to fill in missing days, times, or priorities. Show the proposed plan before saving; do not create events until I choose to apply it.');},{container:by('schedule'),handoff:true,note:'Start with work, family time, a workout, or anything important to you.'});
@@ -141,18 +179,19 @@ function render(data){
  // Hosts can replay the initial tool output when widget state or layout changes.
  // Never let that older snapshot replace data read by the board itself.
  if(snapshot && !changedAccount){const incoming=Date.parse(data.updated_at),current=Date.parse(snapshot.updated_at);if(Number.isFinite(incoming) && Number.isFinite(current) && incoming<=current)return;}
- if(changedAccount){selectedProject=null;closeEditor();persistSelection();}
+ if(changedAccount){selectedProject=null;selectedKit=null;closeEditor();persistSelection();}
  // Park the shared editor before rebuilding lists, so it cannot be removed with a row.
  const editorOpen=!editor.hidden;if(editorOpen)closeEditor();snapshot=data;by('account').textContent=data.account.id+' · '+(data.account.owner?'Owner workspace':'Your workspace');by('updated').textContent='Updated '+localDate(data.updated_at);by('project-count').textContent=data.projects.length+' saved projects';by('schedule-zone').textContent='Private Nexus Schedule · '+zone();by('import-form').hidden=!data.account.owner || data.projects.some(p=>p.project_id==='form-bodyweight-showcase');
  const projects=by('project-list');projects.replaceChildren();for(const p of data.projects){const card=node('article',undefined,'project');card.append(node('div','▣','project-mark'),node('h3',p.label || 'Untitled project'),node('div','Saved draft','muted small'));const actions=node('div',undefined,'actions');actions.append(button('Open project',()=>run(()=>openProject(p.project_id))));card.append(actions);projects.append(card);}if(!data.projects.length)empty(projects,'Start with an idea. Your saved projects will appear here.');
  if(selectedProject){const record=data.projects.find(p=>p.project_id===selectedProject.project_id);if(!record)selectedProject=null;else selectedProject.label=record.label || selectedProject.label;}welcomeView(data);renderProject();if(data.onboarding?.showWelcome)projects.hidden=true;
+ boardList(data);
  const events=by('event-list');events.replaceChildren();const current=[],past=[];for(const item of [...data.schedule].sort((a,b)=>new Date(a.starts_at)-new Date(b.starts_at))){const end=new Date(item.ends_at || item.starts_at).getTime();(item.status==='done' || item.status==='cancelled' || end<Date.now()?past:current).push(item);}for(const item of current)eventRow(events,item);if(!current.length)empty(events,'No upcoming events. Add a time block or plan with your assistant.');history(events,'Past events',past.reverse(),eventRow);
  const reminders=by('reminder-list');reminders.replaceChildren();const planned=data.reminders.filter(i=>i.status!=='done').sort((a,b)=>(new Date(a.due_at || a.due_date).getTime() || Infinity)-(new Date(b.due_at || b.due_date).getTime() || Infinity));for(const item of planned)reminderRow(reminders,item);if(!planned.length)empty(reminders,'All clear. Add a reminder when you need one.');history(reminders,'Completed',data.reminders.filter(i=>i.status==='done'),reminderRow);
  by('schedule-help').replaceChildren(button('Plan with assistant',()=>run(()=>message('Help me plan my private Nexus Schedule in '+zone()+'. Read current commitments first, show me your proposed plan and wait for my instruction before saving changes.'))));by('reminders-help').replaceChildren(button('Organize with assistant',()=>run(()=>message('Help me organize my private Nexus reminders. Read the current reminders first and ask what I want changed. Do not delete or reschedule them without my instruction.'))));usageView(data);status('Loaded from Nexus.');
 }
 function form(title,fields,onSave,{container=by(tabs.find(t=>t.getAttribute('aria-selected')==='true').getAttribute('aria-controls')),note='',help,handoff=false}={}){
  if(busy)return;editor.replaceChildren(node('h3',title));if(note)editor.append(node('p',note,'note'));const element=node('form'),grid=node('div',undefined,'fields'),controls={};
- for(const field of fields){const label=node('label',field.label,field.wide || field.multiline?'field-wide':undefined),input=node(field.multiline?'textarea':field.options?'select':'input');if(!field.multiline && !field.options)input.type=field.type || 'text';if(field.options)for(const [value,text] of field.options){const option=node('option',text);option.value=value;input.append(option);}input.value=field.value ?? '';input.required=Boolean(field.required);if(field.maxLength)input.maxLength=field.maxLength;input.id='nexus-field-'+field.key;label.htmlFor=input.id;controls[field.key]=input;label.append(input);grid.append(label);}element.append(grid);
+ for(const field of fields){const label=node('label',field.label,field.wide || field.multiline?'field-wide':undefined),input=node(field.multiline?'textarea':field.options?'select':'input');if(!field.multiline && !field.options)input.type=field.type || 'text';if(input.type==='number')input.step='any';if(field.options)for(const [value,text] of field.options){const option=node('option',text);option.value=value;input.append(option);}input.value=field.value ?? '';input.required=Boolean(field.required);if(field.maxLength)input.maxLength=field.maxLength;input.id='nexus-field-'+field.key;label.htmlFor=input.id;controls[field.key]=input;label.append(input);grid.append(label);}element.append(grid);
  const actions=node('div',undefined,'actions'),submit=node('button',handoff?'Ask assistant':'Save to Nexus','primary');submit.type='submit';actions.append(submit,button('Cancel',closeEditor));element.append(actions);editor.append(element);if(help)assist(editor,help,{label:'Or describe what you want to change'});mountEditor(container);
  if(container===by('schedule'))container.insertBefore(editor,by('event-list'));if(container===by('reminders'))container.insertBefore(editor,by('reminder-list'));if(container===by('projects'))container.insertBefore(editor,by('project-detail'));
  let previous='',request_id;const activeEditor=editor;
@@ -178,17 +217,18 @@ function reminderForm(item,container){
  {key:'repeat',label:'Repeat',value:item?.repeat || 'none',options:[['none','Does not repeat'],['daily','Daily'],['weekly','Weekly']],wide:true},
  {key:'notes',label:'Notes',multiline:true,value:item?.notes,maxLength:4000}],async(input,request_id)=>{if(input.due_time && !input.due_date)throw new Error('Choose a date for this alert.');await tool(item?'update_nexus_reminder':'create_nexus_reminder',{title:input.title,notes:input.notes,repeat:input.repeat,due_date:input.due_date || null,due_at:input.due_time?input.due_date+'T'+input.due_time:null,timezone:zone(),...(item?{id:item.id}:{}),request_id});},{container:container || by('reminders'),note:'Alerts use '+zone()+'. Leave the date empty for an anytime task.',help:item?'Help me with my private Nexus reminder ID '+JSON.stringify(item.id)+'. Read it first. My timezone is '+zone()+'.':undefined});
 }
-by('refresh').onclick=()=>run(async()=>{await refresh();if(selectedProject)await openProject(selectedProject.project_id);});
+by('refresh').onclick=()=>run(async()=>{await refresh();if(selectedProject)await openProject(selectedProject.project_id);if(selectedKit)await openKit(selectedKit.board_id);});
 by('add-event').onclick=()=>eventForm();by('add-reminder').onclick=()=>reminderForm();
 by('new-project').onclick=startProject;
+by('create-board').onclick=startBoard;
 const importId=crypto.randomUUID();by('import-form').onclick=()=>run(async()=>{await tool('import_form_project',{request_id:importId});await refresh();},{write:true});
 window.addEventListener('message',event=>{if(event.source!==window.parent)return;const msg=event.data;if(!msg || msg.jsonrpc!=='2.0')return;if(msg.id!==undefined && pending.has(msg.id)){const p=pending.get(msg.id);pending.delete(msg.id);clearTimeout(p.timer);msg.error?p.reject(new Error(msg.error.message || 'Host request failed')):p.resolve(msg.result);return;}if(msg.method==='ui/notifications/tool-result')render(msg.params?.structuredContent);if(msg.method==='ui/notifications/host-context-changed' && msg.params?.theme)document.documentElement.style.colorScheme=msg.params.theme;});
 window.addEventListener('openai:set_globals',event=>render(event.detail?.globals?.toolOutput));
 if(window.openai?.toolOutput)render(window.openai.toolOutput);
 if(savedState?.tab && by(savedState.tab+'-tab'))select(by(savedState.tab+'-tab'));
-async function restoreBoard(){await refresh();const id=savedState?.selection?.kind==='project'?savedState.selection.id:null;if(id && snapshot?.projects.some(p=>p.project_id===id))await openProject(id);}
+async function restoreBoard(){await refresh();const id=savedState?.selection?.kind==='project'?savedState.selection.id:null;if(id && snapshot?.projects.some(p=>p.project_id===id))await openProject(id);const kit=savedState?.selection?.kind==='board'?savedState.selection.id:null;if(kit && snapshot?.boards?.some(item=>item.board_id===kit))await openKit(kit);}
 // A remounted widget must read current storage, not rely on its original tool output.
-if(!window.openai?.callTool){request('ui/initialize',{protocolVersion:'2026-01-26',appInfo:{name:'nexus-board',version:'2.1.0'},appCapabilities:{}}).then(()=>{hostReady=true;notify('ui/notifications/initialized',{});run(restoreBoard);}).catch(e=>status(e.message,true));}else run(restoreBoard);
+if(!window.openai?.callTool){request('ui/initialize',{protocolVersion:'2026-01-26',appInfo:{name:'nexus-board',version:'2.2.0'},appCapabilities:{}}).then(()=>{hostReady=true;notify('ui/notifications/initialized',{});run(restoreBoard);}).catch(e=>status(e.message,true));}else run(restoreBoard);
 })();
 </script>
 </body>
