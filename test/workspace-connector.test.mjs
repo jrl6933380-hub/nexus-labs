@@ -37,6 +37,19 @@ test('existing project edits require the current baseline and plan limits stay i
  const read=await f.execute('project',{project_id:'one'},alice);await f.execute('save_project',{project_id:'one',html:'<html>changed</html>',baseline:read.baseline},alice);
  await assert.rejects(f.execute('save_project',{project_id:'one',html:'<html>stale</html>',baseline:read.baseline},alice),e=>e.status===409);
 });
+test('rename uses the owned project metadata, preserves HTML/version, and rejects stale or foreign targets',async()=>{
+ const f=fixture(),html='<html><title>Demo</title><body>original</body></html>';
+ await f.execute('save_project',{project_id:'demo',html},alice);
+ const before=await f.execute('project',{project_id:'demo'},alice),count=f.saveCount;
+ const renamed=await f.execute('rename_project',{project_id:'demo',baseline:before.baseline,label:'My planner'},alice);
+ assert.equal(renamed.renamed,true);assert.equal(f.saveCount,count);
+ const after=await f.execute('project',{project_id:'demo'},alice);assert.equal(after.html,html);assert.equal(after.baseline,before.baseline);assert.equal(after.label,'My planner');
+ assert.equal((await f.execute('projects',{},alice)).projects[0].label,'My planner');
+ await assert.rejects(f.execute('rename_project',{project_id:'demo',baseline:before.baseline,label:'Foreign'},bob),/not found/i);
+ await f.execute('save_project',{project_id:'demo',baseline:before.baseline,html:'<html>next</html>'},alice);
+ await assert.rejects(f.execute('rename_project',{project_id:'demo',baseline:before.baseline,label:'Stale'},alice),e=>e.status===409);
+ for(const label of ['', ' '.repeat(2), 'x'.repeat(81)])await assert.rejects(f.execute('rename_project',{project_id:'demo',baseline:after.baseline,label},alice),/1–80/);
+});
 test('FORM imports once, remains private, and preserves later edits',async()=>{
  const f=fixture();await f.execute('import_form',{},owner);const read=await f.execute('project',{project_id:'form-bodyweight-showcase'},owner);
  await f.execute('save_project',{project_id:read.project_id,baseline:read.baseline,html:'<html>my edit</html>'},owner);const count=f.saveCount;

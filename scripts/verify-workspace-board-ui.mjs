@@ -1,0 +1,61 @@
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {createHash,randomBytes} from 'node:crypto';
+import {chromium} from 'playwright';
+import {Client} from '@modelcontextprotocol/sdk/client/index.js';
+import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import {workspaceOAuthEnvironment} from '../test/helpers/workspaceOAuthEnvironment.mjs';
+import {WORKSPACE_RESOURCE} from '../lib/workspaceOAuth.js';
+
+// Real OAuth → MCP → existing account-scoped stores. All records are isolated fixtures.
+const env=await workspaceOAuthEnvironment(),callback='https://chatgpt.com/connector_platform_oauth_redirect';
+let browser,client;
+const html='<!doctype html><html><head><title>Board Demo</title></head><body><h1>Project baseline</h1><button onclick="this.textContent=\'It works\'">Try preview</button></body></html>';
+try{
+ const registered=await (await fetch(env.base+'/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({client_name:'Board test',redirect_uris:[callback],token_endpoint_auth_method:'none',grant_types:['authorization_code','refresh_token'],response_types:['code']})})).json();
+ const verifier=randomBytes(32).toString('base64url'),challenge=createHash('sha256').update(verifier).digest('base64url');
+ const auth=await fetch(env.base+'/authorize?'+new URLSearchParams({client_id:registered.client_id,redirect_uri:callback,response_type:'code',code_challenge:challenge,code_challenge_method:'S256',scope:'workspace:read workspace:write',state:'board-test',resource:WORKSPACE_RESOURCE}),{redirect:'manual'});
+ const request=new URL(auth.headers.get('location')).searchParams.get('request'),approval=await env.provider.pending(request,{id:'justin'}),grant=await env.provider.consent({request,csrf:approval.csrf,decision:'allow'},{id:'justin'});
+ const tokens=await (await fetch(env.base+'/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:registered.client_id,resource:WORKSPACE_RESOURCE,grant_type:'authorization_code',code:new URL(grant.redirect_url).searchParams.get('code'),code_verifier:verifier,redirect_uri:callback})})).json();
+ client=new Client({name:'board-ui-test',version:'1'});await client.connect(new StreamableHTTPClientTransport(new URL(env.base+'/api/workspace-mcp'),{requestInit:{headers:{Authorization:'Bearer '+tokens.access_token}}}));
+ const call=(name,args={})=>client.callTool({name,arguments:args});
+ await call('save_nexus_project',{project_id:'board-demo',html,label:'Board Demo',request_id:'seed-project-123'});
+ await call('create_nexus_event',{title:'Protected workout',starts_at:'2099-10-15T11:00',ends_at:'2099-10-15T12:00',timezone:'America/Chicago',protected:true,request_id:'seed-event-123'});
+ await call('create_nexus_event',{title:'Past event',starts_at:'2020-10-15T11:00',ends_at:'2020-10-15T12:00',timezone:'America/Chicago',request_id:'seed-past-123'});
+ const due=await call('create_nexus_reminder',{title:'Review project',due_date:'2099-10-15',due_at:'2099-10-15T10:00',timezone:'America/Chicago',request_id:'seed-reminder-123'});
+ browser=await chromium.launch({headless:true,...(process.env.NEXUS_BROWSER_EXECUTABLE?{executablePath:process.env.NEXUS_BROWSER_EXECUTABLE,args:['--no-sandbox','--disable-dev-shm-usage','--disable-gpu','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']}:{})});
+ const page=await browser.newPage({viewport:{width:390,height:844},timezoneId:'America/Chicago',colorScheme:'dark'}),errors=[],messages=[],selections=[],calls=[];let failRead=false;
+ page.on('pageerror',e=>errors.push(e.message));
+ await page.exposeBinding('boardTool',async(_source,name,args)=>{calls.push({name,args});if(failRead && name==='read_nexus_project'){failRead=false;return {isError:true,structuredContent:{error:'Test read unavailable'}};}return call(name,args);});
+ await page.exposeBinding('boardMessage',async(_source,data)=>messages.push(data.prompt));
+ await page.exposeBinding('boardSelection',async(_source,data)=>selections.push(data));
+ await page.addInitScript(()=>{window.openai={callTool:(name,args)=>window.boardTool(name,args),sendFollowUpMessage:data=>window.boardMessage(data),setWidgetState:data=>window.boardSelection(data)};});
+ await page.route('https://nexus-board.test/**',async route=>route.fulfill({contentType:'text/html',body:await readFile(new URL('../public/nexus-workspace-board.html',import.meta.url),'utf8')}));
+ await page.goto('https://nexus-board.test/board');await page.getByText('justin · Owner workspace',{exact:true}).waitFor();
+ failRead=true;await page.getByRole('button',{name:'Open project',exact:true}).click();await page.getByRole('button',{name:'Retry',exact:true}).click();
+ await page.frameLocator('iframe[title="Board Demo preview"]').getByRole('heading',{name:'Project baseline'}).waitFor();
+ await page.frameLocator('iframe').getByRole('button',{name:'Try preview'}).click();await page.frameLocator('iframe').getByRole('button',{name:'It works'}).waitFor();
+ assert.equal(await page.locator('iframe').getAttribute('sandbox'),'allow-scripts');
+ const detail=page.locator('#project-detail');await detail.getByRole('button',{name:'Improve the mobile layout'}).click();await detail.getByRole('button',{name:'Ask assistant',exact:true}).click();
+ assert.match(messages.at(-1),/board-demo/);assert.match(messages.at(-1),/Improve the mobile layout/);assert.ok(selections.some(s=>s.selection?.id==='board-demo'));
+ await detail.getByRole('button',{name:'Rename',exact:true}).click();await page.getByLabel('Project name',{exact:true}).fill('Board Studio');await page.getByRole('button',{name:'Save to Nexus',exact:true}).click();await detail.getByRole('heading',{name:'Board Studio',exact:true}).waitFor();
+ const baseline=(await call('read_nexus_project',{project_id:'board-demo'})).structuredContent;assert.equal(baseline.html,html);assert.equal(baseline.label,'Board Studio');
+ const newer='<!doctype html><html><body><h1>Newer baseline</h1></body></html>';await call('save_nexus_project',{project_id:'board-demo',html:newer,label:'Board Studio',baseline:baseline.baseline,request_id:'external-edit-123'});
+ await detail.getByRole('button',{name:'Rename',exact:true}).click();await page.getByLabel('Project name',{exact:true}).fill('Stale rename');await page.getByRole('button',{name:'Save to Nexus',exact:true}).click();await page.getByText('This project changed. Reopen its latest version before saving.',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'Check saved state',exact:true}).click();await page.frameLocator('iframe').getByRole('heading',{name:'Newer baseline'}).waitFor();assert.equal((await call('read_nexus_project',{project_id:'board-demo'})).structuredContent.html,newer);
+ await page.getByRole('tab',{name:'Schedule',exact:true}).click();assert.equal(await page.getByRole('heading',{name:'Past event',exact:true}).isVisible(),false);
+ const eventRow=page.locator('#event-list .row').filter({has:page.getByRole('heading',{name:'Protected workout',exact:true})});
+ await eventRow.getByRole('button',{name:'Help with this',exact:true}).click();await page.locator('#editor textarea').fill('Explain this commitment');await page.locator('#editor').getByRole('button',{name:'Ask assistant',exact:true}).click();assert.match(messages.at(-1),/Schedule event ID "event-/);
+ await eventRow.getByRole('button',{name:'Edit',exact:true}).click();assert.equal(await page.locator('#nexus-field-timezone').count(),0);for(const width of [320,390]){await page.setViewportSize({width,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);}await page.screenshot({path:'/tmp/nexus-workspace-schedule.png',fullPage:true});await page.getByLabel('Start · local date and time').fill('2099-10-15T12:00');await page.getByLabel('End · local date and time').fill('2099-10-15T13:00');await page.getByRole('button',{name:'Save to Nexus',exact:true}).click();
+ const event=(await call('read_nexus_schedule')).structuredContent.items.find(i=>i.title==='Protected workout');assert.equal(event.starts_at,'2099-10-15T17:00:00.000Z');assert.equal(event.protected,true);
+ await page.getByRole('tab',{name:'Reminders',exact:true}).click();const reminderRow=page.locator('#reminder-list .row').filter({has:page.getByRole('heading',{name:'Review project',exact:true})});
+ await reminderRow.getByRole('button',{name:'Edit',exact:true}).click();await page.getByLabel('Alert time · optional',{exact:true}).fill('10:30');await page.getByRole('button',{name:'Save to Nexus',exact:true}).click();assert.equal((await call('read_nexus_reminders')).structuredContent.items.find(i=>i.id===due.structuredContent.item.id).due_at,'2099-10-15T15:30:00.000Z');
+ await reminderRow.getByRole('button',{name:'Help',exact:true}).click();await page.locator('#editor textarea').fill('Review this reminder');await page.locator('#editor').getByRole('button',{name:'Ask assistant',exact:true}).click();assert.ok(messages.at(-1).includes(due.structuredContent.item.id));
+ await reminderRow.getByRole('button',{name:'Done',exact:true}).click();await page.getByText('Completed · 1',{exact:true}).click();await page.getByRole('button',{name:'Reopen',exact:true}).click();await reminderRow.getByRole('button',{name:'Done',exact:true}).waitFor();
+ await page.getByRole('tab',{name:'Usage',exact:true}).click();await page.getByRole('button',{name:'Help me understand my usage'}).click();assert.match(messages.at(-1),/get_nexus_usage/);assert.equal(await page.getByText('undefined% weekly remaining',{exact:true}).count(),0);
+ for(const width of [320,390,736]){await page.setViewportSize({width,height:900});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);}
+ await page.getByRole('tab',{name:'Projects',exact:true}).click();await page.setViewportSize({width:390,height:844});await page.screenshot({path:'/tmp/nexus-workspace-project.png',fullPage:true});
+ await page.getByRole('button',{name:'← All projects'}).click();await page.getByRole('button',{name:'New project',exact:false}).click();await page.getByLabel('What would you like to build?').fill('A cooking timer');await page.locator('#editor').getByRole('button',{name:'Ask assistant',exact:true}).click();assert.match(messages.at(-1),/fresh stable project_id/);
+ assert.deepEqual(errors,[]);assert.ok(calls.every(c=>!('user_id' in c.args) && !('owner' in c.args)));
+ console.log('PASS: authenticated MCP reads, interactive isolated preview, read Retry, project-specific handoff, rename preserves HTML, stale rename rejected without overwrite, saved-state recovery reloads latest baseline, event/help identity and Chicago times, protected flag retained, reminder edit/help/completion/reopen, usage handoff, fresh project handoff, 320/390/736px layouts. No live data changed.');
+}finally{if(browser)await browser.close();if(client)await client.close();await env.close();}

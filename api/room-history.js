@@ -33,7 +33,10 @@ return async function handler(req, res) {
 
     if (req.method === 'POST') return await projectLock(username,async()=>{
       const body = req.body && typeof req.body === 'object' ? req.body : {};
-      if(body.action==='rename_project'){return res.status(200).json(await rename(username,String(body.projectId || ''),body.name));}
+      if(body.action==='rename_project'){
+        if(body.baseline!==undefined){const current=await readLatestProject(username,String(body.projectId || ''));if(!current)return res.status(404).json({error:'Project not found'});if(body.baseline!==current.id)return res.status(409).json({error:'This project changed. Reopen its latest version before saving.'});}
+        return res.status(200).json(await rename(username,String(body.projectId || ''),body.name));
+      }
       if(body.action==='save_project_draft'){
         const projectId=String(body.projectId || ''),html=body.html;
         if(!/^[a-zA-Z0-9_-]{1,120}$/.test(projectId))return res.status(400).json({error:'Fix projectId: use 1–120 letters, digits, underscores or hyphens, without spaces or paths.'});
