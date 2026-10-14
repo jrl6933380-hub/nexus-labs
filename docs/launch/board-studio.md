@@ -72,6 +72,31 @@ proof of live ChatGPT rendering, speech, or model operation. Actual iPhone
 fullscreen, keyboard/layout behavior and cross-account template handoff still
 need host testing after deployment. No paid pods or production test records used.
 
+## Board conversation bar
+
+The trusted shared viewer now shows Talk with your AI, an optional current-topic
+field, Start/Explain/Hint/Practice draft starters, Send to chat and See replies in
+chat. It remains visible in full-size view; the topic control folds away and
+the composer has a bounded height for small screens. Starter buttons only fill
+the draft. Submission sends the selected kit ID, the user's explicit topic and
+message through the existing ChatGPT follow-up or MCP ui/message bridge. The
+assistant is asked to read the kit and use its audience/teaching guidance rather
+than defaulting to code editing. This creates no new model endpoint or paid pod.
+
+Replies still appear in the surrounding ChatGPT conversation. See replies in
+chat exits focused view and requests inline presentation. The isolated saved
+HTML receives no host bridge, streamed replies or arbitrary tools. In particular,
+the composer cannot see the lesson selected inside that HTML; it asks for the
+topic rather than inventing lesson state. Dynamic lesson/answer synchronization
+is a separate unimplemented capability. Nothing is saved merely by submitting
+a learning message; progress writes still need the user's authorization.
+
+Four additional deterministic tests cover both sending bridges, safe starter
+drafts, uncertain-delivery draft retention and duplicate-submit protection.
+53 selected tests and 182 launch regressions pass. Actual ChatGPT/iPhone typing,
+keyboard/safe-area behavior, reply navigation and tutoring quality remain host
+verification tasks. Fixture handoffs do not prove a live model response.
+
 ## Evidence and release
 
 39 selected board/MCP/OAuth tests pass with outbound provider requests blocked;

@@ -25,22 +25,23 @@ class Element{
  insertBefore(item,target){item.remove();item.parent=this;this.children.splice(this.children.indexOf(target),0,item);}
  get isConnected(){return this===this.document.root || Boolean(this.parent?.isConnected);}
 }
-async function harness({mode='fullscreen',state,clipboard=false,standard=false}={}){
+async function harness({mode='fullscreen',state,clipboard=false,standard=false,sendError=false,sendGate}={}){
  const f=workspaceFixture();await f.execute('save_board_kit',{board_id:'tutor',spec},account);
- const listeners={},calls=[],states=[],displayCalls=[];let uuid=0;
+ const listeners={},calls=[],states=[],displayCalls=[],messages=[];let uuid=0;
  const document={createElement(tag){return new Element(tag,this);},createTextNode(text){const node=new Element('#text',this);node.textContent=text;return node;},documentElement:{style:{}},getElementById(id){return this.root.querySelector('#'+id) || (id==='board'?this.root:null);}};
  document.root=new Element('div',document);document.root.id='board';
  for(const match of html.matchAll(/<([a-z]+)\b[^>]*\bid="([^"]+)"[^>]*>/g)){if(match[2]==='board')continue;const el=document.createElement(match[1]);el.id=match[2];if(match[1]==='button')el.textContent=html.slice(match.index+match[0].length).split('</button>')[0];if(match[0].includes(' hidden'))el.hidden=true;for(const [,key,value] of match[0].matchAll(/(role|aria-controls|aria-selected)="([^"]+)"/g))el.setAttribute(key,value);document.root.append(el);}
  const by=id=>document.getElementById(id);by('board-filter').value='all';by('board-sort').value='recent';
  const invoke=async(name,args={})=>{calls.push({name,args});const actions={read_nexus_workspace:'board',read_nexus_board_kit:'board_kit',list_nexus_board_entries:'board_entries',save_nexus_board_kit:'save_board_kit'},action=actions[name],{request_id,...input}=args;try{const execute=()=>f.execute(action,input,account);return {structuredContent:request_id?await f.once(account.id,request_id,action,input,execute):await execute()};}catch(e){return {isError:true,structuredContent:{error:e.message}};}};
  let window;const emit=event=>listeners.message?.(event);
- window={openai:{widgetState:state,setWidgetState:value=>states.push(value),callTool:invoke,requestDisplayMode:async({mode:requested})=>{displayCalls.push(requested);return {mode:requested==='inline'?'inline':mode};}},addEventListener:(name,fn)=>{listeners[name]=fn;},parent:{postMessage:async msg=>{let result;if(msg.method==='ui/initialize')result={hostContext:{availableDisplayModes:['inline','fullscreen']}};else if(msg.method==='tools/call')result=await invoke(msg.params.name,msg.params.arguments);else if(msg.method==='ui/request-display-mode'){displayCalls.push(msg.params.mode);result={mode};}else return;emit({source:window.parent,data:{jsonrpc:'2.0',id:msg.id,result}});}}};
- if(standard){delete window.openai.callTool;delete window.openai.requestDisplayMode;}
+ const deliver=async prompt=>{messages.push(prompt);if(sendError)throw Error('Host delivery failed');if(sendGate)await sendGate;};
+ window={openai:{widgetState:state,setWidgetState:value=>states.push(value),callTool:invoke,sendFollowUpMessage:async({prompt})=>deliver(prompt),requestDisplayMode:async({mode:requested})=>{displayCalls.push(requested);return {mode:requested==='inline'?'inline':mode};}},addEventListener:(name,fn)=>{listeners[name]=fn;},parent:{postMessage:async msg=>{let result;if(msg.method==='ui/initialize')result={hostContext:{availableDisplayModes:['inline','fullscreen']}};else if(msg.method==='tools/call')result=await invoke(msg.params.name,msg.params.arguments);else if(msg.method==='ui/request-display-mode'){displayCalls.push(msg.params.mode);result={mode};}else if(msg.method==='ui/message'){await deliver(msg.params.content[0].text);result={};}else return;emit({source:window.parent,data:{jsonrpc:'2.0',id:msg.id,result}});}}};
+ if(standard){delete window.openai.callTool;delete window.openai.requestDisplayMode;delete window.openai.sendFollowUpMessage;}
  const context={document,window,navigator:clipboard?{clipboard:{writeText:async text=>{context.copied=text;}}}:{},crypto:{randomUUID:()=>`fixture-${++uuid}`},Intl,Date,setTimeout,clearTimeout,DOMParser:class{parseFromString(text){return {head:{prepend(){}},createElement:document.createElement.bind(document),documentElement:{outerHTML:text}};}}};
  vm.runInNewContext(source,context);
  const settle=async()=>{for(let i=0;i<12;i++)await new Promise(resolve=>setImmediate(resolve));};await settle();if(!state)by('boards-tab').onclick();
  const click=async label=>{const b=document.root.querySelectorAll('button').find(item=>item.textContent===label);assert.ok(b,'Missing '+label);await b.onclick();await settle();return b;};
- return {f,by,window,context,calls,states,displayCalls,listeners,click,settle};
+ return {f,by,window,context,calls,states,displayCalls,listeners,click,settle,messages};
 }
 
 test('catalog search, filter and sort execute against the current saved board list',async()=>{
@@ -83,4 +84,17 @@ test('account switching clears the old preview, focus mode and search state',asy
 });
 test('viewer keeps the opaque preview sandbox and limits imported HTML to existing CSP',()=>{
  assert.match(html,/frame\.setAttribute\('sandbox','allow-scripts'\)/);assert.doesNotMatch(html,/allow-same-origin/);assert.match(html,/default-src 'none'/);assert.match(html,/if\(event.source!==window.parent\)return/);assert.match(html,/availableDisplayModes:\['inline','fullscreen'\]/);assert.match(html,/safe-area-inset-top/);
+});
+
+test('board chat sends learner text and explicit topic with kit context through either host bridge',async()=>{
+ for(const standard of [false,true]){const h=await harness({standard});await h.click('Open board');await h.click('View board');h.by('board-chat-topic').value='Addition';h.by('board-chat-message').value='Is 3 plus 2 five?';await h.by('board-chat-message').parent.onsubmit({preventDefault(){}});assert.equal(h.messages.length,1);assert.match(h.messages[0],/read_nexus_board_kit/);assert.match(h.messages[0],/"tutor"/);assert.match(h.messages[0],/Current topic supplied by me: Addition/);assert.match(h.messages[0],/My message: Is 3 plus 2 five\?/);assert.equal(h.calls.some(c=>c.name==='save_nexus_board_kit'),false);assert.equal(h.by('board-chat-message').value,'');await h.click('See replies in chat');assert.equal(h.context.document.root.className.includes('focus-board'),false);}
+});
+test('tutor starters fill the draft without automatically sending or claiming a lesson selection',async()=>{
+ const h=await harness();await h.click('Open board');await h.click('Hint');assert.match(h.by('board-chat-message').value,/one hint, not the answer/);assert.equal(h.messages.length,0);h.by('board-chat-message').value='';await h.by('board-chat-message').parent.onsubmit({preventDefault(){}});assert.equal(h.messages.length,0);
+});
+test('failed handoff retains the learner draft and warns before manual resend',async()=>{
+ const h=await harness({sendError:true});await h.click('Open board');h.by('board-chat-message').value='Please help me count';await h.by('board-chat-message').parent.onsubmit({preventDefault(){}});assert.equal(h.by('board-chat-message').value,'Please help me count');assert.equal(h.by('board-chat-message').disabled,false);const alerts=h.by('board-chat-message').parent.children.filter(el=>el.attrs.role==='alert');assert.match(alerts[0].textContent,/Check chat before sending it again/);assert.equal(h.messages.length,1);
+});
+test('double submission while delivery is pending sends only once',async()=>{
+ let release;const gate=new Promise(resolve=>{release=resolve;});const h=await harness({sendGate:gate});await h.click('Open board');h.by('board-chat-message').value='Teach me';const form=h.by('board-chat-message').parent,pending=form.onsubmit({preventDefault(){}});await form.onsubmit({preventDefault(){}});assert.equal(h.messages.length,1);release();await pending;
 });
