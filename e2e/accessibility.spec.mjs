@@ -41,7 +41,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, '..', 'public');
 const pages = fs.readdirSync(publicDir).filter((file) => file.endsWith('.html'));
-const pageUrl = (file) => file === 'canvas.html' ? '/canvas?id=mobile-test' : `/${file}`;
+const pageUrl = (file) => file === 'canvas.html' ? '/canvas?id=mobile-test' : file === 'forge.html' ? '/forge.html?surface=workbench' : `/${file}`;
 const retiredOperatorPages = new Set([
   'conference-room.html', 'connectors.html', 'memory.html', 'mission-control.html',
   'nexus-canvas.html', 'nexus-space.html', 'queue.html', 'tenants.html', 'thoughtspace.html',
@@ -88,13 +88,23 @@ async function stubBoardOffline(page) {
   });
 }
 
+async function openPageForAudit(page,file){
+  await page.goto(pageUrl(file));
+  // The retired Room URL intentionally forwards through Forge to Messages.
+  // Wait for that real destination before axe or layout measurements run.
+  if(file==='room.html'){
+    await expect(page).toHaveURL(/\/nexus\.html$/);
+    await expect(page.locator('.homespacegrid')).toBeVisible();
+  }
+}
+
 for (const file of pages) {
   test.describe(file, () => {
     test(`${file} has no serious/critical WCAG 2 A/AA violations`, async ({ page }) => {
       await page.emulateMedia({ reducedMotion: 'reduce' });
-      if (retiredOperatorPages.has(file)) await stubCurrentWorkspace(page);
+      if (retiredOperatorPages.has(file) || file==='room.html') await stubCurrentWorkspace(page);
       else await stubRoomAuth(page, 'a11y-test', { owner: file !== 'nexus-login.html' });
-      await page.goto(pageUrl(file));
+      await openPageForAudit(page,file);
       const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
       const seriousOrWorse = results.violations.filter((v) => ['serious', 'critical'].includes(v.impact));
       if (seriousOrWorse.length > 0) {
@@ -110,18 +120,18 @@ for (const file of pages) {
     });
 
     test(`${file} declares a mobile viewport`, async ({ page }) => {
-      if (retiredOperatorPages.has(file)) await stubCurrentWorkspace(page);
+      if (retiredOperatorPages.has(file) || file==='room.html') await stubCurrentWorkspace(page);
       else await stubRoomAuth(page, 'a11y-test', { owner: file !== 'nexus-login.html' });
-      await page.goto(pageUrl(file));
+      await openPageForAudit(page,file);
       const viewport = await page.locator('meta[name="viewport"]').getAttribute('content').catch(() => null);
       expect(viewport, `${file} is missing <meta name="viewport">`).not.toBeNull();
     });
 
     test(`${file} has no horizontal overflow at a 375px mobile width`, async ({ page }) => {
       await page.setViewportSize({ width: 375, height: 667 });
-      if (retiredOperatorPages.has(file)) await stubCurrentWorkspace(page);
+      if (retiredOperatorPages.has(file) || file==='room.html') await stubCurrentWorkspace(page);
       else await stubRoomAuth(page, 'a11y-test', { owner: file !== 'nexus-login.html' });
-      await page.goto(pageUrl(file));
+      await openPageForAudit(page,file);
       const { scrollWidth, clientWidth } = await page.evaluate(() => ({
         scrollWidth: document.documentElement.scrollWidth,
         clientWidth: document.documentElement.clientWidth,
