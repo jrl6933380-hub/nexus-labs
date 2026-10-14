@@ -92,7 +92,7 @@ export async function renderMessages(ctx){
   async function loadProjects(){projectPreviews.clear();try{const response=await fetch('/api/room-history',{credentials:'include',headers:{Accept:'application/json'},cache:'no-store'});const data=await response.json().catch(()=>({}));if(response.ok){projects=Array.isArray(data.projects)?data.projects:[];workbenchUsage=data.workbench || workbenchUsage;}}catch{projects=[];}}
   async function loadLife(){try{const response=await fetch('/api/life',{credentials:'include',headers:{Accept:'application/json'},cache:'no-store'});const data=await response.json().catch(()=>({}));if(response.ok)lifeData={items:Array.isArray(data.items)?data.items:[],pulses:Array.isArray(data.pulses)?data.pulses:[],summary:data.summary || null};}catch{lifeData={items:[],pulses:[],summary:null};}}
   async function loadFeed(){const read=async(url,key)=>{try{const response=await fetch(url,{credentials:'include',headers:{Accept:'application/json'},cache:'no-store'}),data=await response.json().catch(()=>({}));return response.ok&&Array.isArray(data[key])?data[key]:[];}catch{return [];}};[scheduleItems,reminderItems]=await Promise.all([read('/api/planner','items'),read('/api/reminders','items')]);}
-  async function load(message){try{const [messages]=await Promise.all([api(),loadProjects(),loadLife(),loadFeed()]);state=messages;if(ctx.consumeMessagesNew?.())newConversation();else {const destination=ctx.consumeMessagesDestination?.();if(destination==='usage')accountControls('usage');else if(destination==='settings')accountControls();else if(SPACE_BUNDLES.some(bundle=>bundle.id===destination))bundleView(destination);else draw();}if(typeof message==='string' && message.trim())showFeedback(root,message);}catch(error){root.replaceChildren(node('p',friendlyError(error,{action:'load',subject:'Messages'})),button('Try again',()=>load()),button('Explore Nexus',()=>ctx.go('guide'),'guideopen'));}}
+  async function load(message){try{const [messages]=await Promise.all([api(),loadProjects(),loadLife(),loadFeed()]);state=messages;if(ctx.consumeMessagesNew?.())newConversation();else {const destination=ctx.consumeMessagesDestination?.();if(destination==='usage')accountControls('usage');else if(destination==='settings')accountControls();else if(destination==='chats')nexHub();else if(SPACE_BUNDLES.some(bundle=>bundle.id===destination))bundleView(destination);else draw();}if(typeof message==='string' && message.trim())showFeedback(root,message);}catch(error){root.replaceChildren(node('p',friendlyError(error,{action:'load',subject:'Messages'})),button('Try again',()=>load()),button('Explore Nexus',()=>ctx.go('guide'),'guideopen'));}}
   function surface(el,type){const contract=HOME_SURFACE_FEATURES[type];if(contract)for(const [key,value] of Object.entries(contract))el.setAttribute(`data-${key}`,value);return el;}
   function liveCard({type,tone,label,title,copy,visual,meta,run,members}){
     const card=button('',run,`homelivecard ${tone}`);surface(card,type);card.append(node('span',label,'homecardlabel'),visual,node('strong',title));if(members)card.append(node('span',members,'hometeammembers'));card.append(node('small',copy,members?'hometeamoverview':''));const foot=node('span',undefined,'homelivefoot');foot.append(node('span',meta),node('i','›'));card.append(foot);return card;
@@ -118,6 +118,7 @@ export async function renderMessages(ctx){
     return visual;
   }
   function draw(){
+    if(ctx.simpleChatEnabled?.())return nexHub();
     document.body.classList.remove('messages-panel');document.body.classList.add('messages-home');
     root.replaceChildren();
     const threads=ctx.recentThreads(),threadMap=new Map(threads.map(item=>[item.id,item])),main=threadMap.get('nex-main');
@@ -176,7 +177,7 @@ export async function renderMessages(ctx){
     if(recent.length)root.append(button('Clear recent conversations',()=>clearConversations(recent),'messageclear'));
   }
   function nexHub(){if(ctx.customer)return ctx.openConversation({kind:'nex',name:'Nex'});
-    heading(root,'Nex','Your main intelligence and every agent it can bring into the work.',draw);
+    heading(root,'Nex','Your main intelligence and every agent it can bring into the work.',ctx.simpleChatEnabled?.()?()=>ctx.go('chat'):draw);
     const main=ctx.recentThreads().find(item=>item.id==='nex-main');root.append(row({name:'Talk with Nex',meta:'Your main intelligence',preview:main?.title || 'Think, plan, remember, or create.',icon:'N',tone:'nex',when:timeLabel(main?.updated_at),pinned:true,run:()=>ctx.openConversation({kind:'nex',name:'Nex'})}));
     const tools=node('div',undefined,'nexhubactions');tools.append(button('New conversation',newConversation,'homeprimary'),button('Create a team',createGroup,'homesecondary'),button('Create an agent',createSpecialist,'homesecondary'));root.append(tools);
     const search=node('input');search.type='search';search.placeholder='Find an agent';search.setAttribute('aria-label','Find an agent');root.append(search);
