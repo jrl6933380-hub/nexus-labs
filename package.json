@@ -8,7 +8,8 @@
     "test": "node --test",
     "test:deck": "node --test test/workspace-views-delete.test.mjs",
     "test:a11y": "playwright test",
-    "test:nex-trials": "node scripts/run-nex-trials.mjs"
+    "test:nex-trials": "node scripts/run-nex-trials.mjs",
+    "test:launch-offline": "node --import ./scripts/no-network-test-transport.mjs --test test/life.test.mjs test/life-calendar-gestures.test.mjs test/customer-nexus.test.mjs test/room-projects.test.mjs test/room-publish.test.mjs test/publish-readiness.test.mjs test/launch-availability.test.mjs test/team-flow.test.mjs test/team-autonomy.test.mjs test/nexus-controls.test.mjs test/tenant-metering.test.mjs test/workbench-plans.test.mjs test/workspace-views-delete.test.mjs test/model-router.test.mjs test/forge-pod-brain.test.mjs test/nex-conversation-threads.test.mjs test/ordinary-pro-launch.test.mjs test/rest-queue-isolation.test.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",

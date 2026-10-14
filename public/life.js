@@ -1,10 +1,11 @@
+import {enableNotifications,notificationError} from './push-notifications.js';
 import { friendlyError, showFeedback } from './ux.js';
 import {calendarKey,calendarDayItems} from './schedule-calendar.js';
 import {renderLifeCalendar} from './life-calendar.js';
-import {LIFE_FEELINGS,PHOTO_LIMIT,journalWeek} from './life-journal.js';
+import {LIFE_FEELINGS,PHOTO_LIMIT,journalWeek,recapDate} from './life-journal.js';
 import {createLifePhotoPicker} from './life-photo-picker.js';
 const PILLARS=[['work','Work','#278da5'],['sleep','Sleep','#9aa6ad'],['social','Social','#399b89'],['health','Health','#d1a325'],['personal','Personal','#8a85b6']];
-const state={tab:'calendar',date:new Date(),mode:'week',rhythmDate:new Date(),historyDate:calendarKey(new Date()),insight:'time',pillar:'all',sort:'date'};
+const state={tab:'calendar',date:new Date(),mode:'week',rhythmDate:recapDate(),historyDate:calendarKey(new Date()),insight:'time',pillar:'all',sort:'date'};
 const node=(tag,text,cls='')=>{const el=document.createElement(tag);if(text!==undefined)el.textContent=text;el.className=cls;return el;};
 const button=(text,run)=>{const el=node('button',text);el.type='button';el.onclick=run;return el;};
 const field=(label,input)=>{const el=node('label',label);el.append(input);return el;};
@@ -24,11 +25,11 @@ export function lifeWeekItems(items,day){const from=new Date(day);from.setHours(
 function weekStart(day){const start=new Date(day);start.setHours(0,0,0,0);start.setDate(start.getDate()-((start.getDay()+6)%7));return start;}
 export function copyLifeTimes(item,target,source){const start=new Date(item.starts_at),from=weekStart(source),to=weekStart(target);const days=Math.round((new Date(start.getFullYear(),start.getMonth(),start.getDate())-from)/86400000);const next=new Date(to);next.setDate(next.getDate()+days);next.setHours(start.getHours(),start.getMinutes(),0,0);const end=new Date(+next+Date.parse(item.ends_at)-Date.parse(item.starts_at));return {starts_at:next.toISOString(),ends_at:end.toISOString()};}
 export async function renderLife(ctx){
-  const page=node('section',undefined,'nexuslife');let root=page,sheet=null;state.tab='calendar';let data={items:[],profile:{focus:[],goals:''}};let drawId=0,photoObserver=null;const photoCache=new Map();
+  const page=node('section',undefined,'nexuslife');let root=page,sheet=null;state.tab='calendar';let data={items:[],profile:{focus:[],goals:''}};let drawId=0,photoObserver=null,endTimer=null;const photoCache=new Map();
   async function load(message){try{data=await api();await draw();if(typeof message==='string')showFeedback(root,message);}catch(error){if(error.status===402){root.replaceChildren(node('h2','Nexus Life'),node('p','Your own Life calendar, energy check-ins, and weekly reviews are included with Pro and Plus.'),button('Explore Pro and Plus',()=>ctx.openUsage?ctx.openUsage():ctx.go('messages')));}else root.replaceChildren(node('p',friendlyError(error,{action:'load',subject:'Life'})),button('Try again',load));}}
   function heading(){root.replaceChildren();const head=node('div',undefined,'lifehead');head.append(node('div','NEXUS LIFE','lifeeyebrow'),node('h2','Make room for your life.'),node('p','Plan your time. Notice how it feels. Shape what comes next.'));root.append(head);}
   async function draw(){
-    photoObserver?.disconnect();closeSheet();page.dataset.tab=state.tab;const generation=++drawId;heading();
+    clearTimeout(endTimer);photoObserver?.disconnect();closeSheet();page.dataset.tab=state.tab;const generation=++drawId;heading();
     const navigation=node('nav',undefined,'lifehomeviews');navigation.setAttribute('aria-label','Life views');
     const home=button('Today',()=>{state.tab='today';return draw();});home.setAttribute('aria-pressed',String(state.tab==='today'));
     const explore=node('div',undefined,'lifeexplore');
@@ -36,6 +37,8 @@ export async function renderLife(ctx){
     for(const [key,label] of [['calendar','Life calendar'],['reminders','Life reminders'],['insights','Your week']]){const tab=button(label,()=>{state.tab=key;return draw();});tab.setAttribute('aria-pressed',String(state.tab===key));tabs.append(tab);}explore.append(tabs);navigation.append(home,explore);root.append(navigation);
     const actions=node('div',undefined,'lifeactions lifeprimary');const plan=button('✦ Plan my week',()=>ctx.planWithNex ? ctx.planWithNex() : askNex('Help me design my Life week around my priorities. Read Life and Nex Schedule. Ask only the decisions you need, using relevant clickable options. Preview each linked change and get my approval.'));plan.className='uxprimary';actions.append(plan);if(!['calendar','insights'].includes(state.tab))root.append(actions);const more=node('details',undefined,'lifemore');more.append(node('summary','More options'),button('+ Plan an activity',()=>openSheet(()=>form())),button('+ Remember something',()=>form(null,'reminder')),button('My priorities',preferences),button('My day changed',dayChanged),button('Life history',()=>{state.tab='history';return draw();}),button('Weekly reset',()=>{state.tab='reset';return draw();}));root.append(more);
     if(!data.profile.onboarded && state.tab==='today'){const welcome=node('div',undefined,'lifewelcome');welcome.append(node('h3','Start with what matters to you.'),node('p','Choose a few priorities, or jump straight into your day. You can change them anytime.'),button('Choose my priorities',preferences),button('Skip for now',async()=>{await api('profile',{focus:[]});await load();}));root.append(welcome);}
+    const ended=data.items.filter(item=>item.kind==='activity' && item.status!=='cancelled' && (!item.outcome || item.outcome==='unknown') && Date.parse(item.ends_at)<=Date.now() && Date.parse(item.ends_at)>Date.now()-86400000).sort((a,b)=>Date.parse(b.ends_at)-Date.parse(a.ends_at))[0];
+    if(ended && ['today','calendar'].includes(state.tab)){const cue=node('section',undefined,'lifeendcheck');cue.append(node('strong',`How did ${ended.title} go?`),node('p','Its planned time has ended. A check-in records what actually happened.'),button('Quick check-in',()=>openSheet(()=>checkIn(ended),ended)));root.append(cue);}
     if(state.tab==='calendar'){
       const calendar=renderLifeCalendar({items:data.items,state,onNavigate:draw,
         onCreate:range=>openSheet(()=>form(null,'activity',range.day,range.minutes,range.duration)),
@@ -48,6 +51,8 @@ export async function renderLife(ctx){
         }});if(generation!==drawId)return;root.append(calendar);decorateCalendarPhotos(calendar,generation);
     }else if(state.tab==='reminders')reminders();else if(state.tab==='insights')root.append(weekJournal());else if(state.tab==='history')history();else if(state.tab==='reset')weeklyReset();else today();
     root.append(node('p','Life stays private to your account. Linking to Nex is always your choice.','lifehint'));
+    const nextEnd=data.items.filter(item=>item.kind==='activity' && item.status==='planned' && (!item.outcome || item.outcome==='unknown') && Date.parse(item.ends_at)>Date.now()).sort((a,b)=>Date.parse(a.ends_at)-Date.parse(b.ends_at))[0];
+    if(nextEnd)endTimer=setTimeout(()=>{if(page.isConnected && !sheet)draw();},Math.min(2147483647,Date.parse(nextEnd.ends_at)-Date.now()+50));endTimer?.unref?.();
   }
   function closeSheet(){if(!sheet)return;const dialog=sheet;sheet=null;root=page;dialog.close();dialog.remove();}
   function openSheet(render,item){
@@ -59,9 +64,10 @@ export async function renderLife(ctx){
     dialog.addEventListener('close',()=>{if(sheet===dialog){sheet=null;root=page;}dialog.remove();});dialog.addEventListener('click',event=>{if(event.target===dialog){const rect=dialog.getBoundingClientRect();if(event.clientX<rect.left || event.clientX>rect.right || event.clientY<rect.top || event.clientY>rect.bottom)closeSheet();}});
     dialog.showModal();
   }
-  function askNex(prompt){return ctx.ask(`You are helping inside Nexus Life. Use read_life and manage_life for Life-owned records; ordinary Nex Schedule and Reminders are separate until explicitly linked. Never infer actual experience or energy from planned time. ${prompt}`);}
+  function askNex(prompt,label="Help with my Life plan"){return ctx.ask(label,{actionContext:`You are helping inside Nexus Life. Use read_life and manage_life for Life-owned records; ordinary Nex Schedule and Reminders are separate until explicitly linked. Never infer actual experience or energy from planned time. ${prompt}`});}
   function row(item){
     const card=node('article',undefined,'lifeactivity');card.style.setProperty('--pillar',PILLARS.find(([key])=>key===item.pillar)?.[2]);
+    if(item.kind==='activity' && (!item.outcome || item.outcome==='unknown') && Date.parse(item.ends_at)<=Date.now())card.append(node('p','This planned block has ended. How did it go?','lifehint'));
     card.append(node('small',`${PILLARS.find(([key])=>key===item.pillar)?.[1]} · ${item.link_missing ? 'Nex link is missing' : item.link ? 'Linked to Nex' : 'Life only'}`),node('h3',item.title));
     card.append(node('p',item.starts_at ? `${clock(item.starts_at)} – ${clock(item.ends_at)}` : item.due_date || 'No date'));
     const experience=node('p',lifeExperience(item),'lifeexperience');experience.setAttribute('role','status');card.append(experience);
@@ -101,15 +107,17 @@ export async function renderLife(ctx){
     root.append(node('p','Small things to remember, with a home in your Life plan. Dates are optional.'));
     const active=data.items.filter(item=>item.kind==='reminder' && item.status!=='done');if(!active.length)root.append(node('p','Nothing waiting. Add something you want to remember.','lifeempty'));active.forEach(item=>root.append(row(item)));
     const done=data.items.filter(item=>item.kind==='reminder' && item.status==='done');if(done.length){const details=node('details');details.append(node('summary',`Completed · ${done.length}`));done.forEach(item=>details.append(row(item)));root.append(details);}
-    root.append(node('p','Timed reminders can reach your phone while Nexus is closed. Enable phone notifications in Messages first.','lifehint'));
+    root.append(node('p','Timed reminders can reach your phone while Nexus is closed. Turn on alerts for this device.','lifehint'),button('Enable notifications',async()=>{try{await enableNotifications();showFeedback(root,'Notifications enabled.');}catch(error){showFeedback(root,notificationError(error));}}));
   }
   async function complete(item){try{await api('check_in',{id:item.id,status:item.status==='done' ? 'planned' : 'done'});await load();}catch(error){errorBox(error);}}
   function rhythm(day=state.rhythmDate){
     const week=journalWeek(data.items,day),host=node('section',undefined,'liferhythm');
     host.append(node('h3','Intent & experience'),node('p','Planned time and confirmed hours, side by side.'));
+    const planned=week.pillars.reduce((sum,pillar)=>sum+pillar.planned,0),largest=[...week.pillars].sort((a,b)=>b.planned-a.planned)[0];
+    if(planned>0)host.append(node('p',`Your plan reserves ${planned.toFixed(1)} hours this week. ${PILLARS.find(([key])=>key===largest.pillar)?.[1]} has the largest share (${largest.planned.toFixed(1)} hours). This describes your plan; check-ins show your experience.`,'lifeplaninsight'));
     const legend=node('div',undefined,'lifebarlegend');legend.append(node('span','Planned'),node('span','Confirmed'));host.append(legend);
     const maximum=Math.max(1,...week.pillars.flatMap(bucket=>[bucket.planned,bucket.actual]));
-    for(const bucket of week.pillars){
+    for(const bucket of week.pillars.filter(bucket=>bucket.ratings>0)){
       const [,label,color]=PILLARS.find(([key])=>key===bucket.pillar),card=node('div',undefined,'lifepillarrow');card.style.setProperty('--pillar',color);
       const title=node('div',undefined,'lifepillarheading');title.append(node('strong',label),node('span',`${bucket.planned.toFixed(1)}h / ${bucket.actual.toFixed(1)}h`));card.append(title);
       for(const [label,hours,cls] of [['Planned',bucket.planned,'lifechart'],['Confirmed',bucket.actual,'lifechart lifeactualchart']]){
@@ -118,7 +126,7 @@ export async function renderLife(ctx){
       host.append(card);
     }
     const explanation=node('details',undefined,'lifeinsightmethod');explanation.append(node('summary','About these numbers'),node('p','Confirmed hours use actual times you recorded after an activity. Missing check-ins and times are unknown; they are never filled from your plan. Energy is based only on your ratings.'));const end=new Date(week.from);end.setDate(end.getDate()+7);const daily=(data.pulses || []).filter(pulse=>pulse.date>=calendarKey(week.from) && pulse.date<calendarKey(end) && pulse.energy!=null);explanation.append(node('p',daily.length ? `Daily energy: ${(daily.reduce((sum,pulse)=>sum+pulse.energy,0)/daily.length).toFixed(1)}/5 across ${daily.length} reported days. Activity ratings are separate.` : 'No daily energy ratings this week. Add one from Today.'));host.append(explanation);
-    host.append(button('Explore my week with Nex',()=>askNex(`Read my Life records for the week containing ${calendarKey(day)}. Compare planned time with confirmed experience and distinguish missing data. Use only my supplied energy ratings. Offer clickable choices for next week.`)));return host;
+    host.append(button('Explore my week with Nex',()=>askNex(`Read my Life records for the week containing ${calendarKey(day)}. Compare planned time with confirmed experience and distinguish missing data. Use only my supplied energy ratings. Offer clickable choices for next week.`,'Explore my week')));return host;
   }
 
   function dailyPulse(){
@@ -220,10 +228,11 @@ export async function renderLife(ctx){
     orb.append(node('small',energyView ? 'REPORTED ENERGY' : 'CHECKED IN'),node('strong',energyView ? week.energy===null ? '—' : week.energy.toFixed(1) : String(week.confirmed)),node('span',energyView ? 'out of 5' : 'activities'));
     const story=node('div',undefined,'lifeweekstory');story.append(node('span','YOUR WEEK, IN FOCUS','lifeeyebrow'),node('h3',state.insight==='energy' ? 'Notice what restores you.' : state.insight==='reflection' ? 'Keep what mattered.' : state.insight==='media' ? 'Your week in moments.' : 'Time for what matters.'));
     story.append(node('p',`${week.activities.length} planned · ${week.confirmed} confirmed · ${week.unknown} awaiting a check-in.`));
-    story.append(node('p',week.rated ? `${week.rated} energy ratings from your check-ins.` : 'Your insights grow with each check-in.'));hero.append(orb,story);host.append(hero);
+    story.append(node('p',week.rated ? `${week.rated} energy ratings from your check-ins.` : 'Your insights grow with each check-in.'));hero.append(orb,story);if(['time','energy'].includes(state.insight))host.append(hero);
     if(state.insight==='time')host.append(rhythm(state.rhythmDate));
     else if(state.insight==='energy'){
-      for(const bucket of week.pillars){const pillar=PILLARS.find(([key])=>key===bucket.pillar),card=node('article',undefined,'lifepillarrow');card.style.setProperty('--pillar',pillar[2]);card.append(node('strong',pillar[1]),node('p',bucket.energy===null ? 'No activity ratings recorded.' : `${bucket.energy.toFixed(1)}/5 · ${bucket.ratings} ratings`));host.append(card);}
+      for(const bucket of week.pillars.filter(bucket=>bucket.ratings>0)){const pillar=PILLARS.find(([key])=>key===bucket.pillar),card=node('article',undefined,'lifepillarrow');card.style.setProperty('--pillar',pillar[2]);card.append(node('strong',pillar[1]),node('p',bucket.energy===null ? 'No activity ratings recorded.' : `${bucket.energy.toFixed(1)}/5 · ${bucket.ratings} ratings`));host.append(card);}
+      if(!week.rated)host.append(node('p','No energy check-ins yet. Rate how an activity felt to begin.','lifeempty'));
       const rated=week.activities.filter(item=>item.energy!=null).sort((a,b)=>b.energy-a.energy);for(const item of rated)host.append(row(item));
     }else{
       const controls=node('div',undefined,'lifeactions'),filter=select([['all','All pillars'],...PILLARS.map(([key,label])=>[key,label])],state.pillar),sort=select([['date','Newest first'],['energy','Highest energy']],state.sort);
@@ -233,7 +242,7 @@ export async function renderLife(ctx){
       if(!records.length)host.append(node('p',state.insight==='reflection' ? 'No reflections here yet. Open an activity and record what stood out.' : 'No photos here yet. Add a photo to an activity to keep the moment.','lifeempty'));
       const grid=node('div',undefined,'lifemomentgrid');for(const item of records){const card=node('article',undefined,'lifemoment');card.style.setProperty('--pillar',PILLARS.find(([key])=>key===item.pillar)?.[2]);card.append(node('small',new Date(item.starts_at).toLocaleDateString('en-US',{month:'short',day:'numeric'})),node('h3',item.title));if(item.feelings?.length)card.append(node('p',item.feelings.join(' · ')));if(state.insight==='reflection')card.append(node('p',item.reflection,'lifereflection'));else card.append(photoPreview(item));card.append(button('Open activity',()=>checkIn(item)),button('Photos',()=>photoScreen(item)));grid.append(card);}host.append(grid);
     }
-    if(state.insight!=='time')host.append(button('Reflect on my week with Vida',()=>askNex(`Help me reflect on the week containing ${calendarKey(state.rhythmDate)}. Read Life records, use only supplied feelings, reflections and energy, distinguish missing data from failure, and offer one optional change for next week.`)));
+    if(state.insight!=='time')host.append(button('Reflect on my week with Vida',()=>askNex(`Help me reflect on the week containing ${calendarKey(state.rhythmDate)}. Read Life records, use only supplied feelings, reflections and energy, distinguish missing data from failure, and offer one optional change for next week.`,'Reflect on my week')));
     return host;
   }
   async function readPhotos(id){const response=await fetch(`/api/life?photos=${encodeURIComponent(id)}`,{credentials:'include'});const result=await response.json();if(!response.ok)throw new Error(result.error || 'Could not load photos');return result.photos;}

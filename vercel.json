@@ -103,6 +103,10 @@
       "destination": "/api/board"
     },
     {
+      "source": "/api/availability",
+      "destination": "/api/board"
+    },
+    {
       "source": "/api/life",
       "destination": "/api/board"
     },

@@ -29,7 +29,7 @@ export function renderLifeCalendar({items,state,onCreate,onOpen,onChange,onNavig
   function navigate(offset){captureScroll();state.date=new Date(+current);state.date.setDate(state.date.getDate()+offset);state.scrollLeft=0;onNavigate();}
   toolbar.append(button('‹',()=>navigate(-days.length),'Previous week'),title,button('›',()=>navigate(days.length),'Next week'),button('Today',()=>{state.date=new Date();state.scrollTop=null;state.scrollLeft=null;onNavigate();}));root.append(toolbar);
   const viewport=node('div','lc-viewport'),canvas=node('div','lc-canvas'),heads=node('div','lc-days'),grid=node('div','lc-grid');
-  const status=node('p','lc-status','Hold empty time to select, then drag to adjust. Tap Add details when ready.');status.setAttribute('role','status');status.setAttribute('aria-live','polite');
+  const status=node('p','lc-status','Hold empty time to select, then drag to adjust. Swipe sideways for more days. Tap Add details when ready.');status.setAttribute('role','status');status.setAttribute('aria-live','polite');
   const gutter=node('div','lc-hourlabels');for(let hour=0;hour<24;hour++)gutter.append(node('span','',`${hour%12 || 12} ${hour<12 ? 'AM' : 'PM'}`));
   heads.append(node('div','lc-corner','TIME'));grid.append(gutter);
   const columns=[],today=calendarKey(new Date());let saving=false;
@@ -144,6 +144,7 @@ export function renderLifeCalendar({items,state,onCreate,onOpen,onChange,onNavig
     block.dataset.itemId=item.id;block.dataset.pillar=item.pillar;if(item.photo_count && entry.end-entry.start>=45)block.dataset.photo='true';block.style.setProperty('--lc-color',colorFor?.(item) || colors[item.pillar] || colors.personal);
     const position=()=>{block.style.top=`${entry.start/60*LIFE_HOUR_HEIGHT}px`;block.style.height=`${Math.max(24,(entry.end-entry.start)/60*LIFE_HOUR_HEIGHT)}px`;block.style.left=`calc(${entry.column/entry.columns*100}% + 2px)`;block.style.width=`calc(${100/entry.columns}% - 4px)`;block.style.transform='';};position();
     const text=node('div','lc-blocktext');text.append(node('small','',`${clock(item.starts_at)} – ${clock(item.ends_at)}`),node('strong','',item.reminder_id ? 'Reminder · '+item.title : item.title));
+    if(item.source==='life')text.append(node('small','lc-origin','From Life'));
     const detail=node('div','lc-blockmeta');detail.append(node('span','',item.person ? '♧' : item.place ? '⌖' : ''),node('span','',item.energy==null ? '' : `${item.energy}/5 ⚡`));
     const edge=node('span','lc-resize');edge.setAttribute('aria-hidden','true');edge.append(node('i',''));block.append(text,detail,edge);column.append(block);if(items.some(marker=>marker.calendar_marker && Date.parse(marker.starts_at)>=Date.parse(item.starts_at) && Date.parse(marker.starts_at)<Date.parse(item.ends_at || new Date(Date.parse(item.starts_at)+3600000).toISOString())))block.classList.add('lc-withmarker');
     let gesture=null,keyboard=null;

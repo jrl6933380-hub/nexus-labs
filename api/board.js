@@ -1,3 +1,4 @@
+import {podAvailability} from '../lib/podAvailability.js';
 import {calendarWithReminders} from '../lib/calendarReminders.js';
 import { lifeStore } from '../lib/life.js';
 import { reminderStore } from '../lib/reminders.js';
@@ -815,6 +816,7 @@ export default async function handler(req, res) {
     if (path.startsWith('/api/hyperfocus')) return await handleHyperfocus(req, res);
     if (path.startsWith('/api/agentlog')) return await handleAgentLog(req, res);
     if (path.startsWith('/api/vault')) return await handleVault(req, res);
+    if(path==='/api/availability'){res.setHeader('Cache-Control','no-store');return req.method==='GET'?res.status(200).json({availability:podAvailability()}):res.status(405).json({error:'Method Not Allowed'});}
     if (path.startsWith('/api/life')) return await handleLife(req,res);
     if (path.startsWith('/api/reminders')) return await handleReminders(req, res);
     if (path.startsWith('/api/push-deliver')) return await handlePushDelivery(req, res);

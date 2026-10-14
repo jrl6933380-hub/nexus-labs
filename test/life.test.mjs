@@ -197,12 +197,12 @@ test('daily pulse, history, guided day changes, and relevant suggestions work wi
   globalThis.document={createElement:element};globalThis.requestAnimationFrame=callback=>callback();
   globalThis.fetch=async(url,options)=>{let result;if(!options?.method)result=await life.overview('room:a');else{const {action,...input}=JSON.parse(options.body);result=await life[action==='check_in' ? 'checkIn' : action](input,'room:a');}return {ok:true,json:async()=>result};};
   try{
-    const root=await renderLifeRaw({ask:prompt=>prompts.push(prompt)});assert.ok(all(root).find(el=>el.className==='lifecalendar'));assert.ok(!all(root).find(el=>el.textContent==='Month'));await all(root).find(el=>el.textContent==='Today').onclick();await all(root).find(el=>el.textContent==='2 · Low').onclick();
+    const root=await renderLifeRaw({ask:(label,options)=>prompts.push({label,...options})});assert.ok(all(root).find(el=>el.className==='lifecalendar'));assert.ok(!all(root).find(el=>el.textContent==='Month'));await all(root).find(el=>el.textContent==='Today').onclick();await all(root).find(el=>el.textContent==='2 · Low').onclick();
     assert.ok(all(root).find(el=>el.textContent==='Today: 2/5 · Low'));assert.ok(all(root).find(el=>el.textContent==='Plan a short pause'));
     const pulse=all(root).find(el=>el.className==='lifepulse');all(pulse).find(el=>el.tagName==='textarea').value='Need a quiet afternoon';await all(pulse).find(el=>el.textContent==='Save note').onclick();
     await all(root).find(el=>el.textContent==='Life history').onclick();assert.ok(all(root).find(el=>el.textContent?.includes('Need a quiet afternoon')));
     assert.equal((await life.overview('room:a')).pulses[0].date,day);
-    all(root).find(el=>el.textContent==='My day changed').onclick();all(root).find(el=>el.textContent==='I am running late').onclick();assert.match(prompts[0],/Ask how late/);assert.match(prompts[0],/Protect fixed commitments/);assert.equal((await life.overview('room:a')).items.length,0);
+    all(root).find(el=>el.textContent==='My day changed').onclick();all(root).find(el=>el.textContent==='I am running late').onclick();assert.match(prompts[0].actionContext,/Ask how late/);assert.match(prompts[0].actionContext,/Protect fixed commitments/);assert.equal((await life.overview('room:a')).items.length,0);
   }finally{globalThis.document=oldDocument;globalThis.fetch=oldFetch;globalThis.requestAnimationFrame=oldFrame;}
 });
 test('weekly reset UI edits each activity, reviews conflicts, and only copies after confirmation',async()=>{
@@ -237,12 +237,12 @@ test('Life opens one calendar and retains Today pulse and history as secondary v
   const oldDocument=globalThis.document,oldFetch=globalThis.fetch;const prompts=[];
   globalThis.document={createElement:element};globalThis.fetch=async()=>({ok:true,json:async()=>({items:[],pulses:[],profile:{onboarded:true,focus:[]}})});
   try{
-    const root=await renderLifeRaw({ask:prompt=>prompts.push(prompt)});assert.ok(all(root).find(el=>el.className==='lifecalendar'));assert.ok(!all(root).find(el=>el.textContent==='Month'));await all(root).find(el=>el.textContent==='Today').onclick();
+    const root=await renderLifeRaw({ask:(label,options)=>prompts.push({label,...options})});assert.ok(all(root).find(el=>el.className==='lifecalendar'));assert.ok(!all(root).find(el=>el.textContent==='Month'));await all(root).find(el=>el.textContent==='Today').onclick();
     let explore=all(root).find(el=>el.className==='lifeexplore');assert.equal(explore.tagName,'div');
     assert.equal(all(explore).filter(el=>el.tagName==='button').length,3);
     assert.ok(all(root).find(el=>el.className==='lifepulse'));assert.ok(all(root).find(el=>el.className==='lifeideas' && !el.open));
     const primary=all(root).find(el=>el.className==='lifeactions lifeprimary');assert.deepEqual(primary.children.map(el=>el.textContent),['✦ Plan my week']);
-    primary.children[0].onclick();assert.match(prompts[0],/Read Life and Nex Schedule/);
+    primary.children[0].onclick();assert.match(prompts[0].actionContext,/Read Life and Nex Schedule/);
     await all(root).find(el=>el.textContent==='Life history').onclick();
     explore=all(root).find(el=>el.className==='lifeexplore');assert.equal(explore.tagName,'div');assert.ok(all(root).find(el=>el.textContent==='Your Life history'));
     await all(root).find(el=>el.textContent==='Today').onclick();assert.equal(all(root).find(el=>el.className==='lifeexplore').tagName,'div');assert.ok(all(root).find(el=>el.className==='lifepulse'));
@@ -288,10 +288,10 @@ test('weekly Life views connect saved feelings and reflections to their activity
   globalThis.document={createElement:element};
   globalThis.fetch=async()=>({ok:true,json:async()=>({items:[{...activity,id:'walk',starts_at:start.toISOString(),ends_at:new Date(+start+3600000).toISOString(),outcome:'happened',energy:4,feelings:['Calm'],reflection:'An afternoon by the lake'}],profile:{onboarded:true,focus:[]}})});
   try{
-    const root=await renderLife({ask:prompt=>prompts.push(prompt)});await all(root).find(el=>el.textContent==='Your week').onclick();await all(root).find(el=>el.textContent==='This week').onclick();
+    const root=await renderLife({ask:(label,options)=>prompts.push({label,...options})});await all(root).find(el=>el.textContent==='Your week').onclick();await all(root).find(el=>el.textContent==='This week').onclick();
     await all(root).find(el=>el.textContent==='Reflections').onclick();assert.ok(all(root).find(el=>el.textContent==='An afternoon by the lake'));assert.ok(all(root).find(el=>el.textContent==='Calm'));
     await all(root).find(el=>el.textContent==='Energy').onclick();assert.ok(all(root).find(el=>el.textContent==='4.0'));assert.equal(prompts.length,0);
-    await all(root).find(el=>el.textContent==='Reflect on my week with Vida').onclick();assert.match(prompts[0],/supplied feelings/);
+    await all(root).find(el=>el.textContent==='Reflect on my week with Vida').onclick();assert.equal(prompts[0].label,'Reflect on my week');assert.doesNotMatch(prompts[0].label,/supplied feelings/);assert.match(prompts[0].actionContext,/supplied feelings/);
   }finally{globalThis.document=oldDocument;globalThis.fetch=oldFetch;}
 });
 
@@ -315,4 +315,18 @@ test('legacy Life reminders can be edited without inventing a zone and gain the 
   await save(life,{id:old.id,notes:'Keep this note'},user);
   const corrected=await save(life,{id:old.id,timezone:'America/Chicago'},user,'linked');
   assert.equal(corrected.timezone,'America/Chicago');assert.equal(corrected.due_date,'2026-10-13');
+});
+
+test('Calendar edits hydrate linked Life plans without converting plans to actual experience; deletion retains the Life record',async()=>{
+ const {life,planner}=fixture();const linked=await save(life,activity,'room:a','linked');
+ await planner.updatePlannerItem({id:linked.link.id,title:'Evening walk',starts_at:'2026-10-05T18:00:00Z',ends_at:'2026-10-05T19:00:00Z',status:'done'},'room:a');
+ let result=(await life.overview('room:a')).items[0];assert.equal(result.title,'Evening walk');assert.equal(result.starts_at,'2026-10-05T18:00:00.000Z');assert.equal(result.outcome,'unknown');assert.equal(result.actual_starts_at,null);
+ await planner.deletePlannerItem(linked.link.id,'room:a');result=(await life.overview('room:a')).items[0];assert.equal(result.link_missing,true);assert.equal(result.id,linked.id);assert.equal((await life.overview('room:b')).items.length,0);
+});
+test('ordinary Pro access and downgrade preserve ordinary Calendar items and Life data',async()=>{
+ const {life,planner}=fixture();await planner.createPlannerItem({title:'Ordinary appointment',starts_at:'2026-10-05T10:00:00Z',source:'nex_chat'},'room:alice');await save(life,activity,'room:alice','linked');
+ let plan='hosted';const handler=createLifeHandler({getOwner:async()=>null,getUser:async()=> 'alice',resolvePlan:async()=>plan,store:life});
+ const response=()=>({setHeader(){},status(code){this.code=code;return this;},json(body){this.body=body;return this;}});
+ let result=response();await handler({method:'GET'},result);assert.equal(result.code,200);assert.equal(result.body.items.length,1);
+ plan='free';result=response();await handler({method:'GET'},result);assert.equal(result.code,402);assert.equal((await planner.listPlannerItems({},'room:alice')).length,2);assert.equal((await life.overview('room:alice')).items.length,1);
 });

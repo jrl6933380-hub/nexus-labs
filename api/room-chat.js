@@ -442,7 +442,7 @@ export default async function handler(req, res) {
         const previous=resolvedProjectId?await getLatestBuildByProject(username,resolvedProjectId):null;
         return saveBuild(username, {
         sourceConversation:previous?.sourceConversation,
-        label: projectDocumentTitle(html,customerMessage),
+        label: projectDocumentTitle(html),
         requestMessage: customerMessage,
         html,
         projectId: resolvedProjectId,

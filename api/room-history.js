@@ -11,7 +11,7 @@
 
 import {withProjectSaveLock} from '../lib/projectSaveLock.js';
 import {projectDocumentTitle} from '../lib/projectName.js';
-import { listBuilds, getBuild, getLatestBuildByProject, listProjects, saveBuild, deleteProject } from '../lib/roomHistory.js';
+import { listBuilds, getBuild, getLatestBuildByProject, listProjects, saveBuild, deleteProject, renameProject } from '../lib/roomHistory.js';
 import { getRequestUser, getUserPlan, isOperatorUser, isPaidPlan, PLANS } from '../lib/roomAuth.js';
 import { workbenchProjectAllowance } from '../lib/workbenchPlans.js';
 import { getLiveSite, removeLiveSite, takeSiteOffline, listLiveSites } from '../lib/roomLiveSites.js';
@@ -19,7 +19,7 @@ import { deleteStaticSite } from '../lib/vercel.js';
 import { getOrCreateAnonId } from '../lib/anonSession.js';
 
 // Dependencies are injectable so ownership is exercised through the real handler.
-export function createHistoryHandler({ resolveUser = getRequestUser, readBuild = getBuild, readLatestProject = getLatestBuildByProject, readList = listBuilds, readProjects = listProjects, writeBuild = saveBuild, removeProject = deleteProject, freeLiveSite = takeSiteOffline, readLiveSites = listLiveSites, readLiveSite = getLiveSite, deleteSite = deleteStaticSite, resolvePlan = getUserPlan, projectLock = async (_user,task)=>task() } = {}) {
+export function createHistoryHandler({ resolveUser = getRequestUser, readBuild = getBuild, readLatestProject = getLatestBuildByProject, readList = listBuilds, readProjects = listProjects, writeBuild = saveBuild, rename = renameProject, removeProject = deleteProject, freeLiveSite = takeSiteOffline, readLiveSites = listLiveSites, readLiveSite = getLiveSite, deleteSite = deleteStaticSite, resolvePlan = getUserPlan, projectLock = async (_user,task)=>task() } = {}) {
 return async function handler(req, res) {
   res.setHeader('Cache-Control', 'private, no-store');
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -33,6 +33,7 @@ return async function handler(req, res) {
 
     if (req.method === 'POST') return await projectLock(username,async()=>{
       const body = req.body && typeof req.body === 'object' ? req.body : {};
+      if(body.action==='rename_project'){return res.status(200).json(await rename(username,String(body.projectId || ''),body.name));}
       if(body.action==='save_project_draft'){
         const projectId=String(body.projectId || ''),html=body.html;
         if(!/^[a-zA-Z0-9_-]{1,120}$/.test(projectId))return res.status(400).json({error:'Fix projectId: use 1–120 letters, digits, underscores or hyphens, without spaces or paths.'});

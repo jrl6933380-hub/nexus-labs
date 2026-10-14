@@ -149,3 +149,8 @@ test('project name is slugged from username and project id, lowercase and hyphen
   assert.match(capturedName, /^[a-z0-9-]+$/);
   assert.match(capturedName, /^room-alice-/);
 });
+
+test('demo contact details stop a paid publish before any deployment or slot recording',async()=>{
+ let calls=0;const res=response();await make({readBuild:async()=>({html:'<p>Call (515) 555-0123 or hello@example.com</p>',projectId:'p1'}),publish:async()=>{calls++;},recordSite:async()=>{calls++;}})(request(),res);
+ assert.equal(res.code,422);assert.equal(res.body.code,'DEMO_CONTACT_DETAILS');assert.equal(calls,0);
+});

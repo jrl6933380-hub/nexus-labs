@@ -1,3 +1,5 @@
+export function recapDate(now=new Date()){const day=new Date(now);if(day.getDay()===1)day.setDate(day.getDate()-7);return day;}
+
 export const LIFE_FEELINGS=['Excited','Calm','Inspired','Hopeful','Proud','Connected','Grateful','Energized','Relieved','Tired','Stressed','Sad','Overwhelmed'];
 export const PHOTO_LIMIT=3;
 export const PHOTO_BYTES=200000;

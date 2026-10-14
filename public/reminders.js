@@ -1,3 +1,4 @@
+import {enableNotifications,notificationError} from './push-notifications.js';
 import {openCalendarAt} from './calendar-navigation.js';
 let pendingReminder=null;
 export function openReminderDetail(ctx,id){pendingReminder=id;return ctx.go('reminders');}
@@ -51,7 +52,7 @@ export async function renderReminders(ctx){
       if(item.status!=='done' && !item.source_calendar_id)options.append(button(item.scheduled_at ? 'Change reserved time' : 'Find time for this',()=>schedule(item)));
       content.append(actions);row.append(done,content);root.append(row);
     }
-    root.append(node('p','♧ Timed reminders can reach your phone while Nexus is closed. Enable phone notifications in Messages.','reminderhint'),nex,capture);
+    root.append(node('p','♧ Timed reminders can reach your phone while Nexus is closed. Turn on alerts for this device.','reminderhint'),button('Enable notifications',async()=>{try{await enableNotifications();showFeedback(root,'Notifications enabled.');}catch(error){showFeedback(root,notificationError(error));}}),nex,capture);
   }
   function snooze(item){header();const options=node('div',undefined,'reminderform'),status=node('p');status.setAttribute('role','status');root.append(node('h3',`Snooze ${item.title}`),options,status);for(const [label,minutes] of [['15 minutes',15],['1 hour',60],['Tomorrow',1440]])options.append(button(label,async()=>{try{const due=new Date(Date.now()+minutes*60000);await api('update',{id:item.id,due_date:calendarKey(due),due_at:due.toISOString()});await load('Reminder snoozed.');}catch(error){status.textContent=friendlyError(error,{subject:'snoozing reminder'});}}));options.append(button('Back',draw));}
   function form(item=null,notesOnly=false){

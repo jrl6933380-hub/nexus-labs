@@ -42,7 +42,7 @@ export async function draftNexusExample({input,openMain},text){
   const existing=input.value.trim();
   await openMain();
   input.value=existing && existing!==text?`${existing}\n\n${text}`:text;
-  input.focus();
+  // Search remains keyboard reachable without stealing focus on entry.
 }
 export function renderExampleButtons(examples,ctx){
   const host=node('div',undefined,'guideexamples');
