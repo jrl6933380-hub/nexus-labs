@@ -1056,7 +1056,7 @@ function conversationGreeting(){
       {label:'What can this team do?',run:()=>{el('input').value='What can this team help me accomplish?';submit();}},
     ]));return;
   }
-  if(simpleChat.enabled){bubble('a','<p>What would you like to work on?</p>');return;}
+  if(simpleChat.enabled){bubble('a','<p>What would you like to work on?</p>');thread.append(simpleChat.starters());return;}
   greet();
 }
 function renderResponseActions(data,target=thread,onPick=label=>{el('input').value=label;submit();}){
@@ -1203,6 +1203,7 @@ async function clearRecentConversationThreads(keepThreadIds=[]){
   drawRecents();
   return {...data,deleted:removed.size};
 }
+function startSimpleConversation(){messagesStartNew=false;messagesDestination=null;return openMessagesConversation({kind:'nex',name:'Nex'},true);}
 async function resumeSimpleChat(){
   if(currentView==='chat' && activeConversation)return showView('chat');
   let saved;try{saved=JSON.parse(localStorage.getItem('nexus:simple-chat:last-conversation:v1')||'null');}catch{}
@@ -1408,6 +1409,7 @@ function openNexScheduleComposer() {
   });
 }
 el('newTop').onclick = () => {
+  if(simpleChat?.enabled)return simpleChat.newConversation();
   if(currentView==='chat'){
     document.getElementById('conversationMenu')?.remove();
     const card=document.createElement('section');card.id='conversationMenu';card.className='approvalcard conversationmenu';
@@ -1556,12 +1558,12 @@ composerMenu=mountComposerMenu({buttons:[el('composerPlus'),el('dockPlus')],navi
 }});
 
 window.addEventListener('pagehide',()=>{rememberWorkspaceScroll();persistWorkspaceState();});
-simpleChat=createSimpleChat({header:document.querySelector('.top'),host:thread,key:'nexus:simple-view:owner',ctx,openChat:()=>currentView==='chat'?Promise.resolve():resumeSimpleChat(),startNew:()=>openMessagesConversation({kind:'nex',name:'Nex'},true),openWorkspace:()=>showView('messages'),isChat:()=>currentView==='chat'});
+simpleChat=createSimpleChat({header:document.querySelector('.top'),host:thread,key:'nexus:simple-view:owner',ctx,openChat:()=>currentView==='chat'?Promise.resolve():resumeSimpleChat(),startNew:startSimpleConversation,openWorkspace:()=>showView('messages'),isChat:()=>currentView==='chat'});
 const requestedView = new URLSearchParams(location.search).get('view');
 const savedWorkspace = readWorkspaceState();
 registerNexusApp();
 await loadThreads();
-if(simpleChat.enabled && (!requestedView||['chat','messages'].includes(requestedView)))await openMessagesConversation({kind:'nex',name:'Nex'},true);
+if(simpleChat.enabled && (!requestedView||['chat','messages'].includes(requestedView)))await startSimpleConversation();
 else if(requestedView==='chat' && savedWorkspace?.conversation)await openMessagesConversation(savedWorkspace.conversation,false,savedWorkspace.thread_id);
 else if(!requestedView && savedWorkspace?.view==='chat' && savedWorkspace.conversation)await openMessagesConversation(savedWorkspace.conversation,false,savedWorkspace.thread_id);
 else await showView(requestedView && VIEWS[requestedView] ? requestedView : savedWorkspace?.view && VIEWS[savedWorkspace.view] ? savedWorkspace.view : 'messages');

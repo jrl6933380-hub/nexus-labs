@@ -4,7 +4,10 @@ Settings → Nexus view chooses the presentation on this device. Existing worksp
 screens remain available. Headers and menus preserve iPhone safe-area insets.
 
 Entering Simple chat or opening its main chat page starts a fresh Nex conversation.
-The menu offers New conversation and Recent conversations. Opening a recent thread
+The header and side menu use the same New conversation action, including from
+a team or team-creation screen. Fresh chats offer Calendar, Reminders, Projects,
+and Life buttons that open their interactive cards directly. The menu also lists
+Recent conversations. Opening a recent thread
 is explicit; visiting a workspace screen and returning to Conversation keeps that
 active thread. Reloading the chat starts fresh again. Empty conversations are not
 saved as recent chats. Owner threads use the existing authenticated chat store.

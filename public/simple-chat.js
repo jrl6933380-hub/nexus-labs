@@ -28,7 +28,8 @@ export function createSimpleChat({header,host,storage=localStorage,key,ctx,openC
  const recents=make('section',undefined,'simple-recent-chats');menu.append(recents);document.body.append(menu);
  async function recentMenu(){recents.replaceChildren(make('h3','Recent conversations'));try{await ctx.loadRecentConversations?.();const items=ctx.recentThreads?.()||[];for(const item of items.filter(item=>item.message_count!==0).slice(0,12)){recents.append(action(item.title||'Conversation',()=>{menu.close();ctx.openThread(item);}));}if(!items.length)recents.append(make('p','Your conversations will appear here.','simple-card-note'));}catch{recents.append(make('p','Recent conversations could not load.','simple-card-note'));}}
  menu.addEventListener('click',event=>{if(event.target===menu){const box=menu.getBoundingClientRect();if(event.clientX<box.left||event.clientX>box.right||event.clientY<box.top||event.clientY>box.bottom)menu.close();}});
- function sync(){document.body.classList.toggle('simple-chat',preference==='simple');menu.close();}
+ const newButton=header.querySelector('#newTop,#new'),originalNewLabel=newButton?.getAttribute('aria-label');
+ function sync(){if(newButton)newButton.setAttribute('aria-label',preference==='simple'?'New conversation':originalNewLabel||'New');document.body.classList.toggle('simple-chat',preference==='simple');menu.close();}
  function settings(){
   const form=make('form',undefined,'simple-view-settings');form.append(make('h3','Nexus view'));
   const label=make('label','Choose your view on this device');const select=make('select');
@@ -38,6 +39,8 @@ export function createSimpleChat({header,host,storage=localStorage,key,ctx,openC
   return form;
  }
  ctx.chatViewSettings=settings;
+ function starters(){const nav=make('nav',undefined,'simple-chat-starters');nav.setAttribute('aria-label','Start with your Nexus');for(const [label,id] of spaces.slice(0,4))nav.append(action(label,()=>surface(id)));return nav;}
+ ctx.chatStarterActions=starters;
  async function surface(id,{target=host}={}){
   if(preference!=='simple')return;
   if(!isChat()){await openChat();target=host;}
@@ -70,5 +73,5 @@ export function createSimpleChat({header,host,storage=localStorage,key,ctx,openC
    select.onchange=loadProject;await loadProject();
   }catch(error){if(card.isConnected){content.replaceChildren(make('p',error.message,'simple-card-note'),action('Try again',()=>surface(id,{target})));}}
  }
- sync();return {get enabled(){return preference==='simple';},surface,contextual:async(text,target)=>{const id=contextualSpace(text);if(id&&preference==='simple')await surface(id,{target});},sync};
+ sync();return {newConversation:()=>startNew(),starters,get enabled(){return preference==='simple';},surface,contextual:async(text,target)=>{const id=contextualSpace(text);if(id&&preference==='simple')await surface(id,{target});},sync};
 }
