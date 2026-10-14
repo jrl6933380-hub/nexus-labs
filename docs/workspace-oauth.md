@@ -6,7 +6,7 @@ The owner connects one product app to ChatGPT at:
 
 Choose **OAuth**, with dynamic client registration (no static client ID/secret), then sign in to the existing private Nexus owner account and explicitly approve the displayed permissions. No API key copying or Vercel secret entry is involved. The previous custom-key guide was incorrect for ChatGPT MCP; its old URL redirects to `/workspace-connection-guide.html`. Existing legacy key hashes are not deleted or converted into OAuth tokens.
 
-The product endpoint exposes only 15 workspace tools and the shared board. The board resource includes a dedicated domain in standard and ChatGPT-compatible metadata, with no external network/resource allowlists. It shows actual account data and calls tools through the host bridge. `show_nexus_board` displays it; `read_nexus_workspace` updates data without producing another board.
+The product endpoint exposes 16 workspace tools and the shared board, including account-scoped project rename. The board resource includes a dedicated domain in standard and ChatGPT-compatible metadata, with no external network/resource allowlists. It shows actual account data and calls tools through the host bridge. `show_nexus_board` displays it; `read_nexus_workspace` updates data without producing another board.
 
 ## OAuth contract
 

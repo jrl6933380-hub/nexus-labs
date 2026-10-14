@@ -4,13 +4,25 @@
 
 Identity is resolved server-side. A private owner session or the internal `NEXUS_AGENT_API_TOKEN` maps Projects to `ownerWorkbenchUsername()` and Schedule/Reminders to `owner:<owner id>`. A Forge session maps to that user's Projects and `room:<username>` Schedule/Reminders. Input cannot select another account. The agent credential stays on the private connector server; never distribute it to customers.
 
-Available actions: board, projects, project, save_project, import_form (owner only), schedule, create_event, update_event, delete_event, reminders, create_reminder, update_reminder, delete_reminder, usage. Supply `{action,input,request_id}`. Mutations require a stable request ID; identical retries replay the result. Unknown outcomes stay pending and require checking saved state instead of blindly repeating a write. The request journal and separate successful-action audit live in account-scoped Redis keys.
+Available actions: board, projects, project, save_project, rename_project, import_form (owner only), schedule, create_event, update_event, delete_event, reminders, create_reminder, update_reminder, delete_reminder, usage. Supply `{action,input,request_id}`. Mutations require a stable request ID; identical retries replay the result. Unknown outcomes stay pending and require checking saved state instead of blindly repeating a write. The request journal and separate successful-action audit live in account-scoped Redis keys.
 
 Projects reuse the real Workbench/history handler, account lock, plan allowance, and baseline checks. A successful save is read back before reporting success. FORM imports the bundled `public/demos/form-bodyweight.html` as `form-bodyweight-showcase`, preserving a previously imported copy and edits. Nothing publishes or invokes an AI model.
 
 Schedule and Reminders use their existing stores. Explicit offsets or validated IANA timezones are required for local times. Phone alert delivery still depends on configured push and an enabled device. No email, SMS, external calendar or recipient actions were added.
 
 Usage shown is the existing hosted-AI allowance, not a new connector-credit price. External AI costs are excluded. Product actions are audited separately and do not consume model allowance. Customer product-operation billing and checkout links need a separately approved pricing/billing integration; this change does not fabricate credits or Stripe URLs.
+
+## Interactive board
+
+The v3 board opens a selected project in place, with an isolated HTML preview, Open in Nexus, Reload preview, Rename, and an assistant change request. Rename uses the existing project metadata operation, requires the current build baseline, and verifies the name afterward; it never rewrites HTML or creates a build. Project reads and lists use the same saved main name and latest build ID.
+
+Preview HTML runs in an opaque-origin sandbox with no host bridge, network access, parent navigation, cookies or storage. External assets may be missing in this preview; Open in Nexus retains the normal full project view. Preview messages cannot invoke board tools. Keep those restrictions when adding preview features.
+
+Schedule and Reminders keep their editor beside the selected item and send its record ID with any assistant request. Browser-local timezone is displayed rather than requiring an IANA text field. Reminder calendar markers still edit the underlying reminder. Past events and completed reminders stay available in collapsible sections; no historical records are deleted. Usage displays only returned allowances, reset times and plan values. Help actions request fresh tool reads before offering changes; they do not grant the assistant blanket mutation authorization.
+
+Read failures offer Retry. Write failures offer Check saved state and refresh/re-read rather than resubmitting an uncertain mutation. Form request IDs stay stable for identical input and change when the input changes. Native-host approval and OAuth scopes continue to apply to every tool call.
+
+Verify with `node scripts/verify-workspace-board-ui.mjs`: real OAuth → MCP → existing stores, isolated fixtures, project rename and stale-version recovery, scoped Help handoffs, preview interaction, protected Schedule edits, reminder completion/reopen, usage and fresh project handoffs, and 320/390/736px layout checks. The script also saves a temporary project screenshot for visual inspection. Reopen the board after deployment and refresh the connector's tool list for `rename_nexus_project`; final ChatGPT host rendering remains a deployment check.
 
 ## Rollout
 
