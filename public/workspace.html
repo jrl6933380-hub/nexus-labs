@@ -345,7 +345,7 @@ let activeScheduleItems = [];
 const deliveredScheduleReminders = new Set();
 
 const ctx = {
-  ask: (text) => askFromView(text),
+  ask: (text,options) => askFromView(text,options),
   go: (id) => showView(id),
   openChatSettings: async () => {messagesDestination='settings';await showView('messages');},
   openChatDirectory: async () => {messagesDestination='chats';await showView('messages');},
@@ -1060,6 +1060,7 @@ function conversationGreeting(){
   greet();
 }
 function renderResponseActions(data,target=thread,onPick=label=>{el('input').value=label;submit();}){
+  if(data.provider==='none' && data.runState?.state==='waiting')target.appendChild(chips([{label:'Retry',run:()=>onPick('Continue the saved request from its checkpoint. Reuse completed work and report the result.')} ]));
   if(data.runState?.state==='waiting' && data.runState.blocker==='runaway_safety_ceiling_hit')target.appendChild(chips([{label:'Continue working',run:()=>onPick('Continue the saved task from its checkpoint. Keep the original goal and reuse completed work.')} ]));
   const options=data.question?.options?.length?data.question.options:data.suggestedReplies;
   if(Array.isArray(options) && options.length)target.appendChild(chips(options.slice(0,4).map(label=>({label,run:()=>onPick(label)}))));
@@ -1225,9 +1226,11 @@ async function openMessagesConversation(conversation,fresh=false,restoredThreadI
     try{const response=await fetch(`/api/chat?threadId=${encodeURIComponent(threadId)}`,{headers:{Accept:'application/json'},cache:'no-store'});const data=await response.json().catch(()=>({}));if(response.ok)for(const message of data.messages || [])history.push(message);}catch{}
   }
   if(outstanding?.threadId===threadId && !history.some(message=>message?.role==='user' && message.content===outstanding.message))history.push({role:'user',content:outstanding.message});
+  if(outstandingState?.state==='resting'){waitForChatRequest(outstanding).then(async result=>{if(threadId===outstanding.threadId){history.push({role:'assistant',content:result.reply || 'Your queued request completed.'});saveThread();await showView('chat');}}).catch(()=>{});history.push({role:'assistant',content:outstandingState.availability.message});}
   if(['queued','running'].includes(outstandingState?.state))history.push({role:'assistant',content:'Nex is still working in the background. You can leave Nexus and come back.',progress:outstandingState.updates,progressRunning:true});
   else if(outstandingState?.state==='failed')history.push({role:'assistant',content:outstandingState.error || 'Nex could not finish that request. Your message is saved and can be retried.',progress:outstandingState.updates,progressRunning:true});
   await showView('chat');
+  if(outstandingState?.state==='failed' && outstanding?.message)thread.appendChild(chips([{label:'Retry',run:()=>{el('input').value=outstanding.message;submit();}}]));
 }
 function drawRecents(){
   const threads = recentThreads, host = el('recents');
@@ -1290,6 +1293,13 @@ async function waitForChatRequest(record,{maxWaitMs=295000,onProgress=()=>{}}={}
   while(Date.now()-started<maxWaitMs){
     const request=await chatRequestStatus(record.requestId);
     for(const update of request?.updates || []){if(!seen.has(update.id)){seen.add(update.id);onProgress(update,request.stage);}}
+    if(request?.state==='resting'){
+      onProgress({id:'scheduled-rest',text:request.availability.message},'resting');
+      await pause(Math.max(0,request.availability.resumeAt-Date.now()));
+      const response=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(request.payload)});
+      if(!response.ok)throw new Error('Your queued request could not resume. Tap Retry to continue.');
+      return waitForChatRequest(record,{maxWaitMs,onProgress});
+    }
     if(request?.state==='finished'){
       savePendingChat(null);
       return request.response;
@@ -1302,14 +1312,14 @@ async function waitForChatRequest(record,{maxWaitMs=295000,onProgress=()=>{}}={}
   }
   throw new Error('Nex is still working in the background. You can close Nexus and come back later.');
 }
-async function durableChatRequest(message,targetThread,onProgress=()=>{}){
+async function durableChatRequest(message,targetThread,onProgress=()=>{},options={}){
   const requestId=crypto.randomUUID();
   const record={requestId,threadId:targetThread,message,createdAt:Date.now()};
   savePendingChat(record);
   const response=await fetch('/api/chat',{
     method:'POST',
     headers:{'Content-Type':'application/json','Prefer':'respond-async'},
-    body:JSON.stringify({message,threadId:targetThread,requestId,respondAsync:true,resumeRunId:savedChatRuns()[targetThread],workspace:workspaceContext()}),
+    body:JSON.stringify({message,actionContext:options.actionContext,threadId:targetThread,requestId,respondAsync:true,resumeRunId:savedChatRuns()[targetThread],workspace:workspaceContext()}),
   });
   const data=await response.json().catch(()=>({}));
   if(!response.ok){
@@ -1327,7 +1337,7 @@ const teamChat=createTeamChat({input:el('input'),thread,
   openApprovals:()=>showView('approvals'),
   openUsage:()=>{messagesDestination='usage';return showView('messages');},
 });
-async function submit(){
+async function submit(options={}){
   const raw = el('input').value.trim();
   if (!raw) return;
   if(/^@usage$/iu.test(raw)){el('input').value='';messagesDestination='usage';await showView('messages');return;}
@@ -1355,7 +1365,7 @@ async function submit(){
     const data = await durableChatRequest(raw,targetThread,update=>{
       if(threadId!==targetThread)return;
       taskProgress.add(update);
-    });
+    },options);
     if(threadId!==targetThread)return;
     const reply = data.reply || 'No reply came back.';
     pending.innerHTML = assistantReplyMarkup(reply);
@@ -1376,6 +1386,7 @@ async function submit(){
   } catch (error) {
     if(!el('input').value)el('input').value=raw;
     pending.innerHTML = `<p style="color:#c98b78">${esc(friendlyError(error,{action:'reply'}))} Your message is still in this conversation.</p>`;
+    const retry=document.createElement('button');retry.type='button';retry.textContent='Retry';retry.onclick=()=>{el('input').value=raw;submit(options);};pending.append(retry);
     pending.prepend(taskProgress.element);
   } finally { busy = false; el('send').disabled = false; }
 }
@@ -1394,13 +1405,13 @@ function workspaceContext() {
     },
   };
 }
-function askFromView(text) {
-  if (currentView === 'chat') { el('input').value = text; return submit(); }
+function askFromView(text,options={}) {
+  if (currentView === 'chat') { el('input').value = text; return submit(options); }
   if (currentView === 'messages') {
-    return openMessagesConversation({kind:'nex',name:'Nex'},true).then(()=>{el('input').value=text;return submit();});
+    return openMessagesConversation({kind:'nex',name:'Nex'},true).then(()=>{el('input').value=text;return submit(options);});
   }
   openChatSheet({ focus:false });
-  dockAsk(text);
+  dockAsk(text,options);
 }
 function openNexScheduleComposer() {
   openChatSheet({
@@ -1464,6 +1475,7 @@ const dock = el('dock');
 let sheetBaseHeight = 0;
 let dockBusy = false;
 let dockError = '';
+let dockRetry=null;
 let dockIntro = 'Ask me anything about what you have open.';
 let dockResponseActions=null;
 let dockProgress=[];
@@ -1473,7 +1485,7 @@ function renderDockConversation(){
   const messages=history.filter((message)=>['user','assistant'].includes(message?.role) && message.content).slice(-12);
   for(const message of messages){const bubble=document.createElement('div');bubble.className=`dockmessage${message.role==='user' ? ' user' : ''}`;bubble.textContent=message.content;if(message.progress?.length){const task=createTaskProgress(message.progress,{open:expanded.has(message.content)});task.element.dataset.message=message.content;bubble.prepend(task.element);}body.appendChild(bubble);}
   if(dockBusy){const working=document.createElement('div');working.className='dockmessage working';working.innerHTML=`<span>${esc(activeConversation?.name || 'Nex')} is working</span><span class="workingdots" aria-hidden="true"><i></i><i></i><i></i></span>`;working.prepend(createTaskProgress(dockProgress,{running:true}).element);body.appendChild(working);}
-  if(dockError){const error=document.createElement('div');error.className='dockmessage error';error.textContent=dockError;error.prepend(createTaskProgress(dockProgress,{open:true}).element);body.appendChild(error);}
+  if(dockError){const error=document.createElement('div');error.className='dockmessage error';error.textContent=dockError;error.prepend(createTaskProgress(dockProgress,{open:true}).element);const retry=document.createElement('button');retry.textContent='Retry';retry.onclick=()=>dockRetry?.();error.append(retry);body.appendChild(error);}
   if(!dockBusy && dockResponseActions)renderResponseActions(dockResponseActions,body,label=>dockAsk(label));
   body.setAttribute('aria-busy',String(dockBusy));
   requestAnimationFrame(()=>{body.scrollTop=body.scrollHeight;});
@@ -1529,14 +1541,15 @@ for (const action of DOCK_ACTIONS) {
   };
   el('dockActs').appendChild(button);
 }
-async function dockAsk(text){
+async function dockAsk(text,options={}){
   if(dockBusy)return;
+  dockRetry=()=>dockAsk(text,options);
   if (!threadId) threadId = `t${Date.now().toString(36)}`;
   history.push({role:'user',content:text});saveThread();
   dockIntro='';dockError='';dockProgress=[];dockResponseActions=null;dockBusy=true;el('dockSend').disabled=true;renderDockConversation();
   try {
     const targetThread=threadId;
-    const data=await durableChatRequest(text,targetThread,update=>{if(threadId!==targetThread)return;dockProgress.push(update);renderDockConversation();});
+    const data=await durableChatRequest(text,targetThread,update=>{if(threadId!==targetThread)return;dockProgress.push(update);renderDockConversation();},options);
     if(threadId!==targetThread)return;
     history.push({role:'assistant',content:data.reply || 'No reply came back.',progress:data.progress || dockProgress});
     dockResponseActions=data;

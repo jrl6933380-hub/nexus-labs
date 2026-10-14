@@ -107,6 +107,7 @@ export async function renderScheduleCalendar(ctx, extras={}) {
       closeActivityActions=opening ? ()=>{actions.hidden=true;main.setAttribute('aria-expanded','false');block.classList.toggle('actionsopen',false);} : null;
     },`${item.title}${ctx.activitySummary ? `, ${ctx.activitySummary(item)}` : ''}, activity actions`);main.className='calactivitymain';main.setAttribute('aria-expanded','false');
     main.append(node('strong','',ctx.activityTitle?.(item) || item.title),node('small','',item.all_day ? 'All day' : `${clock(new Date(item.starts_at))} – ${clock(endOf(item))}`));
+    if(item.source==='life')main.append(node('small','calorigin','From Life'));
     if(ctx.activitySummary)main.append(node('small','calexperience',ctx.activitySummary(item)));
     const actions=node('div','calactivityactions');actions.hidden=true;
     actions.append(button(item.notes ? 'Notes' : 'Add notes',()=>ctx.editScheduleNotes(item)),button('Edit',()=>ctx.editScheduleItem(item)));

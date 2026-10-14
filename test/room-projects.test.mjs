@@ -130,3 +130,15 @@ test('more than thirty edits preserve other projects and the original title and 
 test('deleting a known project preserves unreadable older records',async()=>{
  await saveBuild('alice',{projectId:'p-remove',html:'<p>Remove</p>'});list.unshift('{unreadable');list.unshift('null');await deleteProject('alice','p-remove');assert.ok(list.includes('{unreadable'));assert.ok(list.includes('null'));
 });
+
+test('one saved name survives edits, rename and a later conflicting document title',async()=>{
+  const {renameProject}=await import('../lib/roomHistory.js');
+  await saveBuild('alice',{projectId:'named',label:'Can you build me a site?',requestMessage:'Can you build me a site?',html:'<title>Nexus Test Page</title>'});
+  assert.equal((await listProjects('alice'))[0].mainLabel,'Nexus Test Page');
+  await renameProject('alice','named','My business');
+  assert.equal((await listProjects('alice'))[0].mainLabel,'My business');
+  await saveBuild('alice',{projectId:'named',label:'Make the logo larger',html:'<title>A new HTML title</title>'});
+  assert.equal((await listProjects('alice'))[0].mainLabel,'My business');
+  await assert.rejects(renameProject('alice','missing','No'),/not found/);
+  await assert.rejects(renameProject('alice','named','   '),/Enter a project name/);
+});

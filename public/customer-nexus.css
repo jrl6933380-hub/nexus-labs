@@ -3,3 +3,5 @@
 body:has(#content>.nexcalendar) #composer{display:none}
 #content:has(>.nexcalendar){padding-bottom:24px}
 #content>.nexcalendar .calhours{height:min(65vh,640px);min-height:320px}
+
+.customer-head{padding-top:calc(18px + env(safe-area-inset-top));padding-left:max(20px,env(safe-area-inset-left));padding-right:max(20px,env(safe-area-inset-right));background:#0b120e}html{scroll-padding-top:calc(88px + env(safe-area-inset-top))}body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top);background:#0b120e;z-index:100;pointer-events:none}

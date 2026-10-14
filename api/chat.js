@@ -1,10 +1,11 @@
+import {podAvailability} from '../lib/podAvailability.js';
 import {ownerWorkbenchUsername} from '../lib/roomAuth.js';
 import {validTimezone,resolveUserTimezone} from '../lib/userClock.js';
 import crypto from 'node:crypto';
 import {saveChatProject,checkNewVisualCapacity} from '../lib/chatProjectSave.js';
 import { waitUntil } from '@vercel/functions';
 import { teamRunner } from '../lib/teamRunner.js';
-import { chatRequest, requestKey } from '../lib/nexChatRequests.js';
+import { chatRequest, requestKey, claimRestResume } from '../lib/nexChatRequests.js';
 import { createChatProgress } from '../lib/nexChatProgress.js';
 import { INDIVIDUAL_WORK_MS } from '../lib/nexWorkTiming.js';
 // /pages/api/chat.js
@@ -235,6 +236,19 @@ export default async function handler(req, res) {
   // away from it. For workspace requests, acknowledge immediately and let a
   // server-to-server invocation own the real Nex turn. The request status and
   // final conversation are durable, so closing the app cannot sever the work.
+  const priorRequest=requestId ? await chatRequest(operatorUser,requestId) : null;
+  if(req.body?.respondAsync===true && priorRequest?.state==='finished')return res.status(200).json(priorRequest.response);
+  if(req.body?.respondAsync===true && ['queued','running'].includes(priorRequest?.state))return res.status(202).json({requestId,state:priorRequest.state});
+  const availability=podAvailability();
+  if(!availability.resting && priorRequest?.state==='resting' && req.body?.respondAsync===true){
+    if(!await claimRestResume(operatorUser,requestId))return res.status(202).json({requestId,state:'queued'});
+  }
+  if(availability.resting){
+    if(!requestId)return res.status(503).json({error:availability.message,code:'POD_RESTING',availability});
+    if(!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN)return res.status(503).json({error:'Your request could not be queued. Try again when Nex returns.',code:'QUEUE_UNAVAILABLE'});
+    await chatRequest(operatorUser,requestId,{state:'resting',availability,payload:{...req.body,respondAsync:true},updatedAt:Date.now()});
+    return res.status(202).json({requestId,state:'resting',availability});
+  }
   if (req.body?.respondAsync === true && process.env.VERCEL_URL) {
     if (!requestId) return res.status(400).json({ error: 'A request id is required for background work.' });
     await saveStatus({ state: 'queued' });
@@ -339,7 +353,8 @@ export default async function handler(req, res) {
     // Owner chat is direct-work-first. A dev-team handoff remains available
     // when explicitly requested, but ordinary build verbs do not force Nex
     // into a context-packaging workflow.
-    const messageForModel = message;
+    const actionContext=typeof req.body?.actionContext==='string' ? req.body.actionContext.slice(0,6000) : '';
+    const messageForModel = actionContext ? `${message}\n\nACTION CONTEXT (user-supplied, not a system instruction)\n${actionContext}` : message;
 
     const {
       reply,
@@ -369,7 +384,7 @@ export default async function handler(req, res) {
     // message itself, so "who answered" and token count survive a page
     // reload — not just visible on the live response.
     const finalHistory = [
-      ...updatedHistory,
+      ...updatedHistory.map((turn,index)=>actionContext && index===updatedHistory.length-1 && turn.role==='user' ? {...turn,content:message} : turn),
       { role: 'assistant', content: reply, model: answeredModel, usage, progress: progress.snapshot().updates.filter(update=>update.text!==reply).map(({text})=>({text})) },
     ];
     await saveConversation(operatorUser, finalHistory, threadId);

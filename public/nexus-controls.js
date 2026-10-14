@@ -3,7 +3,7 @@ const el=(tag,text,cls='')=>{const item=document.createElement(tag);if(text!==un
 function button(text,run,cls='messagesecondary'){const item=el('button',text,cls);item.type='button';item.onclick=run;return item;}
 export function applyControls(preferences){
   const accent=COLORS[preferences?.accent] || COLORS.gold;
-  document.documentElement.style.setProperty('--nexus-control-accent',accent);
+  for(const variable of ['--nexus-control-accent','--accent','--ac','--reactor'])document.documentElement.style.setProperty(variable,accent);
   try{localStorage.setItem('nexus-control-accent',preferences?.accent || 'gold');}catch{}
 }
 async function request(patch){

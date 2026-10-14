@@ -1,3 +1,4 @@
+import {demoContactDetails} from '../lib/publishReadiness.js';
 // api/room-publish.js
 // Turns a signed-in customer's finished Room Builder project into a
 // real, live Vercel deployment on this account (see
@@ -78,6 +79,8 @@ export function createPublishHandler({
       if (typeof build.html !== 'string' || !build.html) {
         return res.status(422).json({ error: 'This build has no content to publish yet.' });
       }
+      const demoContacts=demoContactDetails(build.html);
+      if(demoContacts.length)return res.status(422).json({code:'DEMO_CONTACT_DETAILS',error:`Replace the ${demoContacts.join(' and ')} before publishing. Your draft is still saved.`});
       let html = build.html;
       const projectId = build.projectId || id;
 

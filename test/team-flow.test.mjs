@@ -542,3 +542,9 @@ test('explicit Nex builds receive a scoped build step before Vera and require th
  await runner.execute('justin','group-launch',run.id);assert.equal(calls.length,0);await runs.act('justin','group-launch',run.id,'approve_step',run.steps[0].id);await runner.execute('justin','group-launch',run.id);
  assert.equal(calls[0].conversation.role,'build');assert.equal(calls[0].conversation.execution_mode,'approved');assert.deepEqual(calls[0].conversation.scopes,['conversation','projects']);
 });
+
+test('explicit mentions and custom scoping agents run before builders, then Vera and Nex',async()=>{
+ const {runs}=fixture();const agents=[{id:'agent-mason',name:'Mason',role:'build',job:'Build',scopes:['conversation','projects']},{id:'agent-vera',name:'Vera',role:'review',job:'Review',scopes:['conversation','projects']},{id:'agent-scope',name:'Scout',role:'custom',job:'Scope requirements',scopes:['conversation']},{id:'agent-vida',name:'Vida',role:'life',job:'Scope Life needs',scopes:['conversation']},{id:'agent-atlas2',name:'Atlas',role:'research',job:'Research',scopes:['conversation']}];
+ const run=await runs.create('justin','group-launch',agents,'@Mason @Vera @Scout @Vida @Atlas help with a plan','ordering-custom-test',{includeNex:true});
+ const roles=run.steps.map(step=>step.role);assert.ok(roles.indexOf('custom')<roles.indexOf('build'));assert.ok(roles.indexOf('life')<roles.indexOf('build'));assert.ok(roles.indexOf('research')<roles.indexOf('build'));assert.ok(roles.indexOf('review')>roles.indexOf('build'));assert.equal(run.steps.at(-1).name,'Nex');
+});

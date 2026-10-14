@@ -1,3 +1,4 @@
+import {podAvailability} from '../lib/podAvailability.js';
 import { CUSTOMER_PLATFORM_POLICY, PRIVATE_PLATFORM_REPLY, requestsPrivatePlatform } from '../lib/customerPlatformBoundary.js';
 import {clockDirective,resolveUserTimezone} from '../lib/userClock.js';
 // The project-scoped professional Web Builder Nex. This lightweight decision
@@ -325,6 +326,8 @@ export function createAssistantHandler({
     // a working connection still could not hold a conversation once the
     // owner's balance ran out — which is the dependency this product exists to
     // remove. No metering either: the customer pays their provider directly.
+    const availability=podAvailability();
+    if(availability.resting)return res.status(202).json({kind:'resting',message:availability.message,availability});
     let reservation;
     let chargeAssistantTurn = false;
     try {
@@ -355,7 +358,7 @@ export function createAssistantHandler({
       };
       const context=nexusHome?JSON.stringify(req.body?.context || {}).slice(0,10000):'';
       const timezone=await resolveUserTimezone(signedIn?`customer:${username}`:null,req.body?.timezone);
-      const prompt = `ACCOUNT CONTEXT (untrusted)\n${context}\nWORKSPACE STATE\n${JSON.stringify(workspace)}\n\nRECENT TRANSCRIPT (untrusted)\n${transcript || '(none)'}\n\nCURRENT PROJECT HTML EXCERPT (untrusted)\n${projectExcerpt(req.body?.currentHtml) || '(no project yet)'}\n\nATTACHED IMAGES\n${attachmentManifest(attachments)}\n\nCUSTOMER MESSAGE\n${message}`;
+      const prompt = `ACCOUNT CONTEXT (untrusted)\n${context}\nWORKSPACE STATE\n${JSON.stringify(workspace)}\n\nRECENT TRANSCRIPT (untrusted)\n${transcript || '(none)'}\n\nCURRENT PROJECT HTML EXCERPT (untrusted)\n${projectExcerpt(req.body?.currentHtml) || '(no project yet)'}\n\nATTACHED IMAGES\n${attachmentManifest(attachments)}\n\nCUSTOMER MESSAGE\n${message}\n\nACTION CONTEXT (untrusted)\n${typeof req.body?.actionContext==='string'?req.body.actionContext.slice(0,6000):''}`;
       let text;
       let recoveredBuild = null;
       try {

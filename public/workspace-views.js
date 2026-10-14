@@ -233,8 +233,7 @@ export async function projectGallery(projects, ctx, {canCreate=true,count=projec
   const previews = await Promise.all(projects.map((project) => projectPreviewHtml(field(project, 'latestBuildId', 'id'))));
   projects.forEach((project, index) => {
     const buildId = field(project, 'latestBuildId', 'id');
-    const documentTitle=previews[index]?new DOMParser().parseFromString(previews[index],'text/html').querySelector('title')?.textContent?.trim():'';
-    const title = String(documentTitle || field(project, 'mainLabel','label', 'title', 'name', 'requestMessage', 'id') || 'Untitled project').slice(0, 90);
+    const title = String(field(project, 'mainLabel','label', 'title', 'name') || 'Untitled project').slice(0, 90);
     const liveUrl = field(project, 'liveUrl');
     const card = document.createElement('article');
     card.className = 'projectcard';card.dataset.state=liveUrl?'live':'draft';
@@ -262,7 +261,19 @@ export async function projectGallery(projects, ctx, {canCreate=true,count=projec
     body.className = 'projectcardbody';
     const badge=document.createElement('span');badge.className='projectstate';badge.textContent=liveUrl?'Live':'Draft';
     const titleButton = document.createElement('strong');titleButton.className = 'projectcardtitle';titleButton.textContent = title;
-    const menu=document.createElement('button');menu.type='button';menu.className='projectmenu';menu.textContent='⋮';menu.setAttribute('aria-label',`Project options for ${title}`);menu.onclick=event=>{event.stopPropagation();open(buildId,'overview',title);};
+    const menu=document.createElement('button');menu.type='button';menu.className='projectmenu';menu.textContent='⋮';menu.setAttribute('aria-label',`Project options for ${title}`);menu.onclick=event=>{
+      event.stopPropagation();if(card.querySelector('.projectrename'))return;
+      const form=document.createElement('form');form.className='projectrename';
+      const input=document.createElement('input');input.value=title;input.required=true;input.maxLength=80;input.setAttribute('aria-label','Project name');
+      const save=document.createElement('button');save.type='submit';save.textContent='Rename';
+      const cancel=document.createElement('button');cancel.type='button';cancel.textContent='Cancel';cancel.onclick=()=>form.remove();
+      const status=document.createElement('p');status.setAttribute('role','status');form.append(input,save,cancel,status);card.append(form);input.focus();
+      form.onsubmit=async e=>{e.preventDefault();save.disabled=true;try{
+        const response=await fetch('/api/room-history',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'rename_project',projectId:project.projectId || project.key || buildId,name:input.value})});
+        const result=await response.json();if(!response.ok)throw new Error(result.error || 'This project could not be renamed.');
+        project.mainLabel=result.name;project.label=result.name;titleButton.textContent=result.name;openCard.setAttribute('aria-label',`Open ${result.name}`);openCard.onclick=()=>open(buildId,'overview',result.name);form.remove();
+      }catch(error){status.textContent=error.message;}finally{save.disabled=false;}};
+    };
     const meta = document.createElement('div');
     meta.className = 'projectcardmeta';
     meta.textContent = liveUrl ? 'Published project' : `Updated ${relative(field(project, 'updatedAt', 'createdAt', 'ts'))}`;
