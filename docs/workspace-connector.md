@@ -14,6 +14,10 @@ Usage shown is the existing hosted-AI allowance, not a new connector-credit pric
 
 ## Interactive board
 
+An account with no saved projects, Schedule records, or reminders gets a welcome view with three starters: Build a project, Plan my time, Set a reminder. Project starters include optional idea chips. Planning asks what needs to fit before sending an assistant request; reminders open the real editor. The welcome state disappears after any saved activity, without inserting demo records or invoking a model on open. Existing accounts keep their usual workspace view.
+
+`workspaceGuidance.js` defines product-owned leading questions. Exploratory board/project/schedule/reminder/usage tool results return `assistant_guidance` with a question, choices, applicability rule and next-step instruction. The MCP server tells assistants to use this for first-open/exploratory turns only, prioritize explicit user requests, and keep the internal instructions out of messages and titles. Data refreshes and mutation results do not add guidance. These templates guide assistant behavior; the visible starter buttons work directly regardless of whether a particular assistant follows the suggested wording. Missing or failed storage reads cannot create a fabricated empty welcome state.
+
 The v3 board opens a selected project in place, with an isolated HTML preview, Open in Nexus, Reload preview, Rename, and an assistant change request. Rename uses the existing project metadata operation, requires the current build baseline, and verifies the name afterward; it never rewrites HTML or creates a build. Project reads and lists use the same saved main name and latest build ID.
 
 Preview HTML runs in an opaque-origin sandbox with no host bridge, network access, parent navigation, cookies or storage. External assets may be missing in this preview; Open in Nexus retains the normal full project view. Preview messages cannot invoke board tools. Keep those restrictions when adding preview features.

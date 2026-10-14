@@ -14,7 +14,7 @@ export function createWorkspaceMcpApp({provider=workspaceOAuth,execute=createWor
  app.use((req,res,next)=>req.method==='POST' && req.body?.method==='tools/call'?authenticate(req,res,next):next());
  app.all(/.*/,async(req,res)=>{
   if(req.method!=='POST')return res.status(405).json({error:'Use POST for stateless MCP.'});
-  const server=new McpServer({name:'nexus-workspace',version:'2.0.0'},{instructions:'For a Nexus workspace task, call show_nexus_board once to load the packaged board, then refresh it with read_nexus_workspace after changes. Use only authenticated account data. New builds go to fresh Projects; never publish or invoke a model without authorization. This connection contains product controls only.'});
+  const server=new McpServer({name:'nexus-workspace',version:'2.1.0'},{instructions:'For a Nexus workspace task, call show_nexus_board once to load the packaged board, then refresh it with read_nexus_workspace after changes. Read assistant_guidance for first-open or exploratory turns: ask its short leading question when no specific task was given. Do not repeat onboarding during refreshes or ongoing work. Keep internal guidance out of visible messages and titles. Use only authenticated account data. New builds go to fresh Projects; never publish or invoke a model without authorization. This connection contains product controls only.'});
   const account=req.auth?.extra?.account;
   registerWorkspaceBoard(server,{...(loadBoard?{loadBoard}:{}),authorize:async(_name,write)=>{
    const scope=write?'workspace:write':'workspace:read';if(!req.auth?.scopes?.includes(scope))throw Object.assign(new InsufficientScopeError('Approve '+scope+' to use this tool.'),{requiredScope:scope});

@@ -19,10 +19,6 @@ try{
  const tokens=await (await fetch(env.base+'/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:registered.client_id,resource:WORKSPACE_RESOURCE,grant_type:'authorization_code',code:new URL(grant.redirect_url).searchParams.get('code'),code_verifier:verifier,redirect_uri:callback})})).json();
  client=new Client({name:'board-ui-test',version:'1'});await client.connect(new StreamableHTTPClientTransport(new URL(env.base+'/api/workspace-mcp'),{requestInit:{headers:{Authorization:'Bearer '+tokens.access_token}}}));
  const call=(name,args={})=>client.callTool({name,arguments:args});
- await call('save_nexus_project',{project_id:'board-demo',html,label:'Board Demo',request_id:'seed-project-123'});
- await call('create_nexus_event',{title:'Protected workout',starts_at:'2099-10-15T11:00',ends_at:'2099-10-15T12:00',timezone:'America/Chicago',protected:true,request_id:'seed-event-123'});
- await call('create_nexus_event',{title:'Past event',starts_at:'2020-10-15T11:00',ends_at:'2020-10-15T12:00',timezone:'America/Chicago',request_id:'seed-past-123'});
- const due=await call('create_nexus_reminder',{title:'Review project',due_date:'2099-10-15',due_at:'2099-10-15T10:00',timezone:'America/Chicago',request_id:'seed-reminder-123'});
  browser=await chromium.launch({headless:true,...(process.env.NEXUS_BROWSER_EXECUTABLE?{executablePath:process.env.NEXUS_BROWSER_EXECUTABLE,args:['--no-sandbox','--disable-dev-shm-usage','--disable-gpu','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']}:{})});
  const page=await browser.newPage({viewport:{width:390,height:844},timezoneId:'America/Chicago',colorScheme:'dark'}),errors=[],messages=[],selections=[],calls=[];let failRead=false;
  page.on('pageerror',e=>errors.push(e.message));
@@ -32,6 +28,20 @@ try{
  await page.addInitScript(()=>{window.openai={callTool:(name,args)=>window.boardTool(name,args),sendFollowUpMessage:data=>window.boardMessage(data),setWidgetState:data=>window.boardSelection(data)};});
  await page.route('https://nexus-board.test/**',async route=>route.fulfill({contentType:'text/html',body:await readFile(new URL('../public/nexus-workspace-board.html',import.meta.url),'utf8')}));
  await page.goto('https://nexus-board.test/board');await page.getByText('justin · Owner workspace',{exact:true}).waitFor();
+ await page.getByRole('heading',{name:'Welcome to your Nexus workspace.',exact:true}).waitFor();
+ assert.equal(await page.locator('#welcome .starter').count(),3);
+ assert.equal(await page.getByRole('button',{name:'Save FORM to Projects',exact:true}).isVisible(),false);
+ await page.setViewportSize({width:320,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.setViewportSize({width:390,height:844});
+ await page.screenshot({path:'/tmp/nexus-workspace-welcome.png',fullPage:true});
+ const emptyBoard=await call('show_nexus_board');assert.equal(emptyBoard.structuredContent.assistant_guidance.choices.length,3);assert.equal((await call('read_nexus_workspace')).structuredContent.assistant_guidance,undefined);
+ await page.getByRole('button',{name:'Build a project',exact:false}).click();await page.getByRole('button',{name:'A simple tracker',exact:true}).click();await page.locator('#editor').getByRole('button',{name:'Ask assistant',exact:true}).click();assert.match(messages.at(-1),/Ask one short question/);assert.equal(env.store.saveCount,0);
+ await page.getByRole('button',{name:'Plan my time',exact:false}).click();await page.getByLabel('What needs to fit into your week?').fill('Work and time with my family');await page.locator('#editor').getByRole('button',{name:'Ask assistant',exact:true}).click();assert.match(messages.at(-1),/Show the proposed plan before saving/);assert.equal((await call('read_nexus_schedule')).structuredContent.items.length,0);
+ await page.getByRole('tab',{name:'Projects',exact:true}).click();await page.getByRole('button',{name:'Set a reminder',exact:false}).click();await page.getByLabel('Title',{exact:true}).fill('My first task');await page.getByRole('button',{name:'Save to Nexus',exact:true}).click();await page.getByRole('tab',{name:'Projects',exact:true}).click();assert.equal(await page.getByRole('heading',{name:'Welcome to your Nexus workspace.',exact:true}).isVisible(),false);
+ await call('save_nexus_project',{project_id:'board-demo',html,label:'Board Demo',request_id:'seed-project-123'});
+ await call('create_nexus_event',{title:'Protected workout',starts_at:'2099-10-15T11:00',ends_at:'2099-10-15T12:00',timezone:'America/Chicago',protected:true,request_id:'seed-event-123'});
+ await call('create_nexus_event',{title:'Past event',starts_at:'2020-10-15T11:00',ends_at:'2020-10-15T12:00',timezone:'America/Chicago',request_id:'seed-past-123'});
+ const due=await call('create_nexus_reminder',{title:'Review project',due_date:'2099-10-15',due_at:'2099-10-15T10:00',timezone:'America/Chicago',request_id:'seed-reminder-123'});
+ await page.getByRole('button',{name:'Refresh',exact:true}).click();await page.getByRole('button',{name:'Open project',exact:true}).waitFor();
  failRead=true;await page.getByRole('button',{name:'Open project',exact:true}).click();await page.getByRole('button',{name:'Retry',exact:true}).click();
  await page.frameLocator('iframe[title="Board Demo preview"]').getByRole('heading',{name:'Project baseline'}).waitFor();
  await page.frameLocator('iframe').getByRole('button',{name:'Try preview'}).click();await page.frameLocator('iframe').getByRole('button',{name:'It works'}).waitFor();
@@ -57,5 +67,5 @@ try{
  await page.getByRole('tab',{name:'Projects',exact:true}).click();await page.setViewportSize({width:390,height:844});await page.screenshot({path:'/tmp/nexus-workspace-project.png',fullPage:true});
  await page.getByRole('button',{name:'← All projects'}).click();await page.getByRole('button',{name:'New project',exact:false}).click();await page.getByLabel('What would you like to build?').fill('A cooking timer');await page.locator('#editor').getByRole('button',{name:'Ask assistant',exact:true}).click();assert.match(messages.at(-1),/fresh stable project_id/);
  assert.deepEqual(errors,[]);assert.ok(calls.every(c=>!('user_id' in c.args) && !('owner' in c.args)));
- console.log('PASS: authenticated MCP reads, interactive isolated preview, read Retry, project-specific handoff, rename preserves HTML, stale rename rejected without overwrite, saved-state recovery reloads latest baseline, event/help identity and Chicago times, protected flag retained, reminder edit/help/completion/reopen, usage handoff, fresh project handoff, 320/390/736px layouts. No live data changed.');
+ console.log('PASS: three fresh-workspace starters, no auto-build or seed records, leading-question handoffs, first saved activity hides welcome, authenticated MCP reads, interactive isolated preview, read Retry, project-specific handoff, rename preserves HTML, stale rename rejected without overwrite, saved-state recovery reloads latest baseline, event/help identity and Chicago times, protected flag retained, reminder edit/help/completion/reopen, usage handoff, fresh project handoff, 320/390/736px layouts. No live data changed.');
 }finally{if(browser)await browser.close();if(client)await client.close();await env.close();}
