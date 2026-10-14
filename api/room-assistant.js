@@ -9,6 +9,8 @@ import { getRequestUser } from '../lib/roomAuth.js';
 import { getOrCreateAnonId } from '../lib/anonSession.js';
 import { roomMeter } from '../lib/roomMetering.js';
 import { roomConversations } from '../lib/roomConversation.js';
+import {listConversationThreads,saveConversationThread} from '../lib/nexConversationStore.js';
+export function nexusChatThreadId(value){const id=value==null?'nex-main':String(value);if(id!=='nex-main'&&!/^nexus-chat-[a-zA-Z0-9_-]{1,90}$/.test(id))throw Error('Invalid Nexus conversation id');return id;}
 import { routeMessage } from '../lib/modelRouter.js';
 import { askCustomerBrain, NoBrainError } from '../lib/forge/brainStream.js';
 import { attachmentManifest, attachmentMessageContent, parseRoomAttachments } from '../lib/roomAttachments.js';
@@ -224,6 +226,7 @@ export function createAssistantHandler({
   resolveUser = getRequestUser,
   meter = roomMeter,
   conversations = roomConversations,
+  threadStore = {list:listConversationThreads,save:saveConversationThread},
   route = routeMessage,
   ask = askCustomerBrain,
   readContext = readProjectContext,
@@ -243,7 +246,16 @@ export function createAssistantHandler({
     }
     if(req.method==='GET'){
       if(!username)return res.status(401).json({error:'Sign in to Nexus first'});
-      try{return res.status(200).json({turns:await conversations.getConversation(username,'nex-main')});}catch{return res.status(503).json({error:'Your conversation could not load. Try again.'});}
+      let id;try{id=nexusChatThreadId(req.query?.threadId);}catch(error){return res.status(400).json({error:error.message});}
+      try{
+        if(req.query?.threads==='1'){
+          const threads=await threadStore.list(`customer:${username}`);
+          const legacy=await conversations.getConversation(username,'nex-main');
+          if(legacy.length&&!threads.some(item=>item.id==='nex-main'))threads.push({id:'nex-main',title:legacy.find(turn=>turn.role==='user')?.text?.slice(0,80)||'Earlier Nexus conversation',message_count:legacy.length,updated_at:legacy.at(-1)?.createdAt||0});
+          return res.status(200).json({threads:threads.sort((a,b)=>b.updated_at-a.updated_at).slice(0,20)});
+        }
+        return res.status(200).json({turns:await conversations.getConversation(username,id)});
+      }catch{return res.status(503).json({error:'Your conversation could not load. Try again.'});}
     }
     if (!username) username = getOrCreateAnonId(req, res);
     const signedIn = !String(username).startsWith('anon');
@@ -254,10 +266,17 @@ export function createAssistantHandler({
     const typedMessage = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
     const message = typedMessage || (attachments.length ? 'Look at the attached image and help me use it in this project.' : '');
     const nexusHome=req.body?.surface==='nexus';
-    const projectId = nexusHome?'nex-main':typeof req.body?.projectId === 'string' ? req.body.projectId : '';
+    let projectId;try{projectId=nexusHome?nexusChatThreadId(req.body?.threadId):typeof req.body?.projectId === 'string'?req.body.projectId:'';}catch(error){return res.status(400).json({error:error.message});}
     if (!message || message.length > 4_000) return res.status(400).json({ error: 'Enter a shorter message' });
     if (!/^[a-zA-Z0-9_-]{1,120}$/.test(projectId)) return res.status(400).json({ error: 'Invalid project id' });
 
+    async function persistTurns(turns){
+      await conversations.appendTurns(username,projectId,turns);
+      if(nexusHome&&signedIn&&projectId!=='nex-main'){
+        const saved=await conversations.getConversation(username,projectId);
+        await threadStore.save(`customer:${username}`,{id:projectId,title:saved.find(turn=>turn.role==='user')?.text?.slice(0,80)||message.slice(0,80),messages:saved.map(turn=>({role:turn.role,content:turn.text})),updated_at:Date.now()});
+      }
+    }
     if (requestsPrivatePlatform(message)) return res.status(200).json({ kind: 'reply', message: PRIVATE_PLATFORM_REPLY, suggestions: [] });
 
     // Resolve exact saved-build navigation deterministically. This avoids
@@ -289,7 +308,7 @@ export function createAssistantHandler({
       const directBuild = buildFromCustomerWords(message);
       if (directBuild) {
         try {
-          await conversations.appendTurns(username, projectId, [
+          await persistTurns([
             { role: 'user', text: message },
             { role: 'assistant', text: directBuild.message },
           ]);
@@ -404,7 +423,7 @@ export function createAssistantHandler({
         catch (error) { console.error('room-assistant: roadmap checklist write failed:', error.message); }
       }
       try {
-        await conversations.appendTurns(username, projectId, [
+        await persistTurns([
           { role: 'user', text: message },
           { role: 'assistant', text: responseDecision.message, ...(responseDecision.checklist ? { guidance: { checklist: responseDecision.checklist } } : {}) },
         ]);
