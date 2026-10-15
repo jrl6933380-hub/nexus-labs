@@ -128,10 +128,8 @@
     var PROMPT = '';
 
     function buildPrompt(url) {
-      return '@Plugin Creator Create a private ChatGPT app-backed plugin named Nexus Board — Customer using my real Nexus customer MCP endpoint: ' + url +
-        '\n\nMy existing Nexus Workspace plugin works on ChatGPT mobile because it is backed by a registered ChatGPT app with a verified asdk_app_ ID and an .app.json binding. Reproduce that architecture for this customer as a NEW, separate app connection; never modify or reuse my owner account connection.' +
-        '\n\nRequirements: Register or connect a real ChatGPT app for this exact customer MCP endpoint first. Package the resulting plugin with .app.json referencing the verified app ID. Do NOT substitute a standalone mcp.json or .mcp.json connector, desktop-only plugin, terminal configuration, or Codex-only setup. Use streamable HTTP with authentication set to none, without OAuth or a separate Nexus login; this private URL already identifies my customer account. Connect only this customer server and discover its real tools to read and update my workspace, including the actual interactive Nexus Board if exposed. No sample tools, test servers, echo tools, or placeholders.' +
-        '\n\nVerify that the registered app connects, that real board tools can be discovered, and whether ChatGPT mobile and web can open the interactive board. Clearly state any extra setup or platform limitations. CRITICAL: If you cannot register or verify a real ChatGPT app-backed connection, STOP and explain the blocker rather than creating another desktop-only standalone MCP plugin.';
+      return '@Plugin Creator Connect my Nexus Board to ChatGPT mobile and web as a private app-backed plugin (not desktop-only). Use only my workspace MCP endpoint: ' + url +
+        '. Authentication: none; this link identifies my account. Expose its real board tools for viewing and updating my workspace, without demos or extra sign-in. If an app-backed connection cannot be created, explain why instead of making a desktop-only plugin.';
     }
 
     async function post(body) {
