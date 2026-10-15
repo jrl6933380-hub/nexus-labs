@@ -89,8 +89,8 @@ test('viewer keeps the opaque preview sandbox and limits imported HTML to existi
 test('board chat sends learner text and explicit topic with kit context through either host bridge',async()=>{
  for(const standard of [false,true]){const h=await harness({standard});await h.click('Open board');await h.click('View board');h.by('board-chat-topic').value='Addition';h.by('board-chat-message').value='Is 3 plus 2 five?';await h.by('board-chat-message').parent.onsubmit({preventDefault(){}});assert.equal(h.messages.length,1);assert.match(h.messages[0],/read_nexus_board_kit/);assert.match(h.messages[0],/"tutor"/);assert.match(h.messages[0],/Current topic supplied by me: Addition/);assert.match(h.messages[0],/My message: Is 3 plus 2 five\?/);assert.equal(h.calls.some(c=>c.name==='save_nexus_board_kit'),false);assert.equal(h.by('board-chat-message').value,'');await h.click('See replies in chat');assert.equal(h.context.document.root.className.includes('focus-board'),false);}
 });
-test('tutor starters fill the draft without automatically sending or claiming a lesson selection',async()=>{
- const h=await harness();await h.click('Open board');await h.click('Hint');assert.match(h.by('board-chat-message').value,/one hint, not the answer/);assert.equal(h.messages.length,0);h.by('board-chat-message').value='';await h.by('board-chat-message').parent.onsubmit({preventDefault(){}});assert.equal(h.messages.length,0);
+test('shared board composer is neutral and does not add tutor shortcuts',async()=>{
+ const h=await harness();await h.click('Open board');const labels=h.by('board-kit-detail').querySelectorAll('button').map(b=>b.textContent);for(const label of ['Hint','Practice','Explain','Start'])assert.equal(labels.includes(label),false);assert.equal(h.messages.length,0);await h.by('board-chat-message').parent.onsubmit({preventDefault(){}});assert.equal(h.messages.length,0);
 });
 test('failed handoff retains the learner draft and warns before manual resend',async()=>{
  const h=await harness({sendError:true});await h.click('Open board');h.by('board-chat-message').value='Please help me count';await h.by('board-chat-message').parent.onsubmit({preventDefault(){}});assert.equal(h.by('board-chat-message').value,'Please help me count');assert.equal(h.by('board-chat-message').disabled,false);const alerts=h.by('board-chat-message').parent.children.filter(el=>el.attrs.role==='alert');assert.match(alerts[0].textContent,/Check chat before sending it again/);assert.equal(h.messages.length,1);
@@ -98,3 +98,4 @@ test('failed handoff retains the learner draft and warns before manual resend',a
 test('double submission while delivery is pending sends only once',async()=>{
  let release;const gate=new Promise(resolve=>{release=resolve;});const h=await harness({sendGate:gate});await h.click('Open board');h.by('board-chat-message').value='Teach me';const form=h.by('board-chat-message').parent,pending=form.onsubmit({preventDefault(){}});await form.onsubmit({preventDefault(){}});assert.equal(h.messages.length,1);release();await pending;
 });
+
