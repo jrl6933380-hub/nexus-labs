@@ -128,8 +128,8 @@
     var PROMPT = '';
 
     function buildPrompt(url) {
-      return '@Plugin Creator Create a plugin that connects to my Nexus Board MCP server at ' + url +
-        ' . The address is private and already identifies my account, so set authentication to none and do not use OAuth or a login. Use it to read and update my board. Also add a second, separate connector for a test server at https://nexus-labs-sigma.vercel.app/api/test-mcp-2 (no auth needed) so I can try its echo_back tool. Configure it for the ChatGPT mobile app.';
+      return '@Plugin Creator Create a private ChatGPT plugin for my real Nexus Board using this MCP server: ' + url +
+        '. This address identifies my customer account, so configure this connection with authentication set to none; do not use OAuth or a separate login. Connect only this Nexus Board server and expose its available tools to read and update my own workspace. Do not include sample tools, test MCP servers, echo tools, or terminal-only connectors. Make this a usable ChatGPT plugin for the mobile app and web, not just a Codex or terminal configuration. Verify the connection and tell me clearly if ChatGPT mobile/web access requires any further setup.';
     }
 
     async function post(body) {
