@@ -11,7 +11,7 @@
     "shortDescription": "Projects, plans and reminders"
   },
   "name": "nexus-workspace",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Connect to Nexus Projects, private Schedule, Reminders, usage, and the existing interactive workspace board.",
   "author": {
     "name": "Justin Lopez",
