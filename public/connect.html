@@ -128,8 +128,10 @@
     var PROMPT = '';
 
     function buildPrompt(url) {
-      return '@Plugin Creator Create a private ChatGPT plugin for my real Nexus Board using this MCP server: ' + url +
-        '. This address identifies my customer account, so configure this connection with authentication set to none; do not use OAuth or a separate login. Connect only this Nexus Board server and expose its available tools to read and update my own workspace. Do not include sample tools, test MCP servers, echo tools, or terminal-only connectors. Make this a usable ChatGPT plugin for the mobile app and web, not just a Codex or terminal configuration. Verify the connection and tell me clearly if ChatGPT mobile/web access requires any further setup.';
+      return '@Plugin Creator Create a private ChatGPT app-backed plugin named Nexus Board — Customer using my real Nexus customer MCP endpoint: ' + url +
+        '\n\nMy existing Nexus Workspace plugin works on ChatGPT mobile because it is backed by a registered ChatGPT app with a verified asdk_app_ ID and an .app.json binding. Reproduce that architecture for this customer as a NEW, separate app connection; never modify or reuse my owner account connection.' +
+        '\n\nRequirements: Register or connect a real ChatGPT app for this exact customer MCP endpoint first. Package the resulting plugin with .app.json referencing the verified app ID. Do NOT substitute a standalone mcp.json or .mcp.json connector, desktop-only plugin, terminal configuration, or Codex-only setup. Use streamable HTTP with authentication set to none, without OAuth or a separate Nexus login; this private URL already identifies my customer account. Connect only this customer server and discover its real tools to read and update my workspace, including the actual interactive Nexus Board if exposed. No sample tools, test servers, echo tools, or placeholders.' +
+        '\n\nVerify that the registered app connects, that real board tools can be discovered, and whether ChatGPT mobile and web can open the interactive board. Clearly state any extra setup or platform limitations. CRITICAL: If you cannot register or verify a real ChatGPT app-backed connection, STOP and explain the blocker rather than creating another desktop-only standalone MCP plugin.';
     }
 
     async function post(body) {
