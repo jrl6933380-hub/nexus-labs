@@ -59,6 +59,12 @@ html.mcp-host #board{min-height:0}
 const root=document.getElementById('board'),by=id=>root.querySelector('#'+id),tabs=[...root.querySelectorAll('[role=tab]')],pending=new Map(),editor=by('editor');
 let sequence=0,snapshot=null,busy=false,hostReady=false,selectedProject=null,selectedKit=null,retryTask=null,returnFocus=null;
 const savedState=window.openai?.widgetState;
+let workspaceKey=null;
+function connectionMetadata(meta){
+ const key=meta?.nexus_connection?.workspace_key;
+ if(typeof key==='string' && /^nxc_[A-Za-z0-9_-]{43}$/.test(key))workspaceKey=key;
+}
+connectionMetadata(window.openai?.toolResponseMetadata);
 let focusBoard=false,displayMode=window.openai?.displayMode || 'inline',hostContext={},viewerReturnFocus=null;
 const zone=()=>Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 function status(text,error=false){by('status').textContent=text;by('status').classList.toggle('error',error);by('status').setAttribute('role',error?'alert':'status');}
@@ -68,9 +74,11 @@ function notify(method,params){window.parent.postMessage({jsonrpc:'2.0',method,p
 function request(method,params,timeoutMs=30000){return new Promise((resolve,reject)=>{const id=++sequence;const timer=setTimeout(()=>{pending.delete(id);reject(new Error('Connection timed out. Refresh to check saved state before trying again.'));},timeoutMs);pending.set(id,{resolve,reject,timer});window.parent.postMessage({jsonrpc:'2.0',id,method,params},'*');});}
 async function tool(name,args={}){
  if(!window.openai?.callTool && !hostReady)throw new Error('Use the Nexus tools in chat; this host has not connected the board controls.');
+ if(workspaceKey)args={...args,workspace_key:workspaceKey};
  const result=window.openai?.callTool?await window.openai.callTool(name,args):await request('tools/call',{name,arguments:args});
  if(result?.isError)throw new Error(result.structuredContent?.error || result.content?.find(c=>c.type==='text')?.text || 'Nexus could not complete that action.');
  if(!result?.structuredContent)throw new Error('Nexus returned no saved data. Refresh to check the result.');
+ connectionMetadata(result._meta);
  return result.structuredContent;
 }
 async function message(prompt){
@@ -353,8 +361,8 @@ by('create-board').onclick=startBoard;
 by('import-board').onclick=importBoardTemplate;
 for(const id of ['board-search','board-filter','board-sort']){by(id).addEventListener(id==='board-search'?'input':'change',()=>{boardList(snapshot || {});persistSelection();});}
 const importId=crypto.randomUUID();by('import-form').onclick=()=>run(async()=>{await tool('import_form_project',{request_id:importId});await refresh();},{write:true});
-window.addEventListener('message',event=>{if(event.source!==window.parent)return;const msg=event.data;if(!msg || msg.jsonrpc!=='2.0')return;if(msg.id!==undefined && pending.has(msg.id)){const p=pending.get(msg.id);pending.delete(msg.id);clearTimeout(p.timer);msg.error?p.reject(new Error(msg.error.message || 'Host request failed')):p.resolve(msg.result);return;}if(msg.method==='ui/notifications/tool-result'){render(msg.params?.structuredContent);if(reloadBoardAnswers && answerUpdate(msg.params?.structuredContent))reloadBoardAnswers().catch(()=>{});}if(msg.method==='ui/notifications/host-context-changed')hostLayout(msg.params || {});});
-window.addEventListener('openai:set_globals',event=>{const globals=event.detail?.globals || {};hostLayout(globals);render(globals.toolOutput);if(answerUpdate(globals.toolOutput) && reloadBoardAnswers)reloadBoardAnswers().catch(()=>{});});
+window.addEventListener('message',event=>{if(event.source!==window.parent)return;const msg=event.data;if(!msg || msg.jsonrpc!=='2.0')return;if(msg.id!==undefined && pending.has(msg.id)){const p=pending.get(msg.id);pending.delete(msg.id);clearTimeout(p.timer);msg.error?p.reject(new Error(msg.error.message || 'Host request failed')):p.resolve(msg.result);return;}if(msg.method==='ui/notifications/tool-result'){connectionMetadata(msg.params?._meta);render(msg.params?.structuredContent);if(reloadBoardAnswers && answerUpdate(msg.params?.structuredContent))reloadBoardAnswers().catch(()=>{});}if(msg.method==='ui/notifications/host-context-changed')hostLayout(msg.params || {});});
+window.addEventListener('openai:set_globals',event=>{const globals=event.detail?.globals || {};connectionMetadata(globals.toolResponseMetadata);hostLayout(globals);render(globals.toolOutput);if(answerUpdate(globals.toolOutput) && reloadBoardAnswers)reloadBoardAnswers().catch(()=>{});});
 if(window.openai?.toolOutput)render(window.openai.toolOutput);
 if(savedState?.tab && by(savedState.tab+'-tab') && !by(savedState.tab+'-tab').hidden)select(by(savedState.tab+'-tab'));
 async function restoreBoard(){await refresh();if(savedState?.accountId && savedState.accountId!==snapshot.account.id)return;const catalog=savedState?.catalog;if(catalog){by('board-search').value=String(catalog.query || '').slice(0,200);by('board-filter').value=['all','private_preview','scoped'].includes(catalog.filter)?catalog.filter:'all';by('board-sort').value=catalog.sort==='name'?'name':'recent';boardList(snapshot);}const id=savedState?.selection?.kind==='project'?savedState.selection.id:null;if(id && snapshot?.projects.some(p=>p.project_id===id))await openProject(id);const kit=savedState?.selection?.kind==='board'?savedState.selection.id:null;if(snapshot?.board_studio?.available!==false && kit && snapshot?.boards?.some(item=>item.board_id===kit)){boardPageOwner=kit;boardPage=typeof savedState.boardPage==='string'?savedState.boardPage:'canvas';await openKit(kit);if(savedState.focusBoard)setBoardFocus(true);}}
@@ -373,5 +381,6 @@ if(!window.openai?.callTool){request('ui/initialize',{protocolVersion:'2026-01-2
 </script>
 </body>
 </html>
+
 
 

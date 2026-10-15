@@ -9,6 +9,9 @@ import { allowConnect } from '../lib/connectRateLimit.js';
 
 const ORIGIN = 'https://nexus-labs-sigma.vercel.app';
 const mcpUrl = (token) => `${ORIGIN}/api/customer-mcp/${token}`;
+const connectionFor = (token, shared) => shared ? {
+  shared_mcp_url: `${ORIGIN}/api/customer-board-mcp`, workspace_key: token,
+} : { mcp_url: mcpUrl(token) };
 const usernameOf = (user) => (typeof user === 'string' ? user : user?.username || user?.name || '');
 
 export default async function handler(req, res) {
@@ -32,7 +35,7 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true, revoked: true });
       }
       const token = await connectTokens.ensure(username);
-      return res.status(200).json({ ok: true, existing: true, mcp_url: mcpUrl(token) });
+      return res.status(200).json({ ok: true, existing: true, ...connectionFor(token, body.shared === true) });
     }
     if (body.revoke === true) return res.status(200).json({ ok: true, revoked: false });
 
@@ -45,9 +48,10 @@ export default async function handler(req, res) {
     const session = await createSession(username);
     res.setHeader('Set-Cookie', serializeSessionCookie(session));
     const token = await connectTokens.ensure(username);
-    return res.status(200).json({ ok: true, name: name || null, mcp_url: mcpUrl(token) });
+    return res.status(200).json({ ok: true, name: name || null, ...connectionFor(token, body.shared === true) });
   } catch (error) {
     console.error('connect guest account failed:', error.message);
     return res.status(503).json({ ok: false, error: 'Could not create your account right now. Try again.' });
   }
 }
+
