@@ -32,6 +32,7 @@
     <input id="name" name="name" autocomplete="given-name" maxlength="80">
 
     <button class="btn" id="agree" type="submit">I agree, continue to ChatGPT</button>
+    <a class="btn" id="open" target="_blank" rel="noopener" style="display:none">Open ChatGPT</a>
     <div class="status" id="status" role="status" aria-live="polite"></div>
   </form>
 
@@ -82,8 +83,11 @@
         });
         var data = await res.json();
         if (!res.ok || !data.ok) throw new Error(data.error || 'Could not create your account.');
-        status.textContent = 'Account ready. Opening ChatGPT...';
-        window.open('https://chatgpt.com/?q=' + encodeURIComponent(PROMPT), '_blank', 'noopener');
+        status.textContent = 'Account ready. Tap Open ChatGPT to finish connecting.';
+        var openLink = document.getElementById('open');
+        openLink.href = 'https://chatgpt.com/?q=' + encodeURIComponent(PROMPT);
+        openLink.style.display = 'block';
+        agree.style.display = 'none';
         after.style.display = 'block';
       } catch (err) {
         status.className = 'status error';
