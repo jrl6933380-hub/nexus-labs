@@ -1,0 +1,4 @@
+interface:
+  display_name: "Site Stylist"
+  short_description: "Give each site a distinct, purposeful visual identity"
+  default_prompt: "Use $site-stylist to design a distinctive visual direction for this site and carry it through the implementation."

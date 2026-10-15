@@ -7,6 +7,8 @@ Use the existing Nexus Workspace connection and actual schemas. Keep the same pl
 
 Before scoping, load read_nexus_board_creator. If this tool is unavailable, report the backend release/connection as pending; do not pretend a normal HTML Project is a fully functional board kit.
 
+For requested visual builds or redesigns, apply the shared Site Stylist playbook in the tool result's shared_skills. When installed, also use $site-stylist. Choose a content-led design fingerprint, vary unrelated new sites structurally rather than just recoloring them, preserve existing brands and working shared controls, and verify mobile/accessibility. Read an existing kit first: current and future kit reads return the same shared playbook without rewriting saved user skills. Do not copy the full shared skill into every spec, restyle a board merely because it opened, or treat shared guidance as permission. If shared_skills is absent, report backend guidance as pending rather than claiming it was delivered.
+
 ## Scope before building
 
 Start from the user's supplied idea; ask one short question at a time only for missing decisions. Define:

@@ -97,6 +97,39 @@ drafts, uncertain-delivery draft retention and duplicate-submit protection.
 keyboard/safe-area behavior, reply navigation and tutoring quality remain host
 verification tasks. Fixture handoffs do not prove a live model response.
 
+## Shared Site Stylist
+
+The canonical playbook is packaged at
+`plugins/nexus-workspace/skills/site-stylist/SKILL.md`. The server loads that same
+file and supplies the complete text as versioned `shared_skills` task guidance
+on workspace reads, owned project reads, creator reads and kit reads/saves.
+Generic MCP clients need no separate personal skill installation to receive it.
+Existing boards inherit it at read time: there is no record migration, baseline
+change, user-skill rewrite or automatic visual redesign.
+
+The playbook requires content-led composition, typography, imagery and interaction
+decisions; unrelated sites should not be recolored versions of one template.
+Existing brands, constrained edits, shared host controls, mobile usability and
+accessibility take priority over forced novelty. Guidance does not grant tools,
+override system/user instructions, retrain a model, start a build or publish.
+New-project and board handoffs explicitly direct assistants to read the playbook
+for requested visual work; tutoring/scheduling do not trigger a redesign.
+
+The private plugin's source is version 0.3.0, adding Site Stylist and routing its
+existing workspace/creator skills to the shared guidance. Connection, identity,
+audience, presentation/default prompt, OAuth scopes and cached v2/v3 resources
+remain unchanged. Template exports still carry only user kit specs; imported kits
+receive current shared guidance on their next owned read.
+
+Verification: six additional isolated regressions cover exact source parity,
+legacy read-time inheritance with zero writes, new/creator/workspace/project
+delivery, injection/tenant rejection, generic MCP clients and conditional handoff
+guards. 59 selected tests and 182 launch-offline regressions pass. Syntax and
+skill/package validation are separate from actual host or model behavior.
+After merge/deploy, read an existing kit through the actual connection and check
+the returned full playbook. Independent ChatGPT/Claude adherence and generated
+visual quality remain unverified; no live model or paid pod ran for this change.
+
 ## Evidence and release
 
 39 selected board/MCP/OAuth tests pass with outbound provider requests blocked;
