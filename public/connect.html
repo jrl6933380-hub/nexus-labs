@@ -37,6 +37,7 @@
 
   .need { margin:14px 0 0; color:var(--muted); font-size:15px; text-align:center; }
   a { color:var(--gold); }
+  .need .hl { color:var(--gold); font-weight:600; }
   .state { min-height:1.4em; margin:10px 0 0; font-size:14px; text-align:center; color:var(--muted); }
   .state.ok { color:var(--ok); }
   .state.bad { color:var(--bad); }
@@ -79,7 +80,7 @@
   <button class="btn quiet" id="retry" type="button" hidden>Try again</button>
   <p class="state" id="state" role="status" aria-live="polite"></p>
 
-  <p class="need">Sign in to <a href="https://chatgpt.com/" target="_blank" rel="noopener">ChatGPT</a> first. You need an account that includes Plugin Creator.</p>
+  <p class="need"><strong class="hl">Sign in to ChatGPT in this browser first</strong> so the request fills in. You need an account that includes Plugin Creator.</p>
 
   <details>
     <summary>What happens when you tap</summary>
