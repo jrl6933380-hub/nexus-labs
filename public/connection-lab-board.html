@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Nexus Connection Lab</title>
+<style>
+:root{color-scheme:light dark;--paper:light-dark(#f4f7fc,#111a28);--ink:light-dark(#152840,#eef4ff);--muted:light-dark(#49617c,#a8bed9);--line:light-dark(#bccde0,#3a516e);--accent:light-dark(#194d94,#a6ccff);--ok:light-dark(#155633,#a3e4b8);--bad:light-dark(#a02c21,#ffb7ad)}
+*{box-sizing:border-box}body{margin:0;background:transparent;color:var(--ink);font:16px/1.5 system-ui,-apple-system,sans-serif}.receipt{max-width:600px;margin:auto;background:var(--paper);border:1px solid var(--line);padding:24px}.eyebrow{font:12px/1.5 ui-monospace,monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:0 0 24px}h1{font-size:clamp(25px,7vw,38px);line-height:1.15;letter-spacing:-.04em;margin:0 0 12px}.intro{color:var(--muted);margin:0 0 24px;max-width:40ch}.status{border-block:1px solid var(--line);padding:14px 0;margin:0 0 20px;font-weight:650}.status[data-state=ok]{color:var(--ok)}.status[data-state=error]{color:var(--bad)}dl{margin:0 0 24px;font:13px/1.6 ui-monospace,monospace}dt{color:var(--muted);margin-top:14px}dd{margin:3px 0 0;overflow-wrap:anywhere}button{width:100%;min-height:48px;padding:12px 16px;border:1px solid var(--accent);border-radius:6px;background:var(--accent);color:var(--paper);font:650 16px/1.4 system-ui,sans-serif;cursor:pointer}button:focus-visible{outline:3px solid var(--ink);outline-offset:3px}button:disabled{opacity:.55;cursor:default}.note{font-size:13px;color:var(--muted);margin:16px 0 0}[hidden]{display:none!important}@media(max-width:340px){.receipt{padding:18px}}
+</style>
+</head>
+<body>
+<main class="receipt">
+ <p class="eyebrow">Nexus / Connection Lab / 01</p>
+ <h1>A fresh connection.</h1>
+ <p class="intro">This board checks its own MCP connection. No Nexus account or saved workspace data is used.</p>
+ <p class="status" id="status" role="status" aria-live="polite">Waiting for a server response.</p>
+ <dl>
+  <dt>Server time</dt><dd id="time">Waiting</dd>
+  <dt>Response receipt</dt><dd id="receipt">Waiting</dd>
+  <dt>Round-trip challenge</dt><dd id="challenge">Press the button to test</dd>
+ </dl>
+ <button id="verify" type="button" disabled>Verify live connection</button>
+ <p class="note">Test fixture only. A matching challenge verifies this connection; access from another ChatGPT account is a separate test.</p>
+</main>
+<script>
+(()=>{'use strict';
+ const by=id=>document.getElementById(id),pending=new Map();let sequence=0,ready=Boolean(window.openai?.callTool),busy=false;
+ function state(text,kind=''){by('status').textContent=text;by('status').dataset.state=kind;}
+ function render(data){
+  if(data?.source!=='nexus-connection-lab' || data.test_only!==true || typeof data.server_time!=='string' || typeof data.response_id!=='string')return false;
+  by('time').textContent=data.server_time;by('receipt').textContent=data.response_id;by('challenge').textContent=data.challenge || 'Press the button to test';
+  if(!busy)state('Live server response received.');return true;
+ }
+ function notify(method,params){window.parent.postMessage({jsonrpc:'2.0',method,params},'*');}
+ function request(method,params){return new Promise((resolve,reject)=>{const id=++sequence,timer=setTimeout(()=>{pending.delete(id);reject(new Error('Connection timed out. Try again.'));},15000);pending.set(id,{resolve,reject,timer});window.parent.postMessage({jsonrpc:'2.0',id,method,params},'*');});}
+ async function call(name,args={}){
+  const result=window.openai?.callTool?await window.openai.callTool(name,args):await request('tools/call',{name,arguments:args});
+  if(result?.isError)throw new Error('The test tool reported an error. Try again.');
+  if(!result?.structuredContent)throw new Error('The test tool returned no connection receipt.');
+  return result.structuredContent;
+ }
+ by('verify').onclick=async()=>{
+  if(!ready || busy)return;busy=true;by('verify').disabled=true;state('Checking the live connection…');
+  try{
+   const challenge=crypto.randomUUID();const result=await call('refresh_connection_test_board',{challenge});
+   if(result.challenge!==challenge || !render(result))throw new Error('The returned receipt did not match this test.');
+   state('Live round trip verified.','ok');
+  }catch(error){state(error.message || 'Could not complete the test.','error');}
+  finally{busy=false;by('verify').disabled=!ready;}
+ };
+ window.addEventListener('message',event=>{
+  if(event.source!==window.parent)return;const msg=event.data;if(msg?.jsonrpc!=='2.0')return;
+  if(msg.id!==undefined && pending.has(msg.id)){const p=pending.get(msg.id);pending.delete(msg.id);clearTimeout(p.timer);msg.error?p.reject(new Error(msg.error.message || 'Host request failed.')):p.resolve(msg.result);return;}
+  if(msg.method==='ui/notifications/tool-result')render(msg.params?.structuredContent);
+ });
+ window.addEventListener('openai:set_globals',event=>render(event.detail?.globals?.toolOutput));
+ render(window.openai?.toolOutput);
+ if(ready)by('verify').disabled=false;
+ else request('ui/initialize',{protocolVersion:'2026-01-26',appInfo:{name:'nexus-connection-lab',version:'1.0.0'},appCapabilities:{}}).then(()=>{ready=true;notify('ui/notifications/initialized',{});by('verify').disabled=false;}).catch(()=>state('Open this board through the connected Connection Lab app.','error'));
+})();
+</script>
+</body>
+</html>
