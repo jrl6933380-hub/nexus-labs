@@ -123,7 +123,7 @@
         if (!res.ok || !data.ok) throw new Error(data.error || 'Could not set up your account.');
         status.className = 'status ok';
         status.textContent = 'Your account is ready.';
-        go.href = 'https://chatgpt.com/?q=' + encodeURIComponent(PROMPT);
+        go.href = 'https://chatgpt.com/?prompt=' + encodeURIComponent(PROMPT);
         go.hidden = false;
         after.style.display = 'block';
       } catch (err) {
