@@ -54,9 +54,10 @@
   <div class="step">
     <div class="num">2</div>
     <div>
-      <h2>Copy the prompt and open ChatGPT</h2>
+      <h2>Open ChatGPT with your prompt</h2>
       <textarea id="prompt" readonly aria-label="Prompt to paste into ChatGPT"></textarea>
-      <button class="btn" id="go" type="button" disabled>Copy prompt and open ChatGPT</button>
+      <a class="btn" id="go" href="#" target="_blank" rel="noopener" hidden>Open ChatGPT with the prompt filled in</a>
+      <button class="btn secondary" id="copy" type="button">Copy the prompt instead</button>
       <div class="status" id="copystatus" role="status" aria-live="polite"></div>
     </div>
   </div>
@@ -65,7 +66,7 @@
     <div class="num">3</div>
     <div>
       <h2>Paste it and send</h2>
-      <p>In ChatGPT, paste the prompt into the message box and tap send. When ChatGPT asks to connect, approve it, then tap Allow on the Nexus screen.</p>
+      <p>If ChatGPT asks you to sign in, do that first. Then check the prompt is in the message box and tap send. (If it's empty, use "Copy the prompt instead" and paste it.) When ChatGPT asks to connect, approve it, then tap Allow on the Nexus screen.</p>
     </div>
   </div>
 
@@ -98,6 +99,7 @@
     var status = document.getElementById('status');
     var retry = document.getElementById('retry');
     var go = document.getElementById('go');
+    var copy = document.getElementById('copy');
     var promptBox = document.getElementById('prompt');
     var copystatus = document.getElementById('copystatus');
     var after = document.getElementById('after');
@@ -121,7 +123,8 @@
         if (!res.ok || !data.ok) throw new Error(data.error || 'Could not set up your account.');
         status.className = 'status ok';
         status.textContent = 'Your account is ready.';
-        go.disabled = false;
+        go.href = 'https://chatgpt.com/?q=' + encodeURIComponent(PROMPT);
+        go.hidden = false;
         after.style.display = 'block';
       } catch (err) {
         status.className = 'status error';
@@ -130,8 +133,7 @@
       }
     }
 
-    go.addEventListener('click', function () {
-      // Open ChatGPT first, inside the tap, so the browser allows it.
+    copy.addEventListener('click', function () {
       window.open('https://chatgpt.com/', '_blank', 'noopener');
       var done = function () { copystatus.className = 'status ok'; copystatus.textContent = 'Prompt copied. Paste it into ChatGPT and tap send.'; };
       var fail = function () {
