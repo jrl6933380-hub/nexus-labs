@@ -73,7 +73,7 @@
   </svg>
 
   <h1>Connect your Nexus Board to ChatGPT</h1>
-  <p class="lede">One tap fills in the setup request. You send it, approve the connection, and your board is there.</p>
+  <p class="lede">One tap fills in the setup request. You send it and your board is there. No extra approval screens.</p>
 
   <button class="btn" id="wait" type="button" disabled>Setting up your account…</button>
   <a class="btn" id="go" target="_blank" rel="noopener" hidden>Connect to ChatGPT</a>
@@ -86,8 +86,8 @@
     <summary>What happens when you tap</summary>
     <ul>
       <li>We've already made you a Nexus account. It needs no password.</li>
-      <li>ChatGPT opens with the setup request filled in. Nothing is sent until you tap send.</li>
-      <li>ChatGPT asks to connect, then Nexus asks you to tap Allow. You can remove the connection any time in ChatGPT's settings.</li>
+      <li>ChatGPT opens with the setup request filled in. It contains a private address that only reaches your own board.</li>
+      <li>Keep that request to yourself. Anyone who has the address can use your board. You can switch it off any time under Disconnect ChatGPT below.</li>
     </ul>
   </details>
 
@@ -111,31 +111,50 @@
       <p class="state" id="pwstate" role="status" aria-live="polite"></p>
     </form>
   </details>
+
+  <details id="disc" hidden>
+    <summary>Disconnect ChatGPT</summary>
+    <p>This switches off the private address right away. ChatGPT can no longer reach your board. Reload this page any time to make a new one.</p>
+    <button class="btn quiet" id="revoke" type="button">Switch off this address</button>
+    <p class="state" id="revokestate" role="status" aria-live="polite"></p>
+  </details>
 </main>
 <script>
   (function () {
-    var PROMPT = '@Plugin Creator Create a plugin that connects to my Nexus Board workspace at https://nexus-labs-sigma.vercel.app/api/workspace-mcp. Use it to read and update my board. Make it work in the ChatGPT mobile app and on the web, not just in a terminal or desktop app.';
     var $ = function (id) { return document.getElementById(id); };
     var page = $('page'), wait = $('wait'), go = $('go'), retry = $('retry'), state = $('state');
     var copyBtn = $('copy'), copystate = $('copystate'), keep = $('keep'), pw = $('pw'), pwstate = $('pwstate');
+    var disc = $('disc'), revokeBtn = $('revoke'), revokestate = $('revokestate');
+    var PROMPT = '';
 
-    $('prompt').value = PROMPT;
+    function buildPrompt(url) {
+      return '@Plugin Creator Create a plugin that connects to my Nexus Board MCP server at ' + url +
+        ' . The address is private and already identifies my account, so set authentication to none and do not use OAuth or a login. Use it to read and update my board. Make it work in the ChatGPT mobile app and on the web, not just in a terminal or desktop app.';
+    }
+
+    async function post(body) {
+      var res = await fetch('/api/connect', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+      });
+      var data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || 'We couldn’t set up your account.');
+      return data;
+    }
 
     async function setup() {
-      retry.hidden = true; wait.hidden = false; go.hidden = true;
+      retry.hidden = true; wait.hidden = false; go.hidden = true; disc.hidden = true;
       state.className = 'state'; state.textContent = '';
       try {
-        var res = await fetch('/api/connect', {
-          method: 'POST', credentials: 'same-origin',
-          headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({})
-        });
-        var data = await res.json();
-        if (!res.ok || !data.ok) throw new Error(data.error || 'We couldn’t set up your account.');
+        var data = await post({});
+        if (!data.mcp_url) throw new Error('We couldn’t make your private address.');
+        PROMPT = buildPrompt(data.mcp_url);
+        $('prompt').value = PROMPT;
         go.href = 'https://chatgpt.com/?prompt=' + encodeURIComponent(PROMPT);
         wait.hidden = true; go.hidden = false;
         page.classList.add('ready');
         state.className = 'state ok'; state.textContent = 'Your account is ready.';
-        keep.style.display = 'block';
+        keep.style.display = 'block'; disc.hidden = false;
       } catch (err) {
         wait.hidden = true; retry.hidden = false;
         state.className = 'state bad';
@@ -146,7 +165,22 @@
     retry.addEventListener('click', setup);
     setup();
 
+    revokeBtn.addEventListener('click', async function () {
+      revokestate.className = 'state'; revokestate.textContent = 'Switching off…';
+      try {
+        await post({ revoke: true });
+        PROMPT = ''; $('prompt').value = ''; go.hidden = true; wait.hidden = true; retry.hidden = false;
+        page.classList.remove('ready');
+        state.className = 'state'; state.textContent = 'Disconnected. Tap try again to make a new private address.';
+        revokestate.className = 'state ok'; revokestate.textContent = 'Switched off. The old address no longer works.';
+      } catch (err) {
+        revokestate.className = 'state bad';
+        revokestate.textContent = err instanceof TypeError ? 'We couldn’t reach Nexus. Try again.' : err.message;
+      }
+    });
+
     copyBtn.addEventListener('click', function () {
+      if (!PROMPT) return;
       window.open('https://chatgpt.com/', '_blank', 'noopener');
       var ok = function () { copystate.className = 'state ok'; copystate.textContent = 'Copied. Paste it into ChatGPT and tap send.'; };
       var fail = function () {
