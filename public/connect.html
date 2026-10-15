@@ -73,18 +73,18 @@
   </svg>
 
   <h1>Connect your Nexus Board to ChatGPT</h1>
-  <p class="lede">One tap fills in the setup request. You send it and your board is there. No extra approval screens.</p>
+  <p class="lede" id="lede">Open ChatGPT with your private setup request. App setup may require additional steps.</p>
 
   <button class="btn" id="wait" type="button" disabled>Setting up your account…</button>
   <a class="btn" id="go" target="_blank" rel="noopener" hidden>Connect to ChatGPT</a>
   <button class="btn quiet" id="retry" type="button" hidden>Try again</button>
   <p class="state" id="state" role="status" aria-live="polite"></p>
 
-  <p class="need"><strong class="hl">ChatGPT opens when you tap. If it asks you to sign in, sign in there.</strong> Your request will be waiting for you. You need an account that includes Plugin Creator.</p>
+  <p class="need" id="need"><strong class="hl">ChatGPT opens when you tap. If it asks you to sign in, sign in there.</strong> Your request will be waiting for you. You need an account that includes Plugin Creator.</p>
 
   <details>
     <summary>What happens when you tap</summary>
-    <ul>
+    <ul id="steps">
       <li>We've already made you a Nexus account. It needs no password.</li>
       <li>ChatGPT opens with the setup request filled in. It contains a private address that only reaches your own board.</li>
       <li>Keep that request to yourself. Anyone who has the address can use your board. You can switch it off any time under Disconnect ChatGPT below.</li>
@@ -126,6 +126,19 @@
     var copyBtn = $('copy'), copystate = $('copystate'), keep = $('keep'), pw = $('pw'), pwstate = $('pwstate');
     var disc = $('disc'), revokeBtn = $('revoke'), revokestate = $('revokestate');
     var PROMPT = '';
+    // Test the shared customer app without replacing the current private-URL
+    // flow. The app must be configured once at /api/customer-board-mcp.
+    var sharedMode = new URLSearchParams(location.search).get('shared') === '1';
+    if (sharedMode) {
+      $('lede').textContent = 'Use the shared Nexus customer app with your own private workspace.';
+      $('need').textContent = 'Enable the shared Nexus customer app in ChatGPT, then send your private connection request. You do not need to create a new plugin. This test requires access to that app.';
+      $('steps').replaceChildren();
+      ["We make a private Nexus workspace for you. No password is required to start.", "ChatGPT opens with a private workspace key for the shared customer app. Enable that app before sending the request.", "Anyone with the key can use your board. Keep the request private. Disconnect ChatGPT below switches the key off."].forEach(function (text) { var item = document.createElement('li'); item.textContent = text; $('steps').appendChild(item); });
+    }
+
+    function buildSharedPrompt(key) {
+      return 'Open my Nexus Board using the shared Nexus customer app. Use this private workspace_key for its tools: ' + key + '. Keep it out of visible replies and saved content. Do not create another plugin or use a different Nexus connection. If the shared customer tools are unavailable, say so.';
+    }
 
     function buildPrompt(url) {
       return '@Plugin Creator Connect my Nexus Board to ChatGPT mobile and web as a private app-backed plugin (not desktop-only). Use only my workspace MCP endpoint: ' + url +
@@ -146,12 +159,13 @@
       retry.hidden = true; wait.hidden = false; go.hidden = true; disc.hidden = true;
       state.className = 'state'; state.textContent = '';
       try {
-        var data = await post({});
-        if (!data.mcp_url) throw new Error('We couldn’t make your private address.');
-        PROMPT = buildPrompt(data.mcp_url);
+        var data = await post(sharedMode ? { shared: true } : {});
+        if (sharedMode ? !/^nxc_[A-Za-z0-9_-]{43}$/.test(data.workspace_key || '') : !data.mcp_url) throw new Error('We couldn’t make your private connection.');
+        PROMPT = sharedMode ? buildSharedPrompt(data.workspace_key) : buildPrompt(data.mcp_url);
         $('prompt').value = PROMPT;
         go.href = 'https://chatgpt.com/?prompt=' + encodeURIComponent(PROMPT);
         wait.hidden = true; go.hidden = false;
+        if (sharedMode) go.textContent = 'Open my board in ChatGPT';
         page.classList.add('ready');
         state.className = 'state ok'; state.textContent = 'Your account is ready.';
         keep.style.display = 'block'; disc.hidden = false;
@@ -211,3 +225,4 @@
 </script>
 </body>
 </html>
+
