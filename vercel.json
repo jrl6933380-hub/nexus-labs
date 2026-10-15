@@ -67,6 +67,10 @@
   ],
   "rewrites": [
     {
+      "source": "/connect",
+      "destination": "/connect.html"
+    },
+    {
       "source": "/authorize",
       "destination": "/api/workspace-oauth?route=authorize"
     },
