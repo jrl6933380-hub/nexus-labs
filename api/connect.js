@@ -3,7 +3,7 @@
 // the session cookie. The session is what lets the user approve the
 // workspace OAuth connection and open the Nexus board. A password can be
 // added later via POST /api/connect-password on the same account.
-import { createGuestUser, createSession, serializeSessionCookie } from '../lib/roomAuth.js';
+import { createGuestUser, createSession, getRequestUser, serializeSessionCookie } from '../lib/roomAuth.js';
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'private, no-store');
@@ -15,6 +15,10 @@ export default async function handler(req, res) {
   if (name.length > 80) return res.status(400).json({ ok: false, error: 'Name must be 80 characters or fewer.' });
 
   try {
+    // Already signed in (refresh, or came back to the page): reuse that account.
+    const existing = await getRequestUser(req);
+    if (existing) return res.status(200).json({ ok: true, existing: true });
+
     const { username } = await createGuestUser({ name });
     const token = await createSession(username);
     res.setHeader('Set-Cookie', serializeSessionCookie(token));
