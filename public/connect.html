@@ -3,175 +3,173 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
 <title>Connect Nexus Board</title>
 <style>
-  :root { --bg:#0b0d0c; --fg:#f2f1ec; --muted:#a3a39b; --card:#161917; --line:#2c302d; --accent:#e7c46b; --accent-fg:#14120a; }
-  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 system-ui,-apple-system,sans-serif; }
-  main { max-width:480px; margin:0 auto; padding:32px 16px 56px; }
-  h1 { font-size:24px; margin:0 0 8px; }
-  h2 { font-size:17px; margin:0 0 6px; }
-  p { color:var(--muted); margin:0 0 12px; }
-  label { display:block; font-weight:600; margin:18px 0 6px; }
-  input, textarea { width:100%; box-sizing:border-box; padding:12px; border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--fg); font:inherit; }
-  textarea { font-size:14px; min-height:96px; resize:vertical; }
-  .btn { display:block; width:100%; box-sizing:border-box; padding:14px; margin-top:12px; border:0; border-radius:10px; background:var(--accent); color:var(--accent-fg); font:inherit; font-weight:700; text-align:center; text-decoration:none; cursor:pointer; }
-  .btn[disabled] { opacity:.5; cursor:default; }
-  .btn.secondary { background:var(--card); color:var(--fg); border:1px solid var(--line); }
-  .box { margin-top:16px; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
-  .box a { color:var(--accent); font-weight:600; }
-  .step { display:flex; gap:12px; align-items:flex-start; margin-top:16px; }
-  .num { flex:0 0 28px; height:28px; border-radius:50%; background:var(--accent); color:var(--accent-fg); font-weight:700; display:flex; align-items:center; justify-content:center; font-size:14px; }
-  .step > div { flex:1; min-width:0; }
-  details ul { color:var(--muted); padding-left:18px; margin:10px 0 0; }
-  summary { cursor:pointer; font-weight:600; }
-  .status { min-height:1.5em; font-size:14px; color:var(--muted); }
-  .error { color:#f0a08a; }
-  .ok { color:#9fd8a6; }
-  #after { display:none; margin-top:24px; border-top:1px solid var(--line); padding-top:18px; }
+  :root {
+    --ink:#0b1110; --panel:#121a17; --line:#26332d; --text:#ece9df; --muted:#9fada4;
+    --gold:#d9bd72; --gold-ink:#1a1608; --ok:#8fcf9a; --bad:#f0a08a;
+    --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+    --sans:system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  * { box-sizing:border-box; }
+  html { background:var(--ink); }
+  body { margin:0; min-height:100vh; background:var(--ink); color:var(--text); font:16px/1.55 var(--sans); }
+  main { max-width:440px; margin:0 auto; padding:40px 20px 64px; }
+
+  .link-art { display:block; width:100%; max-width:300px; height:auto; margin:0 auto 28px; overflow:visible; }
+  .node { fill:none; stroke:var(--gold); stroke-width:2; }
+  .mark { fill:var(--gold); font:500 24px var(--serif); text-anchor:middle; dominant-baseline:central; }
+  .tag { fill:var(--muted); font:13px var(--sans); text-anchor:middle; }
+  .wire-base { stroke:var(--line); stroke-width:2; }
+  .wire { stroke:var(--gold); stroke-width:2; stroke-dasharray:100; stroke-dashoffset:100; }
+  .ready .wire { stroke-dashoffset:0; transition:stroke-dashoffset .9s ease-out; }
+  .guest-dot { fill:var(--muted); }
+  .ready .guest-dot { fill:var(--gold); transition:fill .3s .8s; }
+
+  h1 { font:500 31px/1.15 var(--serif); letter-spacing:-.01em; margin:0 0 12px; text-align:center; }
+  .lede { color:var(--muted); margin:0 auto 28px; text-align:center; max-width:34ch; }
+
+  .btn { display:block; width:100%; padding:16px; border:0; border-radius:14px; background:var(--gold); color:var(--gold-ink); font:600 17px var(--sans); text-align:center; text-decoration:none; cursor:pointer; }
+  .btn[disabled] { background:var(--panel); color:var(--muted); border:1px solid var(--line); cursor:default; }
+  .btn.quiet { background:transparent; color:var(--text); border:1px solid var(--line); font-weight:500; font-size:15px; padding:12px; margin-top:10px; }
+  .btn:focus-visible, a:focus-visible, summary:focus-visible, input:focus-visible, textarea:focus-visible { outline:2px solid var(--gold); outline-offset:3px; }
+
+  .need { margin:14px 0 0; color:var(--muted); font-size:15px; text-align:center; }
+  a { color:var(--gold); }
+  .state { min-height:1.4em; margin:10px 0 0; font-size:14px; text-align:center; color:var(--muted); }
+  .state.ok { color:var(--ok); }
+  .state.bad { color:var(--bad); }
+
+  details { margin-top:32px; border-top:1px solid var(--line); padding-top:6px; }
+  summary { cursor:pointer; padding:10px 0; font-weight:600; }
+  details p, details li { color:var(--muted); font-size:15px; }
+  details ul { margin:4px 0 12px; padding-left:20px; }
+  textarea, input { width:100%; padding:12px; border:1px solid var(--line); border-radius:10px; background:var(--panel); color:var(--text); font:inherit; }
+  textarea { font-size:14px; min-height:92px; resize:vertical; }
+  label { display:block; margin:14px 0 6px; font-weight:600; font-size:15px; }
+
+  #keep { display:none; margin-top:28px; padding:16px 18px; background:var(--panel); border:1px solid var(--line); border-radius:14px; }
+  #keep summary { padding:0; font:500 19px var(--serif); }
+  #keep[open] summary { margin-bottom:8px; }
+  #keep p { color:var(--muted); font-size:15px; margin:0 0 4px; }
   [hidden] { display:none !important; }
+  @media (prefers-reduced-motion:reduce) { .ready .wire, .ready .guest-dot { transition:none; } }
 </style>
 </head>
 <body>
-<main>
-  <h1>Connect your Nexus Board</h1>
-  <p>Add your Nexus Board to ChatGPT in three steps.</p>
+<main id="page">
+  <svg class="link-art" viewBox="0 0 300 120" role="img" aria-label="Nexus Board linked to ChatGPT">
+    <circle class="node" cx="46" cy="48" r="32"/>
+    <text class="mark" x="46" y="49">N</text>
+    <text class="tag" x="46" y="106">Nexus Board</text>
+    <line class="wire-base" x1="84" y1="48" x2="216" y2="48"/>
+    <line class="wire" x1="84" y1="48" x2="216" y2="48" pathLength="100"/>
+    <circle class="guest-dot" cx="150" cy="48" r="4"/>
+    <circle class="node" cx="254" cy="48" r="32" style="stroke:var(--line)"/>
+    <text class="tag" x="254" y="52" style="fill:var(--text)">AI</text>
+    <text class="tag" x="254" y="106">ChatGPT</text>
+  </svg>
 
-  <div class="box">
-    <strong>What you need first</strong>
-    <p style="margin:6px 0 10px;">You must be signed in to ChatGPT, on an account type that includes Plugin Creator (a paid ChatGPT tool). Without that, the connection won't work.</p>
-    <a href="https://chatgpt.com/" target="_blank" rel="noopener">Open ChatGPT to sign in</a>
-  </div>
+  <h1>Connect your Nexus Board to ChatGPT</h1>
+  <p class="lede">One tap fills in the setup request. You send it, approve the connection, and your board is there.</p>
 
-  <div class="step">
-    <div class="num">1</div>
-    <div>
-      <h2>Your Nexus account</h2>
-      <div class="status" id="status" role="status" aria-live="polite">Setting up your account…</div>
-      <button class="btn secondary" id="retry" type="button" hidden>Try again</button>
-    </div>
-  </div>
+  <button class="btn" id="wait" type="button" disabled>Setting up your account…</button>
+  <a class="btn" id="go" target="_blank" rel="noopener" hidden>Connect to ChatGPT</a>
+  <button class="btn quiet" id="retry" type="button" hidden>Try again</button>
+  <p class="state" id="state" role="status" aria-live="polite"></p>
 
-  <div class="step">
-    <div class="num">2</div>
-    <div>
-      <h2>Open ChatGPT with your prompt</h2>
-      <textarea id="prompt" readonly aria-label="Prompt to paste into ChatGPT"></textarea>
-      <a class="btn" id="go" href="#" target="_blank" rel="noopener" hidden>Open ChatGPT with the prompt filled in</a>
-      <button class="btn secondary" id="copy" type="button">Copy the prompt instead</button>
-      <div class="status" id="copystatus" role="status" aria-live="polite"></div>
-    </div>
-  </div>
+  <p class="need">Sign in to <a href="https://chatgpt.com/" target="_blank" rel="noopener">ChatGPT</a> first. You need an account that includes Plugin Creator.</p>
 
-  <div class="step">
-    <div class="num">3</div>
-    <div>
-      <h2>Paste it and send</h2>
-      <p>If ChatGPT asks you to sign in, do that first. Then check the prompt is in the message box and tap send. (If it's empty, use "Copy the prompt instead" and paste it.) When ChatGPT asks to connect, approve it, then tap Allow on the Nexus screen.</p>
-    </div>
-  </div>
-
-  <details class="box">
-    <summary>What this does</summary>
+  <details>
+    <summary>What happens when you tap</summary>
     <ul>
-      <li>Creates a Nexus account for you, with no password needed yet.</li>
-      <li>You send the prompt yourself, so ChatGPT builds the connection only when you ask it to.</li>
-      <li>The Nexus screen that follows is where you approve it with Allow. You can remove the connection any time from ChatGPT's settings.</li>
-      <li>Your saved work stays on your account. You can add a password later to sign in from anywhere.</li>
+      <li>We've already made you a Nexus account. It needs no password.</li>
+      <li>ChatGPT opens with the setup request filled in. Nothing is sent until you tap send.</li>
+      <li>ChatGPT asks to connect, then Nexus asks you to tap Allow. You can remove the connection any time in ChatGPT's settings.</li>
     </ul>
   </details>
 
-  <section id="after">
-    <h2>Set a password (optional, do it later)</h2>
-    <p>Add a password and recovery email to keep signing in to this account.</p>
+  <details>
+    <summary>The request didn't appear?</summary>
+    <p>Copy it and paste it into ChatGPT yourself.</p>
+    <textarea id="prompt" readonly aria-label="Setup request for ChatGPT"></textarea>
+    <button class="btn quiet" id="copy" type="button">Copy request and open ChatGPT</button>
+    <p class="state" id="copystate" role="status" aria-live="polite"></p>
+  </details>
+
+  <details id="keep">
+    <summary>Keep your account</summary>
+    <p>Add a password and a recovery email so you can sign in later and keep everything you've saved.</p>
     <form id="pw">
       <label for="email">Recovery email</label>
       <input id="email" type="email" autocomplete="email" required>
-      <label for="password">Password (at least 8 characters)</label>
+      <label for="password">Password, at least 8 characters</label>
       <input id="password" type="password" autocomplete="new-password" minlength="8" required>
-      <button class="btn secondary" type="submit">Save password</button>
-      <div class="status" id="pwstatus" role="status" aria-live="polite"></div>
+      <button class="btn quiet" type="submit" style="margin-top:14px">Save password</button>
+      <p class="state" id="pwstate" role="status" aria-live="polite"></p>
     </form>
-  </section>
+  </details>
 </main>
 <script>
   (function () {
     var PROMPT = '@Plugin Creator Create a plugin that connects to my Nexus Board workspace at https://nexus-labs-sigma.vercel.app/api/workspace-mcp. Use it to read and update my board.';
-    var status = document.getElementById('status');
-    var retry = document.getElementById('retry');
-    var go = document.getElementById('go');
-    var copy = document.getElementById('copy');
-    var promptBox = document.getElementById('prompt');
-    var copystatus = document.getElementById('copystatus');
-    var after = document.getElementById('after');
-    var pw = document.getElementById('pw');
-    var pwstatus = document.getElementById('pwstatus');
+    var $ = function (id) { return document.getElementById(id); };
+    var page = $('page'), wait = $('wait'), go = $('go'), retry = $('retry'), state = $('state');
+    var copyBtn = $('copy'), copystate = $('copystate'), keep = $('keep'), pw = $('pw'), pwstate = $('pwstate');
 
-    promptBox.value = PROMPT;
+    $('prompt').value = PROMPT;
 
     async function setup() {
-      retry.hidden = true;
-      status.className = 'status';
-      status.textContent = 'Setting up your account…';
+      retry.hidden = true; wait.hidden = false; go.hidden = true;
+      state.className = 'state'; state.textContent = '';
       try {
         var res = await fetch('/api/connect', {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({})
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({})
         });
         var data = await res.json();
-        if (!res.ok || !data.ok) throw new Error(data.error || 'Could not set up your account.');
-        status.className = 'status ok';
-        status.textContent = 'Your account is ready.';
+        if (!res.ok || !data.ok) throw new Error(data.error || 'We couldn’t set up your account.');
         go.href = 'https://chatgpt.com/?prompt=' + encodeURIComponent(PROMPT);
-        go.hidden = false;
-        after.style.display = 'block';
+        wait.hidden = true; go.hidden = false;
+        page.classList.add('ready');
+        state.className = 'state ok'; state.textContent = 'Your account is ready.';
+        keep.style.display = 'block';
       } catch (err) {
-        status.className = 'status error';
-        status.textContent = err.message;
-        retry.hidden = false;
+        wait.hidden = true; retry.hidden = false;
+        state.className = 'state bad';
+        var msg = err instanceof TypeError ? 'We couldn’t reach Nexus. Check your connection.' : err.message;
+        state.textContent = msg + ' Tap try again.';
       }
     }
-
-    copy.addEventListener('click', function () {
-      window.open('https://chatgpt.com/', '_blank', 'noopener');
-      var done = function () { copystatus.className = 'status ok'; copystatus.textContent = 'Prompt copied. Paste it into ChatGPT and tap send.'; };
-      var fail = function () {
-        promptBox.focus(); promptBox.select();
-        copystatus.className = 'status error';
-        copystatus.textContent = 'Could not copy automatically. The prompt is selected above: copy it, then paste it in ChatGPT.';
-      };
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(PROMPT).then(done, fail);
-      } else {
-        fail();
-      }
-    });
-
     retry.addEventListener('click', setup);
     setup();
 
+    copyBtn.addEventListener('click', function () {
+      window.open('https://chatgpt.com/', '_blank', 'noopener');
+      var ok = function () { copystate.className = 'state ok'; copystate.textContent = 'Copied. Paste it into ChatGPT and tap send.'; };
+      var fail = function () {
+        var box = $('prompt'); box.focus(); box.select();
+        copystate.className = 'state bad';
+        copystate.textContent = 'Couldn’t copy automatically. Copy the selected text above, then paste it in ChatGPT.';
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(PROMPT).then(ok, fail); else fail();
+    });
+
     pw.addEventListener('submit', async function (e) {
       e.preventDefault();
-      pwstatus.className = 'status';
-      pwstatus.textContent = 'Saving...';
+      pwstate.className = 'state'; pwstate.textContent = 'Saving…';
       try {
         var res = await fetch('/api/connect-password', {
-          method: 'POST',
-          credentials: 'same-origin',
+          method: 'POST', credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: document.getElementById('email').value.trim(),
-            password: document.getElementById('password').value
-          })
+          body: JSON.stringify({ email: $('email').value.trim(), password: $('password').value })
         });
         var data = await res.json();
-        if (!res.ok || !data.ok) throw new Error(data.error || 'Could not save your password.');
-        pwstatus.className = 'status ok';
-        pwstatus.textContent = 'Password saved. Your work is kept on this account.';
+        if (!res.ok || !data.ok) throw new Error(data.error || 'We couldn’t save your password.');
+        pwstate.className = 'state ok'; pwstate.textContent = 'Saved. Your work stays on this account.';
       } catch (err) {
-        pwstatus.className = 'status error';
-        pwstatus.textContent = err.message;
+        pwstate.className = 'state bad'; pwstate.textContent = err.message;
       }
     });
   })();
