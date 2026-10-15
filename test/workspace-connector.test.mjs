@@ -19,7 +19,7 @@ test('no authentication, claimed owner input, and invalid private bearer fail cl
  const f=fixture();await assert.rejects(f.execute('board',{user_id:'Mrlopez'},alice),/Unsupported field/);
 });
 test('owner and customer scope mapping match the real Nexus UI',async()=>{
- const customer=await resolveWorkspaceAccount({headers:{}},{getOwner:async()=>null,getUser:async()=> 'alice'});assert.deepEqual(customer,alice);
+ const customer=await resolveWorkspaceAccount({headers:{}},{getOwner:async()=>null,getUser:async()=> 'alice'});assert.deepEqual(customer,{...alice,id:'customer:alice'});
  const account=await resolveWorkspaceAccount({headers:{authorization:'Bearer private'}},{getOwner:async()=>null,agentAuthorized:async()=>true,env:{NEXUS_OWNER_ID:'justin'}});assert.equal(account.scheduleUserId,'owner:justin');assert.equal(account.workbenchUserId,'Mrlopez');
 });
 test('save/read/list run the existing history flow and never cross accounts',async()=>{

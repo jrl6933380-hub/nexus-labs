@@ -2,7 +2,7 @@
 
 `POST /api/workspace-connector` exposes product operations, not repository or operator tools.
 
-Identity is resolved server-side. A private owner session or the internal `NEXUS_AGENT_API_TOKEN` maps Projects to `ownerWorkbenchUsername()` and Schedule/Reminders to `owner:<owner id>`. A Forge session maps to that user's Projects and `room:<username>` Schedule/Reminders. Input cannot select another account. The agent credential stays on the private connector server; never distribute it to customers.
+Identity is resolved server-side. A private owner session or the internal `NEXUS_AGENT_API_TOKEN` maps Projects to `ownerWorkbenchUsername()` and Schedule/Reminders to `owner:<owner id>`. A customer session maps to that user's Projects and `room:<username>` Schedule/Reminders, with the separate workspace identity `customer:<username>`. Input cannot select another account. The agent credential stays on the private connector server; never distribute it to customers.
 
 Available actions: board, projects, project, save_project, rename_project, import_form (owner only), schedule, create_event, update_event, delete_event, reminders, create_reminder, update_reminder, delete_reminder, usage. Supply `{action,input,request_id}`. Mutations require a stable request ID; identical retries replay the result. Unknown outcomes stay pending and require checking saved state instead of blindly repeating a write. The request journal and separate successful-action audit live in account-scoped Redis keys.
 
@@ -35,7 +35,7 @@ Verify with `node scripts/verify-workspace-board-ui.mjs`: real OAuth → MCP →
 3. Refresh the connector's tools, load `show_nexus_board`, and use `import_form_project` to add FORM to the live owner account.
 4. Verify the real ChatGPT host renders the packaged board and authorizes button tool calls.
 
-This is the owner implementation, not a public customer launch. A public product-only MCP endpoint must have account-bound OAuth and must not inherit repository, admin or internal-agent credentials. Claude/Gemini visual host support still needs separate live verification. Demo-account seeding and recording follow after the live board is verified.
+The product-only `/api/workspace-mcp` endpoint now uses account-bound customer or owner OAuth. Customers receive the same main board with private data and existing plan limits; the private GitHub/Vercel developer connector remains separate. Custom Board Studio is omitted from the initial customer navigation. Host verification and distribution are separate from enabling customer account access. Claude/Gemini visual host support still needs separate live verification. Demo-account seeding and recording follow after the live board is verified.
 
 ## Validation
 
