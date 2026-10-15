@@ -7,7 +7,7 @@ import {workspaceFixture} from './helpers/workspaceFixture.mjs';
 const html=readFileSync(new URL('../public/nexus-workspace-board.html',import.meta.url),'utf8');
 const source=html.match(/<script>([\s\S]*?)<\/script>/)[1];
 const spec={title:'Tutor',audience:'One learner',purpose:'Learn maths',workflow:['Try a question'],collections:[{id:'notes',label:'Notes',fields:[{id:'note',label:'Note',type:'text',required:true}]}],skill:'Offer hints.',guidance:'Ask which topic.',requirements:[],html:'<!doctype html><html><body>A lesson</body></html>'};
-const account={id:'fixture-pro',workbenchUserId:'fixture-pro',scheduleUserId:'room:fixture-pro',owner:false};
+const account={id:'fixture-pro',workbenchUserId:'fixture-pro',scheduleUserId:'room:fixture-pro',owner:true};
 
 // A deterministic DOM/host double executes the shipped widget handlers.
 // It does not prove real browser rendering or ChatGPT fullscreen support.
@@ -106,7 +106,7 @@ test('asking creates a private waiting question and requests a saved answer thro
 test('an actual saved answer appears inside the board after refresh and survives reopening',async()=>{
  const h=await harness();await h.click('Open board');await h.click('Ask AI · Answers');h.by('board-chat-message').value='Next step?';await h.by('board-chat-message').parent.onsubmit({preventDefault(){}});await h.settle();
  const entry=(await h.f.execute('board_entries',{board_id:'tutor',collection_id:'board_replies'},account)).entries[0];
- await h.f.execute('save_board_entry',{...entry,data:{...entry.data,answer:'Pick one demonstration.',next_step:'Choose the project.',status:'answered'}},account);await h.click('Refresh answers');
+ await h.f.execute('save_board_entry',{board_id:'tutor',collection_id:'board_replies',entry_id:entry.entry_id,baseline:entry.baseline,data:{...entry.data,answer:'Pick one demonstration.',next_step:'Choose the project.',status:'answered'}},account);await h.click('Refresh answers');
  assert.ok(h.by('board-pane-answers').querySelectorAll('p').some(p=>p.textContent==='Pick one demonstration.'));
  await h.click('Refresh board');assert.equal(h.by('board-pane-answers').hidden,false);assert.ok(h.by('board-pane-answers').querySelectorAll('p').some(p=>p.textContent==='Pick one demonstration.'));
 });
@@ -126,5 +126,12 @@ test('answer payloads are rendered as text and collection collisions do not rewr
 });
 test('account changes clear saved answers and pending board view',async()=>{
  const h=await harness();await h.click('Open board');await h.click('View board');const previous=await h.f.execute('board',{},account);h.listeners['openai:set_globals']({detail:{globals:{toolOutput:{...previous,account:{id:'other',owner:false},boards:[],projects:[],updated_at:'2099-01-01T00:00:00Z'}}}});assert.equal(h.by('board-kit-detail').children.length,0);assert.equal(h.by('board').className.includes('focus-board'),false);assert.equal(h.states.at(-1).accountId,'other');
+});
+test('customer workspace shows the same core tools and treats custom boards as a future option',async()=>{
+ const h=await harness();await h.click('Open board');await h.click('View board');const previous=await h.f.execute('board',{},account);
+ h.listeners['openai:set_globals']({detail:{globals:{toolOutput:{...previous,account:{id:'customer:alice',name:'alice',owner:false},boards:[],projects:[],board_studio:{available:false},updated_at:'2099-01-01T00:00:00Z'}}}});
+ assert.equal(h.by('account').textContent,'alice · Your workspace');assert.equal(h.by('boards-tab').hidden,true);assert.equal(h.by('custom-boards-future').hidden,false);assert.equal(h.by('import-form').hidden,true);
+ for(const id of ['projects-tab','schedule-tab','reminders-tab','usage-tab'])assert.equal(h.by(id).hidden,false);
+ h.by('usage-tab').onkeydown({key:'ArrowRight',preventDefault(){}});assert.equal(h.by('projects-tab').attrs['aria-selected'],'true');
 });
 

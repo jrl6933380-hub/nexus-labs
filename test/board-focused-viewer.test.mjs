@@ -94,6 +94,6 @@ test('double submission while delivery is pending sends only once',async()=>{
 });
 
 test('new resource version retains installed-client aliases',()=>{
- const resource=readFileSync(new URL('../lib/workspaceBoard.js',import.meta.url),'utf8');assert.ok(resource.includes("BOARD_URI='ui://nexus/workspace-board/v5.html'"));for(const version of ['v4','v3','v2'])assert.ok(resource.includes('ui://nexus/workspace-board/'+version+'.html'));
+ const resource=readFileSync(new URL('../lib/workspaceBoard.js',import.meta.url),'utf8');assert.ok(resource.includes("BOARD_URI='ui://nexus/workspace-board/v6.html'"));for(const version of ['v5','v4','v3','v2'])assert.ok(resource.includes('ui://nexus/workspace-board/'+version+'.html'));
 });
 
