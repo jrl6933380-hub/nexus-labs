@@ -31,7 +31,17 @@
     <label for="name">First name (optional)</label>
     <input id="name" name="name" autocomplete="given-name" maxlength="80">
 
-    <button class="btn" id="agree" type="submit">I agree, continue to ChatGPT</button>
+    <div style="margin-top:18px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;">
+      <strong>Before you continue</strong>
+      <p style="margin:6px 0 10px;">You need to be signed in to ChatGPT on a plan that supports plugins. If you're not signed in, the connection will fail with a verification error.</p>
+      <a href="https://chatgpt.com/" target="_blank" rel="noopener" style="color:var(--accent);font-weight:600;">Open ChatGPT to sign in</a>
+      <label style="display:flex;gap:10px;align-items:flex-start;font-weight:400;margin-top:14px;">
+        <input id="ready" type="checkbox" style="width:auto;margin-top:4px;">
+        <span>I'm signed in to ChatGPT and my plan supports plugins.</span>
+      </label>
+    </div>
+
+    <button class="btn" id="agree" type="submit" disabled>I agree, continue to ChatGPT</button>
     <a class="btn" id="open" target="_blank" rel="noopener" style="display:none">Open ChatGPT</a>
     <div class="status" id="status" role="status" aria-live="polite"></div>
   </form>
@@ -68,6 +78,9 @@
     var pw = document.getElementById('pw');
     var pwstatus = document.getElementById('pwstatus');
     var PROMPT = '@Plugin Creator Create a plugin that connects to my Nexus Board workspace at https://nexus-labs-sigma.vercel.app/api/workspace-mcp. Use it to read and update my board.';
+
+    var ready = document.getElementById('ready');
+    ready.addEventListener('change', function () { agree.disabled = !ready.checked; });
 
     form.addEventListener('submit', async function (e) {
       e.preventDefault();
