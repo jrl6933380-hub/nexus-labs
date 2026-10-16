@@ -20,9 +20,10 @@ The vocabulary must fit the existing contract rather than replace it.
 - `frame` = `{ timeMs, durationMs, sceneId, sceneProgress, sceneIndex, project, width, height, format }`, where `project` is the full campaign (brand, initial, accent, background, cta, destination, siteName, siteHeadline, siteCta, brief, format, logo, photo, scenes[]).
 - Everything is derived from `timeMs` / `sceneProgress`, so Play, Scrub, Loop, and Record share one result. **This determinism is the property that makes frame-by-frame MP4 export possible. The vocabulary must preserve it** (no `Math.random`, `Date.now`, or wall-clock animation; seeded noise only).
 - Today the campaign schema locks scenes to exactly four with ids `hook | team | reveal | close` (`lib/adCampaigns.js`, `public/ad-maker-model.mjs`). The vocabulary needs this relaxed (section 5).
-- Ads are stored in Redis with a 180 KB per-ad cap; logos/photos are heavily downscaled to fit.
+- **Size model (corrected per #619 review).** Serialized project configuration is capped at 180,000 UTF-8 bytes (it is not a cap on the whole stored ad). Creative HTML is capped separately at 100,000 characters; creative name 1 to 80 characters. Each stored logo/photo string is bounded to 140,000 characters inside the config cap. Accounts hold at most 100 campaigns. Owner MCP JSON requests are limited to 256kb, so JSON escaping and multi-byte text can exceed that before a character limit is hit. Measure transport bytes; do not assume every maximum is usable in one request.
+- **Frame semantics (from #619).** `timeMs`/`durationMs` are milliseconds; project scene durations are seconds. `sceneProgress` is clamped to [0,1]. Seeking exactly to a scene boundary selects the next scene, except the final endpoint stays on the last scene at progress 1. Logical canvas sizes: portrait 360x640, square 560x560, landscape 800x450 (preview scaling and output resolution are separate). The bridge sends `project` only when configuration changes and caches it; helpers must use the `renderAdFrame` callback, never raw postMessage traffic.
 
-Not verified by me: whether `save_nexus_ad_design` is deployed to production (a code search on `main` found nothing). Needs confirmation before anything depends on it.
+Deployment (confirmed by ChatGPT in #619, not by me): #617 is live (production c8f74ae); `save_nexus_ad_design` and `apply_nexus_ad_design` are registered in `lib/workspaceBoard.js`, and live `tools/list` returns both. My earlier code-search miss was a search-index issue, not a missing deploy. Still unrun: an authenticated creative save with read-back, and any browser/device visual review (both blocked in #619).
 
 ## 3. Design principles
 
@@ -48,7 +49,7 @@ registry (single source of truth)        public/ad-vocabulary.mjs   (ESM, shared
 **Runtime delivery (DECIDED by Justin: option A, inject).** Because of the CSP, helper code cannot be loaded from a URL. Two options:
 - (A) The renderer's bridge in `ad-maker-design.js` injects a versioned `NexusAd` runtime script into every design. Updates propagate; designs stay small; costs a small renderer change.
 - (B) Each design inlines the runtime. No renderer change; every design pays its size and drifts over time.
-Decision: **A**. The renderer injects a versioned `NexusAd` runtime into every design.
+Decision: **A**, refined per #619 review: injection is **opt-in and version-pinned**. A design declares the helper version it needs; legacy and no-helper creatives are untouched, so saved films and future exports stay reproducible (a global runtime that silently changes every saved film would break that). The helper must be installed **before** author scripts run; today the bridge is appended after author content, which is too late for scripts that call the helper during initialization. One versioned registry is the single source of truth for the helper, `describe_vocabulary`, UI controls, and validation, all exposing the same immutable ids and version.
 
 ## 5. Schema v2 (additive)
 
@@ -77,7 +78,8 @@ Changes to validation:
 - Scene count: 2 to 8 (today exactly 4). Total length <= 30 s.
 - Scene duration: 1.5 to 15 s in v2 (legacy stays 2 to 15).
 - `params` validated per scene type from the registry (types, max lengths, enums).
-- Store cap stays 180 KB until image storage moves to Blob (section 9).
+- Size model stays as in section 2: project config within the existing 180,000-byte cap, creative HTML separately within 100,000 characters.
+- **v2 needs its own versioned validation path in BOTH the browser normalizer and the server schema**, plus timeline, editor, import, and export handling. Today both require exactly hook/team/reveal/close and drop or reject unknown fields. Never route v2 through the legacy normalizer, and never tighten legacy limits retroactively.
 
 ## 6. Vocabulary v1
 
@@ -87,7 +89,7 @@ Changes to validation:
 |---|---|---|
 | `hook_text` | opening line | headline (60), support (120), textAnim |
 | `stat_counter` | animated number | value, from=0, prefix (4), suffix (10), label (40), numberFormat: integer / decimal / percent / currency |
-| `testimonial` | customer quote | quote (140), attribution (40), verified: bool (see section 8) |
+| `testimonial` | customer quote | quote (140), attribution (40), sourceRef: approval/source reference (see section 8) |
 | `before_after` | transformation | beforeLabel, afterLabel (20 each), beforeText, afterText (60 each), revealStyle: wipe / slide / fade |
 | `photo_focus` | image with slow motion | image: `photo` or `logo` ref, caption (60), camera |
 | `site_mockup` | concept website preview | siteName (30), headline (65), cta (25), style: light / dark, scroll: bool |
@@ -105,6 +107,7 @@ Changes to validation:
 
 ### 6.5 Transitions (`transitionOut`, 200 to 800 ms)
 `cut`, `crossfade`, `wipe_left`, `slide_up`, `zoom_through`.
+Overlap rule (proposed, exact fraction fixed in the registry PR): scenes overlap only during the outgoing scene's `transitionOut` window, and the span is clamped to a fraction of the shorter adjacent scene, so short scenes, cuts, the final frame, and loop boundaries are all well defined.
 
 ### 6.6 Backgrounds
 `solid`, `gradient`, `grain`, `grid`, `orbits`, `particles` (seeded by scene id, deterministic).
@@ -124,7 +127,7 @@ Changes to validation:
 - hook: `question`, `stat`, `pain_point`, `offer`, `proof`
 
 ### 6.10 Hard limits
-Headline <= 60 chars; support <= 120; CTA <= 35; scenes 2 to 8; total <= 30 s; min scene 1.5 s; params size counts toward the 180 KB ad cap; creative HTML <= 100,000 chars (unchanged).
+Headline <= 60 chars; support <= 120; CTA <= 35; scenes 2 to 8; total <= 30 s; min scene 1.5 s; param size counts toward the 180,000-byte project config cap; creative HTML <= 100,000 chars (unchanged). A character cap alone does not guarantee layout: long words, Unicode, wrapping, and font metrics still need renderer bounds and browser tests.
 
 ## 7. Tools, workflows, skills (built after spec approval)
 
@@ -150,8 +153,8 @@ Headline <= 60 chars; support <= 120; CTA <= 35; scenes 2 to 8; total <= 30 s; m
 
 ## 8. Honesty and safety rules (enforced in the player, not just prompts)
 
-1. **Concept previews are labeled.** When `concept: true`, the player renders a persistent label such as "Concept preview — not a live site" and `site_mockup` shows its illustrative tag. It cannot be removed through params.
-2. **No fabricated social proof.** `testimonial` requires `verified: true` plus a real attribution to render as a real quote. Otherwise it renders visibly tagged "SAMPLE". `stat_counter` content is the client's responsibility; skills must tell agents never to invent numbers.
+1. **Concept previews are labeled.** When `concept: true`, the stock player always renders "Concept preview — not a live site" (including `site_mockup` and exported frames); params cannot remove it. **Limit:** custom creative code (#617's escape hatch) can remove labels rendered inside itself, and #617's starter only says "ILLUSTRATIVE TEAM WORKFLOW". An unremovable label needs a trusted studio/export overlay outside the creative iframe, captured into the final output. That is a follow-up; #617 does not enforce it.
+2. **No fabricated social proof.** A boolean `verified` is not evidence. A `testimonial` renders as real only when a supplied source/approval reference accompanies it; otherwise it renders visibly tagged "SAMPLE". Sample statistics are labeled the same way. Skills must tell agents never to invent numbers, quotes, or claims.
 3. **Rights.** Prospect photos/logos used in a private pitch to that prospect are reasonable. Public ads need client approval. The spec records this as a skill rule, not a technical control.
 4. **No impersonation.** Do not render another brand's name, logo, or site as if it were the client's.
 5. **Isolation unchanged.** All rendering stays inside #617's opaque sandboxed iframe; the vocabulary adds no network, storage, or tool access.
@@ -159,9 +162,9 @@ Headline <= 60 chars; support <= 120; CTA <= 35; scenes 2 to 8; total <= 30 s; m
 ## 9. Build order (separate PRs, each reviewed before merge)
 
 1. `public/ad-vocabulary.mjs` registry + schema v2 validation + tests (legacy ads must still load).
-2. Vocabulary player stock design on the #617 contract + browser/device visual review (#617 reported none).
-3. `describe_vocabulary` tool + connector wiring; `create_ad_from_brief`, `edit_scene`, `make_variants`.
-4. MP4 export: deterministic frame render in an E2B sandbox + ffmpeg; captions; optional music track.
+2. `describe_vocabulary` tool exposing that same registry (read-only, immutable ids + version).
+3. Vocabulary player stock design on the #617 contract + browser/device visual review (#617 had none; #619 shows it is blocked on a browser-capable QA sandbox), then `create_ad_from_brief`, `edit_scene`, `make_variants`.
+4. MP4 export: deterministic frame render in an E2B sandbox + ffmpeg; captions; optional music track. **Prerequisite, in its own PR:** a per-frame capture barrier (await readiness, fonts/images, and an acknowledgement tied to each requested frame; frozen viewport, scale, DPR, fps, and helper version; ongoing render-error checks; design baseline pinned for the job). The current ready handshake does not acknowledge frame completion. No capture fields are added to the frame contract in this spec. The QA/export sandbox also needs browser OS dependencies (E2B Chromium currently fails on missing libnspr4.so).
 5. Image storage on Vercel Blob (lifts the 180 KB cap; real photos), brand kits, share/approval links, batch ads from lead lists.
 
 ## 10. Decisions and open questions
@@ -175,4 +178,4 @@ Headline <= 60 chars; support <= 120; CTA <= 35; scenes 2 to 8; total <= 30 s; m
 **Still open**
 - Should v2 min scene duration be 1.5 s (supports 6 s ads) while legacy stays 2 s?
 - Mood token bundles: Justin to approve the palette/typography direction for each mood.
-- Is `save_nexus_ad_design` live in production? (The connector now lists `save_nexus_ad_design` and `apply_nexus_ad_design`, but deployment and a signed-in production save are still unverified. ChatGPT to confirm.)
+- Authenticated `save_nexus_ad_design` write plus read-back, and browser/device review, are still unrun (blocked in #619 on a tool-discovery refresh and a browser-capable QA sandbox).
