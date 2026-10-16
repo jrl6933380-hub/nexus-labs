@@ -201,15 +201,18 @@ function render(frame){
 }
 window.renderAdFrame=frame=>{render(frame);};
 /* ---------- standalone preview (only when not embedded) ---------- */
-if(parent===window){
+const seed=document.getElementById("ad-project");
+if(seed||parent===window){
   const q=new URLSearchParams(location.search);
-  const project={specVersion:2,name:"Pat's Plumbing (sample)",brand:"PAT'S PLUMBING",initial:"P",mood:q.get("mood")||"bold",platform:{format:q.get("format")||"portrait",lengthSec:15},concept:q.get("concept")!=="0",
+  const sample={specVersion:2,name:"Pat's Plumbing (sample)",brand:"PAT'S PLUMBING",initial:"P",mood:q.get("mood")||"bold",platform:{format:q.get("format")||"portrait",lengthSec:15},concept:q.get("concept")!=="0",
     scenes:[
       {id:"s1",type:"hook_text",duration:4,params:{headline:"Burst pipe at 2am?",support:"We answer. Every time.",textAnim:q.get("anim")||"kinetic_stack"},camera:"push_in",background:q.get("bg")||"grain",transitionOut:"wipe_left",transitionMs:450},
       {id:"s2",type:"site_mockup",duration:5,params:{siteName:"Pat's Plumbing",headline:"Fast, honest local plumbing",cta:"Call now",style:"dark",scroll:true},camera:"pull_out",background:"grid",transitionOut:"crossfade",transitionMs:400},
       {id:"s3",type:"end_card",duration:4,params:{cta:"Call now",destination:"555-0100",tagline:"Concept preview for Pat's Plumbing"},camera:"static",background:"orbits"}
     ]};
-  if(q.get("palette"))project.palette=q.get("palette");
+  let project=sample;
+  if(seed){try{project=JSON.parse(seed.textContent);}catch{}}
+  else if(q.get("palette"))project.palette=q.get("palette");
   const total=project.scenes.reduce((n,s)=>n+s.duration*1000,0),fixed=q.has("t")?Number(q.get("t")):null,t0=performance.now();
   function frameFor(timeMs){let el=0;for(let i=0;i<project.scenes.length;i++){const s=project.scenes[i],end=el+s.duration*1000;if(timeMs<end||i===project.scenes.length-1)return {timeMs,durationMs:total,sceneId:s.id,sceneProgress:clamp((timeMs-el)/(end-el)),sceneIndex:i,project,width:innerWidth,height:innerHeight,format:project.platform.format};el=end;}}
   window.__seek=ms=>render(frameFor(clamp(ms,0,total)));
