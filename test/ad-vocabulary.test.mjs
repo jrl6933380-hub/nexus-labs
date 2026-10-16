@@ -176,3 +176,37 @@ test('frameAtV2 is deterministic and matches legacy boundary semantics', () => {
   assert.equal(frameAtV2(p, 99999).id, 's3');
   assert.equal(frameAtV2(p, -5).progress, 0);
 });
+
+const lum = (hex) => {
+  const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+};
+const contrast = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m); return (x + 0.05) / (y + 0.05); };
+
+test('palettes: ids, tags and colours are valid and legible', () => {
+  assert.ok(REGISTRY.palettes.length >= 8);
+  const moodIds = REGISTRY.moods.map((m) => m.id);
+  for (const p of REGISTRY.palettes) {
+    for (const c of Object.values(p.colors)) assert.match(c, /^#[0-9a-f]{6}$/i);
+    assert.ok(p.tags.mood.length > 0 && p.tags.mood.every((m) => moodIds.includes(m)), `${p.id} mood tags`);
+    assert.ok(p.tags.industry.length > 0 && p.tags.industry.every((i) => REGISTRY.tags.industry.includes(i)), `${p.id} industry tags`);
+    assert.ok(contrast(p.colors.text, p.colors.bg) >= 7, `${p.id} text contrast`);
+    assert.ok(contrast(p.colors.muted, p.colors.bg) >= 4.5, `${p.id} muted contrast`);
+    assert.ok(contrast(p.colors.accent, p.colors.bg) >= 3, `${p.id} accent contrast`);
+  }
+  for (const m of moodIds) assert.ok(REGISTRY.palettes.some((p) => p.tags.mood.includes(m)), `${m} has a palette`);
+  for (const i of REGISTRY.tags.industry.filter((x) => x !== 'other')) assert.ok(REGISTRY.palettes.some((p) => p.tags.industry.includes(i)), `${i} has a palette`);
+});
+
+test('palette is optional, validated, and never overrides explicit colours', () => {
+  const p = good();
+  p.palette = 'midnight-gold';
+  const r = validateProjectV2(p);
+  assert.equal(r.ok, true);
+  assert.equal(r.value.palette, 'midnight-gold');
+  assert.equal(r.value.accent, '#e6c572');
+  p.palette = 'neon-vomit';
+  assert.match(validateProjectV2(p).errors.join(), /palette/);
+  delete p.palette;
+  assert.equal(validateProjectV2(p).value.palette, undefined);
+});
