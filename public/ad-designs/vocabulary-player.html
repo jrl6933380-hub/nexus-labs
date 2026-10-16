@@ -34,6 +34,27 @@ body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-
 .tag{margin-top:10px;font-size:14px;color:var(--muted)}
 .brandmark{width:54px;height:54px;border-radius:16px;background:var(--accent);color:var(--onaccent);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:24px;margin-bottom:22px}
 .badge{position:absolute;left:50%;transform:translateX(-50%);padding:5px 12px;border-radius:99px;font-size:10px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;background:rgba(0,0,0,.62);color:#fff;white-space:nowrap;z-index:9}
+.stat{font-family:var(--hfont);font-weight:var(--weight);letter-spacing:var(--track);line-height:1;color:var(--accent);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.slabel{margin:14px 0 0;font-family:var(--bfont);font-size:20px;line-height:1.3;color:var(--text);overflow-wrap:anywhere}
+.sample{display:inline-block;align-self:flex-start;margin-top:16px;padding:3px 10px;border-radius:99px;border:1px solid var(--muted);font-size:10px;letter-spacing:.1em;font-weight:700;text-transform:uppercase;color:var(--muted)}
+.src{margin-top:16px;font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+.qm{font-family:Georgia,serif;font-size:72px;line-height:.6;height:34px;color:var(--accent)}
+.qt{margin:0;font-family:var(--hfont);font-weight:var(--weight);letter-spacing:var(--track);line-height:1.25;color:var(--text);overflow-wrap:anywhere}
+.att{margin-top:18px;font-size:16px;color:var(--muted);overflow-wrap:anywhere}
+.ba{position:relative;border-radius:16px;overflow:hidden;border:1px solid rgba(128,128,128,.28)}
+.pane{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;padding:22px}
+.pane.b{background:rgba(128,128,128,.16)}
+.pane.a{background:var(--accent);color:var(--onaccent)}
+.pl{font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;opacity:.75;margin-bottom:10px}
+.pt{font-family:var(--hfont);font-weight:var(--weight);line-height:1.15;overflow-wrap:anywhere}
+.photo{position:relative;border-radius:16px;overflow:hidden;background:rgba(128,128,128,.16);border:1px solid rgba(128,128,128,.28)}
+.photo img{position:absolute;inset:0;width:100%;height:100%;will-change:transform}
+.photo .brandmark{position:absolute;left:50%;top:50%;margin:-27px 0 0 -27px}
+.cap{margin-top:16px;font-size:17px;line-height:1.35;color:var(--text);overflow-wrap:anywhere}
+.step{display:flex;gap:14px;align-items:flex-start;margin-bottom:20px}
+.num{flex:none;width:36px;height:36px;border-radius:50%;background:var(--accent);color:var(--onaccent);font-weight:800;font-size:17px;display:flex;align-items:center;justify-content:center}
+.st{font-family:var(--hfont);font-weight:var(--weight);font-size:21px;line-height:1.2;color:var(--text);overflow-wrap:anywhere}
+.sd{margin-top:4px;font-size:14px;line-height:1.35;color:var(--muted);overflow-wrap:anywhere}
 .fallback{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:30px;text-align:center;font-size:15px;color:#fff;background:#111}
 </style></head><body>
 <div id="stage"></div>
@@ -110,6 +131,15 @@ function animUnits(units,mode,tms,k,delay=0){
 /* ---------- scene builders ---------- */
 const sizeFor=(len,f)=>(len<=22?46:len<=40?38:32)*({portrait:1,square:.92,landscape:.8}[f]||1);
 function mkText(parent,cls){const el=document.createElement(cls==="hl"?"h1":"p");el.className=cls;parent.appendChild(el);return el;}
+/* ---------- value formatting (locale-free so every device renders identical frames) ---------- */
+function groupInt(n){return String(n).replace(/\B(?=(\d{3})+(?!\d))/g,",");}
+function fmtNum(v,fmt,dec){const neg=v<0,a=Math.abs(v),fixed=a.toFixed(dec),parts=fixed.split(".");return (neg?"-":"")+groupInt(parts[0])+(parts[1]?"."+parts[1]:"");}
+function safeImg(u){return typeof u==="string"&&/^data:image\/(png|jpe?g|webp|gif|svg\+xml);/.test(u)?u:"";}
+function ghost(parent,cls,text){const el=document.createElement("div");el.className=cls;el.textContent=text;parent.appendChild(el);return el;}
+function tagLine(pad,P){
+  if(P.sourceRef){const e=ghost(pad,"src","Source: "+P.sourceRef);return e;}
+  return ghost(pad,"sample","Sample");
+}
 const SCENES={
   hook_text(cam,sc,ctx){
     const pad=document.createElement("div");pad.className="pad";cam.appendChild(pad);place(pad,ctx);
@@ -137,6 +167,61 @@ const SCENES={
     const dest=document.createElement("div");dest.className="dest";dest.textContent=P.destination||"";dest.hidden=!P.destination;pad.appendChild(dest);
     const tag=document.createElement("div");tag.className="tag";tag.textContent=P.tagline||"";tag.hidden=!P.tagline;pad.appendChild(tag);
     return (tms,prog)=>{const e=ctx.k.ease(clamp(tms/550));mark.style.opacity=String(clamp(e*1.6));mark.style.transform="scale("+(.7+.3*e)+")";const pulse=1+.035*Math.sin(tms/260)*clamp((tms-600)/400);cta.style.opacity=String(clamp((tms-150)/400));cta.style.transform="scale("+(.9+.1*ctx.k.ease(clamp((tms-150)/500)))*pulse+")";dest.style.opacity=String(clamp((tms-500)/450));tag.style.opacity=String(clamp((tms-700)/450));};
+  },
+  stat_counter(cam,sc,ctx){
+    const P=sc.params,pad=document.createElement("div");pad.className="pad";cam.appendChild(pad);place(pad,ctx);
+    const rule=document.createElement("div");rule.className="rule";pad.appendChild(rule);
+    const to=Number(P.value)||0,from=Number(P.from)||0,nf=P.numberFormat||"integer";
+    const dec=nf==="decimal"?1:(Number.isInteger(to)&&Number.isInteger(from)?0:nf==="currency"?2:1);
+    const pre=P.prefix!=null&&P.prefix!==""?String(P.prefix):(nf==="currency"?"$":""),suf=P.suffix!=null&&P.suffix!==""?String(P.suffix):(nf==="percent"?"%":"");
+    const num=ghost(pad,"stat","");num.style.fontSize=(ctx.f==="landscape"?64:ctx.f==="square"?76:84)+"px";
+    const lab=P.label?ghost(pad,"slabel",String(P.label)):null,tag=tagLine(pad,P);
+    return (tms,prog)=>{const r=clamp((tms-200)/1500),e=ctx.k.ease(r),v=r>=1?to:from+(to-from)*e;
+      num.textContent=pre+fmtNum(v,nf,dec)+suf;
+      rule.style.transform="scaleX("+ctx.k.ease(clamp(tms/400))+")";rule.style.transformOrigin="0 50%";
+      num.style.opacity=String(clamp(tms/300));
+      if(lab){lab.style.opacity=String(clamp((tms-900)/450));lab.style.transform="translateY("+(1-clamp((tms-900)/450))*10+"px)";}
+      tag.style.opacity=String(clamp((tms-1100)/450));};
+  },
+  testimonial(cam,sc,ctx){
+    const P=sc.params,pad=document.createElement("div");pad.className="pad";cam.appendChild(pad);place(pad,ctx);
+    ghost(pad,"qm","“");
+    const q=document.createElement("p");q.className="qt";q.textContent=String(P.quote||"");pad.appendChild(q);
+    q.style.fontSize=((P.quote||"").length<=60?30:(P.quote||"").length<=100?25:21)*({portrait:1,square:.92,landscape:.8}[ctx.f]||1)+"px";
+    const att=P.attribution?ghost(pad,"att","— "+P.attribution):null,tag=tagLine(pad,P);
+    return tms=>{const e=ctx.k.ease(clamp((tms-100)/700));q.style.opacity=String(clamp(e*1.4));q.style.transform="translateY("+(1-e)*16+"px)";
+      if(att){const a=clamp((tms-800)/450);att.style.opacity=String(a);att.style.transform="translateY("+(1-a)*8+"px)";}
+      tag.style.opacity=String(clamp((tms-1000)/450));};
+  },
+  before_after(cam,sc,ctx){
+    const P=sc.params,wrap=document.createElement("div");wrap.className="pad";cam.appendChild(wrap);place(wrap,ctx);
+    const box=document.createElement("div");box.className="ba";box.style.height=Math.round(ctx.H*(ctx.f==="portrait"?.46:.7))+"px";wrap.appendChild(box);
+    const mk=(cls,label,text)=>{const d=document.createElement("div");d.className="pane "+cls;const l=ghost(d,"pl",label);const t=ghost(d,"pt",text);t.style.fontSize=(ctx.f==="landscape"?24:28)+"px";box.appendChild(d);return d;};
+    mk("b",P.beforeLabel||"Before",P.beforeText||"");
+    const after=mk("a",P.afterLabel||"After",P.afterText||"");
+    const style=P.revealStyle||"wipe";
+    return (tms,prog)=>{const e=ctx.k.ease(clamp((prog-.4)/.32));
+      if(style==="slide"){after.style.transform="translateX("+(1-e)*100+"%)";after.style.clipPath="";after.style.opacity="";}
+      else if(style==="fade"){after.style.opacity=String(e);after.style.transform="";after.style.clipPath="";}
+      else{after.style.clipPath="inset(0 "+(1-e)*100+"% 0 0)";after.style.transform="";after.style.opacity="";}
+      box.style.opacity=String(clamp(tms/400));};
+  },
+  photo_focus(cam,sc,ctx){
+    const P=sc.params,wrap=document.createElement("div");wrap.className="pad";cam.appendChild(wrap);place(wrap,ctx);
+    const box=document.createElement("div");box.className="photo";box.style.height=Math.round(ctx.H*(ctx.f==="portrait"?.5:.68))+"px";wrap.appendChild(box);
+    const src=safeImg(ctx.p&&ctx.p[P.image==="logo"?"logo":"photo"]);let img=null;
+    if(src){img=document.createElement("img");img.src=src;img.alt="";img.style.objectFit=P.image==="logo"?"contain":"cover";if(P.image==="logo")img.style.padding="12%";box.appendChild(img);}
+    else{const mark=document.createElement("div");mark.className="brandmark";mark.textContent=(ctx.p&&ctx.p.initial)||((ctx.p&&ctx.p.brand)||"N").slice(0,1).toUpperCase();box.appendChild(mark);}
+    const cap=P.caption?ghost(wrap,"cap",String(P.caption)):null;
+    return (tms,prog)=>{const e=ctx.k.ease(prog);if(img)img.style.transform="scale("+(1+.09*e)+")";
+      box.style.opacity=String(clamp(tms/450));box.style.transform="translateY("+(1-ctx.k.ease(clamp(tms/600)))*24+"px)";
+      if(cap){const c=clamp((tms-500)/450);cap.style.opacity=String(c);cap.style.transform="translateY("+(1-c)*10+"px)";}};
+  },
+  steps_list(cam,sc,ctx){
+    const P=sc.params,pad=document.createElement("div");pad.className="pad";cam.appendChild(pad);place(pad,ctx);
+    const items=Array.isArray(P.items)?P.items.slice(0,4):[],gap=250+(P.stagger==null?.5:clamp(Number(P.stagger)||0))*700;
+    const rows=items.map((it,i)=>{const row=document.createElement("div");row.className="step";const n=ghost(row,"num",String(i+1));const body=document.createElement("div");row.appendChild(body);ghost(body,"st",String(it&&it.title||""));if(it&&it.detail)ghost(body,"sd",String(it.detail));pad.appendChild(row);return row;});
+    return tms=>{rows.forEach((row,i)=>{const e=ctx.k.ease(clamp((tms-150-i*gap)/450));row.style.opacity=String(clamp(e*1.4));row.style.transform="translateX("+(1-e)*26+"px)";});};
   },
   generic(cam,sc,ctx){
     const pad=document.createElement("div");pad.className="pad";cam.appendChild(pad);place(pad,ctx);

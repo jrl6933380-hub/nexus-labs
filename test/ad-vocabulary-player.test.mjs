@@ -43,6 +43,19 @@ test('player handles every registered id the validator can emit', () => {
     if (['static', 'cut', 'solid'].includes(id)) continue;
     assert.ok(html.includes(id), `player references ${id}`);
   }
-  for (const t of ['hook_text', 'site_mockup', 'end_card']) assert.ok(html.includes(`${t}(`), `scene builder ${t}`);
+  for (const t of REGISTRY.sceneTypes.map((x) => x.id)) assert.ok(html.includes(`${t}(`), `scene builder ${t}`);
   assert.match(html, /Concept preview — not a live site/);
+});
+
+test('honesty: stat_counter and testimonial tag unsourced content as SAMPLE and only show sourceRef when given', () => {
+  const html = committed();
+  assert.match(html, /return ghost\(pad,"sample","Sample"\)/);
+  assert.match(html, /"Source: "\+P\.sourceRef/);
+});
+
+test('photo_focus only accepts data: image URIs (CSP-safe) and falls back to the brand mark', () => {
+  const html = committed();
+  assert.match(html, /function safeImg/);
+  assert.match(html, /\^data:image\\\/\(png\|jpe\?g\|webp\|gif\|svg\\\+xml\);/);
+  assert.match(html, /className="brandmark"/);
 });
