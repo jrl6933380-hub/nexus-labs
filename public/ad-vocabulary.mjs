@@ -1,0 +1,366 @@
+// Ad Maker vocabulary v1 — closed registry + schema v2 validation.
+// Spec: docs/ad-vocabulary-v1.md. Pure ESM with no imports, shared by browser and server.
+// Additive: legacy 4-scene ads (no specVersion) never pass through this file's validator.
+
+export const VOCABULARY_VERSION = '1.0.0';
+export const SPEC_VERSION = 2;
+
+const deepFreeze = (o) => {
+  if (o && typeof o === 'object' && !Object.isFrozen(o)) {
+    Object.freeze(o);
+    for (const v of Object.values(o)) deepFreeze(v);
+  }
+  return o;
+};
+
+const ids = (list) => list.map((x) => x.id);
+const entry = (id, label, extra = {}) => ({ id, label, ...extra });
+
+export const LIMITS = {
+  headline: 60,
+  support: 120,
+  cta: 35,
+  name: 80,
+  brand: 35,
+  scenesMin: 2,
+  scenesMax: 8,
+  totalSecMax: 30,
+  sceneSecMin: 1.5,
+  sceneSecMax: 15,
+  transitionMsMin: 200,
+  transitionMsMax: 800,
+  configBytesMax: 180000,
+  sceneIdPattern: '^[a-z0-9-]{1,40}$',
+};
+
+export const TEXT_ANIMS = [
+  entry('fade_up', 'Fade up'),
+  entry('slide_left', 'Slide in'),
+  entry('typewriter', 'Typewriter'),
+  entry('word_by_word', 'Word by word'),
+  entry('mask_reveal', 'Mask reveal'),
+  entry('scale_pop', 'Scale pop'),
+  entry('kinetic_stack', 'Kinetic stack'),
+];
+
+export const CAMERAS = [
+  entry('static', 'Static'),
+  entry('push_in', 'Push in'),
+  entry('pull_out', 'Pull out'),
+  entry('pan_left', 'Pan left'),
+  entry('pan_right', 'Pan right'),
+  entry('parallax', 'Parallax'),
+];
+
+export const EASINGS = [
+  entry('linear', 'Linear'),
+  entry('smooth', 'Smooth (ease in-out cubic)'),
+  entry('snappy', 'Snappy (ease-out expo)'),
+  entry('bounce', 'Bounce (ease-out back)'),
+];
+
+export const TRANSITIONS = [
+  entry('cut', 'Cut'),
+  entry('crossfade', 'Crossfade'),
+  entry('wipe_left', 'Wipe left'),
+  entry('slide_up', 'Slide up'),
+  entry('zoom_through', 'Zoom through'),
+];
+
+export const BACKGROUNDS = [
+  entry('solid', 'Solid'),
+  entry('gradient', 'Gradient'),
+  entry('grain', 'Grain'),
+  entry('grid', 'Grid'),
+  entry('orbits', 'Orbits'),
+  entry('particles', 'Particles (seeded by scene id)'),
+];
+
+// Mood token bundles. System font stacks only (ad CSP forbids web fonts).
+// Palettes are intentionally absent until Justin approves a direction per mood.
+const SANS = 'system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+const SERIF = 'Georgia, "Times New Roman", Times, serif';
+export const MOODS = [
+  entry('bold', 'Bold', { heading: SANS, body: SANS, weight: 800, tracking: -0.01, easing: 'snappy', textAnim: 'kinetic_stack', pacing: 1.1 }),
+  entry('warm', 'Warm', { heading: SERIF, body: SANS, weight: 600, tracking: 0, easing: 'smooth', textAnim: 'fade_up', pacing: 0.95 }),
+  entry('luxury', 'Luxury', { heading: SERIF, body: SANS, weight: 500, tracking: 0.04, easing: 'smooth', textAnim: 'mask_reveal', pacing: 0.85 }),
+  entry('playful', 'Playful', { heading: SANS, body: SANS, weight: 700, tracking: 0, easing: 'bounce', textAnim: 'scale_pop', pacing: 1.15 }),
+  entry('clean', 'Clean', { heading: SANS, body: SANS, weight: 600, tracking: 0, easing: 'smooth', textAnim: 'slide_left', pacing: 1 }),
+];
+
+export const FORMATS = [
+  entry('portrait', 'Portrait 9:16 (Reels/TikTok)', { width: 360, height: 640 }),
+  entry('square', 'Square 1:1 (feed)', { width: 560, height: 560 }),
+  entry('landscape', 'Landscape 16:9 (YouTube)', { width: 800, height: 450 }),
+];
+
+export const LENGTHS = [
+  entry('6', '6 seconds', { seconds: 6, scenes: 2 }),
+  entry('15', '15 seconds', { seconds: 15, scenes: 4 }),
+  entry('30', '30 seconds', { seconds: 30, scenes: 6 }),
+];
+
+export const TAGS = {
+  industry: ['plumber', 'cafe', 'salon', 'restaurant', 'contractor', 'dental', 'fitness', 'retail', 'auto', 'other'],
+  goal: ['call', 'book', 'visit', 'buy', 'signup'],
+  tone: ids(MOODS),
+  hook: ['question', 'stat', 'pain_point', 'offer', 'proof'],
+};
+
+// Param field kinds: string{max,required}, enum{values}, number{min,max,integer}, boolean, items{min,max,fields}
+const str = (max, required = false) => ({ kind: 'string', max, required });
+const en = (values, required = false) => ({ kind: 'enum', values, required });
+const num = (min, max, required = false, integer = false) => ({ kind: 'number', min, max, required, integer });
+
+export const SCENE_TYPES = [
+  entry('hook_text', 'Hook text', {
+    purpose: 'Opening line',
+    priority: 1,
+    params: { headline: str(LIMITS.headline, true), support: str(LIMITS.support), textAnim: en(ids(TEXT_ANIMS)) },
+  }),
+  entry('stat_counter', 'Stat counter', {
+    purpose: 'Animated number. Never invent statistics; unsourced numbers render tagged SAMPLE.',
+    params: {
+      value: num(-1e9, 1e9, true),
+      from: num(-1e9, 1e9),
+      prefix: str(4),
+      suffix: str(10),
+      label: str(40),
+      numberFormat: en(['integer', 'decimal', 'percent', 'currency']),
+      sourceRef: str(80),
+    },
+  }),
+  entry('testimonial', 'Testimonial', {
+    purpose: 'Customer quote. Renders as real only with sourceRef; otherwise tagged SAMPLE.',
+    params: { quote: str(140, true), attribution: str(40), sourceRef: str(80) },
+  }),
+  entry('before_after', 'Before / after', {
+    purpose: 'Transformation',
+    params: {
+      beforeLabel: str(20), afterLabel: str(20), beforeText: str(60), afterText: str(60),
+      revealStyle: en(['wipe', 'slide', 'fade']),
+    },
+  }),
+  entry('photo_focus', 'Photo focus', {
+    purpose: 'Image with slow motion',
+    params: { image: en(['photo', 'logo'], true), caption: str(60) },
+  }),
+  entry('site_mockup', 'Site mockup', {
+    purpose: 'Concept website preview (always labeled concept when concept=true)',
+    priority: 2,
+    params: {
+      siteName: str(30, true), headline: str(65, true), cta: str(25),
+      style: en(['light', 'dark']), scroll: { kind: 'boolean' },
+    },
+  }),
+  entry('steps_list', 'Steps list', {
+    purpose: '2 to 4 steps',
+    params: {
+      items: { kind: 'items', min: 2, max: 4, required: true, fields: { title: str(30, true), detail: str(60) } },
+      stagger: num(0, 1),
+    },
+  }),
+  entry('end_card', 'End card', {
+    purpose: 'Call to action',
+    priority: 3,
+    params: { cta: str(LIMITS.cta, true), destination: str(65), tagline: str(60) },
+  }),
+];
+
+export const REGISTRY = deepFreeze({
+  vocabularyVersion: VOCABULARY_VERSION,
+  specVersion: SPEC_VERSION,
+  limits: LIMITS,
+  sceneTypes: SCENE_TYPES,
+  textAnims: TEXT_ANIMS,
+  cameras: CAMERAS,
+  easings: EASINGS,
+  transitions: TRANSITIONS,
+  backgrounds: BACKGROUNDS,
+  moods: MOODS,
+  formats: FORMATS,
+  lengths: LENGTHS,
+  tags: TAGS,
+});
+
+// Read-only description for dropdowns, agents and the future describe_vocabulary tool.
+export const describeVocabulary = () => JSON.parse(JSON.stringify(REGISTRY));
+
+export const isSpecV2 = (raw) => !!raw && typeof raw === 'object' && raw.specVersion === SPEC_VERSION;
+
+const HEX = /^#[0-9a-f]{6}$/i;
+const SCENE_ID = new RegExp(LIMITS.sceneIdPattern);
+// eslint-disable-next-line no-control-regex
+const CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
+const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+const plain = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+
+function checkKeys(obj, allowed, path, errors) {
+  for (const k of Object.keys(obj)) if (!allowed.includes(k)) errors.push(`${path}.${k}: unknown field`);
+}
+
+function checkField(spec, v, path, errors) {
+  switch (spec.kind) {
+    case 'string': {
+      if (typeof v !== 'string') return errors.push(`${path}: must be a string`);
+      const t = v.trim();
+      if (CONTROL.test(t)) return errors.push(`${path}: contains control characters`);
+      if (spec.required && !t) return errors.push(`${path}: required`);
+      if ([...t].length > spec.max) return errors.push(`${path}: max ${spec.max} characters`);
+      return t;
+    }
+    case 'enum':
+      if (typeof v !== 'string' || !spec.values.includes(v)) return errors.push(`${path}: must be one of ${spec.values.join(', ')}`);
+      return v;
+    case 'number':
+      if (typeof v !== 'number' || !Number.isFinite(v)) return errors.push(`${path}: must be a finite number`);
+      if (v < spec.min || v > spec.max) return errors.push(`${path}: must be between ${spec.min} and ${spec.max}`);
+      if (spec.integer && !Number.isInteger(v)) return errors.push(`${path}: must be an integer`);
+      return v;
+    case 'boolean':
+      if (typeof v !== 'boolean') return errors.push(`${path}: must be true or false`);
+      return v;
+    case 'items': {
+      if (!Array.isArray(v)) return errors.push(`${path}: must be an array`);
+      if (v.length < spec.min || v.length > spec.max) return errors.push(`${path}: needs ${spec.min} to ${spec.max} items`);
+      return v.map((item, i) => {
+        if (!plain(item)) { errors.push(`${path}[${i}]: must be an object`); return null; }
+        return checkParams(spec.fields, item, `${path}[${i}]`, errors);
+      });
+    }
+    default:
+      return errors.push(`${path}: unsupported field kind`);
+  }
+}
+
+function checkParams(fields, params, path, errors) {
+  const out = {};
+  checkKeys(params, Object.keys(fields), path, errors);
+  for (const [key, spec] of Object.entries(fields)) {
+    if (!has(params, key) || params[key] === undefined) {
+      if (spec.required) errors.push(`${path}.${key}: required`);
+      continue;
+    }
+    const v = checkField(spec, params[key], `${path}.${key}`, errors);
+    if (v !== undefined) out[key] = v;
+  }
+  return out;
+}
+
+const pickEnum = (list, v, path, errors) => {
+  if (typeof v !== 'string' || !ids(list).includes(v)) { errors.push(`${path}: must be one of ${ids(list).join(', ')}`); return undefined; }
+  return v;
+};
+
+// Strict v2 validator. Returns { ok, errors, value }. Never mutates input. Never used for legacy ads.
+export function validateProjectV2(raw) {
+  const errors = [];
+  if (!plain(raw)) return { ok: false, errors: ['project: must be an object'], value: null };
+  if (raw.specVersion !== SPEC_VERSION) errors.push('specVersion: must be 2');
+  checkKeys(raw, ['specVersion', 'name', 'brand', 'initial', 'accent', 'background', 'mood', 'platform', 'tags', 'concept', 'scenes'], 'project', errors);
+
+  const out = { specVersion: SPEC_VERSION };
+  if (has(raw, 'name')) out.name = checkField(str(LIMITS.name, true), raw.name, 'name', errors);
+  else errors.push('name: required');
+  if (has(raw, 'brand')) out.brand = checkField(str(LIMITS.brand), raw.brand, 'brand', errors);
+  if (has(raw, 'initial')) out.initial = checkField(str(2), raw.initial, 'initial', errors);
+  for (const k of ['accent', 'background']) {
+    if (!has(raw, k)) continue;
+    if (typeof raw[k] !== 'string' || !HEX.test(raw[k])) errors.push(`${k}: must be a #rrggbb color`);
+    else out[k] = raw[k].toLowerCase();
+  }
+  if (has(raw, 'mood')) out.mood = pickEnum(MOODS, raw.mood, 'mood', errors);
+  else errors.push('mood: required');
+
+  if (!plain(raw.platform)) errors.push('platform: required object');
+  else {
+    checkKeys(raw.platform, ['format', 'lengthSec'], 'platform', errors);
+    const platform = {};
+    platform.format = pickEnum(FORMATS, raw.platform.format, 'platform.format', errors);
+    if (has(raw.platform, 'lengthSec')) {
+      if (!LENGTHS.some((l) => l.seconds === raw.platform.lengthSec)) errors.push(`platform.lengthSec: must be one of ${LENGTHS.map((l) => l.seconds).join(', ')}`);
+      else platform.lengthSec = raw.platform.lengthSec;
+    }
+    out.platform = platform;
+  }
+
+  if (has(raw, 'tags')) {
+    if (!plain(raw.tags)) errors.push('tags: must be an object');
+    else {
+      checkKeys(raw.tags, Object.keys(TAGS), 'tags', errors);
+      const tags = {};
+      for (const [k, allowed] of Object.entries(TAGS)) {
+        if (!has(raw.tags, k)) continue;
+        if (!allowed.includes(raw.tags[k])) errors.push(`tags.${k}: must be one of ${allowed.join(', ')}`);
+        else tags[k] = raw.tags[k];
+      }
+      out.tags = tags;
+    }
+  }
+  if (has(raw, 'concept')) {
+    if (typeof raw.concept !== 'boolean') errors.push('concept: must be true or false');
+    else out.concept = raw.concept;
+  }
+
+  if (!Array.isArray(raw.scenes)) errors.push('scenes: required array');
+  else {
+    if (raw.scenes.length < LIMITS.scenesMin || raw.scenes.length > LIMITS.scenesMax) {
+      errors.push(`scenes: needs ${LIMITS.scenesMin} to ${LIMITS.scenesMax} scenes`);
+    }
+    const seen = new Set();
+    let total = 0;
+    out.scenes = raw.scenes.slice(0, LIMITS.scenesMax * 2).map((s, i) => {
+      const p = `scenes[${i}]`;
+      if (!plain(s)) { errors.push(`${p}: must be an object`); return null; }
+      checkKeys(s, ['id', 'type', 'duration', 'params', 'camera', 'background', 'transitionOut', 'transitionMs'], p, errors);
+      const scene = {};
+      if (typeof s.id !== 'string' || !SCENE_ID.test(s.id)) errors.push(`${p}.id: must match ${LIMITS.sceneIdPattern}`);
+      else if (seen.has(s.id)) errors.push(`${p}.id: duplicate "${s.id}"`);
+      else { seen.add(s.id); scene.id = s.id; }
+      const type = SCENE_TYPES.find((t) => t.id === s.type);
+      if (!type) errors.push(`${p}.type: must be one of ${ids(SCENE_TYPES).join(', ')}`);
+      else scene.type = type.id;
+      if (typeof s.duration !== 'number' || !Number.isFinite(s.duration) || s.duration < LIMITS.sceneSecMin || s.duration > LIMITS.sceneSecMax) {
+        errors.push(`${p}.duration: must be between ${LIMITS.sceneSecMin} and ${LIMITS.sceneSecMax} seconds`);
+      } else { scene.duration = s.duration; total += s.duration; }
+      if (!plain(s.params)) { if (type) errors.push(`${p}.params: required object`); }
+      else if (type) scene.params = checkParams(type.params, s.params, `${p}.params`, errors);
+      if (has(s, 'camera')) scene.camera = pickEnum(CAMERAS, s.camera, `${p}.camera`, errors);
+      if (has(s, 'background')) scene.background = pickEnum(BACKGROUNDS, s.background, `${p}.background`, errors);
+      if (has(s, 'transitionOut')) scene.transitionOut = pickEnum(TRANSITIONS, s.transitionOut, `${p}.transitionOut`, errors);
+      if (has(s, 'transitionMs')) {
+        const v = s.transitionMs;
+        if (typeof v !== 'number' || !Number.isFinite(v) || v < LIMITS.transitionMsMin || v > LIMITS.transitionMsMax) {
+          errors.push(`${p}.transitionMs: must be between ${LIMITS.transitionMsMin} and ${LIMITS.transitionMsMax}`);
+        } else scene.transitionMs = v;
+      }
+      return scene;
+    });
+    if (total > LIMITS.totalSecMax) errors.push(`scenes: total ${total}s exceeds ${LIMITS.totalSecMax}s`);
+  }
+
+  if (errors.length) return { ok: false, errors, value: null };
+  const bytes = new TextEncoder().encode(JSON.stringify(out)).length;
+  if (bytes > LIMITS.configBytesMax) return { ok: false, errors: [`project: ${bytes} bytes exceeds ${LIMITS.configBytesMax}`], value: null };
+  return { ok: true, errors: [], value: out };
+}
+
+// Total v2 duration in seconds.
+export const totalDurationV2 = (p) => p.scenes.reduce((n, s) => n + s.duration, 0);
+
+// Deterministic scene lookup for v2, mirroring legacy frameAt semantics:
+// boundary selects the next scene; the final endpoint stays on the last scene at progress 1.
+export function frameAtV2(p, ms) {
+  const total = totalDurationV2(p);
+  const t = Math.min(Math.max(ms / 1000, 0), total);
+  let start = 0;
+  for (let i = 0; i < p.scenes.length; i++) {
+    const end = start + p.scenes[i].duration;
+    if (t < end || i === p.scenes.length - 1) {
+      const progress = Math.min(Math.max((t - start) / p.scenes[i].duration, 0), 1);
+      return { index: i, id: p.scenes[i].id, start, end, progress, time: t, total };
+    }
+    start = end;
+  }
+  return null;
+}
