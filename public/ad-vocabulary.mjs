@@ -88,6 +88,22 @@ export const MOODS = [
   entry('clean', 'Clean', { heading: SANS, body: SANS, weight: 600, tracking: 0, easing: 'smooth', textAnim: 'slide_left', pacing: 1 }),
 ];
 
+// Palettes: named colour sets, selectable by dropdown and filterable by mood/industry tags.
+// An explicit project accent/background overrides the palette; the palette never overrides explicit values.
+const palette = (id, label, bg, accent, text, muted, moods, industries) => entry(id, label, { colors: { bg, accent, text, muted }, tags: { mood: moods, industry: industries } });
+export const PALETTES = [
+  palette('midnight-gold', 'Midnight gold', '#0b1220', '#e6c572', '#f5f1e6', '#9aa3b5', ['bold', 'luxury'], ['plumber', 'contractor', 'auto', 'dental']),
+  palette('charcoal-red', 'Charcoal red', '#151515', '#ef4444', '#fafafa', '#a3a3a3', ['bold'], ['auto', 'fitness', 'contractor', 'plumber']),
+  palette('ocean-blue', 'Ocean blue', '#0a2540', '#38bdf8', '#f0f9ff', '#8fb3d1', ['clean', 'bold'], ['plumber', 'dental', 'retail', 'other']),
+  palette('fresh-mint', 'Fresh mint', '#0f2a24', '#5eead4', '#ecfdf5', '#8fbfb3', ['clean', 'playful'], ['dental', 'fitness', 'cafe', 'other']),
+  palette('sunset-warm', 'Sunset warm', '#2a1410', '#ff9f5a', '#fff4ea', '#c9a592', ['warm'], ['restaurant', 'cafe', 'retail']),
+  palette('forest-brass', 'Forest brass', '#14231a', '#d4a24c', '#f2efe6', '#9db3a3', ['luxury', 'warm'], ['restaurant', 'salon', 'contractor']),
+  palette('electric-pop', 'Electric pop', '#1e1b4b', '#fde047', '#ffffff', '#a5a3d6', ['playful', 'bold'], ['cafe', 'fitness', 'retail']),
+  palette('clean-light', 'Clean light', '#f7f8fa', '#1d4ed8', '#0f172a', '#52607a', ['clean'], ['dental', 'retail', 'other', 'contractor']),
+  palette('cream-ink', 'Cream and ink', '#f6efe3', '#9a3412', '#1c1917', '#5c534b', ['warm', 'luxury'], ['restaurant', 'cafe', 'salon']),
+  palette('rose-blush', 'Rose blush', '#fff1f2', '#be123c', '#2a0a12', '#6b3a46', ['playful', 'warm', 'luxury'], ['salon', 'cafe', 'retail']),
+];
+
 export const FORMATS = [
   entry('portrait', 'Portrait 9:16 (Reels/TikTok)', { width: 360, height: 640 }),
   entry('square', 'Square 1:1 (feed)', { width: 560, height: 560 }),
@@ -178,6 +194,7 @@ export const REGISTRY = deepFreeze({
   transitions: TRANSITIONS,
   backgrounds: BACKGROUNDS,
   moods: MOODS,
+  palettes: PALETTES,
   formats: FORMATS,
   lengths: LENGTHS,
   tags: TAGS,
@@ -257,7 +274,7 @@ export function validateProjectV2(raw) {
   const errors = [];
   if (!plain(raw)) return { ok: false, errors: ['project: must be an object'], value: null };
   if (raw.specVersion !== SPEC_VERSION) errors.push('specVersion: must be 2');
-  checkKeys(raw, ['specVersion', 'name', 'brand', 'initial', 'accent', 'background', 'mood', 'platform', 'tags', 'concept', 'scenes'], 'project', errors);
+  checkKeys(raw, ['specVersion', 'name', 'brand', 'initial', 'accent', 'background', 'mood', 'palette', 'platform', 'tags', 'concept', 'scenes'], 'project', errors);
 
   const out = { specVersion: SPEC_VERSION };
   if (has(raw, 'name')) out.name = checkField(str(LIMITS.name, true), raw.name, 'name', errors);
@@ -271,6 +288,7 @@ export function validateProjectV2(raw) {
   }
   if (has(raw, 'mood')) out.mood = pickEnum(MOODS, raw.mood, 'mood', errors);
   else errors.push('mood: required');
+  if (has(raw, 'palette')) out.palette = pickEnum(PALETTES, raw.palette, 'palette', errors);
 
   if (!plain(raw.platform)) errors.push('platform: required object');
   else {
