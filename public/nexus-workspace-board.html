@@ -139,26 +139,26 @@ function renderProject(){
  assist(detail,'Continue editing my Nexus project '+JSON.stringify(p.project_id)+'. Read its current baseline before saving. Preserve its project_id and save the complete working HTML draft through save_nexus_project. Do not publish.',{label:'Edit this project with your assistant',suggestions:['Improve the mobile layout','Fix a problem','Add a feature']});
 }
 let selectedAd=null,adFrame=null,adNonce=null;
-function adList(){const list=by('ad-list');list.replaceChildren();for(const ad of snapshot?.ads||[]){const card=node('article',undefined,'project');card.append(node('h3',ad.name||'Untitled ad'),node('p',ad.format+' · '+ad.duration+' seconds','muted small'),button('Open ad',()=>run(()=>openAd(ad.campaign_id))));list.append(card);}if(!(snapshot?.ads||[]).length)empty(list,'Create an ad, then edit copy, images and timing here or with your assistant.');}
+function adList(){const list=by('ad-list');list.replaceChildren();for(const ad of snapshot?.ads||[]){const card=node('article',undefined,'project');card.append(node('h3',ad.name||'Untitled ad'),node('p',ad.format+' · '+ad.duration+' seconds'+(ad.design_name?' · '+ad.design_name:''),'muted small'),button('Open ad',()=>run(()=>openAd(ad.campaign_id))));list.append(card);}if(!(snapshot?.ads||[]).length)empty(list,'Create an ad, then edit copy, images and timing here or with your assistant.');}
 async function openAd(campaign_id){
  const result=await tool('open_nexus_ad',{campaign_id});selectedAd=result;select(by('ads-tab'));persistAd();
  const detail=by('ad-detail');detail.replaceChildren();detail.hidden=false;by('ad-list').hidden=true;
  detail.append(button('← All ads',()=>{selectedAd=null;adFrame=null;adNonce=null;detail.replaceChildren();detail.hidden=true;by('ad-list').hidden=false;persistAd();}),node('h3',result.name||'Untitled ad'),node('p','Edit your campaign below, then tap Save ad. The studio website stays intact.','muted small'));
  const frame=node('iframe');frame.title='Ad Maker campaign controls';frame.setAttribute('sandbox','allow-scripts');frame.style.cssText='width:100%;height:1100px;border:1px solid #345442;border-radius:16px;background:#f5f3ed';
  const doc=new DOMParser().parseFromString(result.preview_html,'text/html');
- const context=doc.getElementById('ad-context');if(!context)throw Error('The ad controller is unavailable. Refresh after the deployment finishes.');adNonce=crypto.randomUUID();context.textContent=JSON.stringify({record:{campaign_id:result.campaign_id,baseline:result.baseline,project:result.project},nonce:adNonce}).replace(/</g,'\\u003c');
+ const context=doc.getElementById('ad-context');if(!context)throw Error('The ad controller is unavailable. Refresh after the deployment finishes.');adNonce=crypto.randomUUID();context.textContent=JSON.stringify({record:{campaign_id:result.campaign_id,baseline:result.baseline,project:result.project,design:result.design||null},nonce:adNonce}).replace(/</g,'\\u003c');
  const csp=doc.createElement('meta');csp.httpEquiv='Content-Security-Policy';csp.content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; base-uri 'none'; form-action 'none'";doc.head.prepend(csp);
  frame.srcdoc='<!doctype html>'+doc.documentElement.outerHTML;adFrame=frame;detail.append(frame);detail.append(button('Reload saved ad',()=>{if(confirm('Reload this ad and discard unsaved preview changes?'))run(()=>openAd(campaign_id));}));
  const link=node('a','Open this ad in the full studio ↗','action');link.href='https://nexus-labs-sigma.vercel.app'+result.studio_url;link.target='_blank';link.rel='noopener noreferrer';detail.append(link);
- assist(detail,'Work on my Nexus ad campaign '+JSON.stringify(campaign_id)+'. Read it with read_nexus_ad before saving changes with save_nexus_ad and its current baseline. Change campaign data only. Do not edit website HTML, the studio source, or any Projects record. Refresh the board after saving.',{label:'Direct this ad with your assistant',suggestions:['Make the hook stronger','Shorten it to 15 seconds','Improve the call to action']});
+ assist(detail,'Work on my Nexus ad campaign '+JSON.stringify(campaign_id)+'. Read it with read_nexus_ad and use its current baseline for every save. For copy, assets or timing use save_nexus_ad. For visual layout, graphics or animation, preserve and edit this ad’s complete creative HTML with save_nexus_ad_design using its design_contract. Keep its distinctive design and deterministic timeline. Do not edit the shared studio or Projects records. Refresh the board after saving.',{label:'Direct this ad with your assistant',suggestions:['Redesign this ad’s visuals and motion','Change the website reveal','Make the agent handoffs more dynamic','Make the hook stronger']});
 }
 function persistAd(){try{window.openai?.setWidgetState?.({...window.openai?.widgetState,accountId:snapshot?.account.id,tab:'ads',selection:selectedAd?{kind:'ad',id:selectedAd.campaign_id}:null});}catch{}}
 window.addEventListener('message',async e=>{
- if(!adFrame || e.source!==adFrame.contentWindow || e.data?.type!=='nexus-ad-save' || e.data.nonce!==adNonce)return;
+ if(!adFrame || e.source!==adFrame.contentWindow || !['nexus-ad-save','nexus-ad-design-save','nexus-ad-design-preset'].includes(e.data?.type) || e.data.nonce!==adNonce)return;
  const frame=adFrame,nonce=adNonce,id=selectedAd.campaign_id,baseline=selectedAd.baseline,request_id=e.data.request_id;
  const reply=value=>frame.contentWindow?.postMessage({type:'nexus-ad-saved',nonce,request_id,...value},'*');
  if(busy){reply({error:'Another action is running. Wait for it to finish, then save again.'});return;}
- await run(async()=>{try{const record=await tool('save_nexus_ad',{campaign_id:id,baseline,project:e.data.project,request_id});if(adFrame===frame)selectedAd={...selectedAd,...record};reply({record});snapshot.ads=(await tool('list_nexus_ads')).campaigns;adList();}catch(err){reply({error:err.message});throw err;}},{write:true,success:'Ad saved to Nexus.'});
+ await run(async()=>{try{const name=e.data.type==='nexus-ad-design-save'?'save_nexus_ad_design':e.data.type==='nexus-ad-design-preset'?'apply_nexus_ad_design':'save_nexus_ad';const payload=e.data.type==='nexus-ad-design-save'?{design:e.data.design}:e.data.type==='nexus-ad-design-preset'?{preset:e.data.preset}:{project:e.data.project};const record=await tool(name,{campaign_id:id,baseline,...payload,request_id});if(adFrame===frame)selectedAd={...selectedAd,...record};reply({record});snapshot.ads=(await tool('list_nexus_ads')).campaigns;adList();}catch(err){reply({error:err.message});throw err;}},{write:true,success:'Ad saved to Nexus.'});
 });
 by('new-ad').onclick=()=>form('Create an ad',[{key:'name',label:'Ad name',required:true,maxLength:80,value:'My next ad'}],async(input,request_id)=>{const project=JSON.parse(JSON.stringify(AD_DEFAULT));project.name=input.name;const record=await tool('save_nexus_ad',{campaign_id:'ad-'+request_id,project,request_id});await openAd(record.campaign_id);},{container:by('ads'),submitLabel:'Create ad',note:'Creates campaign data in your workspace. No publishing or ad spend.'});
 
@@ -408,6 +408,7 @@ if(!window.openai?.callTool){request('ui/initialize',{protocolVersion:'2026-01-2
 </script>
 </body>
 </html>
+
 
 
 
