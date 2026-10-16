@@ -45,10 +45,10 @@ registry (single source of truth)        public/ad-vocabulary.mjs   (ESM, shared
 
 **Vocabulary player.** A stock creative design (built on #617) that renders any schema-v2 project from the registry. A v2 ad therefore needs **no custom code**; the player is just another design. Custom designs still work and may call the same runtime.
 
-**Runtime delivery (OPEN DECISION, section 10).** Because of the CSP, helper code cannot be loaded from a URL. Two options:
+**Runtime delivery (DECIDED by Justin: option A, inject).** Because of the CSP, helper code cannot be loaded from a URL. Two options:
 - (A) The renderer's bridge in `ad-maker-design.js` injects a versioned `NexusAd` runtime script into every design. Updates propagate; designs stay small; costs a small renderer change.
 - (B) Each design inlines the runtime. No renderer change; every design pays its size and drifts over time.
-Recommendation: **A**.
+Decision: **A**. The renderer injects a versioned `NexusAd` runtime into every design.
 
 ## 5. Schema v2 (additive)
 
@@ -164,11 +164,15 @@ Headline <= 60 chars; support <= 120; CTA <= 35; scenes 2 to 8; total <= 30 s; m
 4. MP4 export: deterministic frame render in an E2B sandbox + ffmpeg; captions; optional music track.
 5. Image storage on Vercel Blob (lifts the 180 KB cap; real photos), brand kits, share/approval links, batch ads from lead lists.
 
-## 10. Open questions
+## 10. Decisions and open questions
 
-1. Runtime delivery: inject (A) vs inline (B)? Recommendation A.
-2. Should v2 min scene duration be 1.5 s (supports 6 s ads) while legacy stays 2 s?
-3. Which three scene types matter most for the first prospects? (Suggested: `hook_text`, `site_mockup`, `end_card`.)
-4. Mood token bundles: Justin to approve the palette/typography direction for each mood.
-5. Is `save_nexus_ad_design` live in production, and do agents need a tool-discovery refresh? (ChatGPT to confirm.)
-6. Anything in section 6 to add, rename, or cut before it becomes a registry.
+**Decided (Justin, 2026-10-16)**
+1. Runtime delivery: **inject (A)**.
+2. First-priority scene types for the first prospects: **`hook_text`, `site_mockup`, `end_card`** (build and polish these first).
+3. Vocabulary additions/renames/cuts: none yet. Revisit after the first player renders real ads.
+4. **Do not merge yet.** This PR stays open for review; no implementation PRs until Justin says go.
+
+**Still open**
+- Should v2 min scene duration be 1.5 s (supports 6 s ads) while legacy stays 2 s?
+- Mood token bundles: Justin to approve the palette/typography direction for each mood.
+- Is `save_nexus_ad_design` live in production? (The connector now lists `save_nexus_ad_design` and `apply_nexus_ad_design`, but deployment and a signed-in production save are still unverified. ChatGPT to confirm.)
