@@ -298,7 +298,7 @@ window.renderAdFrame=frame=>{render(frame);};
 /* ---------- standalone preview (only when not embedded) ---------- */
 const seed=document.getElementById("ad-project");
 const imgSeed=document.getElementById("ad-images");
-if(imgSeed){try{const m=JSON.parse(imgSeed.textContent);if(m&&typeof m=="object")for(const k of Object.keys(m)){const v=m[k];if(v&&typeof v.src==="string")IMAGES[k]={src:v.src,source:v.source==="ai_generated"?"ai_generated":"uploaded"};}}catch{}}
+if(imgSeed){try{const m=JSON.parse(imgSeed.textContent);if(m&&typeof m==="object")for(const k of Object.keys(m)){const v=m[k];if(v&&typeof v.src==="string")IMAGES[k]={src:v.src,source:v.source==="ai_generated"?"ai_generated":"uploaded"};}}catch{}}
 if(seed||parent===window){
   const q=new URLSearchParams(location.search);
   const sample={specVersion:2,name:"Pat's Plumbing (sample)",brand:"PAT'S PLUMBING",initial:"P",mood:q.get("mood")||"bold",platform:{format:q.get("format")||"portrait",lengthSec:15},concept:q.get("concept")!=="0",
