@@ -149,7 +149,7 @@ test('registry is frozen, versioned and self-consistent', () => {
   const d = describeVocabulary();
   assert.deepEqual(d, JSON.parse(JSON.stringify(REGISTRY)));
   d.sceneTypes.length = 0;
-  assert.equal(REGISTRY.sceneTypes.length, 8);
+  assert.equal(REGISTRY.sceneTypes.length, 9);
   for (const group of ['sceneTypes', 'textAnims', 'cameras', 'easings', 'transitions', 'backgrounds', 'moods', 'formats', 'lengths']) {
     const idsList = REGISTRY[group].map((x) => x.id);
     assert.equal(new Set(idsList).size, idsList.length, `${group} ids unique`);

@@ -21,7 +21,8 @@ test('player is a valid #617 creative design within its size cap', () => {
 
 test('player is sandbox-safe: no network, no wall-clock or unseeded randomness in rendering', () => {
   const html = committed();
-  assert.doesNotMatch(html, /https?:\/\//);
+  // The SVG XML namespace is an identifier used by createElementNS, never fetched. Any other URL is still banned.
+  assert.doesNotMatch(html.split('http://www.w3.org/2000/svg').join(''), /https?:\/\//);
   assert.doesNotMatch(html, /<script[^>]+src=|<link[^>]+href=|@import|url\(/i);
   assert.doesNotMatch(html, /fetch\(|XMLHttpRequest|WebSocket|localStorage|sessionStorage|eval\(|new Function/);
   const renderPart = html.split('/* ---------- standalone preview')[0];

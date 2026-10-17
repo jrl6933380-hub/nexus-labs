@@ -131,6 +131,11 @@ const num = (min, max, required = false, integer = false) => ({ kind: 'number', 
 export const IMAGE_ID_PATTERN = '^[a-z0-9-]{3,40}$';
 const ref = (required = false) => ({ kind: 'ref', pattern: IMAGE_ID_PATTERN, required });
 
+// Graphic scene layers: data-only shapes positioned in percent of the frame. No raw SVG, no code.
+export const LAYER_SHAPES = ['rect', 'circle', 'pill', 'arc', 'text', 'image'];
+export const LAYER_COLORS = ['accent', 'text', 'muted', 'bg', 'white', 'black', 'red', 'orange', 'yellow', 'green', 'blue', 'violet', 'pink'];
+export const LAYER_MOTIONS = ['none', 'fade_in', 'slide_up', 'slide_left', 'pop', 'draw', 'drift', 'twinkle', 'pulse'];
+
 export const SCENE_TYPES = [
   entry('hook_text', 'Hook text', {
     purpose: 'Opening line',
@@ -177,6 +182,28 @@ export const SCENE_TYPES = [
     params: {
       items: { kind: 'items', min: 2, max: 4, required: true, fields: { title: str(30, true), detail: str(60) } },
       stagger: num(0, 1),
+    },
+  }),
+  entry('graphic', 'Graphic', {
+    purpose: 'Code-drawn layers (rect, circle, pill, arc, text, image) placed in percent of the frame, drawn in order with simple motion. x/y are the layer center as percent of frame width/height; w is percent of width and h percent of height (circle uses w as diameter). An arc is the upper half of a circle: x/y is the middle of its base, w is the radius (percent of width), thickness is the stroke (percent of width). Text size is percent of width. Colors are palette roles or a fixed set. delay is seconds. No raw SVG or custom code.',
+    params: {
+      layers: {
+        kind: 'items', min: 1, max: 16, required: true,
+        fields: {
+          shape: en(LAYER_SHAPES, true),
+          x: num(0, 100, true),
+          y: num(0, 100, true),
+          w: num(0, 100),
+          h: num(0, 100),
+          color: en(LAYER_COLORS),
+          text: str(40),
+          size: num(1, 40),
+          thickness: num(0.5, 20),
+          motion: en(LAYER_MOTIONS),
+          delay: num(0, 10),
+          imageId: ref(),
+        },
+      },
     },
   }),
   entry('end_card', 'End card', {
