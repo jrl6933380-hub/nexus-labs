@@ -65,7 +65,7 @@ test('save, list, attach to a photo scene, preview and delete work end to end', 
 
   const edited = await run('edit_ad', {
     campaign_id: 'pic-ad', baseline: created.baseline,
-    edits: [{ op: 'add_scene', after_scene_id: 's1', scene: { type: 'photo_focus', duration: 3, params: { imageId: saved.image_id, fit: 'full', caption: 'Sample caption' } } }],
+    edits: [{ op: 'remove_scene', scene_id: 's2' }, { op: 'add_scene', after_scene_id: 's1', scene: { type: 'photo_focus', duration: 3, params: { imageId: saved.image_id, fit: 'full', caption: 'Sample caption' } } }],
   }, owner);
   assert.equal(edited.saved, true);
   const opened = await run('open_ad', { campaign_id: 'pic-ad' }, owner);
@@ -85,7 +85,7 @@ test('an ad cannot point at an image that is not in the account library', async 
   const created = await run('create_ad_from_brief', { ...brief, campaign_id: 'no-pic' }, owner);
   const edit = (imageId) => run('edit_ad', {
     campaign_id: 'no-pic', baseline: created.baseline,
-    edits: [{ op: 'add_scene', scene: { type: 'photo_focus', duration: 3, params: { imageId } } }],
+    edits: [{ op: 'remove_scene', scene_id: 's2' }, { op: 'add_scene', scene: { type: 'photo_focus', duration: 3, params: { imageId } } }],
   }, owner);
   await assert.rejects(edit('img-nope0001'), (e) => e.code === 'IMAGE_NOT_FOUND' && /list_nexus_images/.test(e.message));
   assert.equal((await run('ad', { campaign_id: 'no-pic' }, owner)).project.scenes.some((s) => s.type === 'photo_focus'), false, 'a refused edit changes nothing');
