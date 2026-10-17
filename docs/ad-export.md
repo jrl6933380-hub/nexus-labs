@@ -4,12 +4,13 @@
 
 ```
 node scripts/export-ad-mp4.mjs --project ad.json --out ad.mp4 [--fps 30] [--scale 2] [--crf 18]
-     [--audio music.mp3] [--chromium /path/to/chrome]
+     [--audio music.mp3] [--images images.json] [--chromium /path/to/chrome]
 ```
 
 - `--project` is a v2 project, or anything that carries one under `.project` (a `read_nexus_ad` result, a saved record). Use `-` to read stdin. The strict v2 validator runs first, so legacy ads and malformed input are refused.
 - `--fps` 24, 30 or 60 (default 30). `--scale` 1, 2 or 3 (default 2): output is the logical size times scale, so portrait is 720x1280 at scale 2. `--crf` 12 to 28 (default 18, lower is higher quality).
 - `--audio` mixes in a track, trimmed to the video length with a one second fade-out. A track shorter than the ad simply ends early.
+- `--images` is a JSON file with the library pictures the ad uses, either `{ "img-id": { "src": "data:image/...", "source": "ai_generated" } }` or a list of library records. Needed only when a photo scene has an `imageId`. The export stops if a referenced picture is missing, so a missing image is never exported as the brand mark.
 - stdout is one JSON line (`ok`, paths, size, frame count, fingerprint). Progress goes to stderr. Exit code is 1 on any failure, and a half-written video is never left behind.
 - A manifest `<name>.manifest.json` is written beside the video: vocabulary version, format, fps, size, frame count, a hash of the project, and `framesSha256`.
 
