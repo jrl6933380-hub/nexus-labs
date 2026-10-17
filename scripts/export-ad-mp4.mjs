@@ -7,7 +7,7 @@
 // and ffmpeg on PATH. It makes no network requests (the page blocks everything except file:/data:).
 //
 //   node scripts/export-ad-mp4.mjs --project ad.json --out ad.mp4 [--fps 30] [--scale 2] [--crf 18]
-//        [--audio music.mp3] [--chromium /path/to/chrome]
+//        [--audio music.mp3] [--images images.json] [--chromium /path/to/chrome]
 //
 // --project is a v2 project or a saved ad record (anything with .project); use - to read stdin.
 import { readFile, writeFile, mkdtemp, rm, access } from 'node:fs/promises';
@@ -21,7 +21,7 @@ import {
 } from '../lib/adExport.js';
 
 const PLAYER = fileURLToPath(new URL('../public/ad-designs/vocabulary-player.html', import.meta.url));
-const USAGE = `Usage: node scripts/export-ad-mp4.mjs --project <file|-> --out <file.mp4> [--fps 24|30|60] [--scale 1|2|3] [--crf 12-28] [--audio <file>] [--chromium <path>]`;
+const USAGE = `Usage: node scripts/export-ad-mp4.mjs --project <file|-> --out <file.mp4> [--fps 24|30|60] [--scale 1|2|3] [--crf 12-28] [--audio <file>] [--images <file>] [--chromium <path>]`;
 
 function parseArgs(argv) {
   const out = {};
@@ -99,7 +99,13 @@ async function main() {
   let browser = null, ff = null, finished = false;
   try {
     const playerFile = join(workDir, 'player.html');
-    await writeFile(playerFile, seedPlayerHtml(await readFile(PLAYER, 'utf8'), project));
+    let images = {};
+    if (args.images) {
+      const raw = JSON.parse(await readFile(args.images, 'utf8'));
+      // Accepts {id:{src,source}} or a list [{image_id,data,source}] as stored in the library.
+      images = Array.isArray(raw) ? Object.fromEntries(raw.map((r) => [r.image_id, { src: r.data || r.src, source: r.source }])) : raw;
+    }
+    await writeFile(playerFile, seedPlayerHtml(await readFile(PLAYER, 'utf8'), project, images));
 
     const chromium = await loadChromium();
     const executablePath = args.chromium || process.env.CHROMIUM_PATH || undefined;
