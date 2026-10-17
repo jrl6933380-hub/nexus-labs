@@ -236,7 +236,7 @@ const SCENES={
   graphic(cam,sc,ctx){
     /* Data-only layers. Every frame is a pure function of scene time (tms), so previews and frame export match. */
     const P=sc.params,W=ctx.W,H=ctx.H,k=ctx.k;
-    const NS="ht"+"tp://www.w3.org/2000/svg"; /* XML namespace identifier, never fetched; split so the player's no-URL guard stays strict */
+    const NS="http://www.w3.org/2000/svg"; /* XML namespace identifier, never fetched */
     const FIXED={red:"#e24b4a",orange:"#ef9f27",yellow:"#fac775",green:"#639922",blue:"#378add",violet:"#534ab7",pink:"#d4537e",white:"#ffffff",black:"#111111"};
     const colorOf=n=>n==="accent"?k.accent:n==="text"?k.text:n==="muted"?k.muted:n==="bg"?k.bg:(FIXED[n]||k.accent);
     const wrap=document.createElement("div");wrap.style.cssText="position:absolute;left:0;top:0;width:100%;height:100%;overflow:hidden";cam.appendChild(wrap);
