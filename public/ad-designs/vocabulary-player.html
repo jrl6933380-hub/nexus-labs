@@ -298,9 +298,29 @@ if(seed||parent===window){
   let project=sample;
   if(seed){try{project=JSON.parse(seed.textContent);}catch{}}
   else if(q.get("palette"))project.palette=q.get("palette");
-  const total=project.scenes.reduce((n,s)=>n+s.duration*1000,0),fixed=q.has("t")?Number(q.get("t")):null,t0=performance.now();
+  const total=project.scenes.reduce((n,s)=>n+s.duration*1000,0),capture=q.has("capture"),fixed=capture?clamp(Number(q.get("t"))||0,0,total):(q.has("t")?Number(q.get("t")):null),t0=performance.now();
   function frameFor(timeMs){let el=0;for(let i=0;i<project.scenes.length;i++){const s=project.scenes[i],end=el+s.duration*1000;if(timeMs<end||i===project.scenes.length-1)return {timeMs,durationMs:total,sceneId:s.id,sceneProgress:clamp((timeMs-el)/(end-el)),sceneIndex:i,project,width:innerWidth,height:innerHeight,format:project.platform.format};el=end;}}
   window.__seek=ms=>render(frameFor(clamp(ms,0,total)));
+  /* ---------- capture barrier (frame export) ----------
+     Open with ?capture=1 (or ?t=): wall-clock playback is off, so only the driver chooses frames.
+     __capture(ms) renders exactly that frame, waits for fonts, image decode and two paints, then
+     acknowledges it. The same seq is written to #stage[data-frame-seq] so a driver can check the
+     pixels it screenshots belong to the frame it asked for. */
+  let seq=0;const errors=[];
+  window.addEventListener("error",e=>errors.push(String(e&&e.message||e).slice(0,200)));
+  window.addEventListener("unhandledrejection",e=>errors.push(String(e&&e.reason&&e.reason.message||e&&e.reason||"rejection").slice(0,200)));
+  const settle=async()=>{await document.fonts.ready;await Promise.all([...stage.querySelectorAll("img")].map(i=>i.decode?i.decode().catch(()=>{}):0));await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));};
+  window.__captureInfo=()=>{const F=FORMATS[project.platform&&project.platform.format]||FORMATS.portrait;return {vocabularyVersion:VOCAB.vocabularyVersion,format:F.id,logicalWidth:F.width,logicalHeight:F.height,totalMs:total,sceneCount:project.scenes.length,viewport:{width:innerWidth,height:innerHeight},dpr:devicePixelRatio,frozen:fixed!==null,errors:errors.slice()};};
+  window.__capture=async ms=>{
+    if(fixed===null)throw Error("Open the player with ?capture=1 so wall-clock playback is off.");
+    const want=clamp(Number(ms)||0,0,total),n=++seq,f=frameFor(want);
+    render(f);
+    await settle();
+    if(n!==seq)throw Error("Frame "+n+" was superseded by a newer request.");
+    if(errors.length)throw Error("Render error: "+errors[0]);
+    stage.dataset.frameSeq=String(n);stage.dataset.frameMs=String(want);
+    return {seq:n,timeMs:want,sceneId:f.sceneId,sceneIndex:f.sceneIndex,ready:true};
+  };
   const tick=now=>{render(frameFor(fixed!==null?clamp(fixed,0,total):(now-t0)%total));if(fixed===null)requestAnimationFrame(tick);};
   requestAnimationFrame(tick);
 }
