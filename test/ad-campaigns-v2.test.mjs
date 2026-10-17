@@ -120,7 +120,8 @@ test('vocabulary preview renders the stock player with inert, escaped project da
   assert.match(html, /id="ad-project" type="application\/json"/);
   assert.doesNotMatch(html, /<\/script><script>attack\(\)/);
   assert.match(html, /window\.renderAdFrame=/);
-  assert.doesNotMatch(html, /https?:\/\//);
+  // The SVG XML namespace is an identifier used by createElementNS, never fetched. Any other URL is still banned.
+  assert.doesNotMatch(html.split('http://www.w3.org/2000/svg').join(''), /https?:\/\//);
   const data = html.match(/<script id="ad-project" type="application\/json">(.*?)<\/script>/s)[1];
   assert.equal(JSON.parse(data).name, project.name);
 });
