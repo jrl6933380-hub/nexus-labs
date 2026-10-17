@@ -127,6 +127,9 @@ export const TAGS = {
 const str = (max, required = false) => ({ kind: 'string', max, required });
 const en = (values, required = false) => ({ kind: 'enum', values, required });
 const num = (min, max, required = false, integer = false) => ({ kind: 'number', min, max, required, integer });
+// A reference to an item in the account's image library (lib/adImages.js). The ad stores only the id.
+export const IMAGE_ID_PATTERN = '^[a-z0-9-]{3,40}$';
+const ref = (required = false) => ({ kind: 'ref', pattern: IMAGE_ID_PATTERN, required });
 
 export const SCENE_TYPES = [
   entry('hook_text', 'Hook text', {
@@ -158,8 +161,8 @@ export const SCENE_TYPES = [
     },
   }),
   entry('photo_focus', 'Photo focus', {
-    purpose: 'Image with slow motion',
-    params: { image: en(['photo', 'logo'], true), caption: str(60) },
+    purpose: 'Image with slow motion. Set imageId to an image from the account library (list_nexus_images); fit cover (default) crops it into a framed card, contain shows the whole picture in the card, full fills the entire ad frame edge to edge with the caption over it (use this for a complete generated ad image). Without an image it shows the brand mark.',
+    params: { image: en(['photo', 'logo']), imageId: ref(), fit: en(['cover', 'contain', 'full']), caption: str(60) },
   }),
   entry('site_mockup', 'Site mockup', {
     purpose: 'Concept website preview (always labeled concept when concept=true)',
@@ -225,6 +228,10 @@ function checkField(spec, v, path, errors) {
       if (spec.required && !t) return errors.push(`${path}: required`);
       if ([...t].length > spec.max) return errors.push(`${path}: max ${spec.max} characters`);
       return t;
+    }
+    case 'ref': {
+      if (typeof v !== 'string' || !new RegExp(spec.pattern).test(v)) return errors.push(`${path}: must be an image id from list_nexus_images`);
+      return v;
     }
     case 'enum':
       if (typeof v !== 'string' || !spec.values.includes(v)) return errors.push(`${path}: must be one of ${spec.values.join(', ')}`);
