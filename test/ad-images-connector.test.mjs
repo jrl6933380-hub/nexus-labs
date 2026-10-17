@@ -9,7 +9,7 @@ import { WORKSPACE_TOOLS } from '../lib/workspaceBoard.js';
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 const owner = { id: 'owner', workbenchUserId: 'w', scheduleUserId: 's' };
 const other = { id: 'someone', workbenchUserId: 'w2', scheduleUserId: 's2' };
-const brief = { business_name: 'Sunrise Cafe', industry: 'cafe', goal: 'visit', length_sec: 30 };
+const brief = { business_name: 'Sunrise Cafe', industry: 'cafe', goal: 'visit', length_sec: 15 };
 
 function stores() {
   const hashes = new Map();
