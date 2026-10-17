@@ -158,7 +158,7 @@ function imageLibrary(){
  file.type='file';file.accept='image/png,image/jpeg,image/webp';file.setAttribute('aria-label','Choose a picture');
  name.placeholder='Name (what it is)';name.maxLength=60;name.setAttribute('aria-label','Image name');
  desc.placeholder='Short description for your assistant';desc.maxLength=240;desc.setAttribute('aria-label','Image description');
- ai.type='checkbox';ai.checked=true;aiLabel.append(ai,' AI-generated');
+ ai.type='checkbox';ai.checked=true;aiLabel.append(ai,node('span',' AI-generated'));
  file.onchange=()=>{if(file.files[0]&&!name.value)name.value=file.files[0].name.replace(/\.[^.]+$/,'').slice(0,60);};
  const add=button('Add image',()=>run(async()=>{
   const f=file.files[0];if(!f)throw new Error('Choose a picture first.');if(!name.value.trim())throw new Error('Give the picture a name.');
