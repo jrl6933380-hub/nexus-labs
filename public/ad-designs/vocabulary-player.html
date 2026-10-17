@@ -48,6 +48,9 @@ body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-
 .pl{font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;opacity:.75;margin-bottom:10px}
 .pt{font-family:var(--hfont);font-weight:var(--weight);line-height:1.15;overflow-wrap:anywhere}
 .photo{position:relative;border-radius:16px;overflow:hidden;background:rgba(128,128,128,.16);border:1px solid rgba(128,128,128,.28)}
+.photo.full{position:absolute;left:0;top:0;width:100%;height:100%;border:0;border-radius:0}
+.scrim{position:absolute;left:0;right:0;bottom:0;height:38%;background:linear-gradient(rgba(0,0,0,0),rgba(0,0,0,.66))}
+.imgtag{margin-top:10px;font-size:13px;color:var(--muted);opacity:0}
 .photo img{position:absolute;inset:0;width:100%;height:100%;will-change:transform}
 .photo .brandmark{position:absolute;left:50%;top:50%;margin:-27px 0 0 -27px}
 .cap{margin-top:16px;font-size:17px;line-height:1.35;color:var(--text);overflow-wrap:anywhere}
@@ -134,6 +137,8 @@ function mkText(parent,cls){const el=document.createElement(cls==="hl"?"h1":"p")
 /* ---------- value formatting (locale-free so every device renders identical frames) ---------- */
 function groupInt(n){return String(n).replace(/\B(?=(\d{3})+(?!\d))/g,",");}
 function fmtNum(v,fmt,dec){const neg=v<0,a=Math.abs(v),fixed=a.toFixed(dec),parts=fixed.split(".");return (neg?"-":"")+groupInt(parts[0])+(parts[1]?"."+parts[1]:"");}
+// Library images arrive as inert JSON ({id:{src:"data:image/...",source:"ai_generated"|"uploaded"}}), never as URLs.
+let IMAGES=Object.create(null);
 function safeImg(u){return typeof u==="string"&&/^data:image\/(png|jpe?g|webp|gif|svg\+xml);/.test(u)?u:"";}
 function ghost(parent,cls,text){const el=document.createElement("div");el.className=cls;el.textContent=text;parent.appendChild(el);return el;}
 function tagLine(pad,P){
@@ -208,14 +213,19 @@ const SCENES={
   },
   photo_focus(cam,sc,ctx){
     const P=sc.params,wrap=document.createElement("div");wrap.className="pad";cam.appendChild(wrap);place(wrap,ctx);
-    const box=document.createElement("div");box.className="photo";box.style.height=Math.round(ctx.H*(ctx.f==="portrait"?.5:.68))+"px";wrap.appendChild(box);
-    const src=safeImg(ctx.p&&ctx.p[P.image==="logo"?"logo":"photo"]);let img=null;
-    if(src){img=document.createElement("img");img.src=src;img.alt="";img.style.objectFit=P.image==="logo"?"contain":"cover";if(P.image==="logo")img.style.padding="12%";box.appendChild(img);}
+    const full=P.fit==="full",box=document.createElement("div");box.className=full?"photo full":"photo";
+    if(full){cam.insertBefore(box,cam.firstChild);wrap.style.justifyContent="flex-end";}
+    else{box.style.height=Math.round(ctx.H*(ctx.f==="portrait"?.5:.68))+"px";wrap.appendChild(box);}
+    const meta=P.imageId?IMAGES[P.imageId]:null,src=safeImg(meta&&meta.src);let img=null;
+    if(src){img=document.createElement("img");img.src=src;img.alt="";img.style.objectFit=P.fit==="contain"?"contain":"cover";box.appendChild(img);if(full){const sc2=document.createElement("div");sc2.className="scrim";box.appendChild(sc2);}}
     else{const mark=document.createElement("div");mark.className="brandmark";mark.textContent=(ctx.p&&ctx.p.initial)||((ctx.p&&ctx.p.brand)||"N").slice(0,1).toUpperCase();box.appendChild(mark);}
     const cap=P.caption?ghost(wrap,"cap",String(P.caption)):null;
+    const tag=src&&meta.source==="ai_generated"?ghost(wrap,"imgtag","AI-generated image"):null;
+    if(full&&src){if(cap)cap.style.color="#fff";if(tag)tag.style.color="rgba(255,255,255,.82)";}
     return (tms,prog)=>{const e=ctx.k.ease(prog);if(img)img.style.transform="scale("+(1+.09*e)+")";
-      box.style.opacity=String(clamp(tms/450));box.style.transform="translateY("+(1-ctx.k.ease(clamp(tms/600)))*24+"px)";
-      if(cap){const c=clamp((tms-500)/450);cap.style.opacity=String(c);cap.style.transform="translateY("+(1-c)*10+"px)";}};
+      box.style.opacity=String(clamp(tms/450));if(!full)box.style.transform="translateY("+(1-ctx.k.ease(clamp(tms/600)))*24+"px)";
+      if(cap){const c=clamp((tms-500)/450);cap.style.opacity=String(c);cap.style.transform="translateY("+(1-c)*10+"px)";}
+      if(tag)tag.style.opacity=String(clamp(tms/450));};
   },
   steps_list(cam,sc,ctx){
     const P=sc.params,pad=document.createElement("div");pad.className="pad";cam.appendChild(pad);place(pad,ctx);
@@ -287,6 +297,8 @@ function render(frame){
 window.renderAdFrame=frame=>{render(frame);};
 /* ---------- standalone preview (only when not embedded) ---------- */
 const seed=document.getElementById("ad-project");
+const imgSeed=document.getElementById("ad-images");
+if(imgSeed){try{const m=JSON.parse(imgSeed.textContent);if(m&&typeof m==="object")for(const k of Object.keys(m)){const v=m[k];if(v&&typeof v.src==="string")IMAGES[k]={src:v.src,source:v.source==="ai_generated"?"ai_generated":"uploaded"};}}catch{}}
 if(seed||parent===window){
   const q=new URLSearchParams(location.search);
   const sample={specVersion:2,name:"Pat's Plumbing (sample)",brand:"PAT'S PLUMBING",initial:"P",mood:q.get("mood")||"bold",platform:{format:q.get("format")||"portrait",lengthSec:15},concept:q.get("concept")!=="0",
