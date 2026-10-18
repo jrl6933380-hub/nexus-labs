@@ -276,7 +276,7 @@ const SCENES={
       const o=nd.o,col=colorOf(o.color||"accent"),col2=o.color2?colorOf(o.color2):null;
       const fill=col2?"linear-gradient("+num(o.angle,180)+"deg,"+col+","+col2+")":col;
       const a=document.createElement("div");a.style.cssText="position:absolute;width:0;height:0;left:"+(W*num(o.x,0)/100)+"px;top:"+(H*num(o.y,0)/100)+"px";
-      const fl=[];if(o.glow)fl.push("drop-shadow(0 0 "+(W*o.glow/100)+"px "+col+")");if(o.shadow)fl.push("drop-shadow(0 "+(W*o.shadow/200)+"px "+(W*o.shadow/100)+"px rgba(0,0,0,.55))");if(o.blur)fl.push("blur("+(W*o.blur/100)+"px)");if(fl.length)a.style.filter=fl.join(" ");
+      const mkf=g=>{const f=[];if(g>0)f.push("drop-shadow(0 0 "+(W*g/100)+"px "+col+")");if(o.shadow)f.push("drop-shadow(0 "+(W*o.shadow/200)+"px "+(W*o.shadow/100)+"px rgba(0,0,0,.55))");if(o.blur)f.push("blur("+(W*o.blur/100)+"px)");return f.join(" ");};nd.mkf=mkf;const f0=mkf(num(o.glow,0));if(f0)a.style.filter=f0;
       if(o.blend&&o.blend!=="normal")a.style.mixBlendMode=o.blend;
       const org={center:["-50%","-50%"],top:["-50%","0%"],bottom:["-50%","-100%"],left:["0%","-50%"],right:["-100%","-50%"]}[o.origin||"center"];
       const sz=W*num(o.w,10)/100;
@@ -330,6 +330,14 @@ const SCENES={
     });
     /* ---- hits: freeze / shake / flash / zoom, all pure functions of scene time ---- */
     const hits=(Array.isArray(P.hits)?P.hits:[]).slice(0,6).map(h=>({at:num(h.at,0)*1000,shake:num(h.shake,0),flash:num(h.flash,0),freeze:num(h.freeze,0)*1000,zoom:num(h.zoom,0)})).sort((x,y)=>x.at-y.at);
+    /* ---- beat clock and audio envelopes (data only; pure functions of real scene time) ---- */
+    let RT=0;
+    const BPM=num(P.bpm,0),BOFF=num(P.beatOffset,0),AR=Math.max(1,num(P.audioRate,20));
+    const arr=a=>Array.isArray(a)?a.slice(0,1800).map(n=>clamp(num(n,0)/100)):null;
+    const AUD={low:arr(P.audioLow),mid:arr(P.audioMid),high:arr(P.audioHigh)};
+    const sampleA=(a,ts)=>{if(!a||!a.length)return 0;const p=ts*AR,i=Math.floor(p);if(i<0||i>=a.length)return 0;const f=p-i,b=a[Math.min(a.length-1,i+1)];return a[i]*(1-f)+b*f;};
+    const beatEnv=ts=>{if(!(BPM>0))return 0;const ph=(ts-BOFF)*BPM/60,f=ph-Math.floor(ph);return Math.exp(-f*5);};
+    const envOf=src=>{if(src==="beat")return beatEnv(RT);if(src==="level"){if(!(AUD.low||AUD.mid||AUD.high))return beatEnv(RT);return Math.max(sampleA(AUD.low,RT),sampleA(AUD.mid,RT),sampleA(AUD.high,RT));}return sampleA(AUD[src],RT);};
     const cams=(Array.isArray(P.camera)?P.camera:[]).slice(0,12).map(q=>({t:num(q.t,0),x:q.x,y:q.y,zoom:q.zoom,rotate:q.rotate,ease:q.ease})).sort((a,b)=>a.t-b.t);
     const sample=(keys,prop,base,ts)=>{
       const pts=[];if(!(keys[0]&&keys[0].t===0&&keys[0][prop]!==undefined))pts.push({t:0,v:base});
@@ -339,11 +347,12 @@ const SCENES={
       return pts[pts.length-1].v;
     };
     return tms=>{
-      let acc=0,te=null;const marks=[];
+      RT=tms/1000;let acc=0,te=null;const marks=[];
       for(const h of hits){const rs=h.at+acc;marks.push({h,rs});if(te===null){if(tms<rs)te=tms-acc;else if(tms<rs+h.freeze)te=h.at;}acc+=h.freeze;}
       if(te===null)te=tms-acc;
       let amp=0,fl=0,zm=0;
       for(const m of marks){const d=(tms-m.rs)/1000;if(d>=0){amp+=m.h.shake*W/100*Math.exp(-d*7)*(d<.9?1:0);fl+=m.h.flash*Math.exp(-d*9);zm+=m.h.zoom*Math.exp(-d*8);}}
+      if(BPM>0&&(P.beatZoom||P.beatShake)){const eb=beatEnv(RT);zm+=num(P.beatZoom,0)*eb;amp+=num(P.beatShake,0)*W/100*eb;}
       const fr=Math.floor(tms/32),sx=amp?(ih(fr*7919+1)-.5)*2*amp:0,sy=amp?(ih(fr*7919+2)-.5)*2*amp:0;
       let cx=50,cy=50,cz=1,cr=0;if(cams.length){const ts=te/1000;cx=sample(cams,"x",50,ts);cy=sample(cams,"y",50,ts);cz=sample(cams,"zoom",1,ts);cr=sample(cams,"rotate",0,ts);}
       fxbox.style.transform="translate("+sx+"px,"+sy+"px) scale("+(cz*(1+zm))+") rotate("+cr+"deg) translate("+(W*(50-cx)/100)+"px,"+(H*(50-cy)/100)+"px)";
@@ -380,8 +389,10 @@ const SCENES={
           }
         }
         tx+=W*(kx-bx)/100;ty+=H*(ky-by)/100;
-        nd.a.style.opacity=String(clamp(op*ko));
-        nd.a.style.transform="translate("+tx+"px,"+ty+"px) rotate("+(krot+prot)+"deg) scale("+(s*sx2*ks)+","+(s*ks)+")";
+        let rs=1,rsy=1,ro=0;
+        if(o.react){const v=envOf(o.react);tx+=W*v*num(o.rX,0)/100;ty+=H*v*num(o.rY,0)/100;prot+=v*num(o.rRot,0);rs=Math.max(.01,1+v*num(o.rScale,0));rsy=Math.max(.01,rs+v*num(o.rStretch,0));ro=v*num(o.rOpacity,0);if(o.rGlow)nd.a.style.filter=nd.mkf(Math.max(0,num(o.glow,0)+v*num(o.rGlow,0)));}
+        nd.a.style.opacity=String(clamp(op*ko+ro));
+        nd.a.style.transform="translate("+tx+"px,"+ty+"px) rotate("+(krot+prot)+"deg) scale("+(s*sx2*ks*rs)+","+(s*ks*rsy)+")";
         if(nd.path)nd.path.setAttribute("stroke-dashoffset",String(1-draw));
         if(nd.units&&!P2){const st=nd.rs*1000;nd.units.forEach((u,j)=>{const e=k.ease(clamp((t-j*st)/260));u.style.opacity=String(e);u.style.transform="translateY("+(1-e)*.3+"em)";});}
       });
