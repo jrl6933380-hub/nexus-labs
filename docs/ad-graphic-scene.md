@@ -2,7 +2,7 @@
 
 A data-only scene for code-drawn visuals and animation. It sits in the closed ad vocabulary next to the other scene types, so ads stay free of custom code and the stock player draws everything. Every frame is a pure function of scene time (no wall clock, no CSS animation, randomness is seeded by the scene id), so previews, standalone capture and the MP4/PNG exporters all agree. Two exports of the same project give the same frame fingerprint.
 
-See `docs/ad-graphic-skill.md` for how to use the blocks well. Run `node scripts/ad-review-sheet.mjs --out sheet.png` to render a contact sheet of the demos in `lib/adGraphicDemos.js` (shapes, motion and parenting, particles, a stick fight, captions and camera, a loadout card).
+See `docs/ad-graphic-skill.md` for how to use the blocks well. Run `node scripts/ad-review-sheet.mjs --out sheet.png` to render a contact sheet of the demos in `lib/adGraphicDemos.js` (shapes, motion and parenting, particles, a stick fight, captions and camera, a loadout card, beat and audio reactive).
 
 ## Layers
 
@@ -76,6 +76,30 @@ Give a layer an `id` (lowercase letters, digits, dashes, up to 24 characters). A
 ## Scene-level `camera`
 
 `params.camera` is a list of up to 12 keyframes `{ t, x, y, zoom, rotate, ease }` that move the whole world: `x`/`y` is the point (percent) that sits at the center of the frame (default 50, 50), `zoom` 1 is the full frame (0.3 to 6), `rotate` is -45 to 45 degrees. `t` is animation seconds, `ease` shapes the move into that key, and a property left out of a key holds its last value. Layers with `fixed: true` stay on screen. Hit shake and zoom stack on top of the camera.
+
+## Beat and audio reactivity
+
+Layers can move with a beat clock or with loudness data from real audio. Everything is plain numbers stored in the ad, so a render never reads an audio file and two renders match.
+
+Scene params:
+
+| Field | Meaning |
+| --- | --- |
+| `bpm` (40 to 240), `beatOffset` (seconds) | Beat clock. The `beat` signal jumps to 1 on each beat and decays quickly |
+| `beatZoom` (0 to 0.3), `beatShake` (0 to 5) | Pulse the whole scene on every beat (needs `bpm`) |
+| `audioRate` (2 to 60) | Envelope samples per second |
+| `audioLow`, `audioMid`, `audioHigh` | Up to 1800 numbers (0 to 100) each: loudness of the bass (under 200 Hz), mids and treble (over 2.5 kHz) |
+
+Layer fields: `react` picks the signal (`beat`, `low`, `mid`, `high`, `level`; `level` is the loudest band, or the beat when there is no audio), and the amounts say what it does at full strength: `rScale` (added to scale), `rStretch` (added to vertical scale only, for equalizer bars with `origin: "bottom"`), `rOpacity`, `rX` and `rY` (percent), `rRot` (degrees), `rGlow` (percent of width, on top of `glow`).
+
+Make the envelopes from a file (needs ffmpeg):
+
+```
+node scripts/ad-audio-envelope.mjs --audio song.mp3 --project ad.json --scene bow --out ad-reactive.json
+node scripts/export-ad-mp4.mjs --project ad-reactive.json --audio song.mp3 --out ad.mp4
+```
+
+Use `--start` and `--duration` to pick the part of the song (30 seconds at most), and the same range when you mux the audio. Without `--project` the script writes just the envelope numbers. Audio analysis lives in `lib/adAudio.js`.
 
 ## Scene-level `hits`
 
