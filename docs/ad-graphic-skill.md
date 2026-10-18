@@ -46,6 +46,14 @@ What the blocks are for, how to combine them, and what good looks like. The refe
 - Glows and light blobs: `blend: "screen"` with `blur` 6 to 8 and `opacity` 0.4 to 0.6.
 - `loop: true` with keyframes gives endless idle motion (slow rotation, breathing).
 
+## Music and beats
+
+- No song yet: set `bpm` and put `react: "beat"` on layers (`rScale` 0.1 to 0.4 for a pulse). Add `beatZoom` 0.02 to 0.04 and `beatShake` 0.2 to 0.5 for a club feel.
+- With a song: run `scripts/ad-audio-envelope.mjs`, then use `low` for the kick (big circle, glow, camera), `mid` for the body (bars, text), `high` for sparkle (stars, small particles, `rRot`).
+- Equalizer bars: `rect` with `origin: "bottom"`, small `h`, `rStretch` 5 to 9, a `count` of 6 to 8 with `stepX`.
+- Reactive amounts are added on top of motion presets and keyframes, so a layer can drift and pulse at once.
+- Beat time is real time. A hit's `freeze` does not shift the beat clock or the audio.
+
 ## Limits and traps
 
 - 48 layers, 200 expanded shapes (count + emit), 12 keys per layer, 12 camera keys, 6 hits per scene.
