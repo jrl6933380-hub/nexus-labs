@@ -129,12 +129,18 @@ const en = (values, required = false) => ({ kind: 'enum', values, required });
 const num = (min, max, required = false, integer = false) => ({ kind: 'number', min, max, required, integer });
 // A reference to an item in the account's image library (lib/adImages.js). The ad stores only the id.
 export const IMAGE_ID_PATTERN = '^[a-z0-9-]{3,40}$';
-const ref = (required = false) => ({ kind: 'ref', pattern: IMAGE_ID_PATTERN, required });
+const ref = (required = false, pattern = IMAGE_ID_PATTERN) => ({ kind: 'ref', pattern, required });
+// Layer ids (graphic scenes) are short lowercase names so layers can point at a parent.
+export const LAYER_ID_PATTERN = '^[a-z0-9-]{1,24}$';
 
 // Graphic scene layers: data-only shapes positioned in percent of the frame. No raw SVG, no code.
-export const LAYER_SHAPES = ['rect', 'circle', 'pill', 'arc', 'text', 'image'];
+export const LAYER_SHAPES = ['rect', 'circle', 'pill', 'arc', 'text', 'image', 'line', 'ring', 'polygon', 'star'];
 export const LAYER_COLORS = ['accent', 'text', 'muted', 'bg', 'white', 'black', 'red', 'orange', 'yellow', 'green', 'blue', 'violet', 'pink'];
-export const LAYER_MOTIONS = ['none', 'fade_in', 'slide_up', 'slide_left', 'pop', 'draw', 'drift', 'twinkle', 'pulse'];
+export const LAYER_MOTIONS = ['none', 'fade_in', 'slide_up', 'slide_left', 'pop', 'draw', 'drift', 'twinkle', 'pulse', 'spin', 'swing', 'bob', 'shake'];
+export const LAYER_ORIGINS = ['center', 'top', 'bottom', 'left', 'right'];
+export const KEY_EASINGS = ['linear', 'smooth', 'snappy', 'bounce'];
+// Hard cap on how many shapes one graphic scene may expand to (layers x count, plus spawned particles).
+export const GRAPHIC_MAX_SHAPES = 200;
 
 export const SCENE_TYPES = [
   entry('hook_text', 'Hook text', {
@@ -185,26 +191,67 @@ export const SCENE_TYPES = [
     },
   }),
   entry('graphic', 'Graphic', {
-    purpose: 'Code-drawn layers (rect, circle, pill, arc, text, image) placed in percent of the frame, drawn in order with simple motion. x/y are the layer center as percent of frame width/height; w is percent of width and h percent of height (circle uses w as diameter). An arc is the upper half of a circle: x/y is the middle of its base, w is the radius (percent of width), thickness is the stroke (percent of width). Text size is percent of width. Colors are palette roles or a fixed set. delay is seconds. No raw SVG or custom code.',
+    purpose: 'Code-drawn layers placed in percent of the frame and drawn in order, with motion presets, keyframes, parenting and seeded particles. No raw SVG or custom code. Shapes: rect, circle, pill, ring, polygon, star, line, arc, text, image. x/y are the layer center (a line starts at x/y and ends at x2/y2; an arc is the upper half of a circle with x/y at the middle of its base). w is percent of frame width (circle/ring/polygon/star: size, arc: radius), h percent of frame height. Colors are palette roles or a fixed set; color2 makes a gradient. delay is seconds. TRANSFORMS: rotate (degrees), scale, opacity; origin picks which point of a rect/pill/image sits at x/y and is the pivot (e.g. origin top on a hanging pill makes a limb that swings from its end). KEYFRAMES: keys is a list of {t (seconds after the layer starts), x, y, rotate, scale, opacity, ease}; properties left out of a key hold their last value; ease shapes the move into that key. PARENTING: give a layer an id, and later layers may set parent to that id; a child x/y is then an offset from the parent center and it moves, rotates and scales with the parent. EFFECTS: glow and blur (percent of width). REPEAT: count copies of a layer, each shifted by stepX/stepY/stepRotate/stepDelay (a parent id points at the first copy). SPAWNER: emit particles of the layer over emitSpan seconds, each living life seconds, drifting driftX/driftY percent, random offset up to spread percent, seeded by the scene id so it is identical every render. HITS: scene-level impacts, each {at, shake, flash, freeze (seconds of hit-stop), zoom} for fight and punch moments. Up to 48 layers and at most 200 shapes per scene after repeat and spawner.',
     params: {
       layers: {
-        kind: 'items', min: 1, max: 16, required: true,
+        kind: 'items', min: 1, max: 48, required: true,
         fields: {
           shape: en(LAYER_SHAPES, true),
-          x: num(0, 100, true),
-          y: num(0, 100, true),
+          id: ref(false, LAYER_ID_PATTERN),
+          parent: ref(false, LAYER_ID_PATTERN),
+          x: num(-100, 200, true),
+          y: num(-100, 200, true),
+          x2: num(-100, 200),
+          y2: num(-100, 200),
           w: num(0, 100),
           h: num(0, 100),
           color: en(LAYER_COLORS),
+          color2: en(LAYER_COLORS),
+          angle: num(0, 360),
           text: str(40),
           size: num(1, 40),
           thickness: num(0.5, 20),
+          sides: num(3, 12, false, true),
+          rotate: num(-720, 720),
+          scale: num(0.05, 8),
+          opacity: num(0, 1),
+          origin: en(LAYER_ORIGINS),
+          glow: num(0, 20),
+          blur: num(0, 20),
           motion: en(LAYER_MOTIONS),
           delay: num(0, 10),
+          keys: {
+            kind: 'items', min: 1, max: 12,
+            fields: {
+              t: num(0, 30, true),
+              x: num(-100, 200),
+              y: num(-100, 200),
+              rotate: num(-720, 720),
+              scale: num(0.05, 8),
+              opacity: num(0, 1),
+              ease: en(KEY_EASINGS),
+            },
+          },
+          count: num(1, 24, false, true),
+          stepX: num(-100, 100),
+          stepY: num(-100, 100),
+          stepRotate: num(-360, 360),
+          stepDelay: num(0, 5),
+          emit: num(1, 60, false, true),
+          emitSpan: num(0.1, 10),
+          life: num(0.2, 10),
+          driftX: num(-100, 100),
+          driftY: num(-100, 100),
+          spread: num(0, 100),
           imageId: ref(),
         },
       },
+      hits: {
+        kind: 'items', min: 1, max: 6,
+        fields: { at: num(0, 15, true), shake: num(0, 10), flash: num(0, 1), freeze: num(0, 0.5), zoom: num(0, 0.5) },
+      },
     },
+    check: 'graphic',
   }),
   entry('end_card', 'End card', {
     purpose: 'Call to action',
@@ -283,6 +330,31 @@ function checkField(spec, v, path, errors) {
       return errors.push(`${path}: unsupported field kind`);
   }
 }
+
+// Cross-field checks that a per-field spec cannot express. Keyed by a scene type's `check` name.
+const SCENE_CHECKS = {
+  graphic(params, path, errors) {
+    const layers = Array.isArray(params.layers) ? params.layers : [];
+    const seen = new Set();
+    let shapes = 0;
+    layers.forEach((L, i) => {
+      if (!L || typeof L !== 'object') return;
+      const p = `${path}.layers[${i}]`;
+      if (L.shape === 'line' && (L.x2 === undefined || L.y2 === undefined)) errors.push(`${p}: a line needs x2 and y2`);
+      if (L.id !== undefined) {
+        if (seen.has(L.id)) errors.push(`${p}.id: duplicate layer id "${L.id}"`);
+        seen.add(L.id);
+      }
+      if (L.parent !== undefined) {
+        const before = layers.slice(0, i).some((e) => e && e.id === L.parent);
+        if (!before) errors.push(`${p}.parent: "${L.parent}" must be the id of an earlier layer`);
+        if (L.parent === L.id) errors.push(`${p}.parent: a layer cannot be its own parent`);
+      }
+      shapes += L.emit ? L.emit : (L.count || 1);
+    });
+    if (shapes > GRAPHIC_MAX_SHAPES) errors.push(`${path}.layers: expands to ${shapes} shapes, max ${GRAPHIC_MAX_SHAPES}`);
+  },
+};
 
 function checkParams(fields, params, path, errors) {
   const out = {};
@@ -376,7 +448,11 @@ export function validateProjectV2(raw) {
         errors.push(`${p}.duration: must be between ${LIMITS.sceneSecMin} and ${LIMITS.sceneSecMax} seconds`);
       } else { scene.duration = s.duration; total += s.duration; }
       if (!plain(s.params)) { if (type) errors.push(`${p}.params: required object`); }
-      else if (type) scene.params = checkParams(type.params, s.params, `${p}.params`, errors);
+      else if (type) {
+        const before = errors.length;
+        scene.params = checkParams(type.params, s.params, `${p}.params`, errors);
+        if (type.check && errors.length === before) SCENE_CHECKS[type.check](scene.params, `${p}.params`, errors);
+      }
       if (has(s, 'camera')) scene.camera = pickEnum(CAMERAS, s.camera, `${p}.camera`, errors);
       if (has(s, 'background')) scene.background = pickEnum(BACKGROUNDS, s.background, `${p}.background`, errors);
       if (has(s, 'transitionOut')) scene.transitionOut = pickEnum(TRANSITIONS, s.transitionOut, `${p}.transitionOut`, errors);
