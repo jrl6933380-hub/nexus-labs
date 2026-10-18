@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateProjectV2, REGISTRY, LAYER_SHAPES, LAYER_MOTIONS, LAYER_COLORS } from '../public/ad-vocabulary.mjs';
+import {
+  validateProjectV2, REGISTRY, LAYER_SHAPES, LAYER_MOTIONS, LAYER_COLORS, LAYER_ORIGINS, KEY_EASINGS, GRAPHIC_MAX_SHAPES,
+} from '../public/ad-vocabulary.mjs';
+import { GRAPHIC_DEMOS } from '../lib/adGraphicDemos.js';
 
 const arc = (i, color, r) => ({ shape: 'arc', x: 50, y: 60, w: r, thickness: 3, color, motion: 'draw', delay: i * 0.2 });
 const rainbow = () => ({
@@ -24,18 +27,27 @@ const rainbow = () => ({
     { id: 'end', type: 'end_card', duration: 2, params: { cta: 'Try it' } },
   ],
 });
+const withLayers = (layers, extra = {}) => {
+  const p = rainbow();
+  p.scenes[0].params = { layers, ...extra };
+  return p;
+};
+const ok = (p) => validateProjectV2(p);
 
-test('graphic is registered with bounded layers', () => {
+test('graphic is registered with bounded layers and the full field set', () => {
   const g = REGISTRY.sceneTypes.find((t) => t.id === 'graphic');
   assert.ok(g);
   assert.equal(g.params.layers.kind, 'items');
   assert.equal(g.params.layers.min, 1);
-  assert.equal(g.params.layers.max, 16);
-  assert.deepEqual(Object.keys(g.params.layers.fields).sort(), ['color', 'delay', 'h', 'imageId', 'motion', 'shape', 'size', 'text', 'thickness', 'w', 'x', 'y']);
+  assert.equal(g.params.layers.max, 48);
+  assert.deepEqual(Object.keys(g.params).sort(), ['hits', 'layers']);
+  for (const f of ['shape', 'id', 'parent', 'x', 'y', 'x2', 'y2', 'rotate', 'scale', 'opacity', 'origin', 'keys', 'count', 'emit', 'glow', 'blur', 'color2', 'sides']) {
+    assert.ok(g.params.layers.fields[f], `layer field ${f}`);
+  }
 });
 
-test('a rainbow graphic project validates', () => {
-  const r = validateProjectV2(rainbow());
+test('a rainbow graphic project still validates (backward compatible)', () => {
+  const r = ok(rainbow());
   assert.deepEqual(r.errors, []);
   assert.equal(r.ok, true);
   assert.equal(r.value.scenes[0].params.layers.length, 9);
@@ -44,43 +56,95 @@ test('a rainbow graphic project validates', () => {
 test('layers reject raw svg, unknown fields and unknown ids', () => {
   const bad = rainbow();
   bad.scenes[0].params.layers[0].svg = '<svg onload=alert(1)></svg>';
-  const r = validateProjectV2(bad);
+  const r = ok(bad);
   assert.equal(r.ok, false);
   assert.ok(r.errors.some((e) => e.includes('svg') && e.includes('unknown field')));
 
-  for (const [field, value] of [['shape', 'star'], ['motion', 'spin'], ['color', 'chartreuse']]) {
+  for (const [field, value] of [['shape', 'blob'], ['motion', 'explode'], ['color', 'chartreuse'], ['origin', 'middle'], ['color2', 'teal']]) {
     const p = rainbow();
     p.scenes[0].params.layers[0][field] = value;
-    assert.equal(validateProjectV2(p).ok, false, `${field}=${value} must be rejected`);
+    assert.equal(ok(p).ok, false, `${field}=${value} must be rejected`);
   }
 });
 
 test('layer count, position and required fields are enforced', () => {
-  const none = rainbow();
-  none.scenes[0].params.layers = [];
-  assert.equal(validateProjectV2(none).ok, false);
-
-  const many = rainbow();
-  many.scenes[0].params.layers = Array.from({ length: 17 }, () => ({ shape: 'circle', x: 10, y: 10, w: 5 }));
-  assert.equal(validateProjectV2(many).ok, false);
-
-  const off = rainbow();
-  off.scenes[0].params.layers[0].x = 140;
-  assert.equal(validateProjectV2(off).ok, false);
-
-  const noShape = rainbow();
-  delete noShape.scenes[0].params.layers[0].shape;
-  assert.equal(validateProjectV2(noShape).ok, false);
-
+  assert.equal(ok(withLayers([])).ok, false);
+  assert.equal(ok(withLayers(Array.from({ length: 49 }, () => ({ shape: 'circle', x: 10, y: 10, w: 5 })))).ok, false);
+  assert.equal(ok(withLayers(Array.from({ length: 48 }, () => ({ shape: 'circle', x: 10, y: 10, w: 5 })))).ok, true);
+  assert.equal(ok(withLayers([{ shape: 'circle', x: 140, y: 10, w: 5 }])).ok, true, 'off-frame positions are allowed up to 200');
+  assert.equal(ok(withLayers([{ shape: 'circle', x: 250, y: 10, w: 5 }])).ok, false);
+  assert.equal(ok(withLayers([{ x: 10, y: 10 }])).ok, false);
   const noLayers = rainbow();
   delete noLayers.scenes[0].params.layers;
-  assert.equal(validateProjectV2(noLayers).ok, false);
+  assert.equal(ok(noLayers).ok, false);
 });
 
-test('exported layer vocab lists are the ones the schema accepts', () => {
-  for (const shape of LAYER_SHAPES) for (const motion of LAYER_MOTIONS.slice(0, 2)) {
-    const p = rainbow();
-    p.scenes[0].params.layers = [{ shape, x: 50, y: 50, w: 10, h: 10, motion, color: LAYER_COLORS[0] }];
-    assert.equal(validateProjectV2(p).ok, true, `${shape}/${motion}`);
+test('every exported shape, motion, origin and easing is accepted', () => {
+  for (const shape of LAYER_SHAPES) for (const motion of LAYER_MOTIONS) {
+    const layer = { shape, x: 50, y: 50, w: 10, h: 10, motion, color: LAYER_COLORS[0] };
+    if (shape === 'line') Object.assign(layer, { x2: 70, y2: 60 });
+    assert.deepEqual(ok(withLayers([layer])).errors, [], `${shape}/${motion}`);
+  }
+  for (const origin of LAYER_ORIGINS) assert.equal(ok(withLayers([{ shape: 'pill', x: 50, y: 50, origin }])).ok, true, origin);
+  for (const ease of KEY_EASINGS) assert.equal(ok(withLayers([{ shape: 'circle', x: 50, y: 50, keys: [{ t: 1, x: 60, ease }] }])).ok, true, ease);
+});
+
+test('a line needs both endpoints', () => {
+  assert.equal(ok(withLayers([{ shape: 'line', x: 10, y: 10 }])).ok, false);
+  assert.equal(ok(withLayers([{ shape: 'line', x: 10, y: 10, x2: 50, y2: 50 }])).ok, true);
+});
+
+test('parenting: ids are unique and a parent must be an earlier layer', () => {
+  const dup = ok(withLayers([{ shape: 'circle', id: 'a', x: 1, y: 1 }, { shape: 'circle', id: 'a', x: 2, y: 2 }]));
+  assert.equal(dup.ok, false);
+  assert.ok(dup.errors.some((e) => e.includes('duplicate layer id')));
+  const later = ok(withLayers([{ shape: 'circle', parent: 'a', x: 1, y: 1 }, { shape: 'circle', id: 'a', x: 2, y: 2 }]));
+  assert.equal(later.ok, false);
+  assert.ok(later.errors.some((e) => e.includes('earlier layer')));
+  const self = ok(withLayers([{ shape: 'circle', id: 'a', parent: 'a', x: 1, y: 1 }]));
+  assert.equal(self.ok, false);
+  assert.equal(ok(withLayers([{ shape: 'circle', id: 'a', x: 1, y: 1 }, { shape: 'pill', parent: 'a', x: 5, y: 0 }])).ok, true);
+  assert.equal(ok(withLayers([{ shape: 'circle', id: 'Bad Id!', x: 1, y: 1 }])).ok, false);
+});
+
+test('keyframes: bounded list, required time, only known properties', () => {
+  const key = (o = {}) => ({ t: 1, x: 60, rotate: 90, scale: 1.2, opacity: 0.5, ease: 'smooth', ...o });
+  assert.equal(ok(withLayers([{ shape: 'circle', x: 10, y: 10, keys: [key()] }])).ok, true);
+  assert.equal(ok(withLayers([{ shape: 'circle', x: 10, y: 10, keys: [] }])).ok, false);
+  assert.equal(ok(withLayers([{ shape: 'circle', x: 10, y: 10, keys: Array.from({ length: 13 }, (_, i) => key({ t: i })) }])).ok, false);
+  assert.equal(ok(withLayers([{ shape: 'circle', x: 10, y: 10, keys: [{ x: 5 }] }])).ok, false, 't is required');
+  assert.equal(ok(withLayers([{ shape: 'circle', x: 10, y: 10, keys: [key({ color: 'red' })] }])).ok, false);
+  assert.equal(ok(withLayers([{ shape: 'circle', x: 10, y: 10, keys: [key({ scale: 0 })] }])).ok, false);
+});
+
+test('repeat and spawner expansion is capped', () => {
+  assert.equal(ok(withLayers([{ shape: 'circle', x: 10, y: 10, count: 24 }])).ok, true);
+  assert.equal(ok(withLayers([{ shape: 'circle', x: 10, y: 10, count: 25 }])).ok, false);
+  const many = Array.from({ length: 9 }, () => ({ shape: 'circle', x: 10, y: 10, count: 24 }));
+  const r = ok(withLayers(many));
+  assert.equal(r.ok, false);
+  assert.ok(r.errors.some((e) => e.includes(`max ${GRAPHIC_MAX_SHAPES}`)));
+  const spawn = Array.from({ length: 4 }, () => ({ shape: 'circle', x: 10, y: 10, emit: 60 }));
+  assert.equal(ok(withLayers(spawn)).ok, false);
+  assert.equal(ok(withLayers(spawn.slice(0, 3))).ok, true);
+});
+
+test('hits: bounded list with bounded intensities', () => {
+  const layers = [{ shape: 'circle', x: 10, y: 10 }];
+  assert.equal(ok(withLayers(layers, { hits: [{ at: 1, shake: 2, flash: 0.5, freeze: 0.1, zoom: 0.05 }] })).ok, true);
+  assert.equal(ok(withLayers(layers, { hits: [] })).ok, false);
+  assert.equal(ok(withLayers(layers, { hits: Array.from({ length: 7 }, (_, i) => ({ at: i })) })).ok, false);
+  assert.equal(ok(withLayers(layers, { hits: [{ at: 1, freeze: 0.9 }] })).ok, false);
+  assert.equal(ok(withLayers(layers, { hits: [{ shake: 1 }] })).ok, false, 'at is required');
+  assert.equal(ok(withLayers(layers, { hits: [{ at: 1, code: 'x' }] })).ok, false);
+});
+
+test('every demo project validates, fits the byte cap and its shots are inside the ad', () => {
+  for (const [name, demo] of Object.entries(GRAPHIC_DEMOS)) {
+    const r = ok(demo.project);
+    assert.deepEqual(r.errors, [], name);
+    const total = demo.project.scenes.reduce((n, s) => n + s.duration * 1000, 0);
+    assert.ok(demo.shots.length >= 3, `${name} has shots`);
+    for (const ms of demo.shots) assert.ok(ms >= 0 && ms <= total, `${name} shot ${ms}`);
   }
 });
