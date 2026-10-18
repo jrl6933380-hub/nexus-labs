@@ -40,7 +40,7 @@ test('graphic is registered with bounded layers and the full field set', () => {
   assert.equal(g.params.layers.kind, 'items');
   assert.equal(g.params.layers.min, 1);
   assert.equal(g.params.layers.max, 48);
-  assert.deepEqual(Object.keys(g.params).sort(), ['camera', 'hits', 'layers']);
+  assert.deepEqual(Object.keys(g.params).sort(), ['audioHigh', 'audioLow', 'audioMid', 'audioRate', 'beatOffset', 'beatShake', 'beatZoom', 'bpm', 'camera', 'hits', 'layers']);
   for (const f of ['shape', 'id', 'parent', 'x', 'y', 'x2', 'y2', 'rotate', 'scale', 'opacity', 'origin', 'keys', 'count', 'emit', 'glow', 'blur', 'color2', 'sides', 'weight', 'spacing', 'caps', 'maxw', 'reveal', 'revealStep', 'stroke', 'strokeW', 'shadow', 'radius', 'fit', 'blend', 'fixed', 'loop']) {
     assert.ok(g.params.layers.fields[f], `layer field ${f}`);
   }
