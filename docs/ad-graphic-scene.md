@@ -2,7 +2,7 @@
 
 A data-only scene for code-drawn visuals and animation. It sits in the closed ad vocabulary next to the other scene types, so ads stay free of custom code and the stock player draws everything. Every frame is a pure function of scene time (no wall clock, no CSS animation, randomness is seeded by the scene id), so previews, standalone capture and the MP4/PNG exporters all agree. Two exports of the same project give the same frame fingerprint.
 
-See `docs/ad-graphic-skill.md` for how to use the blocks well. Run `node scripts/ad-review-sheet.mjs --out sheet.png` to render a contact sheet of the demos in `lib/adGraphicDemos.js` (shapes, motion and parenting, particles, a stick fight).
+See `docs/ad-graphic-skill.md` for how to use the blocks well. Run `node scripts/ad-review-sheet.mjs --out sheet.png` to render a contact sheet of the demos in `lib/adGraphicDemos.js` (shapes, motion and parenting, particles, a stick fight, captions and camera, a loadout card).
 
 ## Layers
 
@@ -46,10 +46,36 @@ An `arc` is the upper half of a circle with `x`/`y` at the middle of its base.
 
 Give a layer an `id` (lowercase letters, digits, dashes, up to 24 characters). A later layer may set `parent` to that id. The child's `x`/`y` are then offsets from the parent's `x`/`y` in the parent's rotated space, and it moves, rotates and scales with the parent. A parent must come earlier in the list. This is how rigs are built (see the stick fight demo).
 
+### Text
+
+| Field | Meaning |
+| --- | --- |
+| `text` | Up to 90 characters |
+| `weight` | 300 to 900 |
+| `spacing` | Letter spacing in em (-0.2 to 1) |
+| `caps` | Upper-case the text |
+| `maxw` | Percent of frame width; wraps lines to that width. `origin: "left"` or `"right"` also left or right aligns |
+| `reveal` | `chars` or `words`: units fade and rise in one after another. `revealStep` is seconds between units (default 0.04 for chars, 0.12 for words) |
+| `stroke`, `strokeW` | Outline color and width (percent of frame width) |
+
+### Style
+
+- `shadow` (0 to 20): drop shadow on any shape.
+- `radius` (percent of width): corner radius for `rect` and `image`.
+- `stroke`, `strokeW`: a border on `rect`, `pill`, `circle` and `image`.
+- `fit`: `cover` (default) or `contain` for `image`.
+- `blend`: `screen`, `multiply` or `overlay` (use `screen` on glows and light blobs).
+- `loop: true`: repeats the layer's keyframes after the last key.
+- `fixed: true`: the layer ignores the scene camera (captions, logos, HUD). Fixed layers are drawn above world layers. A child follows its parent, so set `fixed` on the root.
+
 ### Repeat and spawner (rules)
 
 - `count` (1 to 24) with `stepX`, `stepY`, `stepRotate`, `stepDelay` makes copies of a layer, each shifted by the steps. A `parent` id points at the first copy.
 - `emit` (1 to 60) turns the layer into a particle spawner: `emitSpan` seconds to release them, each living `life` seconds, drifting `driftX`/`driftY` percent, with a random start offset up to `spread` percent. The randomness is seeded by the scene id and layer index, so renders are identical.
+
+## Scene-level `camera`
+
+`params.camera` is a list of up to 12 keyframes `{ t, x, y, zoom, rotate, ease }` that move the whole world: `x`/`y` is the point (percent) that sits at the center of the frame (default 50, 50), `zoom` 1 is the full frame (0.3 to 6), `rotate` is -45 to 45 degrees. `t` is animation seconds, `ease` shapes the move into that key, and a property left out of a key holds its last value. Layers with `fixed: true` stay on screen. Hit shake and zoom stack on top of the camera.
 
 ## Scene-level `hits`
 
