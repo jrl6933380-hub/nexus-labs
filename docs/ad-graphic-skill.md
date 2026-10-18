@@ -38,9 +38,17 @@ What the blocks are for, how to combine them, and what good looks like. The refe
 - Sunburst or radial pattern: one `pill` with `origin: "left"`, `count` 12, `stepRotate` 30.
 - Particles are seeded by scene id and layer index, so two scenes with different ids look different but each is repeatable.
 
+## Text, captions and camera
+
+- Captions: `caps`, `weight` 800 to 900, `stroke: "black"` with `strokeW` 0.6 to 1.2, `shadow` 4 to 6, `maxw` 80 to 90, `reveal: "words"` with `revealStep` 0.15 to 0.25. Set `fixed: true` so the camera does not move them. Keep them out of the bottom 8 percent where the concept badge sits.
+- Loadout and stat cards: a dark `rect` with `radius` and a thin colored `stroke`, a thin accent `rect` bar on the left, a small muted `caps` label above a bold name, `slide_left` with `delay` steps of 0.25 seconds per row.
+- Camera: a slow push (zoom 1 to 1.1 or 1.6 over the scene, focus drifting toward the subject) makes still layouts feel alive. Use `ease: "smooth"`. Fast camera moves need `snappy`.
+- Glows and light blobs: `blend: "screen"` with `blur` 6 to 8 and `opacity` 0.4 to 0.6.
+- `loop: true` with keyframes gives endless idle motion (slow rotation, breathing).
+
 ## Limits and traps
 
-- 48 layers, 200 expanded shapes (count + emit), 12 keys per layer, 6 hits per scene.
+- 48 layers, 200 expanded shapes (count + emit), 12 keys per layer, 12 camera keys, 6 hits per scene.
 - `thickness` has a floor of 0.5.
 - A `line` needs `x2` and `y2`. A child's `x`/`y` and a child line's `x2`/`y2` are offsets from the parent.
 - A parent must appear before its children. `parent` on a repeated layer points at the first copy.

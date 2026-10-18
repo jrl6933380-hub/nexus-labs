@@ -139,6 +139,9 @@ export const LAYER_COLORS = ['accent', 'text', 'muted', 'bg', 'white', 'black', 
 export const LAYER_MOTIONS = ['none', 'fade_in', 'slide_up', 'slide_left', 'pop', 'draw', 'drift', 'twinkle', 'pulse', 'spin', 'swing', 'bob', 'shake'];
 export const LAYER_ORIGINS = ['center', 'top', 'bottom', 'left', 'right'];
 export const KEY_EASINGS = ['linear', 'smooth', 'snappy', 'bounce'];
+export const LAYER_REVEALS = ['none', 'chars', 'words'];
+export const LAYER_BLENDS = ['normal', 'screen', 'multiply', 'overlay'];
+export const IMAGE_FITS = ['cover', 'contain'];
 // Hard cap on how many shapes one graphic scene may expand to (layers x count, plus spawned particles).
 export const GRAPHIC_MAX_SHAPES = 200;
 
@@ -191,7 +194,7 @@ export const SCENE_TYPES = [
     },
   }),
   entry('graphic', 'Graphic', {
-    purpose: 'Code-drawn layers placed in percent of the frame and drawn in order, with motion presets, keyframes, parenting and seeded particles. No raw SVG or custom code. Shapes: rect, circle, pill, ring, polygon, star, line, arc, text, image. x/y are the layer center (a line starts at x/y and ends at x2/y2; an arc is the upper half of a circle with x/y at the middle of its base). w is percent of frame width (circle/ring/polygon/star: size, arc: radius), h percent of frame height. Colors are palette roles or a fixed set; color2 makes a gradient. delay is seconds. TRANSFORMS: rotate (degrees), scale, opacity; origin picks which point of a rect/pill/image sits at x/y and is the pivot (e.g. origin top on a hanging pill makes a limb that swings from its end). KEYFRAMES: keys is a list of {t (seconds after the layer starts), x, y, rotate, scale, opacity, ease}; properties left out of a key hold their last value; ease shapes the move into that key. PARENTING: give a layer an id, and later layers may set parent to that id; a child x/y is then an offset from the parent center and it moves, rotates and scales with the parent. EFFECTS: glow and blur (percent of width). REPEAT: count copies of a layer, each shifted by stepX/stepY/stepRotate/stepDelay (a parent id points at the first copy). SPAWNER: emit particles of the layer over emitSpan seconds, each living life seconds, drifting driftX/driftY percent, random offset up to spread percent, seeded by the scene id so it is identical every render. HITS: scene-level impacts, each {at, shake, flash, freeze (seconds of hit-stop), zoom} for fight and punch moments. Up to 48 layers and at most 200 shapes per scene after repeat and spawner.',
+    purpose: 'Code-drawn layers placed in percent of the frame and drawn in order, with motion presets, keyframes, parenting and seeded particles. No raw SVG or custom code. Shapes: rect, circle, pill, ring, polygon, star, line, arc, text, image. x/y are the layer center (a line starts at x/y and ends at x2/y2; an arc is the upper half of a circle with x/y at the middle of its base). w is percent of frame width (circle/ring/polygon/star: size, arc: radius), h percent of frame height. Colors are palette roles or a fixed set; color2 makes a gradient. delay is seconds. TRANSFORMS: rotate (degrees), scale, opacity; origin picks which point of a rect/pill/image sits at x/y and is the pivot (e.g. origin top on a hanging pill makes a limb that swings from its end). KEYFRAMES: keys is a list of {t (seconds after the layer starts), x, y, rotate, scale, opacity, ease}; properties left out of a key hold their last value; ease shapes the move into that key. PARENTING: give a layer an id, and later layers may set parent to that id; a child x/y is then an offset from the parent center and it moves, rotates and scales with the parent. EFFECTS: glow and blur (percent of width). REPEAT: count copies of a layer, each shifted by stepX/stepY/stepRotate/stepDelay (a parent id points at the first copy). SPAWNER: emit particles of the layer over emitSpan seconds, each living life seconds, drifting driftX/driftY percent, random offset up to spread percent, seeded by the scene id so it is identical every render. HITS: scene-level impacts, each {at, shake, flash, freeze (seconds of hit-stop), zoom} for fight and punch moments. TEXT: text up to 90 characters; weight (300-900), spacing (letter spacing, em), caps, maxw (percent of width, wraps lines), reveal chars or words with revealStep seconds between units, stroke color + strokeW outline, shadow. STYLE: shadow (drop shadow for any shape), radius (percent of width, rect and image corners), stroke/strokeW (border on rect, pill, circle and image), fit cover or contain for images, blend (screen, multiply, overlay). LOOP: loop true repeats a layer\'s keyframes. CAMERA: params.camera is a list of {t (seconds), x, y (focus point, percent, default 50/50), zoom (1 = full frame), rotate (degrees), ease} that pans and zooms the whole scene; layers with fixed true ignore the camera and stay on screen (captions, HUD, logos). Up to 48 layers and at most 200 shapes per scene after repeat and spawner.',
     params: {
       layers: {
         kind: 'items', min: 1, max: 48, required: true,
@@ -208,8 +211,22 @@ export const SCENE_TYPES = [
           color: en(LAYER_COLORS),
           color2: en(LAYER_COLORS),
           angle: num(0, 360),
-          text: str(40),
+          text: str(90),
           size: num(1, 40),
+          weight: num(300, 900, false, true),
+          spacing: num(-0.2, 1),
+          caps: { kind: 'boolean' },
+          maxw: num(5, 100),
+          reveal: en(LAYER_REVEALS),
+          revealStep: num(0.01, 1),
+          stroke: en(LAYER_COLORS),
+          strokeW: num(0, 10),
+          shadow: num(0, 20),
+          radius: num(0, 50),
+          fit: en(IMAGE_FITS),
+          blend: en(LAYER_BLENDS),
+          fixed: { kind: 'boolean' },
+          loop: { kind: 'boolean' },
           thickness: num(0.5, 20),
           sides: num(3, 12, false, true),
           rotate: num(-720, 720),
@@ -245,6 +262,10 @@ export const SCENE_TYPES = [
           spread: num(0, 100),
           imageId: ref(),
         },
+      },
+      camera: {
+        kind: 'items', min: 1, max: 12,
+        fields: { t: num(0, 30, true), x: num(-100, 200), y: num(-100, 200), zoom: num(0.3, 6), rotate: num(-45, 45), ease: en(KEY_EASINGS) },
       },
       hits: {
         kind: 'items', min: 1, max: 6,

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  validateProjectV2, REGISTRY, LAYER_SHAPES, LAYER_MOTIONS, LAYER_COLORS, LAYER_ORIGINS, KEY_EASINGS, GRAPHIC_MAX_SHAPES,
+  validateProjectV2, REGISTRY, LAYER_SHAPES, LAYER_MOTIONS, LAYER_COLORS, LAYER_ORIGINS, KEY_EASINGS, GRAPHIC_MAX_SHAPES, LAYER_REVEALS, LAYER_BLENDS, IMAGE_FITS,
 } from '../public/ad-vocabulary.mjs';
 import { GRAPHIC_DEMOS } from '../lib/adGraphicDemos.js';
 
@@ -40,8 +40,8 @@ test('graphic is registered with bounded layers and the full field set', () => {
   assert.equal(g.params.layers.kind, 'items');
   assert.equal(g.params.layers.min, 1);
   assert.equal(g.params.layers.max, 48);
-  assert.deepEqual(Object.keys(g.params).sort(), ['hits', 'layers']);
-  for (const f of ['shape', 'id', 'parent', 'x', 'y', 'x2', 'y2', 'rotate', 'scale', 'opacity', 'origin', 'keys', 'count', 'emit', 'glow', 'blur', 'color2', 'sides']) {
+  assert.deepEqual(Object.keys(g.params).sort(), ['camera', 'hits', 'layers']);
+  for (const f of ['shape', 'id', 'parent', 'x', 'y', 'x2', 'y2', 'rotate', 'scale', 'opacity', 'origin', 'keys', 'count', 'emit', 'glow', 'blur', 'color2', 'sides', 'weight', 'spacing', 'caps', 'maxw', 'reveal', 'revealStep', 'stroke', 'strokeW', 'shadow', 'radius', 'fit', 'blend', 'fixed', 'loop']) {
     assert.ok(g.params.layers.fields[f], `layer field ${f}`);
   }
 });
@@ -137,6 +137,34 @@ test('hits: bounded list with bounded intensities', () => {
   assert.equal(ok(withLayers(layers, { hits: [{ at: 1, freeze: 0.9 }] })).ok, false);
   assert.equal(ok(withLayers(layers, { hits: [{ shake: 1 }] })).ok, false, 'at is required');
   assert.equal(ok(withLayers(layers, { hits: [{ at: 1, code: 'x' }] })).ok, false);
+});
+
+test('text, style and image fields validate with their bounds', () => {
+  const text = (o) => ({ shape: 'text', x: 50, y: 50, text: 'Hi', ...o });
+  assert.equal(ok(withLayers([text({ weight: 900, spacing: 0.1, caps: true, maxw: 80, stroke: 'black', strokeW: 1, shadow: 4 })])).ok, true);
+  for (const reveal of LAYER_REVEALS) assert.equal(ok(withLayers([text({ reveal, revealStep: 0.1 })])).ok, true, reveal);
+  for (const blend of LAYER_BLENDS) assert.equal(ok(withLayers([{ shape: 'circle', x: 5, y: 5, blend }])).ok, true, blend);
+  for (const fit of IMAGE_FITS) assert.equal(ok(withLayers([{ shape: 'image', x: 5, y: 5, w: 20, h: 20, fit, radius: 4 }])).ok, true, fit);
+  assert.equal(ok(withLayers([text({ text: 'x'.repeat(90) })])).ok, true);
+  assert.equal(ok(withLayers([text({ text: 'x'.repeat(91) })])).ok, false);
+  for (const bad of [{ weight: 100 }, { weight: 450.5 }, { spacing: 5 }, { maxw: 2 }, { reveal: 'letters' }, { stroke: 'chartreuse' }, { strokeW: 50 }, { shadow: 99 }, { blend: 'difference' }, { fit: 'stretch' }, { radius: 90 }, { caps: 'yes' }, { fixed: 1 }]) {
+    assert.equal(ok(withLayers([text(bad)])).ok, false, JSON.stringify(bad));
+  }
+  assert.equal(ok(withLayers([text({ fixed: true, loop: true, keys: [{ t: 1, x: 60 }] })])).ok, true);
+});
+
+test('scene camera: bounded keyframes with only known fields', () => {
+  const layers = [{ shape: 'circle', x: 10, y: 10 }];
+  const key = (o = {}) => ({ t: 1, x: 60, y: 40, zoom: 1.5, rotate: 5, ease: 'smooth', ...o });
+  assert.equal(ok(withLayers(layers, { camera: [key()] })).ok, true);
+  assert.equal(ok(withLayers(layers, { camera: [] })).ok, false);
+  assert.equal(ok(withLayers(layers, { camera: Array.from({ length: 13 }, (_, i) => key({ t: i })) })).ok, false);
+  assert.equal(ok(withLayers(layers, { camera: [{ x: 5 }] })).ok, false, 't is required');
+  assert.equal(ok(withLayers(layers, { camera: [key({ zoom: 0.1 })] })).ok, false);
+  assert.equal(ok(withLayers(layers, { camera: [key({ zoom: 9 })] })).ok, false);
+  assert.equal(ok(withLayers(layers, { camera: [key({ rotate: 90 })] })).ok, false);
+  assert.equal(ok(withLayers(layers, { camera: [key({ code: 'x' })] })).ok, false);
+  assert.equal(ok(withLayers(layers, { camera: [key()], hits: [{ at: 1, shake: 1 }] })).ok, true);
 });
 
 test('every demo project validates, fits the byte cap and its shots are inside the ad', () => {
