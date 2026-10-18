@@ -40,6 +40,20 @@ It cannot run in the E2B helper in `lib/sandbox.js` as it is today. Measured on 
 2. `node scripts/export-ad-mp4.mjs --project <file> --out <name>.mp4`
 3. Send the MP4 to the person.
 
+## Still images (PNG)
+
+`scripts/export-ad-still.mjs` renders one frame of the same ad to a PNG (posters, thumbnails, previews). It uses the same capture barrier and checks as the MP4 export, so the still is exactly the frame the video shows at that time. It needs Chromium but not ffmpeg.
+
+```
+node scripts/export-ad-still.mjs --project ad.json --out still.png [--at 3.5 | --scene hook [--progress 0.85]]
+     [--scale 2] [--images images.json] [--chromium /path/to/chrome]
+```
+
+- `--at <seconds>` picks a time. `--scene <id>` picks a scene, and `--progress` (0 to 1, default 0.85 so entrance animations have settled) picks the moment inside it. Use one or the other. With neither, it takes the middle of the ad.
+- `--scale` 1, 2 or 3 as for the MP4 (portrait is 720x1280 at scale 2).
+- stdout is one JSON line; a `<name>.manifest.json` with the time, size, project hash and PNG hash is written beside the PNG. Nothing is written if any check fails.
+- Concept ads still refuse to export unless the concept badge is visible.
+
 ## Not included yet
 
 Captions, a music library, uploading the result (for example to Vercel Blob), and an `export_mp4` tool that does all of this on the server. Photo and logo scenes use the brand mark until v2 ads can carry images.
