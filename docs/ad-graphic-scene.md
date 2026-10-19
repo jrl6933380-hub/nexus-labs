@@ -132,6 +132,17 @@ Use `--start` and `--duration` to pick the part of the song (30 seconds at most)
 }
 ```
 
+## Paths, groups, clips, masks and blends
+
+- `shape: 'path'` draws a Bézier outline from `d`, a list of 2 to 64 segments `{c, x, y, x1, y1, x2, y2}` with `c` one of `M` (move), `L` (line), `Q` (quadratic, uses `x1,y1`), `C` (cubic, uses `x1,y1,x2,y2`), `Z` (close). Coordinates are 0 to 100 inside the layer box (-50 to 150 allowed). `w`/`h` size the box. `fill: 'none'` plus `stroke`/`strokeW` draws an outline, and `motion: 'draw'` traces it.
+- `shape: 'group'` is an invisible anchor. Children use `parent` and move, rotate, scale and fade with it.
+- `clip` (`rect`, `rounded`, `circle`, `ellipse`) cuts a layer or a group's children to its `w` x `h` box.
+- `mask` (`fade_top`, `fade_bottom`, `fade_left`, `fade_right`, `fade_edges`, `spot`) soft-fades the same box.
+- `isolate: true` makes the layer its own compositing group, so children's `blend` modes mix only with each other.
+- `blend` also accepts `lighten`, `darken`, `color-dodge`, `soft-light`, `hard-light`, `difference`, `exclusion`.
+
+See the `paths` demo in `lib/adGraphicDemos.js`.
+
 ## Why a closed list
 
 Vocabulary ads cannot carry custom code. Adding shapes, motions and rules to the registry (and to the player) is the supported way to grow what ads can draw, and every addition ships with validation, tests and a demo.
