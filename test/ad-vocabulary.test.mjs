@@ -139,7 +139,7 @@ test('size model: the 180,000 byte config cap is part of the limits', () => {
   const p = good();
   p.scenes = Array.from({ length: 8 }, (_, i) => ({ id: `s${i}`, type: 'steps_list', duration: 3, params: { items: [{ title: 'x' }, { title: 'y' }] } }));
   assert.equal(validateProjectV2(p).ok, true);
-  assert.equal(LIMITS.configBytesMax, 180000);
+  assert.equal(LIMITS.configBytesMax, 400000);
 });
 
 test('registry is frozen, versioned and self-consistent', () => {
