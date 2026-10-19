@@ -39,7 +39,7 @@ test('graphic is registered with bounded layers and the full field set', () => {
   assert.ok(g);
   assert.equal(g.params.layers.kind, 'items');
   assert.equal(g.params.layers.min, 1);
-  assert.equal(g.params.layers.max, 48);
+  assert.equal(g.params.layers.max, 512);
   assert.deepEqual(Object.keys(g.params).sort(), ['audioHigh', 'audioLow', 'audioMid', 'audioRate', 'beatOffset', 'beatShake', 'beatZoom', 'bpm', 'camera', 'hits', 'layers']);
   for (const f of ['shape', 'id', 'parent', 'x', 'y', 'x2', 'y2', 'rotate', 'scale', 'opacity', 'origin', 'keys', 'count', 'emit', 'glow', 'blur', 'color2', 'sides', 'weight', 'spacing', 'caps', 'maxw', 'reveal', 'revealStep', 'stroke', 'strokeW', 'shadow', 'radius', 'fit', 'blend', 'fixed', 'loop']) {
     assert.ok(g.params.layers.fields[f], `layer field ${f}`);
@@ -69,8 +69,8 @@ test('layers reject raw svg, unknown fields and unknown ids', () => {
 
 test('layer count, position and required fields are enforced', () => {
   assert.equal(ok(withLayers([])).ok, false);
-  assert.equal(ok(withLayers(Array.from({ length: 49 }, () => ({ shape: 'circle', x: 10, y: 10, w: 5 })))).ok, false);
-  assert.equal(ok(withLayers(Array.from({ length: 48 }, () => ({ shape: 'circle', x: 10, y: 10, w: 5 })))).ok, true);
+  assert.equal(ok(withLayers(Array.from({ length: 513 }, () => ({ shape: 'circle', x: 10, y: 10, w: 5 })))).ok, false);
+  assert.equal(ok(withLayers(Array.from({ length: 512 }, () => ({ shape: 'circle', x: 10, y: 10, w: 5 })))).ok, true);
   assert.equal(ok(withLayers([{ shape: 'circle', x: 140, y: 10, w: 5 }])).ok, true, 'off-frame positions are allowed up to 200');
   assert.equal(ok(withLayers([{ shape: 'circle', x: 250, y: 10, w: 5 }])).ok, false);
   assert.equal(ok(withLayers([{ x: 10, y: 10 }])).ok, false);
@@ -120,11 +120,11 @@ test('keyframes: bounded list, required time, only known properties', () => {
 test('repeat and spawner expansion is capped', () => {
   assert.equal(ok(withLayers([{ shape: 'circle', x: 10, y: 10, count: 24 }])).ok, true);
   assert.equal(ok(withLayers([{ shape: 'circle', x: 10, y: 10, count: 25 }])).ok, false);
-  const many = Array.from({ length: 9 }, () => ({ shape: 'circle', x: 10, y: 10, count: 24 }));
+  const many = Array.from({ length: 84 }, () => ({ shape: 'circle', x: 10, y: 10, count: 24 }));
   const r = ok(withLayers(many));
   assert.equal(r.ok, false);
   assert.ok(r.errors.some((e) => e.includes(`max ${GRAPHIC_MAX_SHAPES}`)));
-  const spawn = Array.from({ length: 4 }, () => ({ shape: 'circle', x: 10, y: 10, emit: 60 }));
+  const spawn = Array.from({ length: 34 }, () => ({ shape: 'circle', x: 10, y: 10, emit: 60 }));
   assert.equal(ok(withLayers(spawn)).ok, false);
   assert.equal(ok(withLayers(spawn.slice(0, 3))).ok, true);
 });
