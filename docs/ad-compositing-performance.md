@@ -71,9 +71,14 @@ Limits: a polygon is straight-edged (curves need more points); `matteFeather` is
 ## Agent tools, transparent stills and image sequences (stage 4)
 Claude, ChatGPT and Nex use the same connector tools; none of them can do anything the others cannot.
 - `read_nexus_layers`: graphic scenes, then a scene's layers (stable id, name, role, shape, parent, keyed/matted/animated, hash), one layer in full, or a find by name, role, shape, color, image or parent.
+  Anonymous legacy layers now receive projected deterministic IDs/names on read without saving. Edits use the same IDs/hashes and persist them on the first successful save; unspecified roles are not invented.
 - `edit_nexus_layers`: up to 20 ordered operations in one scene (patch, add, group, ungroup, reorder, remove, duplicate, replace_asset, set_key/clear_key, set_matte/set_matte_image/clear_matte, reveal_wipe). Atomic: if one fails nothing is saved and the error names the operation number. The ad baseline (or a per-layer hash on `patch`) refuses edits made against stale state; `dry_run` previews. Layers without ids get ids on the first edit. Code: `lib/adLayerTools.js`.
 - `render_nexus_ad` kinds: `still` and `sequence` accept `transparent:true` (real alpha, no background; a concept ad keeps its badge). `sequence` writes numbered PNG frames plus `sequence.manifest.json` (per-frame time and sha256, project hash), at most 240 frames, fps 24/30/60; the range is checked before the job is queued. `layers` renders a review pack for one graphic-scene moment: final, selection map plus legend, and original/foreground/matte views of up to 4 keyed layers, with a labelled `sheet.png`.
 - `view_nexus_ad_layers` returns the sheet (and any named views) as images the model can see, plus the selection legend. `check_nexus_image_separability` runs the separability report on a library PNG.
 - Preview and export share one player; `?transparent=1` only removes the background fill and the page/stage fill.
 
 Limits: the render worker is not deployed here, so queued jobs need a worker with Chromium; JPEG uploads must be converted to PNG for the separability check; a sequence is capped at 240 frames (use MP4 beyond that); antialiased edge pixels in the selection map count toward no layer.
+
+## Stage 4c verification
+
+See [the Stage 4c capability report](ad-compositing-stage4c.md) for the synthetic keyed-subject demo, nested-mask pixel checks, warmed seek-order regression tests, actual MP4 verification and measured capture capacity. Reproduce with `npm run test:ad-compositing`. The report distinguishes cold compositor edge variance from exact warmed comparisons and offline capture latency from live playback FPS. No worker deployment or real-camera-footage quality claim is made.

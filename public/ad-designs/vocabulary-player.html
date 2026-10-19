@@ -268,12 +268,16 @@ function makeKeyed(el,srcEl,o,isVid,sz,h){
   let last=null;
   const k={cv,draw(){
     const sw=isVid?srcEl.videoWidth:srcEl.naturalWidth,sh=isVid?srcEl.videoHeight:srcEl.naturalHeight;
-    if(!sw||!sh||(isVid&&srcEl.readyState<2))return false;
+    // currentTime changes before the decoder supplies the requested frame. Never
+    // cache the previous picture under the new timestamp while a seek is pending.
+    if(!sw||!sh||(isVid&&(srcEl.seeking||srcEl.readyState<2)))return false;
     const stamp=isVid?srcEl.currentTime:1;if(stamp===last)return true;
     const sc=o.fit==="contain"?Math.min(cw/sw,ch/sh):Math.max(cw/sw,ch/sh),dw=sw*sc,dh=sh*sc,fx=isVid?nm(o.focusX,50)/100:.5,fy=isVid?nm(o.focusY,50)/100:.5;
     ctx.clearRect(0,0,cw,ch);ctx.drawImage(srcEl,(cw-dw)*fx,(ch-dh)*fy,dw,dh);
     const id=ctx.getImageData(0,0,cw,ch);const kd=keyFrame(id.data,cw,ch,kopt);if(o._sel){const c=parseHex(o._sel);for(let i=0;i<kd.length;i+=4){const on=kd[i+3]>127;kd[i]=c[0];kd[i+1]=c[1];kd[i+2]=c[2];kd[i+3]=on?255:0;}}ctx.putImageData(new ImageData(kd,cw,ch),0,0);last=stamp;return true;},
-    async sync(){if(!isVid&&srcEl.decode)await srcEl.decode().catch(()=>{});k.draw();}};
+    // The capture barrier calls sync after waitVideos. An eager preview draw can
+    // run between currentTime changing and seek completion; do not reuse it here.
+    async sync(){if(!isVid&&srcEl.decode)await srcEl.decode().catch(()=>{});if(isVid)last=null;k.draw();}};
   cv._k=k;if(!isVid)srcEl.addEventListener("load",()=>k.draw());
   return k;
 }

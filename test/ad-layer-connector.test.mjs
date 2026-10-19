@@ -47,6 +47,14 @@ test('read, dry-run, edit, stale baseline and bad ops through the connector', as
   const saved = await run('save_ad_v2', { campaign_id: 'g1', project: gproject() }, owner);
   const scenes = await run('read_layers', { campaign_id: 'g1' }, owner);
   assert.equal(scenes.graphic_scenes[0].anonymous, 1);
+  const projected = await run('read_layers', { campaign_id: 'g1', scene_id: 's1' }, owner);
+  assert.equal(projected.layers[1].id, 'circle-2');
+  assert.equal(projected.generated_ids, 1);
+  const projectedDry = await run('edit_layers', { campaign_id: 'g1', baseline: saved.baseline, scene_id: 's1',
+    edits: [{ op: 'patch', layer_id: 'circle-2', baseline: projected.layers[1].hash, patch: { x: 25 } }], dry_run: true }, owner);
+  assert.equal(projectedDry.dry_run, true);
+  assert.equal((await run('read_layers', { campaign_id: 'g1' }, owner)).baseline, saved.baseline);
+  assert.equal((await run('read_layers', { campaign_id: 'g1', scene_id: 's1', layer_id: 'circle-2' }, owner)).layer.x, 20);
   const dry = await run('edit_layers', { campaign_id: 'g1', scene_id: 's1', edits: [{ op: 'patch', layer_id: 'bg', patch: { color: 'red' } }], dry_run: true }, owner);
   assert.equal(dry.dry_run, true);
   assert.equal((await run('read_layers', { campaign_id: 'g1', scene_id: 's1', layer_id: 'bg' }, owner)).layer.color, 'blue');
