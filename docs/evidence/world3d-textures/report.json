@@ -1,0 +1,146 @@
+{
+  "at": "2026-10-19T08:37:53.653Z",
+  "browser": "153.0.8010.0",
+  "viewport": "800x450",
+  "checks": [
+    {
+      "name": "all four projections render decoded NPOT maps and shuffled seeks are exact",
+      "pass": true,
+      "changedPixels": {
+        "box": 20378,
+        "cylindrical": 20428,
+        "spherical": 20359,
+        "planar": 20415
+      }
+    },
+    {
+      "name": "roughness maps, repeat and offsets change surface pixels",
+      "pass": true,
+      "changedPixels": 13741
+    },
+    {
+      "name": "texture decode failures refuse capture with the exact image ID",
+      "pass": true,
+      "refused": true
+    },
+    {
+      "name": "texture capture waits for decode, releases contexts and preserves transparent background",
+      "pass": true,
+      "contextsReleased": 3
+    },
+    {
+      "name": "textured preview, still, sequence and a real H.264 export use the same assets",
+      "pass": true,
+      "exactComparisons": 2,
+      "codec": "h264",
+      "seconds": 6
+    },
+    {
+      "name": "bottle preset produces visible 3D geometry",
+      "pass": true,
+      "objects": 5
+    },
+    {
+      "name": "device preset produces visible 3D geometry",
+      "pass": true,
+      "objects": 6
+    },
+    {
+      "name": "headphones preset produces visible 3D geometry",
+      "pass": true,
+      "objects": 7
+    },
+    {
+      "name": "sculpture preset produces visible 3D geometry",
+      "pass": true,
+      "objects": 5
+    },
+    {
+      "name": "continuous bottle profile and physical device bevel change actual rendered pixels",
+      "pass": true,
+      "changedPixels": {
+        "bottle": 5532,
+        "device": 5905
+      }
+    },
+    {
+      "name": "distinct lathe profiles do not share the wrong cached mesh",
+      "pass": true,
+      "unchangedLeftPixels": 0,
+      "changedRightPixels": 12802
+    },
+    {
+      "name": "3D depth occlusion works independently of object draw order",
+      "pass": true,
+      "independentOfDrawOrder": true
+    },
+    {
+      "name": "directional light produces a floor shadow from actual geometry",
+      "pass": true,
+      "changedFloorPixels": 1844
+    },
+    {
+      "name": "roughness and metalness alter the rendered surface",
+      "pass": true,
+      "changedPixels": 21519
+    },
+    {
+      "name": "orbit camera changes projection and shuffled seeks reproduce exact frames",
+      "pass": true,
+      "comparisons": 8
+    },
+    {
+      "name": "leaving a 3D scene releases the WebGL context; return seeks remain stable",
+      "pass": true,
+      "contextsReleased": 8
+    },
+    {
+      "name": "transparent still preserves real alpha outside 3D objects",
+      "pass": true,
+      "channels": 4
+    },
+    {
+      "name": "preview, still exporter and sequence frame agree",
+      "pass": true,
+      "comparisons": 3,
+      "projectSha256": "79d8ec74e6261b48bac4087a1077193f3809ebadd986e2f989ad707b6f105288"
+    },
+    {
+      "name": "3D MP4 export encodes a playable 6-second H.264 file",
+      "pass": true,
+      "codec": "h264",
+      "seconds": 6
+    },
+    {
+      "name": "unavailable WebGL refuses frame capture with a clear error",
+      "pass": true,
+      "refused": true
+    }
+  ],
+  "pictures": [
+    "texture-box.png",
+    "texture-cylindrical.png",
+    "texture-spherical.png",
+    "texture-planar.png",
+    "roughness-map.png",
+    "repeated-map.png",
+    "texture-alpha.png",
+    "textured-capture.png",
+    "bottle.png",
+    "device.png",
+    "headphones.png",
+    "sculpture.png",
+    "shaped-bottle-after.png",
+    "shaped-bottle-before.png",
+    "shaped-device-after.png",
+    "shaped-device-before.png",
+    "distinct-profiles.png",
+    "occlusion.png",
+    "shadow-on.png",
+    "shadow-off.png",
+    "rubber.png",
+    "alpha.png",
+    "capture.png"
+  ],
+  "pass": true
+}

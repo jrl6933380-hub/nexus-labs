@@ -8,6 +8,8 @@ import {describeAdVocabulary,adProjectSchemaV2} from '../lib/adVocabularyTools.j
 import {WORKSPACE_TOOLS} from '../lib/workspaceBoard.js';
 import {validateWorkspaceInput,createWorkspaceService} from '../lib/workspaceConnector.js';
 import {readFileSync} from 'node:fs';
+import {imageIdsOf} from '../lib/adImages.js';
+import {seedPlayerHtml} from '../lib/adExport.js';
 
 const input={business_name:'Studio Concept',industry:'other',goal:'visit',visual:'studio3d',length_sec:6};
 const project=()=>composeAdFromBrief(input).project;
@@ -112,4 +114,21 @@ test('lathe interpolation stays bounded, caps are optional and maximum meshes fi
   }
   const p=[{r:.3,y:-.5},{r:.5,y:.5}],open=worldGeometry('lathe',.2,360,{profile:p,capped:false}),closed=worldGeometry('lathe',.2,360,{profile:p});
   assert.equal(closed.indices.length-open.indices.length,240);
+});
+test('surface maps validate as owned image IDs with an eight-image scene budget',()=>{
+  const obj={id:'body',shape:'sphere',colorMap:'img-0123456789',roughnessMap:'img-abcdef0123',mapProjection:'spherical',mapScale:2};
+  const p=withObjects([obj]);assert.equal(validateProjectV2(p).ok,true);
+  assert.deepEqual(imageIdsOf(p),['img-0123456789','img-abcdef0123']);
+  assert.throws(()=>seedPlayerHtml('<div id="stage"></div>',p,{}),/Missing library images/);
+  for(const o of [{...obj,colorMap:'https://example.invalid/image.png'},{...obj,roughnessMap:'data:image/png;base64,AAAA'},
+    {...obj,shape:'group'},{...obj,mapProjection:'unknown'},{...obj,mapScale:0},{...obj,mapOffsetX:Infinity},
+    {id:'body',shape:'box',mapScale:1}])assert.equal(validateProjectV2(withObjects([o])).ok,false);
+  const objects=Array.from({length:9},(_,i)=>({...obj,id:'o'+i,colorMap:'img-'+String(i).padStart(10,'0'),roughnessMap:undefined}));
+  assert.equal(validateProjectV2(withObjects(objects)).ok,false);assert.equal(validateProjectV2(withObjects(objects.slice(0,8))).ok,true);
+});
+test('connector resolves surface maps in the connected account before saving',async()=>{
+  const p=withObjects([{id:'body',shape:'sphere',colorMap:'img-0123456789'}]);let saves=0,owner;
+  const service=createWorkspaceService({images:{resolve:async(user,ids)=>{owner=user;return{images:{},missing:ids};}},ads:{saveV2:async()=>{saves++;}}});
+  await assert.rejects(service('save_ad_v2',{campaign_id:'texture-test',project:p},{id:'texture-owner',workbenchUserId:'texture-owner',scheduleUserId:'texture-owner'}),/Image not found in your library: img-0123456789/);
+  assert.equal(owner,'texture-owner');assert.equal(saves,0);
 });

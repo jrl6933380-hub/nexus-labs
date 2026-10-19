@@ -66,7 +66,7 @@ html.tr,html.tr body,html.tr #stage,html.tr .layer{background:transparent!import
 <script>
 (()=>{
 "use strict";
-const VOCAB={"vocabularyVersion":"1.2.0","formats":[{"id":"portrait","label":"Portrait 9:16 (Reels/TikTok)","width":360,"height":640},{"id":"square","label":"Square 1:1 (feed)","width":560,"height":560},{"id":"landscape","label":"Landscape 16:9 (YouTube)","width":800,"height":450}],"moods":[{"id":"bold","label":"Bold","heading":"system-ui, -apple-system, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif","body":"system-ui, -apple-system, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif","weight":800,"tracking":-0.01,"easing":"snappy","textAnim":"kinetic_stack","pacing":1.1},{"id":"warm","label":"Warm","heading":"Georgia, \"Times New Roman\", Times, serif","body":"system-ui, -apple-system, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif","weight":600,"tracking":0,"easing":"smooth","textAnim":"fade_up","pacing":0.95},{"id":"luxury","label":"Luxury","heading":"Georgia, \"Times New Roman\", Times, serif","body":"system-ui, -apple-system, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif","weight":500,"tracking":0.04,"easing":"smooth","textAnim":"mask_reveal","pacing":0.85},{"id":"playful","label":"Playful","heading":"system-ui, -apple-system, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif","body":"system-ui, -apple-system, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif","weight":700,"tracking":0,"easing":"bounce","textAnim":"scale_pop","pacing":1.15},{"id":"clean","label":"Clean","heading":"system-ui, -apple-system, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif","body":"system-ui, -apple-system, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif","weight":600,"tracking":0,"easing":"smooth","textAnim":"slide_left","pacing":1}],"palettes":[{"id":"midnight-gold","label":"Midnight gold","colors":{"bg":"#0b1220","accent":"#e6c572","text":"#f5f1e6","muted":"#9aa3b5"},"tags":{"mood":["bold","luxury"],"industry":["plumber","contractor","auto","dental"]}},{"id":"charcoal-red","label":"Charcoal red","colors":{"bg":"#151515","accent":"#ef4444","text":"#fafafa","muted":"#a3a3a3"},"tags":{"mood":["bold"],"industry":["auto","fitness","contractor","plumber"]}},{"id":"ocean-blue","label":"Ocean blue","colors":{"bg":"#0a2540","accent":"#38bdf8","text":"#f0f9ff","muted":"#8fb3d1"},"tags":{"mood":["clean","bold"],"industry":["plumber","dental","retail","other"]}},{"id":"fresh-mint","label":"Fresh mint","colors":{"bg":"#0f2a24","accent":"#5eead4","text":"#ecfdf5","muted":"#8fbfb3"},"tags":{"mood":["clean","playful"],"industry":["dental","fitness","cafe","other"]}},{"id":"sunset-warm","label":"Sunset warm","colors":{"bg":"#2a1410","accent":"#ff9f5a","text":"#fff4ea","muted":"#c9a592"},"tags":{"mood":["warm"],"industry":["restaurant","cafe","retail"]}},{"id":"forest-brass","label":"Forest brass","colors":{"bg":"#14231a","accent":"#d4a24c","text":"#f2efe6","muted":"#9db3a3"},"tags":{"mood":["luxury","warm"],"industry":["restaurant","salon","contractor"]}},{"id":"electric-pop","label":"Electric pop","colors":{"bg":"#1e1b4b","accent":"#fde047","text":"#ffffff","muted":"#a5a3d6"},"tags":{"mood":["playful","bold"],"industry":["cafe","fitness","retail"]}},{"id":"clean-light","label":"Clean light","colors":{"bg":"#f7f8fa","accent":"#1d4ed8","text":"#0f172a","muted":"#52607a"},"tags":{"mood":["clean"],"industry":["dental","retail","other","contractor"]}},{"id":"cream-ink","label":"Cream and ink","colors":{"bg":"#f6efe3","accent":"#9a3412","text":"#1c1917","muted":"#5c534b"},"tags":{"mood":["warm","luxury"],"industry":["restaurant","cafe","salon"]}},{"id":"rose-blush","label":"Rose blush","colors":{"bg":"#fff1f2","accent":"#be123c","text":"#2a0a12","muted":"#6b3a46"},"tags":{"mood":["playful","warm","luxury"],"industry":["salon","cafe","retail"]}}],"easings":[{"id":"linear","label":"Linear"},{"id":"smooth","label":"Smooth (ease in-out cubic)"},{"id":"snappy","label":"Snappy (ease-out expo)"},{"id":"bounce","label":"Bounce (ease-out back)"}]};
+const VOCAB={"vocabularyVersion":"1.3.0","formats":[{"id":"portrait","label":"Portrait 9:16 (Reels/TikTok)","width":360,"height":640},{"id":"square","label":"Square 1:1 (feed)","width":560,"height":560},{"id":"landscape","label":"Landscape 16:9 (YouTube)","width":800,"height":450}],"moods":[{"id":"bold","label":"Bold","heading":"system-ui, -apple-system, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif","body":"system-ui, -apple-system, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif","weight":800,"tracking":-0.01,"easing":"snappy","textAnim":"kinetic_stack","pacing":1.1},{"id":"warm","label":"Warm","heading":"Georgia, \"Times New Roman\", Times, serif","body":"system-ui, -apple-system, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif","weight":600,"tracking":0,"easing":"smooth","textAnim":"fade_up","pacing":0.95},{"id":"luxury","label":"Luxury","heading":"Georgia, \"Times New Roman\", Times, serif","body":"system-ui, -apple-system, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif","weight":500,"tracking":0.04,"easing":"smooth","textAnim":"mask_reveal","pacing":0.85},{"id":"playful","label":"Playful","heading":"system-ui, -apple-system, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif","body":"system-ui, -apple-system, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif","weight":700,"tracking":0,"easing":"bounce","textAnim":"scale_pop","pacing":1.15},{"id":"clean","label":"Clean","heading":"system-ui, -apple-system, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif","body":"system-ui, -apple-system, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif","weight":600,"tracking":0,"easing":"smooth","textAnim":"slide_left","pacing":1}],"palettes":[{"id":"midnight-gold","label":"Midnight gold","colors":{"bg":"#0b1220","accent":"#e6c572","text":"#f5f1e6","muted":"#9aa3b5"},"tags":{"mood":["bold","luxury"],"industry":["plumber","contractor","auto","dental"]}},{"id":"charcoal-red","label":"Charcoal red","colors":{"bg":"#151515","accent":"#ef4444","text":"#fafafa","muted":"#a3a3a3"},"tags":{"mood":["bold"],"industry":["auto","fitness","contractor","plumber"]}},{"id":"ocean-blue","label":"Ocean blue","colors":{"bg":"#0a2540","accent":"#38bdf8","text":"#f0f9ff","muted":"#8fb3d1"},"tags":{"mood":["clean","bold"],"industry":["plumber","dental","retail","other"]}},{"id":"fresh-mint","label":"Fresh mint","colors":{"bg":"#0f2a24","accent":"#5eead4","text":"#ecfdf5","muted":"#8fbfb3"},"tags":{"mood":["clean","playful"],"industry":["dental","fitness","cafe","other"]}},{"id":"sunset-warm","label":"Sunset warm","colors":{"bg":"#2a1410","accent":"#ff9f5a","text":"#fff4ea","muted":"#c9a592"},"tags":{"mood":["warm"],"industry":["restaurant","cafe","retail"]}},{"id":"forest-brass","label":"Forest brass","colors":{"bg":"#14231a","accent":"#d4a24c","text":"#f2efe6","muted":"#9db3a3"},"tags":{"mood":["luxury","warm"],"industry":["restaurant","salon","contractor"]}},{"id":"electric-pop","label":"Electric pop","colors":{"bg":"#1e1b4b","accent":"#fde047","text":"#ffffff","muted":"#a5a3d6"},"tags":{"mood":["playful","bold"],"industry":["cafe","fitness","retail"]}},{"id":"clean-light","label":"Clean light","colors":{"bg":"#f7f8fa","accent":"#1d4ed8","text":"#0f172a","muted":"#52607a"},"tags":{"mood":["clean"],"industry":["dental","retail","other","contractor"]}},{"id":"cream-ink","label":"Cream and ink","colors":{"bg":"#f6efe3","accent":"#9a3412","text":"#1c1917","muted":"#5c534b"},"tags":{"mood":["warm","luxury"],"industry":["restaurant","cafe","salon"]}},{"id":"rose-blush","label":"Rose blush","colors":{"bg":"#fff1f2","accent":"#be123c","text":"#2a0a12","muted":"#6b3a46"},"tags":{"mood":["playful","warm","luxury"],"industry":["salon","cafe","retail"]}}],"easings":[{"id":"linear","label":"Linear"},{"id":"smooth","label":"Smooth (ease in-out cubic)"},{"id":"snappy","label":"Snappy (ease-out expo)"},{"id":"bounce","label":"Bounce (ease-out back)"}]};
 const FORMATS=Object.fromEntries(VOCAB.formats.map(f=>[f.id,f]));
 const MOODS=Object.fromEntries(VOCAB.moods.map(m=>[m.id,m]));
 const PALETTES=Object.fromEntries(VOCAB.palettes.map(p=>[p.id,p]));
@@ -445,25 +445,28 @@ function worldGeometry(shape, thickness = 0.2, arc = 360, options = {}) {
   return { positions: p, normals: n, indices: ix };
 }
 function createWorld3D(host, params, options = {}) {
-  const { width = 800, height = 450, colors = {}, onError = () => {} } = options;
+  const { width = 800, height = 450, colors = {}, images = {}, onError = () => {} } = options;
   const canvas = document.createElement('canvas'); canvas.width = width * 2; canvas.height = height * 2;
   canvas.dataset.world3d = '1'; canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%'; host.appendChild(canvas);
   const gl = canvas.getContext('webgl', { alpha: true, antialias: true, preserveDrawingBuffer: true, premultipliedAlpha: false });
   if (!gl) { onError('3D renderer unavailable: this device could not create a WebGL context.'); return Object.assign(() => {}, { dispose() {} }); }
   let disposed = false;
-  const resources = [];
+  const resources = [], cancelLoads = [];
   const keep = (type, value) => { resources.push([type, value]); return value; };
   const lose = e => { e.preventDefault(); if (!disposed) onError('3D WebGL context was lost; the frame cannot be exported.'); };
   canvas.addEventListener('webglcontextlost', lose);
   const shader = (type, src) => { const s = keep('Shader', gl.createShader(type)); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw Error(gl.getShaderInfoLog(s)); return s; };
   const program = (v, f) => { const p = keep('Program', gl.createProgram()); gl.attachShader(p, shader(gl.VERTEX_SHADER, v)); gl.attachShader(p, shader(gl.FRAGMENT_SHADER, f)); gl.bindAttribLocation(p, 0, 'aP'); gl.bindAttribLocation(p, 1, 'aN'); gl.linkProgram(p); if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw Error(gl.getProgramInfoLog(p)); return p; };
-  const vert = `attribute vec3 aP,aN;uniform mat4 uM,uVP,uLightVP;uniform mat3 uN;varying vec3 vP,vN,vLocal;varying vec4 vShadow;void main(){vec4 w=uM*vec4(aP,1.);vP=w.xyz;vLocal=aP;vN=normalize(uN*aN);vShadow=uLightVP*w;gl_Position=uVP*w;}`;
+  const vert = `attribute vec3 aP,aN;uniform mat4 uM,uVP,uLightVP;uniform mat3 uN;varying vec3 vP,vN,vLocal,vLocalN;varying vec4 vShadow;void main(){vec4 w=uM*vec4(aP,1.);vP=w.xyz;vLocal=aP;vLocalN=aN;vN=normalize(uN*aN);vShadow=uLightVP*w;gl_Position=uVP*w;}`;
   const frag = `precision highp float;
 uniform vec3 uBase,uEye;uniform vec4 uLight[4];uniform vec3 uPower[4];uniform int uCount,uShadowIndex;uniform sampler2D uShadow;
 uniform float uRough,uMetal,uEmission,uAlpha,uAmbient,uExposure,uTexture;
-varying vec3 vP,vN,vLocal;varying vec4 vShadow;
+uniform sampler2D uColorMap,uRoughMap;uniform vec4 uMap;uniform vec2 uHasMap;uniform int uProjection;
+varying vec3 vP,vN,vLocal,vLocalN;varying vec4 vShadow;
+vec2 uv(){vec2 p=vLocal.xy+.5;if(uProjection==0){vec3 n=abs(vLocalN);p=n.y>n.x&&n.y>n.z?vLocal.xz+.5:(n.x>n.z?vLocal.zy+.5:p);}else if(uProjection==1||uProjection==2){p=vec2(atan(vLocal.z,vLocal.x)/6.283185+.5,vLocal.y+.5);if(uProjection==2)p.y=asin(clamp(normalize(vLocal).y,-1.,1.))/3.141593+.5;}return fract(p*uMap.x+uMap.yz);}
 float shadow(){vec3 p=vShadow.xyz/vShadow.w*.5+.5;if(p.x<0.||p.y<0.||p.x>1.||p.y>1.||p.z<0.||p.z>1.)return 1.;float s=0.;for(int x=-1;x<=1;x++)for(int y=-1;y<=1;y++){vec4 c=texture2D(uShadow,p.xy+vec2(float(x),float(y))/512.);float z=dot(c,vec4(1.,1./256.,1./65536.,1./16777216.));s+=p.z-.0025<=z?1.:.2;}return s/9.;}
-void main(){vec3 N=normalize(vN),V=normalize(uEye-vP);float NV=max(dot(N,V),.001),r=clamp(uRough,.05,1.);vec3 base=pow(uBase,vec3(2.2));
+void main(){vec3 N=normalize(vN),V=normalize(uEye-vP);vec2 p=uv();float NV=max(dot(N,V),.001),r=clamp(uRough,.05,1.);vec3 base=pow(uBase,vec3(2.2));
+if(uHasMap.x>.5)base*=pow(texture2D(uColorMap,p).rgb,vec3(2.2));if(uHasMap.y>.5)r=clamp(uRough*texture2D(uRoughMap,p).r,.05,1.);
 if(uTexture>1.5){float grain=sin(vLocal.x*90.+sin(vLocal.z*7.)*5.)*.5+.5;base*=.65+.35*grain;}
 else if(uTexture>.5){float grain=fract(sin(dot(floor(vLocal*180.),vec3(12.9,78.2,33.1)))*43758.5);base*=.78+.22*grain;}
 vec3 F0=mix(vec3(.04),base,uMetal);vec3 rgb=base*(1.-uMetal)*uAmbient*(.5+.5*max(N.y,0.));
@@ -473,11 +476,38 @@ rgb+=base*uEmission;rgb*=uExposure;rgb=rgb/(1.+rgb);gl_FragColor=vec4(pow(max(rg
   const depthV = `attribute vec3 aP;uniform mat4 uM,uVP;void main(){gl_Position=uVP*uM*vec4(aP,1.);}`;
   const depthF = `precision highp float;void main(){vec4 v=fract(gl_FragCoord.z*vec4(1.,256.,65536.,16777216.));v-=v.yzww*vec4(1./256.,1./256.,1./256.,0.);gl_FragColor=v;}`;
   let main, depth;
-  const dispose = () => { if (disposed) return; disposed = true; canvas.removeEventListener('webglcontextlost', lose); for (const [type, value] of resources) gl['delete' + type](value); gl.getExtension('WEBGL_lose_context')?.loseContext(); };
+  const dispose = () => { if (disposed) return; disposed = true; cancelLoads.forEach(f => f()); canvas.removeEventListener('webglcontextlost', lose); for (const [type, value] of resources) gl['delete' + type](value); gl.getExtension('WEBGL_lose_context')?.loseContext(); };
   try { main = program(vert, frag); depth = program(depthV, depthF); }
   catch (e) { onError('3D shader initialization failed: ' + e.message); dispose(); return Object.assign(() => {}, { dispose }); }
   const U = (p, name) => gl.getUniformLocation(p, name);
-  const mainU = Object.fromEntries(['uM', 'uVP', 'uN', 'uLightVP', 'uBase', 'uEye', 'uLight', 'uPower', 'uCount', 'uShadowIndex', 'uShadow', 'uRough', 'uMetal', 'uEmission', 'uAlpha', 'uAmbient', 'uExposure', 'uTexture'].map(n => [n, U(main, n)]));
+  const mainU = Object.fromEntries(['uM', 'uVP', 'uN', 'uLightVP', 'uBase', 'uEye', 'uLight', 'uPower', 'uCount', 'uShadowIndex', 'uShadow', 'uRough', 'uMetal', 'uEmission', 'uAlpha', 'uAmbient', 'uExposure', 'uTexture','uColorMap','uRoughMap','uHasMap','uMap','uProjection'].map(n => [n, U(main, n)]));
+  const mapCache = new Map();
+  const makeMap = () => {
+    const tex = keep('Texture', gl.createTexture()); gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([255,255,255,255]));
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);return tex;
+  };
+  const emptyMap = makeMap();
+  const ids = [...new Set(params.objects.flatMap(o => [o.colorMap,o.roughnessMap]).filter(Boolean))];
+  const ready = Promise.all(ids.map(id => new Promise(resolve => {
+    const src = images[id]?.src;
+    const fail = why => onError('3D surface map "'+id+'": '+why);
+    if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(src || '')) { fail('missing or invalid library image.');resolve();return; }
+    const img = new Image(); let done = false;
+    const finish = () => {if(done)return;done=true;clearTimeout(timer);img.onload=img.onerror=null;resolve();};
+    const timer = setTimeout(() => {if(!disposed)fail('image decode timed out.');finish();img.src='';},8000);
+    cancelLoads.push(() => {finish();img.src='';});
+    img.onerror = () => {if(!disposed)fail('image decode failed.');finish();};
+    img.onload = () => {
+      if (!disposed) try {
+        if (img.width*img.height>16777216) throw Error('decoded image exceeds 16 megapixels.');
+        const scale=Math.min(1,1024/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*scale));c.height=Math.max(1,Math.round(img.height*scale));
+        c.getContext('2d').drawImage(img,0,0,c.width,c.height);const tex=makeMap();gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,c);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);mapCache.set(id,tex);
+      } catch(e) {fail(e.message);}finish();
+    };
+    img.src=src;
+  })));
   const depthU = { uM: U(depth, 'uM'), uVP: U(depth, 'uVP') };
   const meshCache = new Map();
   const buffer = (target, data) => { const b = keep('Buffer', gl.createBuffer()); gl.bindBuffer(target, b); gl.bufferData(target, data, gl.STATIC_DRAW); return b; };
@@ -513,13 +543,19 @@ rgb+=base*uEmission;rgb*=uExposure;rgb=rgb/(1.+rgb);gl_FragColor=vec4(pow(max(rg
     gl.uniformMatrix4fv((shadow ? depthU : mainU).uM, false, new Float32Array(row.mesh));
     if (!shadow) {
       const o = row.object, mat = WORLD3D_SURFACES[o.material || 'plastic'];
+      gl.uniform2f(mainU.uHasMap,o.colorMap?1:0,o.roughnessMap?1:0);
+      gl.uniform4f(mainU.uMap,o.mapScale??1,o.mapOffsetX??0,o.mapOffsetY??0,0);
+      gl.uniform1i(mainU.uProjection,Math.max(0,['box','cylindrical','spherical','planar'].indexOf(o.mapProjection)));
+      for(const [unit,field,name] of [[1,'colorMap','uColorMap'],[2,'roughnessMap','uRoughMap']]){gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,mapCache.get(o[field])||emptyMap);gl.uniform1i(mainU[name],unit);}
       gl.uniformMatrix3fv(mainU.uN, false, new Float32Array(w3normal(row.mesh)));
       gl.uniform3fv(mainU.uBase, color(o.color));
       for (const [name, value] of [['uRough', o.roughness ?? mat[0]], ['uMetal', o.metalness ?? mat[1]], ['uTexture', mat[2]], ['uEmission', o.emission || 0], ['uAlpha', row.opacity]]) gl.uniform1f(mainU[name], value);
     }
     gl.drawElements(gl.TRIANGLES, g.count, gl.UNSIGNED_SHORT, 0);
   };
+  let lastMs = 0;
   const update = ms => {
+    lastMs = ms;
     if (disposed) return;
     const t = ms / 1000, rows = worldTransforms(params.objects, t).filter(r => r.object.shape !== 'group' && r.opacity > 0);
     const cp = params.cameraPath, C = (p, d) => worldSample(cp, p, d, t);
@@ -545,11 +581,13 @@ rgb+=base*uEmission;rgb*=uExposure;rgb=rgb/(1.+rgb);gl_FragColor=vec4(pow(max(rg
     gl.depthMask(true); gl.finish();
     const error = gl.getError(); if (error !== gl.NO_ERROR) onError('3D WebGL render error ' + error + '.');
   };
+  canvas._w3sync = () => ready.then(() => update(lastMs));
+  ready.then(() => update(lastMs));
   return Object.assign(update, { dispose });
 }/*WORLD3D-END*/
 const SCENES={
   world3d(cam,sc,ctx){
-    const draw=createWorld3D(cam,sc.params,{width:ctx.W,height:ctx.H,colors:ctx.k,onError:problem});
+    const draw=createWorld3D(cam,sc.params,{width:ctx.W,height:ctx.H,colors:ctx.k,images:IMAGES,onError:problem});
     if(sc.params.caption){const caption=document.createElement("div");caption.textContent=sc.params.caption;caption.style.cssText="position:absolute;left:8%;right:8%;bottom:12%;text-align:center;color:"+ctx.k.text+";font-size:"+Math.round(ctx.W*.028)+"px;font-weight:700;pointer-events:none";cam.appendChild(caption);}
     return draw;
   },
@@ -954,7 +992,7 @@ if(seed||parent===window){
   window.addEventListener("error",e=>errors.push(String(e&&e.message||e).slice(0,200)));
   window.addEventListener("unhandledrejection",e=>errors.push(String(e&&e.reason&&e.reason.message||e&&e.reason||"rejection").slice(0,200)));
   const waitVideos=()=>Promise.all([...stage.querySelectorAll("video")].filter(v=>v._f===vidFrame).map(v=>new Promise(res=>{const ok=()=>!v.seeking&&v.readyState>=2;if(ok())return res();let to=0;const done=()=>{v.removeEventListener("seeked",chk);v.removeEventListener("loadeddata",chk);v.removeEventListener("canplay",chk);clearTimeout(to);res();},chk=()=>{if(ok())done();};v.addEventListener("seeked",chk);v.addEventListener("loadeddata",chk);v.addEventListener("canplay",chk);to=setTimeout(()=>{errors.push("video frame not ready");done();},8000);})));
-  const settle=async()=>{await document.fonts.ready;await waitVideos();await Promise.all([...stage.querySelectorAll("img")].map(i=>i.decode?i.decode().catch(()=>{}):0));await Promise.all([...stage.querySelectorAll("canvas[data-key]")].map(c=>c._k.sync()));await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));};
+  const settle=async()=>{await document.fonts.ready;await waitVideos();await Promise.all([...stage.querySelectorAll("canvas[data-world3d]")].map(c=>c._w3sync?c._w3sync():0));await Promise.all([...stage.querySelectorAll("img")].map(i=>i.decode?i.decode().catch(()=>{}):0));await Promise.all([...stage.querySelectorAll("canvas[data-key]")].map(c=>c._k.sync()));await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));};
   window.__captureInfo=()=>{const F=FORMATS[project.platform&&project.platform.format]||FORMATS.portrait;return {vocabularyVersion:VOCAB.vocabularyVersion,format:F.id,logicalWidth:F.width,logicalHeight:F.height,totalMs:total,sceneCount:project.scenes.length,viewport:{width:innerWidth,height:innerHeight},dpr:devicePixelRatio,frozen:fixed!==null,errors:errors.slice()};};
   window.__capture=async ms=>{
     if(fixed===null)throw Error("Open the player with ?capture=1 so wall-clock playback is off.");

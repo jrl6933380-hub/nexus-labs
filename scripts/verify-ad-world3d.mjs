@@ -20,7 +20,7 @@ const report={at:new Date().toISOString(),browser:browser.version(),viewport:'80
 const base=(subject='bottle')=>composeWorld3DBrief({business_name:'3D language test',subject,material:'metal',length_sec:6}).project;
 const check=async(name,fn)=>{try{report.checks.push({name,pass:true,...await fn()});}catch(e){report.checks.push({name,pass:false,error:e.message});}console.log(JSON.stringify(report.checks.at(-1)));};
 async function open(project,name,query='',options={}){
-  projectFromInput(project);const file=join(out,name+'.html');await writeFile(file,seedPlayerHtml(player,project));
+  projectFromInput(project);const file=join(out,name+'.html');await writeFile(file,seedPlayerHtml(player,project,options.images||{}));
   const ctx=await browser.newContext({viewport:{width:800,height:450},deviceScaleFactor:options.scale||1});
   await ctx.route('**/*',r=>/^(file|data):/.test(r.request().url())?r.continue():r.abort());
   const page=await ctx.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -33,6 +33,54 @@ const equal=(a,b)=>{const A=decodePng(a),B=decodePng(b);assert.equal(A.width,B.w
 const delta=(a,b,fromY=0)=>{const A=decodePng(a),B=decodePng(b);let count=0;for(let y=Math.floor(A.height*fromY);y<A.height;y++)for(let x=0;x<A.width;x++){let d=0;for(let c=0;c<3;c++)d+=Math.abs(A.data[(y*A.width+x)*A.channels+c]-B.data[(y*B.width+x)*B.channels+c]);if(d>12)count++;}return count;};
 const cli=(script,args)=>exec(process.execPath,[script,...args,...(a.chromium?['--chromium',a.chromium]:[])],{maxBuffer:2e6});
 try{
+  const assetPage=await browser.newPage();
+  const maps=await assetPage.evaluate(()=>{
+    const c=document.createElement('canvas');c.width=300;c.height=190;const x=c.getContext('2d');
+    x.fillStyle='#eee6cf';x.fillRect(0,0,300,190);x.fillStyle='#137e95';x.fillRect(0,0,300,65);x.fillStyle='#d25132';x.fillRect(0,125,300,65);
+    x.fillStyle='#17323d';x.font='bold 35px sans-serif';x.textAlign='center';x.fillText('NEXUS',150,108);const color=c.toDataURL('image/png');
+    x.fillStyle='#777777';x.fillRect(0,0,300,190);x.fillStyle='#222222';x.fillRect(0,0,150,190);return{color,rough:x.canvas.toDataURL('image/png')};
+  });await assetPage.close();
+  const images={'img-0000000001':{src:maps.color,source:'uploaded'},'img-0000000002':{src:maps.rough,source:'uploaded'}};
+  const textured=(projection='cylindrical')=>{
+    const p=base();p.scenes[0].params.objects.forEach(o=>{if(o.id==='body'){o.color='#ffffff';o.colorMap='img-0000000001';o.mapProjection=projection;o.material='plastic';}});return p;
+  };
+  await check('all four projections render decoded NPOT maps and shuffled seeks are exact',async()=>{
+    const changes={};
+    for(const projection of ['box','cylindrical','spherical','planar']){
+      const p=textured(projection),first=await open(p,'texture-'+projection,'',{images});let A;
+      try{A=await capture(first.page,1500,'texture-'+projection+'.png');assert.deepEqual(first.errors,[]);for(const t of [0,3000,1500])await capture(first.page,t);equal(A,await capture(first.page,1500));}finally{await first.ctx.close();}
+      delete p.scenes[0].params.objects.find(o=>o.id==='body').colorMap;delete p.scenes[0].params.objects.find(o=>o.id==='body').mapProjection;
+      const second=await open(p,'untextured-'+projection);try{changes[projection]=delta(A,await capture(second.page,1500));assert.ok(changes[projection]>500);}finally{await second.ctx.close();}
+    }return{changedPixels:changes};
+  });
+  await check('roughness maps, repeat and offsets change surface pixels',async()=>{
+    const p=textured(),body=p.scenes[0].params.objects.find(o=>o.id==='body');body.roughness=1;
+    const first=await open(p,'color-only','',{images});let A;try{A=await capture(first.page,1000);}finally{await first.ctx.close();}
+    body.roughnessMap='img-0000000002';const second=await open(p,'roughness-map','',{images});let B;
+    try{B=await capture(second.page,1000,'roughness-map.png');assert.ok(delta(A,B)>100);}finally{await second.ctx.close();}
+    body.mapScale=2;body.mapOffsetX=.25;body.mapOffsetY=.15;const third=await open(p,'repeated-map','',{images});try{const changed=delta(B,await capture(third.page,1000,'repeated-map.png'));assert.ok(changed>500);return{changedPixels:changed};}finally{await third.ctx.close();}
+  });
+  await check('texture decode failures refuse capture with the exact image ID',async()=>{
+    const p=textured(),bad={'img-0000000001':{src:'data:image/png;base64,AAAA',source:'uploaded'}};
+    const {page,ctx}=await open(p,'bad-texture','',{images:bad});try{await assert.rejects(capture(page,0),/3D surface map "img-0000000001": image decode failed\./);return{refused:true};}finally{await ctx.close();}
+  });
+  await check('texture capture waits for decode, releases contexts and preserves transparent background',async()=>{
+    const p=textured();p.scenes[0].params.objects=p.scenes[0].params.objects.filter(o=>o.id!=='floor');
+    const {page,ctx}=await open(p,'texture-alpha','&transparent=1',{images});try{
+      const A=await capture(page,1500,'texture-alpha.png',true),im=decodePng(A);assert.equal(im.channels,4);assert.equal(im.data[3],0);
+      for(let i=0;i<3;i++){await capture(page,5000);equal(A,await capture(page,1500,null,true));}assert.ok(await page.evaluate(()=>window.__released3d)>=3);return{contextsReleased:3};
+    }finally{await ctx.close();}
+  });
+  await check('textured preview, still, sequence and a real H.264 export use the same assets',async()=>{
+    const p=textured(),pf=join(out,'textured-project.json'),imf=join(out,'texture-images.json');await writeFile(pf,JSON.stringify(p,null,2));await writeFile(imf,JSON.stringify(images));
+    const {page,ctx}=await open(p,'textured-agreement','',{images});try{
+      const ref=await capture(page,1500,'textured-capture.png');
+      await cli('scripts/export-ad-still.mjs',['--project',pf,'--images',imf,'--out',join(out,'textured-still.png'),'--at','1.5','--scale','1']);equal(ref,await readFile(join(out,'textured-still.png')));
+      await cli('scripts/export-ad-sequence.mjs',['--project',pf,'--images',imf,'--out',join(out,'textured-sequence'),'--from','1.5','--to','1.625','--fps','24','--scale','1']);equal(ref,await readFile(join(out,'textured-sequence/frame-000001.png')));
+      await cli('scripts/export-ad-mp4.mjs',['--project',pf,'--images',imf,'--out',join(out,'textured.mp4'),'--fps','24','--scale','1']);
+      const {stdout}=await exec('ffprobe',['-v','error','-show_streams','-show_format','-of','json',join(out,'textured.mp4')]);const r=JSON.parse(stdout),v=r.streams.find(s=>s.codec_type==='video');assert.equal(v.codec_name,'h264');assert.equal(v.width,800);assert.equal(v.height,450);assert.equal(v.avg_frame_rate,'24/1');assert.equal(Number(r.format.duration),6);return{exactComparisons:2,codec:'h264',seconds:6};
+    }finally{await ctx.close();}
+  });
   for(const subject of WORLD3D_SUBJECTS)await check(subject+' preset produces visible 3D geometry',async()=>{
     const p=base(subject),{page,ctx,errors}=await open(p,subject);
     try{await capture(page,1500,subject+'.png');assert.equal(await page.locator('canvas[data-world3d]').count(),1);assert.deepEqual(errors,[]);assert.deepEqual((await page.evaluate(()=>window.__captureInfo())).errors,[]);return{objects:p.scenes[0].params.objects.length};}finally{await ctx.close();}
@@ -107,11 +155,12 @@ try{
     const {page,ctx}=await open(base(),'unsupported','',{noWebGL:true});try{await assert.rejects(capture(page,1000),/3D renderer unavailable/);return{refused:true};}finally{await ctx.close();}
   });
 }finally{
-  await browser.close();report.pass=report.checks.length===15&&report.checks.every(c=>c.pass);
+  await browser.close();report.pass=report.checks.length===20&&report.checks.every(c=>c.pass);
   await writeFile(join(out,'report.json'),JSON.stringify(report,null,2)+'\n');
   const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const pictures=[];for(const name of [...new Set(report.pictures)])pictures.push(`<figure><img alt="${esc(name)}" src="data:image/png;base64,${(await readFile(join(out,name))).toString('base64')}"><figcaption>${esc(name)}</figcaption></figure>`);
   let video='';try{video=`<video controls preload="metadata" src="data:video/mp4;base64,${(await readFile(join(out,'world3d.mp4'))).toString('base64')}"></video>`;}catch{}
-  await writeFile(join(out,'review.html'),`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nexus 3D language review</title><style>body{max-width:1300px;margin:24px auto;padding:0 16px;background:#10141a;color:#eee;font:16px/1.5 system-ui}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px}figure{margin:0}img,video{max-width:100%;height:auto}figcaption{margin:4px 0 18px;color:#aab5c4}video{width:800px}li{margin:6px}</style><h1>Nexus visual language 1.2 · Shaped 3D objects</h1><p>Procedural geometry, material response, perspective and mapped shadows. Concept assemblies, not supplied product assets or photorealistic-human claims.</p><p>Browser checks: ${report.checks.filter(c=>c.pass).length}/${report.checks.length} passed.</p>${video}<div class="grid">${pictures.join('')}</div><ul>${report.checks.map(c=>`<li>${c.pass?'PASS':'FAIL'} — ${esc(c.name)}</li>`).join('')}</ul></html>`);
+  try{video+=`<h2>Textured concept · synthetic test artwork</h2><video controls preload="metadata" src="data:video/mp4;base64,${(await readFile(join(out,'textured.mp4'))).toString('base64')}"></video>`;}catch{}
+  await writeFile(join(out,'review.html'),`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nexus 3D language review</title><style>body{max-width:1300px;margin:24px auto;padding:0 16px;background:#10141a;color:#eee;font:16px/1.5 system-ui}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px}figure{margin:0}img,video{max-width:100%;height:auto}figcaption{margin:4px 0 18px;color:#aab5c4}video{width:800px}li{margin:6px}</style><h1>Nexus visual language 1.3 · Surface maps</h1><p>Procedural geometry, material response, perspective and mapped shadows. Concept assemblies, not supplied product assets or photorealistic-human claims.</p><p>Browser checks: ${report.checks.filter(c=>c.pass).length}/${report.checks.length} passed.</p>${video}<div class="grid">${pictures.join('')}</div><ul>${report.checks.map(c=>`<li>${c.pass?'PASS':'FAIL'} — ${esc(c.name)}</li>`).join('')}</ul></html>`);
   console.log(JSON.stringify({pass:report.pass,report:join(out,'report.json'),failures:report.checks.filter(c=>!c.pass)}));if(!report.pass)process.exitCode=1;
 }
