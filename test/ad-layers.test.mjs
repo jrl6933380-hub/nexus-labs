@@ -83,3 +83,11 @@ test('player caps match the vocabulary limits', () => {
   assert.ok(html.includes('.slice(0,' + GRAPHIC_MAX_LAYERS + ')'), 'layer slice');
   assert.ok(html.includes('MAXN=' + GRAPHIC_MAX_SHAPES), 'shape cap');
 });
+import { keyViews } from '../lib/adLayers.js';
+test('keyViews makes one project per view and refuses an unkeyed layer', () => {
+  const p = mk([{ id: 'pic', shape: 'image', imageId: 'med-green001', x: 50, y: 50, w: 50, h: 50, key: 'green' }, { id: 'dot', shape: 'circle', x: 5, y: 5, w: 5 }]);
+  const r = keyViews(p, { sceneId: 's1', layerId: 'pic' });
+  assert.equal(r.ok, true); assert.deepEqual(Object.keys(r.views), ['final', 'original', 'foreground', 'matte']);
+  assert.equal(r.views.matte.scenes[0].params.layers[0].keyView, 'matte'); assert.equal(p.scenes[0].params.layers[0].keyView, undefined);
+  assert.match(keyViews(p, { sceneId: 's1', layerId: 'dot' }).error, /not keyed/);
+});
