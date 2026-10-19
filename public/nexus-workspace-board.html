@@ -148,7 +148,9 @@ async function shrinkImage(file){
  let max=1600,quality=.88,uri=draw(max,quality);
  while(uri.length>IMAGE_MAX_CHARS && max>320){if(type==='image/jpeg' && quality>.56)quality=Math.round((quality-.08)*100)/100;else max=Math.round(max*.82);uri=draw(max,quality);}
  if(uri.length>IMAGE_MAX_CHARS)throw new Error('That picture is too detailed to shrink enough. Try a simpler one.');
- return {data_uri:uri,thumb:draw(96,.7,'image/jpeg')};
+ let thumb='',ts=96,tq=.7;
+ for(let i=0;i<10;i++){const t=draw(ts,tq,'image/jpeg');if(t.length<=5800){thumb=t;break;}if(tq>.4)tq=Math.round((tq-.1)*100)/100;else ts=Math.max(24,Math.round(ts*.8));}
+ return thumb?{data_uri:uri,thumb}:{data_uri:uri};
 }
 function imageLibrary(){
  const box=by('image-library');box.replaceChildren();
