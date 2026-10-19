@@ -241,7 +241,7 @@ const SCENES={
     /* Data-only layers. Every frame is a pure function of scene time (tms), so previews and frame export match.
        Layers expand into nodes (repeat copies, spawned particles). Each node is an anchor div at its position;
        a child anchor sits inside its parent's anchor, so transforms inherit. */
-    const P=sc.params,W=ctx.W,H=ctx.H,k=ctx.k,MAXN=200;
+    const P=sc.params,W=ctx.W,H=ctx.H,k=ctx.k,MAXN=2000;
     const NS="http://www.w3.org/2000/svg"; /* XML namespace identifier, never fetched */
     const FIXED={red:"#e24b4a",orange:"#ef9f27",yellow:"#fac775",green:"#639922",blue:"#378add",violet:"#534ab7",pink:"#d4537e",white:"#ffffff",black:"#111111"};
     const colorOf=n=>n==="accent"?k.accent:n==="text"?k.text:n==="muted"?k.muted:n==="bg"?k.bg:(FIXED[n]||k.accent);
@@ -252,7 +252,7 @@ const SCENES={
     const hud=document.createElement("div");hud.style.cssText="position:absolute;left:0;top:0;width:100%;height:100%;overflow:hidden;pointer-events:none";cam.appendChild(hud);
     const flash=document.createElement("div");flash.style.cssText="position:absolute;left:0;top:0;width:100%;height:100%;background:#fff;opacity:0;pointer-events:none";cam.appendChild(flash);
     /* ---- expand layers into nodes ---- */
-    const raw=(Array.isArray(P.layers)?P.layers:[]).slice(0,48),nodes=[],idx=Object.create(null);
+    const raw=(Array.isArray(P.layers)?P.layers:[]).slice(0,512),nodes=[],idx=Object.create(null);
     raw.forEach((L,li)=>{
       const rnd=rng(seedOf(sc.id+":"+li));
       const n=L.emit?Math.min(60,Math.max(1,Math.floor(L.emit))):Math.min(24,Math.max(1,Math.floor(L.count||1)));
@@ -279,10 +279,12 @@ const SCENES={
     nodes.forEach((nd,i)=>{
       const o=nd.o,col=colorOf(o.color||"accent"),col2=o.color2?colorOf(o.color2):null;
       const fill=col2?"linear-gradient("+num(o.angle,180)+"deg,"+col+","+col2+")":col;
-      const a=document.createElement("div");a.style.cssText="position:absolute;width:0;height:0;left:"+(W*num(o.x,0)/100)+"px;top:"+(H*num(o.y,0)/100)+"px";
+      const a=document.createElement("div");a.style.cssText="position:absolute;width:0;height:0;left:"+(W*num(o.x,0)/100)+"px;top:"+(H*num(o.y,0)/100)+"px";if(o.visible===false)a.style.display="none";if(o.z!=null)a.style.zIndex=String(Math.round(num(o.z,0)));
       const mkf=g=>{const f=[];if(g>0)f.push("drop-shadow(0 0 "+(W*g/100)+"px "+col+")");if(o.shadow)f.push("drop-shadow(0 "+(W*o.shadow/200)+"px "+(W*o.shadow/100)+"px rgba(0,0,0,.55))");if(o.blur)f.push("blur("+(W*o.blur/100)+"px)");return f.join(" ");};nd.mkf=mkf;const f0=mkf(num(o.glow,0));if(f0)a.style.filter=f0;
       if(o.blend&&o.blend!=="normal")a.style.mixBlendMode=o.blend;
-      const org={center:["-50%","-50%"],top:["-50%","0%"],bottom:["-50%","-100%"],left:["0%","-50%"],right:["-100%","-50%"]}[o.origin||"center"];
+      let org={center:["-50%","-50%"],top:["-50%","0%"],bottom:["-50%","-100%"],left:["0%","-50%"],right:["-100%","-50%"]}[o.origin||"center"];
+      if(o.pivotX!=null||o.pivotY!=null)org=[(-num(o.pivotX,50))+"%",(-num(o.pivotY,50))+"%"];
+      const cropOf=e=>{if(o.cropL||o.cropT||o.cropR||o.cropB){const c="inset("+num(o.cropT,0)+"% "+num(o.cropR,0)+"% "+num(o.cropB,0)+"% "+num(o.cropL,0)+"%)";e.style.clipPath=c;e.style.webkitClipPath=c;}};
       const sz=W*num(o.w,10)/100;
       let el=null;
       const shape=o.shape;
@@ -338,11 +340,11 @@ const SCENES={
           if(shape==="image"){
             el.style.overflow="hidden";el.style.borderRadius=(o.radius!=null?W*num(o.radius,2)/100:12)+"px";el.style.background="rgba(128,128,128,.18)";el.style.boxSizing="border-box";if(o.stroke&&o.strokeW)el.style.border=Math.max(1,W*num(o.strokeW,0.5)/100)+"px solid "+colorOf(o.stroke);
             const meta=o.imageId?IMAGES[o.imageId]:null,src=safeImg(meta&&meta.src);
-            if(src){const img=document.createElement("img");img.src=src;img.alt="";img.style.cssText="position:absolute;left:0;top:0;width:100%;height:100%;object-fit:"+(o.fit==="contain"?"contain":"cover")+";";el.appendChild(img);}
+            if(src){const img=document.createElement("img");img.src=src;img.alt="";img.style.cssText="position:absolute;left:0;top:0;width:100%;height:100%;object-fit:"+(o.fit==="contain"?"contain":"cover")+";";cropOf(img);el.appendChild(img);}
           } else if(shape==="video"){
             el.style.overflow="hidden";el.style.borderRadius=(o.radius!=null?W*num(o.radius,2)/100:0)+"px";el.style.background="#000";el.style.boxSizing="border-box";
             const meta=o.imageId?IMAGES[o.imageId]:null,src=safeVid(meta&&meta.src);
-            if(src){const v=document.createElement("video");v.muted=true;v.defaultMuted=true;v.playsInline=true;v.preload="auto";v.setAttribute("muted","");v.src=src;v.style.cssText="position:absolute;left:0;top:0;width:100%;height:100%;object-fit:"+(o.fit==="contain"?"contain":"cover")+";object-position:"+num(o.focusX,50)+"% "+num(o.focusY,50)+"%";el.appendChild(v);nd.vid=v;nd.vo=o;}
+            if(src){const v=document.createElement("video");v.muted=true;v.defaultMuted=true;v.playsInline=true;v.preload="auto";v.setAttribute("muted","");v.src=src;v.style.cssText="position:absolute;left:0;top:0;width:100%;height:100%;object-fit:"+(o.fit==="contain"?"contain":"cover")+";object-position:"+num(o.focusX,50)+"% "+num(o.focusY,50)+"%";cropOf(v);el.appendChild(v);nd.vid=v;nd.vo=o;}
           } else if(shape==="ring"){el.style.boxSizing="border-box";el.style.border=Math.max(1,W*num(o.thickness,1.5)/100)+"px solid "+col;el.style.borderRadius="50%";}
           else if(shape==="polygon"||shape==="star"){
             const sides=Math.min(12,Math.max(3,Math.floor(num(o.sides,shape==="star"?5:6)))),pts=[];
@@ -357,7 +359,7 @@ const SCENES={
       if((o.clip||o.mask)&&shape!=="text"&&shape!=="line"&&shape!=="arc"){
         /* A clip or mask is a box (w x h, centered by origin) in the layer's own space, so it moves, rotates and scales with the layer. */
         const bw=sz,bh=o.h!=null?H*num(o.h,10)/100:(shape==="pill"?H*.03:(shape==="rect"||shape==="image")?H*.1:sz);
-        const ox=org[0]==="-50%"?-bw/2:org[0]==="0%"?0:-bw,oy=org[1]==="-50%"?-bh/2:org[1]==="0%"?0:-bh,cx=ox+bw/2,cy=oy+bh/2,px=v=>Math.round(v*100)/100+"px";
+        const ox=bw*parseFloat(org[0])/100,oy=bh*parseFloat(org[1])/100,cx=ox+bw/2,cy=oy+bh/2,px=v=>Math.round(v*100)/100+"px";
         if(o.clip){
           let cp="";
           if(o.clip==="rect")cp="polygon("+px(ox)+" "+px(oy)+","+px(ox+bw)+" "+px(oy)+","+px(ox+bw)+" "+px(oy+bh)+","+px(ox)+" "+px(oy+bh)+")";
@@ -405,9 +407,13 @@ const SCENES={
       flash.style.opacity=String(clamp(fl));
       nodes.forEach((nd,i)=>{
         const o=nd.o,P2=nd.p,brot=num(o.rotate,0),bs=num(o.scale,1),bo=o.opacity==null?1:num(o.opacity,1),bx=num(o.x,0),by=num(o.y,0);
-        let t=te-num(o.delay,0)*1000,op=1,tx=0,ty=0,s=1,sx2=1,prot=0,draw=1,kx=bx,ky=by,krot=brot,ks=bs,ko=bo;
+        /* A group may run on its own timeline: trate speeds it, toffset shifts it, tloop repeats it. Children measure their delay and keys in group time. */
+        const pb=nd.parent>=0?nodes[nd.parent].gt:te;let bt=pb;
+        if(o.trate!=null||o.toffset!=null||o.tloop!=null){bt=(pb-num(o.delay,0)*1000)*num(o.trate,1)+num(o.toffset,0)*1000;if(o.tloop){const L=o.tloop*1000;bt=((bt%L)+L)%L;}}
+        nd.gt=bt;
+        let t=pb-num(o.delay,0)*1000,op=1,tx=0,ty=0,s=1,sx2=1,prot=0,draw=1,kx=bx,ky=by,krot=brot,ks=bs,ko=bo;
         if(P2){
-          const lt=te-P2.t0;
+          const lt=bt-P2.t0;
           if(lt<0||lt>P2.life){nd.a.style.opacity="0";return;}
           const u=lt/P2.life;
           tx=W*(P2.ox+num(o.driftX,0)*u)/100;ty=H*(P2.oy+num(o.driftY,0)*u)/100;
@@ -421,9 +427,9 @@ const SCENES={
             case "slide_left":op=clamp(e*1.4);tx=(1-e)*W*.06;break;
             case "pop":op=clamp(e*2);s=.6+.4*e;break;
             case "draw":{const d=k.ease(clamp(t/1200));if(nd.path)draw=d;else{sx2=d;op=clamp(d*2);}break;}
-            case "drift":op=clamp(e*1.4);tx=Math.sin(te/900+i)*W*.012;break;
-            case "twinkle":op=.15+.85*(.5+.5*Math.sin(te/380+i*1.7));break;
-            case "pulse":op=clamp(e*1.4);s=1+.06*Math.sin(te/280+i);break;
+            case "drift":op=clamp(e*1.4);tx=Math.sin(bt/900+i)*W*.012;break;
+            case "twinkle":op=.15+.85*(.5+.5*Math.sin(bt/380+i*1.7));break;
+            case "pulse":op=clamp(e*1.4);s=1+.06*Math.sin(bt/280+i);break;
             case "spin":prot=t*.06;break;
             case "swing":prot=15*Math.sin(t/1000*5.03+i);break;
             case "bob":ty=Math.sin(t/1000*4.4+i)*H*.015;break;
@@ -438,7 +444,7 @@ const SCENES={
         let rs=1,rsy=1,ro=0;
         if(o.react){const v=envOf(o.react);tx+=W*v*num(o.rX,0)/100;ty+=H*v*num(o.rY,0)/100;prot+=v*num(o.rRot,0);rs=Math.max(.01,1+v*num(o.rScale,0));rsy=Math.max(.01,rs+v*num(o.rStretch,0));ro=v*num(o.rOpacity,0);if(o.rGlow)nd.a.style.filter=nd.mkf(Math.max(0,num(o.glow,0)+v*num(o.rGlow,0)));}
         nd.a.style.opacity=String(clamp(op*ko+ro));
-        nd.a.style.transform="translate("+tx+"px,"+ty+"px) rotate("+(krot+prot)+"deg) scale("+(s*sx2*ks*rs)+","+(s*ks*rsy)+")";
+        nd.a.style.transform="translate("+tx+"px,"+ty+"px) rotate("+(krot+prot)+"deg) scale("+(s*sx2*ks*rs*num(o.sx,1))+","+(s*ks*rsy*num(o.sy,1))+")";
         if(nd.path)nd.path.setAttribute("stroke-dashoffset",String(1-draw));
         if(nd.vid)seekVid(nd.vid,nd.vo,t/1000);
         if(nd.units&&!P2){const st=nd.rs*1000;nd.units.forEach((u,j)=>{const e=k.ease(clamp((t-j*st)/260));u.style.opacity=String(e);u.style.transform="translateY("+(1-e)*.3+"em)";});}
