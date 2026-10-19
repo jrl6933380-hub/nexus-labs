@@ -252,6 +252,22 @@ export const SCENE_TYPES = [
           radius: num(0, 50),
           fit: en(IMAGE_FITS),
           blend: en(LAYER_BLENDS),
+          name: str(40),
+          role: en(LAYER_ROLES),
+          visible: { kind: 'boolean' },
+          locked: { kind: 'boolean' },
+          z: num(-100, 1000, false, true),
+          sx: num(0.05, 8),
+          sy: num(0.05, 8),
+          pivotX: num(-50, 150),
+          pivotY: num(-50, 150),
+          cropL: num(0, 95),
+          cropT: num(0, 95),
+          cropR: num(0, 95),
+          cropB: num(0, 95),
+          trate: num(0, 4),
+          toffset: num(0, 600),
+          tloop: num(0.1, 600),
           isolate: { kind: 'boolean' },
           clip: en(LAYER_CLIPS),
           mask: en(LAYER_MASKS),
@@ -437,6 +453,11 @@ const SCENE_CHECKS = {
       shapes += L.emit ? L.emit : (L.count || 1);
     });
     if (shapes > GRAPHIC_MAX_SHAPES) errors.push(`${path}.layers: expands to ${shapes} shapes, max ${GRAPHIC_MAX_SHAPES}`);
+    const cost = graphicCost(layers);
+    if (cost > GRAPHIC_BUDGET.max) {
+      const top = layers.map((L, i) => [i, L && (L.name || L.id) || 'layer', layerCost(L)]).sort((a, b) => b[2] - a[2]).slice(0, 3).map(([i, n, c]) => `layers[${i}] ${n} (${c})`).join(', ');
+      errors.push(`${path}.layers: cost ${cost} is over the budget of ${GRAPHIC_BUDGET.max}. Costliest: ${top}. Put glow/blur/shadow on a group instead of every child, or split the scene.`);
+    }
   },
 };
 
