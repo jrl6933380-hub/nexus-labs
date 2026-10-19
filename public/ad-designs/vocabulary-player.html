@@ -332,7 +332,7 @@ const SCENES={
     /* Data-only layers. Every frame is a pure function of scene time (tms), so previews and frame export match.
        Layers expand into nodes (repeat copies, spawned particles). Each node is an anchor div at its position;
        a child anchor sits inside its parent's anchor, so transforms inherit. */
-    const P=sc.params,W=ctx.W,H=ctx.H,k=ctx.k,MAXN=2000;
+    const P=sc.params,W=ctx.W,H=ctx.H,k=ctx.k,MAXN=10000;
     const NS="http://www.w3.org/2000/svg"; /* XML namespace identifier, never fetched */
     const FIXED={red:"#e24b4a",orange:"#ef9f27",yellow:"#fac775",green:"#639922",blue:"#378add",violet:"#534ab7",pink:"#d4537e",white:"#ffffff",black:"#111111"};
     const colorOf=n=>n==="accent"?k.accent:n==="text"?k.text:n==="muted"?k.muted:n==="bg"?k.bg:(FIXED[n]||k.accent);
@@ -343,7 +343,7 @@ const SCENES={
     const hud=document.createElement("div");hud.style.cssText="position:absolute;left:0;top:0;width:100%;height:100%;overflow:hidden;pointer-events:none";cam.appendChild(hud);
     const flash=document.createElement("div");flash.style.cssText="position:absolute;left:0;top:0;width:100%;height:100%;background:#fff;opacity:0;pointer-events:none";cam.appendChild(flash);
     /* ---- expand layers into nodes ---- */
-    const raw=(Array.isArray(P.layers)?P.layers:[]).slice(0,512),nodes=[],idx=Object.create(null);
+    const raw=(Array.isArray(P.layers)?P.layers:[]).slice(0,2048),nodes=[],idx=Object.create(null);
     raw.forEach((L,li)=>{
       const rnd=rng(seedOf(sc.id+":"+li));
       const n=L.emit?Math.min(60,Math.max(1,Math.floor(L.emit))):Math.min(24,Math.max(1,Math.floor(L.count||1)));
