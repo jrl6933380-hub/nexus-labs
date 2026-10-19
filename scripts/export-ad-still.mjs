@@ -8,6 +8,7 @@
 //
 //   node scripts/export-ad-still.mjs --project ad.json --out still.png [--at 3.5 | --scene hook [--progress 0.85]]
 //        [--scale 2] [--images images.json] [--chromium /path/to/chrome]
+//        [--transparent 1]    keep real alpha: no background, so the still can be composited over anything
 //        [--view selection]   a flat-colour layer-ID map (graphic scenes) plus <out>.selection.json: id, colour, area and position of every layer
 //
 // --project is a v2 project or a saved ad record (anything with .project); use - to read stdin.
@@ -22,7 +23,7 @@ import {
 import { selectionReport } from '../lib/adSelect.js';
 
 const PLAYER = fileURLToPath(new URL('../public/ad-designs/vocabulary-player.html', import.meta.url));
-const USAGE = `Usage: node scripts/export-ad-still.mjs --project <file|-> --out <file.png> [--at <seconds> | --scene <id> [--progress 0-1]] [--scale 1|2|3] [--images <file>] [--view selection] [--chromium <path>]`;
+const USAGE = `Usage: node scripts/export-ad-still.mjs --project <file|-> --out <file.png> [--at <seconds> | --scene <id> [--progress 0-1]] [--scale 1|2|3] [--images <file>] [--view selection] [--transparent 1] [--chromium <path>]`;
 
 function parseArgs(argv) {
   const out = {};
@@ -62,6 +63,8 @@ async function main() {
 
   const project = projectFromInput(JSON.parse(await readInput(args.project)));
   const selection = args.view === 'selection';
+  const transparent = args.transparent === 'true' || args.transparent === '1';
+  if (transparent && selection) throw new Error('--transparent and --view selection cannot be combined (a selection map is flat color on black).');
   if (args.view !== undefined && !selection) throw new Error('--view must be "selection"');
   const plan = planStill(project, { at: args.at, scene: args.scene, progress: args.progress, scale: selection ? 1 : args.scale });
   const outPath = resolve(args.out);
@@ -91,7 +94,7 @@ async function main() {
     page.on('pageerror', (e) => pageErrors.push(String(e && e.message || e)));
     page.on('console', (m) => { if (m.type() === 'error') pageErrors.push(m.text()); });
 
-    await page.goto(`${pathToFileURL(playerFile).href}?capture=1${selection ? '&select=1' : ''}`);
+    await page.goto(`${pathToFileURL(playerFile).href}?capture=1${selection ? '&select=1' : ''}${transparent ? '&transparent=1' : ''}`);
     await page.waitForFunction(() => typeof window.__capture === 'function' && typeof window.__captureInfo === 'function');
     await page.evaluate(() => document.fonts.ready.then(() => true));
     verifyCaptureInfo(await page.evaluate(() => window.__captureInfo()), plan);
@@ -105,7 +108,7 @@ async function main() {
     if (plan.concept && !(await page.evaluate(() => { const b = document.querySelector('.badge'); return !!b && !b.hidden; }))) {
       throw new Error('This is a concept ad, but its concept badge is not visible. Refusing to export.');
     }
-    const png = await page.screenshot({ type: 'png' });
+    const png = await page.screenshot({ type: 'png', omitBackground: transparent });
     const size = pngSize(png);
     if (size.width !== plan.width || size.height !== plan.height) throw new Error(`Screenshot is ${size.width}x${size.height}, expected ${plan.width}x${plan.height}.`);
     const finalInfo = await page.evaluate(() => window.__captureInfo());
@@ -122,6 +125,7 @@ async function main() {
     const manifest = {
       tool: 'scripts/export-ad-still.mjs',
       ...(selection ? { view: 'selection', selectionFile } : {}),
+      ...(transparent ? { transparent: true } : {}),
       vocabularyVersion: plan.vocabularyVersion,
       name: project.name,
       format: plan.format,
