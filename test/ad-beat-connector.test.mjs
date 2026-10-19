@@ -40,7 +40,7 @@ test('make_freestyle and make_beat run through the connector', async () => {
   assert.equal(saved.length, 1);
   const track = await run('read_track', { track_id: fs.track_id }, owner);
   assert.equal(track.song.bpm, fs.bpm);
-  assert.equal(track.words.length, 8);
+  assert.equal(track.words.length, 9);
 
   const beat = await run('make_beat', { track_id: fs.track_id, style: 'lofi' }, owner);
   assert.equal(beat.bpm, fs.bpm);
