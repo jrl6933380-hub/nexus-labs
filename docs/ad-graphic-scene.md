@@ -40,7 +40,7 @@ An `arc` is the upper half of a circle with `x`/`y` at the middle of its base.
 
 ### Keyframes
 
-`keys` is a list of up to 12 `{ t, x, y, rotate, scale, opacity, ease }`. `t` is seconds after the layer starts. Values are absolute (like the layer's own `x`, `y`, `rotate`, `scale`, `opacity`). A property left out of a key holds its previous value, starting from the layer's own value. `ease` (`linear`, `smooth`, `snappy`, `bounce`) shapes the move into that key. Presets add on top of keyframes.
+`keys` is a list of up to 32 `{ t, x, y, rotate, scale, opacity, ease }`. `t` is seconds after the layer starts. Values are absolute (like the layer's own `x`, `y`, `rotate`, `scale`, `opacity`). A property left out of a key holds its previous value, starting from the layer's own value. `ease` (`linear`, `smooth`, `snappy`, `bounce`) shapes the move into that key. Presets add on top of keyframes.
 
 ### Parenting
 
