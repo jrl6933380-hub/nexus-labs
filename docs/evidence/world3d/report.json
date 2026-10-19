@@ -1,0 +1,87 @@
+{
+  "at": "2026-10-19T08:08:08.189Z",
+  "browser": "153.0.8010.0",
+  "viewport": "800x450",
+  "checks": [
+    {
+      "name": "bottle preset produces visible 3D geometry",
+      "pass": true,
+      "objects": 7
+    },
+    {
+      "name": "device preset produces visible 3D geometry",
+      "pass": true,
+      "objects": 6
+    },
+    {
+      "name": "headphones preset produces visible 3D geometry",
+      "pass": true,
+      "objects": 7
+    },
+    {
+      "name": "sculpture preset produces visible 3D geometry",
+      "pass": true,
+      "objects": 5
+    },
+    {
+      "name": "3D depth occlusion works independently of object draw order",
+      "pass": true,
+      "independentOfDrawOrder": true
+    },
+    {
+      "name": "directional light produces a floor shadow from actual geometry",
+      "pass": true,
+      "changedFloorPixels": 1896
+    },
+    {
+      "name": "roughness and metalness alter the rendered surface",
+      "pass": true,
+      "changedPixels": 22116
+    },
+    {
+      "name": "orbit camera changes projection and shuffled seeks reproduce exact frames",
+      "pass": true,
+      "comparisons": 8
+    },
+    {
+      "name": "leaving a 3D scene releases the WebGL context; return seeks remain stable",
+      "pass": true,
+      "contextsReleased": 8
+    },
+    {
+      "name": "transparent still preserves real alpha outside 3D objects",
+      "pass": true,
+      "channels": 4
+    },
+    {
+      "name": "preview, still exporter and sequence frame agree",
+      "pass": true,
+      "comparisons": 3,
+      "projectSha256": "525cd245f2122957db6b710acb39b90cb413e09c42fbf709e849c3ed0429e950"
+    },
+    {
+      "name": "3D MP4 export encodes a playable 6-second H.264 file",
+      "pass": true,
+      "codec": "h264",
+      "seconds": 6
+    },
+    {
+      "name": "unavailable WebGL refuses frame capture with a clear error",
+      "pass": true,
+      "refused": true
+    }
+  ],
+  "pictures": [
+    "bottle.png",
+    "device.png",
+    "headphones.png",
+    "sculpture.png",
+    "occlusion.png",
+    "shadow-on.png",
+    "shadow-off.png",
+    "rubber.png",
+    "alpha.png",
+    "capture.png"
+  ],
+  "pass": true
+}

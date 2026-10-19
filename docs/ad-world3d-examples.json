@@ -1,0 +1,18 @@
+[
+  {
+    "prompt": "Show a blue metal bottle in a studio with a slow orbit around it.",
+    "brief": {"business_name":"Studio Concept","industry":"other","goal":"visit","visual":"studio3d","subject":"bottle","material":"metal","subject_color":"#49a7c9","lighting":"studio","camera_move":"orbit","length_sec":6}
+  },
+  {
+    "prompt": "A white ceramic bottle, warm lighting, with the camera slowly moving closer.",
+    "brief": {"business_name":"Studio Concept","industry":"other","goal":"visit","visual":"studio3d","subject":"bottle","material":"ceramic","subject_color":"#eee7db","lighting":"warm","camera_move":"dolly","length_sec":6}
+  },
+  {
+    "prompt": "A dark metal handheld device with dramatic lighting and a locked camera.",
+    "brief": {"business_name":"Studio Concept","industry":"other","goal":"visit","visual":"studio3d","subject":"device","material":"metal","subject_color":"#465362","lighting":"dramatic","camera_move":"static","length_sec":6}
+  },
+  {
+    "prompt": "A copper-coloured ring sculpture with a ceramic sphere inside, viewed from an orbiting camera.",
+    "brief": {"business_name":"Studio Concept","industry":"other","goal":"visit","visual":"studio3d","subject":"sculpture","material":"metal","subject_color":"#cf8452","lighting":"studio","camera_move":"orbit","length_sec":6}
+  }
+]

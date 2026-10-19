@@ -1,0 +1,159 @@
+{
+  "specVersion": 2,
+  "name": "3D language test · 3D bottle concept",
+  "brand": "3D language test",
+  "initial": "3",
+  "mood": "luxury",
+  "palette": "midnight-gold",
+  "platform": {
+    "format": "landscape",
+    "lengthSec": 6
+  },
+  "concept": true,
+  "scenes": [
+    {
+      "id": "studio-3d",
+      "type": "world3d",
+      "duration": 4,
+      "params": {
+        "objects": [
+          {
+            "id": "floor",
+            "name": "Studio floor",
+            "shape": "plane",
+            "w": 12,
+            "d": 12,
+            "material": "rubber",
+            "color": "#3c4450",
+            "castShadow": false
+          },
+          {
+            "id": "product",
+            "name": "Concept assembly",
+            "shape": "group",
+            "y": 0
+          },
+          {
+            "id": "body",
+            "parent": "product",
+            "name": "Bottle body",
+            "shape": "cylinder",
+            "y": 0.6,
+            "w": 0.7,
+            "h": 1.2,
+            "d": 0.7,
+            "material": "metal",
+            "color": "#49a7c9"
+          },
+          {
+            "id": "shoulder",
+            "parent": "product",
+            "shape": "sphere",
+            "y": 1.18,
+            "w": 0.7,
+            "h": 0.32,
+            "d": 0.7,
+            "material": "metal",
+            "color": "#49a7c9"
+          },
+          {
+            "id": "neck",
+            "parent": "product",
+            "shape": "cylinder",
+            "y": 1.4,
+            "w": 0.27,
+            "h": 0.34,
+            "d": 0.27,
+            "material": "metal",
+            "color": "#49a7c9"
+          },
+          {
+            "id": "cap",
+            "parent": "product",
+            "shape": "cylinder",
+            "y": 1.61,
+            "w": 0.34,
+            "h": 0.16,
+            "d": 0.34,
+            "material": "chrome",
+            "color": "#b8c1cd"
+          },
+          {
+            "id": "band",
+            "parent": "product",
+            "shape": "cylinder",
+            "y": 0.63,
+            "w": 0.711,
+            "h": 0.32,
+            "d": 0.711,
+            "material": "rubber",
+            "color": "#24323a"
+          }
+        ],
+        "lights": [
+          {
+            "type": "directional",
+            "x": 3,
+            "y": 6,
+            "z": 4,
+            "color": "#ffffff",
+            "intensity": 3.8
+          },
+          {
+            "type": "directional",
+            "x": -4,
+            "y": 2,
+            "z": -3,
+            "color": "#8dbcf0",
+            "intensity": 2
+          },
+          {
+            "type": "point",
+            "x": 1,
+            "y": 2,
+            "z": -2,
+            "color": "#dbe8f5",
+            "intensity": 3
+          }
+        ],
+        "cameraPath": [
+          {
+            "t": 0,
+            "x": 3,
+            "y": 1.8,
+            "z": 4.2,
+            "lookY": 0.8,
+            "fov": 34
+          },
+          {
+            "t": 2,
+            "x": -0.8,
+            "y": 1.5,
+            "z": 4.5,
+            "ease": "smooth"
+          },
+          {
+            "t": 4,
+            "x": -3.6,
+            "y": 1.8,
+            "z": 3.2,
+            "ease": "smooth"
+          }
+        ],
+        "ambient": 0.35,
+        "exposure": 1.1
+      },
+      "background": "gradient",
+      "transitionOut": "cut"
+    },
+    {
+      "id": "close",
+      "type": "end_card",
+      "duration": 2,
+      "params": {
+        "cta": "Explore the concept",
+        "tagline": "3D language test"
+      }
+    }
+  ]
+}
