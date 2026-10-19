@@ -67,3 +67,13 @@ Any box layer (image, video, rect, circle, pill, ring, polygon, star) or group c
 - `lib/adSeparability.js` `separabilityReport(png)`: from the pixels, says whether an upload already has alpha, has a flat backdrop a key can remove (and which key mode and color), or needs a supplied matte, a hand-drawn polygon, manual work or an optional segmentation model. It never claims hidden content can be recovered.
 
 Limits: a polygon is straight-edged (curves need more points); `matteFeather` is a blur in box percent so it is slightly elliptical on non-square layers; a matte image is stretched to the layer box; text, line and arc layers have no box and take no matte (wrap them in a group).
+
+## Agent tools, transparent stills and image sequences (stage 4)
+Claude, ChatGPT and Nex use the same connector tools; none of them can do anything the others cannot.
+- `read_nexus_layers`: graphic scenes, then a scene's layers (stable id, name, role, shape, parent, keyed/matted/animated, hash), one layer in full, or a find by name, role, shape, color, image or parent.
+- `edit_nexus_layers`: up to 20 ordered operations in one scene (patch, add, group, ungroup, reorder, remove, duplicate, replace_asset, set_key/clear_key, set_matte/set_matte_image/clear_matte, reveal_wipe). Atomic: if one fails nothing is saved and the error names the operation number. The ad baseline (or a per-layer hash on `patch`) refuses edits made against stale state; `dry_run` previews. Layers without ids get ids on the first edit. Code: `lib/adLayerTools.js`.
+- `render_nexus_ad` kinds: `still` and `sequence` accept `transparent:true` (real alpha, no background; a concept ad keeps its badge). `sequence` writes numbered PNG frames plus `sequence.manifest.json` (per-frame time and sha256, project hash), at most 240 frames, fps 24/30/60; the range is checked before the job is queued. `layers` renders a review pack for one graphic-scene moment: final, selection map plus legend, and original/foreground/matte views of up to 4 keyed layers, with a labelled `sheet.png`.
+- `view_nexus_ad_layers` returns the sheet (and any named views) as images the model can see, plus the selection legend. `check_nexus_image_separability` runs the separability report on a library PNG.
+- Preview and export share one player; `?transparent=1` only removes the background fill and the page/stage fill.
+
+Limits: the render worker is not deployed here, so queued jobs need a worker with Chromium; JPEG uploads must be converted to PNG for the separability check; a sequence is capped at 240 frames (use MP4 beyond that); antialiased edge pixels in the selection map count toward no layer.
