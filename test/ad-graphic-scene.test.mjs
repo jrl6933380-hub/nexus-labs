@@ -147,7 +147,7 @@ test('text, style and image fields validate with their bounds', () => {
   for (const fit of IMAGE_FITS) assert.equal(ok(withLayers([{ shape: 'image', x: 5, y: 5, w: 20, h: 20, fit, radius: 4 }])).ok, true, fit);
   assert.equal(ok(withLayers([text({ text: 'x'.repeat(90) })])).ok, true);
   assert.equal(ok(withLayers([text({ text: 'x'.repeat(91) })])).ok, false);
-  for (const bad of [{ weight: 100 }, { weight: 450.5 }, { spacing: 5 }, { maxw: 2 }, { reveal: 'letters' }, { stroke: 'chartreuse' }, { strokeW: 50 }, { shadow: 99 }, { blend: 'difference' }, { fit: 'stretch' }, { radius: 90 }, { caps: 'yes' }, { fixed: 1 }]) {
+  for (const bad of [{ weight: 100 }, { weight: 450.5 }, { spacing: 5 }, { maxw: 2 }, { reveal: 'letters' }, { stroke: 'chartreuse' }, { strokeW: 50 }, { shadow: 99 }, { blend: 'dissolve' }, { fit: 'stretch' }, { radius: 90 }, { caps: 'yes' }, { fixed: 1 }]) {
     assert.equal(ok(withLayers([text(bad)])).ok, false, JSON.stringify(bad));
   }
   assert.equal(ok(withLayers([text({ fixed: true, loop: true, keys: [{ t: 1, x: 60 }] })])).ok, true);
