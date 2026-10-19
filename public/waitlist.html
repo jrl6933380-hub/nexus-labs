@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Get a website or AI helper built | Nexus</title>
+<meta name="description" content="Tell us what you want built. Join the waitlist, see a preview, and only pay if you like it.">
+<style>
+:root{--ink:#0d0d12;--panel:#17171f;--line:#2a2a36;--text:#f2f0ea;--muted:#9a98a6;--gold:#e8b84a;--bad:#ff7a7a;--ok:#7fe0a0}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ink);color:var(--text);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+main{max-width:440px;margin:0 auto;padding:28px 16px 56px}
+h1{font-size:28px;line-height:1.15;margin:0 0 10px}
+p.lead{color:var(--muted);margin:0 0 20px}
+.steps{list-style:none;padding:0;margin:0 0 22px;display:grid;gap:8px}
+.steps li{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:14px}
+.steps b{color:var(--gold)}
+form{display:grid;gap:14px}
+label{display:grid;gap:6px;font-size:14px;color:var(--muted)}
+input,select,textarea{width:100%;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:12px;font:inherit}
+textarea{min-height:110px;resize:vertical}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-offset:1px}
+.check{display:flex;gap:10px;align-items:flex-start;font-size:13px}
+.check input{width:auto;margin-top:3px}
+button{background:var(--gold);color:#1a1405;border:0;border-radius:12px;padding:14px;font:inherit;font-weight:700;cursor:pointer}
+button[disabled]{opacity:.6}
+.hp{position:absolute;left:-9999px;height:0;overflow:hidden}
+#msg{min-height:22px;font-size:14px}
+#msg.err{color:var(--bad)}
+#msg.ok{color:var(--ok)}
+.fine{color:var(--muted);font-size:12px;margin-top:18px}
+#done{display:none;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}
+</style>
+</head>
+<body>
+<main>
+<h1>Get a website or AI helper built for your business</h1>
+<p class="lead">Tell us what you want. We'll show you a preview. You only pay if you like it.</p>
+<ol class="steps">
+<li><b>1.</b> Tell us what you want below.</li>
+<li><b>2.</b> You join the waitlist. We make a preview of what it could look like.</li>
+<li><b>3.</b> Like it? <b>$<span class="price">9</span></b> to go live. Then <b>$<span class="price">9</span>/month</b> for hosting and reasonable edits.</li>
+</ol>
+<form id="f" novalidate>
+<label>What do you want built?
+<select name="kind"><option value="website">A business website</option><option value="ai_helper">An AI helper / tool</option><option value="both">Both</option><option value="other">Something else</option></select></label>
+<label>Business name (optional)<input name="business" maxlength="80" autocomplete="organization"></label>
+<label>Describe it<textarea name="what" maxlength="600" required placeholder="What does your business do? What should the site or tool do?"></textarea></label>
+<label>Links to your socials or current site (optional)<input name="links" maxlength="300" inputmode="url"></label>
+<label>Your name (optional)<input name="name" maxlength="80" autocomplete="name"></label>
+<label>Email<input name="email" type="email" maxlength="120" autocomplete="email"></label>
+<label>Or phone<input name="phone" type="tel" maxlength="24" autocomplete="tel"></label>
+<div class="hp" aria-hidden="true"><label>Website<input name="company_website" tabindex="-1" autocomplete="off"></label></div>
+<label class="check"><input type="checkbox" name="consent"><span>It's okay to contact me about my preview.</span></label>
+<button id="go" type="submit">Join the waitlist</button>
+<div id="msg" role="status" aria-live="polite"></div>
+</form>
+<div id="done"><b>You're on the list.</b><p>We'll reach out with a preview using the email or number you gave. Previews are concepts of what your site could look like, not a finished product.</p></div>
+<p class="fine">Spots are limited while we build these by hand. Nothing is charged until you've seen your preview and said yes.</p>
+</main>
+<script>
+(function(){
+ var f=document.getElementById('f'),msg=document.getElementById('msg'),go=document.getElementById('go');
+ function say(t,c){msg.textContent=t;msg.className=c||'';}
+ fetch('/api/waitlist').then(function(r){return r.json();}).then(function(d){
+  if(d&&d.price){[].forEach.call(document.querySelectorAll('.price'),function(e){e.textContent=d.price;});}
+ }).catch(function(){});
+ f.addEventListener('submit',function(e){
+  e.preventDefault();
+  var d=new FormData(f),body={};
+  d.forEach(function(v,k){body[k]=v;});
+  body.consent=f.elements.consent.checked;
+  go.disabled=true;say('Sending...');
+  fetch('/api/waitlist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+  .then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j};});})
+  .then(function(x){
+   if(x.ok&&x.j.ok){f.style.display='none';document.getElementById('done').style.display='block';window.scrollTo(0,0);}
+   else{say((x.j&&x.j.error)||'Something went wrong. Try again.','err');go.disabled=false;}
+  })
+  .catch(function(){say('Network problem. Try again.','err');go.disabled=false;});
+ });
+})();
+</script>
+</body>
+</html>
