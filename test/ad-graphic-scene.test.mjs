@@ -111,7 +111,7 @@ test('keyframes: bounded list, required time, only known properties', () => {
   const key = (o = {}) => ({ t: 1, x: 60, rotate: 90, scale: 1.2, opacity: 0.5, ease: 'smooth', ...o });
   assert.equal(ok(withLayers([{ shape: 'circle', x: 10, y: 10, keys: [key()] }])).ok, true);
   assert.equal(ok(withLayers([{ shape: 'circle', x: 10, y: 10, keys: [] }])).ok, false);
-  assert.equal(ok(withLayers([{ shape: 'circle', x: 10, y: 10, keys: Array.from({ length: 13 }, (_, i) => key({ t: i })) }])).ok, false);
+  assert.equal(ok(withLayers([{ shape: 'circle', x: 10, y: 10, keys: Array.from({ length: 33 }, (_, i) => key({ t: i * 0.5 })) }])).ok, false);
   assert.equal(ok(withLayers([{ shape: 'circle', x: 10, y: 10, keys: [{ x: 5 }] }])).ok, false, 't is required');
   assert.equal(ok(withLayers([{ shape: 'circle', x: 10, y: 10, keys: [key({ color: 'red' })] }])).ok, false);
   assert.equal(ok(withLayers([{ shape: 'circle', x: 10, y: 10, keys: [key({ scale: 0 })] }])).ok, false);

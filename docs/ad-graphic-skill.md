@@ -56,7 +56,7 @@ What the blocks are for, how to combine them, and what good looks like. The refe
 
 ## Limits and traps
 
-- 48 layers, 200 expanded shapes (count + emit), 12 keys per layer, 12 camera keys, 6 hits per scene.
+- 48 layers, 200 expanded shapes (count + emit), 32 keys per layer (`lib/adMotion.js` samples Bezier curves, springs, curved paths, anticipation, follow-through, holds and pose presets into keys), 12 camera keys, 6 hits per scene.
 - `thickness` has a floor of 0.5.
 - A `line` needs `x2` and `y2`. A child's `x`/`y` and a child line's `x2`/`y2` are offsets from the parent.
 - A parent must appear before its children. `parent` on a repeated layer points at the first copy.
