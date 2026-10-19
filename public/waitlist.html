@@ -74,21 +74,27 @@ var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').mat
  function rgba(c,a){return 'rgba('+c+','+Math.max(0,Math.min(1,a)).toFixed(3)+')';}
  function frame(t){
   var target=app.classList.contains('speaking')?1:0;energy+=(target-energy)*.07;
+  // gentle strobe: ~2 pulses a second, only about +/-12% brightness (kept low on purpose)
+  var sb=Math.sin(t*12.5),fl=1+.12*sb*(.65+.35*Math.sin(t*1.7));
   g.setTransform(DPR,0,0,DPR,0,0);g.clearRect(0,0,W,H);
   var bob=Math.sin(t*.9)*5;g.save();g.translate(0,bob);
   g.globalCompositeOperation='lighter';
   // halo
   var hr=R*2.3,hg=g.createRadialGradient(CX,CY,R*.2,CX,CY,hr);
-  hg.addColorStop(0,rgba('120,255,190',.20+.05*Math.sin(t*1.4)+energy*.14));hg.addColorStop(.5,rgba('60,200,150',.07));hg.addColorStop(1,rgba('0,0,0',0));
+  hg.addColorStop(0,rgba('120,255,190',(.20+.05*Math.sin(t*1.4)+energy*.14)*fl));hg.addColorStop(.5,rgba('60,200,150',.07));hg.addColorStop(1,rgba('0,0,0',0));
   g.fillStyle=hg;g.fillRect(0,-40,W,H+80);
   // glass body
   var bg=g.createRadialGradient(CX-R*.25,CY-R*.3,R*.1,CX,CY,R);
   bg.addColorStop(0,rgba('170,255,215',.05));bg.addColorStop(.75,rgba('120,240,190',.07));bg.addColorStop(1,rgba('190,255,230',.20));
   g.fillStyle=bg;g.beginPath();g.arc(CX,CY,R,0,6.283);g.fill();
   g.strokeStyle=rgba('200,255,230',.5);g.lineWidth=1.1;g.beginPath();g.arc(CX,CY,R,0,6.283);g.stroke();
+  // meridian lines turning like a globe so the rotation reads
+  g.lineWidth=.8;
+  for(j=0;j<4;j++){g.strokeStyle=rgba('170,255,210',.17);g.beginPath();g.ellipse(CX,CY,Math.abs(Math.cos(t*.55+j*Math.PI/4))*R+.5,R,0,0,6.283);g.stroke();}
+  g.strokeStyle=rgba('170,255,210',.12);g.beginPath();g.ellipse(CX,CY,R,R*.36,0,0,6.283);g.stroke();
   // faint rainbow rim, like light through glass
   var rg=g.createLinearGradient(CX-R,CY-R,CX+R,CY+R);rg.addColorStop(0,rgba('255,170,230',.30));rg.addColorStop(.5,rgba('255,255,255',0));rg.addColorStop(1,rgba('130,200,255',.28));
-  g.strokeStyle=rg;g.lineWidth=2.2;g.beginPath();g.arc(CX,CY,R-1.5,.2,2.6);g.stroke();g.beginPath();g.arc(CX,CY,R-1.5,3.4,5.7);g.stroke();
+  g.strokeStyle=rg;g.lineWidth=2.2;g.beginPath();g.arc(CX,CY,R-1.5,.2+t*.55,2.6+t*.55);g.stroke();g.beginPath();g.arc(CX,CY,R-1.5,3.4+t*.55,5.7+t*.55);g.stroke();
   // crosshair + dotted rings (oracle instrument)
   g.strokeStyle=rgba('170,255,210',.22);g.lineWidth=.8;
   g.beginPath();g.moveTo(CX-R*1.12,CY);g.lineTo(CX+R*1.12,CY);g.moveTo(CX,CY-R*1.12);g.lineTo(CX,CY+R*1.12);g.stroke();
@@ -109,7 +115,7 @@ var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').mat
    g.restore();
   }
   // sparkle particles inside and on the glass
-  var rot=t*.28,cr=Math.cos(rot),sr=Math.sin(rot),tl=.38,ct=Math.cos(tl),st=Math.sin(tl);
+  var rot=t*.7,cr=Math.cos(rot),sr=Math.sin(rot),tl=.38,ct=Math.cos(tl),st=Math.sin(tl);
   for(i=0;i<parts.length;i++){
    var p=parts[i],rho=p.r*R*(.94+.03*Math.sin(t*p.sp+p.p)),q=Math.sqrt(1-p.u*p.u);
    var x=rho*q*Math.cos(p.a),z=rho*q*Math.sin(p.a),y=rho*p.u;
@@ -119,7 +125,7 @@ var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').mat
    g.beginPath();g.arc(CX+x2,CY+y2,p.s*(.5+d*.7),0,6.283);g.fill();
   }
   // core
-  var cr0=15+energy*10+Math.sin(t*2.2)*2+Math.sin(t*11)*energy*3,cg=g.createRadialGradient(CX,CY,0,CX,CY,cr0*3.2);
+  var cr0=(15+energy*10+Math.sin(t*2.2)*2+Math.sin(t*11)*energy*3)*fl,cg=g.createRadialGradient(CX,CY,0,CX,CY,cr0*3.2);
   cg.addColorStop(0,rgba('255,255,255',.95));cg.addColorStop(.18,rgba('190,255,220',.75));cg.addColorStop(.5,rgba('90,230,160',.25));cg.addColorStop(1,rgba('0,0,0',0));
   g.fillStyle=cg;g.beginPath();g.arc(CX,CY,cr0*3.2,0,6.283);g.fill();
   g.strokeStyle=rgba('230,255,240',.55+energy*.3);g.lineWidth=1;g.beginPath();
