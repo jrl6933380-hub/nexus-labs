@@ -47,3 +47,11 @@ Stills and exports wait for the keyed frame to be drawn (same capture barrier as
 Seeking: a keyed clip rendered at six times in sequence, reverse and shuffled order produced identical frames.
 
 Known limits: dark or low-saturation subject edges near the key (black hair) key partly transparent unless tolerance is lowered; very fine strands are lost; spill suppression is channel-average based and does not fully recolour tinted red or yellow edges. Use a garbage matte or supplied mask for those (stage 3).
+
+## Selection map (stage 3a)
+`export-ad-still.mjs --view selection` renders the scene with every layer as one flat, unique, non-grey color (no art, blend, glow or alpha softness) and writes `<out>.selection.json` beside the PNG: the legend (layer id, color, name, role) plus per-layer pixels, coverage %, bounding box and center, and whether it is visible at that moment.
+- Colors come from the layer ids only (stable hash, collision-probed in sorted order), so a layer keeps its color across renders and edits. Anonymous layers are listed as `#<index>` with `anonymous: true`; give them ids to keep them stable.
+- Keyed layers use their matte as the shape. Images and video use their full box (cropped layers use the crop).
+- `lib/adSelect.js`: `selectionReport`, `pickAt` (which layer is at x%,y%, majority vote of a small window) and `findInLegend`.
+- Antialiased edges blend to non-legend colors and are ignored, so edge pixels count toward no layer.
+- Flattened uploads: a selection map only separates layers that exist. A flat image is one layer; splitting it needs a supplied mask, a key, manual work or an optional segmentation model, and hidden content behind another object cannot be recovered.
