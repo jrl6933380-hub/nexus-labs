@@ -288,6 +288,25 @@ const SCENES={
         const path=document.createElementNS(NS,"path");path.setAttribute("d","M"+(-r)+" 0 A"+r+" "+r+" 0 0 1 "+r+" 0");
         path.setAttribute("fill","none");path.setAttribute("stroke",col);path.setAttribute("stroke-width",th);path.setAttribute("stroke-linecap","round");path.setAttribute("pathLength","1");path.setAttribute("stroke-dasharray","1");
         el.appendChild(path);nd.path=path;
+      } else if(shape==="path"){
+        /* Fill is a div clipped to the outline (gradients stay plain CSS); an optional stroke is a second, fill-less svg path. */
+        const bw=sz,bh=o.h!=null?H*num(o.h,10)/100:bw,f2=v=>Math.max(-50,Math.min(150,num(v,0)));
+        const segs=(Array.isArray(o.d)?o.d:[]).slice(0,64);
+        const build=(sx,sy)=>{let dd="";const r=v=>Math.round(v*100)/100;
+          for(const s of segs){const c=s&&s.c;
+            if(c==="M"||c==="L")dd+=c+r(f2(s.x)*sx)+" "+r(f2(s.y)*sy)+" ";
+            else if(c==="Q")dd+="Q"+r(f2(s.x1)*sx)+" "+r(f2(s.y1)*sy)+" "+r(f2(s.x)*sx)+" "+r(f2(s.y)*sy)+" ";
+            else if(c==="C")dd+="C"+r(f2(s.x1)*sx)+" "+r(f2(s.y1)*sy)+" "+r(f2(s.x2)*sx)+" "+r(f2(s.y2)*sy)+" "+r(f2(s.x)*sx)+" "+r(f2(s.y)*sy)+" ";
+            else if(c==="Z")dd+="Z ";}
+          return dd.trim()||"M0 0";};
+        el=document.createElement("div");el.style.cssText="position:absolute;left:0;top:0;width:"+bw+"px;height:"+bh+"px;transform:translate("+org[0]+","+org[1]+")";
+        if(o.fill!=="none"){const fd=document.createElement("div");fd.style.cssText="position:absolute;left:0;top:0;width:100%;height:100%;background:"+fill;const cp="path('"+build(bw/100,bh/100)+"')";fd.style.clipPath=cp;fd.style.webkitClipPath=cp;el.appendChild(fd);}
+        if(o.stroke&&o.strokeW){
+          const sv=document.createElementNS(NS,"svg");sv.setAttribute("width",String(bw));sv.setAttribute("height",String(bh));sv.setAttribute("viewBox","0 0 100 100");sv.setAttribute("preserveAspectRatio","none");sv.style.cssText="position:absolute;left:0;top:0;overflow:visible";
+          const path=document.createElementNS(NS,"path");path.setAttribute("d",build(1,1));path.setAttribute("fill","none");path.setAttribute("stroke",colorOf(o.stroke));path.setAttribute("stroke-width",String(Math.max(1,W*num(o.strokeW,0.5)/100)));path.setAttribute("stroke-linecap","round");path.setAttribute("stroke-linejoin","round");path.setAttribute("vector-effect","non-scaling-stroke");path.setAttribute("pathLength","1");path.setAttribute("stroke-dasharray","1");
+          sv.appendChild(path);el.appendChild(sv);nd.path=path;}
+      } else if(shape==="group"){
+        el=document.createElement("div");el.style.cssText="position:absolute;left:0;top:0;width:0;height:0";
       } else {
         el=document.createElement("div");el.style.cssText="position:absolute;left:0;top:0";
         const tr="translate("+org[0]+","+org[1]+")";
@@ -326,7 +345,26 @@ const SCENES={
         }
       }
       a.appendChild(el);nd.a=a;
-      (nd.parent>=0?nodes[nd.parent].a:(nd.o.fixed?hud:fxbox)).appendChild(a);
+      if(o.isolate)a.style.isolation="isolate";
+      if((o.clip||o.mask)&&shape!=="text"&&shape!=="line"&&shape!=="arc"){
+        /* A clip or mask is a box (w x h, centered by origin) in the layer's own space, so it moves, rotates and scales with the layer. */
+        const bw=sz,bh=o.h!=null?H*num(o.h,10)/100:(shape==="pill"?H*.03:(shape==="rect"||shape==="image")?H*.1:sz);
+        const ox=org[0]==="-50%"?-bw/2:org[0]==="0%"?0:-bw,oy=org[1]==="-50%"?-bh/2:org[1]==="0%"?0:-bh,cx=ox+bw/2,cy=oy+bh/2,px=v=>Math.round(v*100)/100+"px";
+        if(o.clip){
+          let cp="";
+          if(o.clip==="rect")cp="polygon("+px(ox)+" "+px(oy)+","+px(ox+bw)+" "+px(oy)+","+px(ox+bw)+" "+px(oy+bh)+","+px(ox)+" "+px(oy+bh)+")";
+          else if(o.clip==="circle")cp="circle("+px(Math.min(bw,bh)/2)+" at "+px(cx)+" "+px(cy)+")";
+          else if(o.clip==="ellipse")cp="ellipse("+px(bw/2)+" "+px(bh/2)+" at "+px(cx)+" "+px(cy)+")";
+          else{const r=Math.min(Math.min(bw,bh)/2,o.radius!=null?W*num(o.radius,2)/100:Math.min(bw,bh)*.14),r2=Math.round(r*100)/100,X=Math.round(ox*100)/100,Y=Math.round(oy*100)/100,X2=Math.round((ox+bw)*100)/100,Y2=Math.round((oy+bh)*100)/100;
+            cp="path('M"+(X+r2)+" "+Y+" H"+(X2-r2)+" A"+r2+" "+r2+" 0 0 1 "+X2+" "+(Y+r2)+" V"+(Y2-r2)+" A"+r2+" "+r2+" 0 0 1 "+(X2-r2)+" "+Y2+" H"+(X+r2)+" A"+r2+" "+r2+" 0 0 1 "+X+" "+(Y2-r2)+" V"+(Y+r2)+" A"+r2+" "+r2+" 0 0 1 "+(X+r2)+" "+Y+" Z')";}
+          a.style.clipPath=cp;a.style.webkitClipPath=cp;
+        }
+        if(o.mask){
+          const G={fade_top:"linear-gradient(to bottom,transparent 0,#000 38%)",fade_bottom:"linear-gradient(to top,transparent 0,#000 38%)",fade_left:"linear-gradient(to right,transparent 0,#000 38%)",fade_right:"linear-gradient(to left,transparent 0,#000 38%)",fade_edges:"radial-gradient(ellipse at center,#000 52%,transparent 100%)",spot:"radial-gradient(circle at center,#000 0,#000 28%,transparent 72%)"}[o.mask];
+          if(G){const mh=document.createElement("div"),mi=document.createElement("div");mh.style.cssText="position:absolute;left:"+px(ox)+";top:"+px(oy)+";width:"+px(bw)+";height:"+px(bh);mi.style.cssText="position:absolute;width:0;height:0;left:"+px(-ox)+";top:"+px(-oy);mh.style.maskImage=G;mh.style.webkitMaskImage=G;while(a.firstChild)mi.appendChild(a.firstChild);mh.appendChild(mi);a.appendChild(mh);nd.host=mi;}
+        }
+      }
+      (nd.parent>=0?(nodes[nd.parent].host||nodes[nd.parent].a):(nd.o.fixed?hud:fxbox)).appendChild(a);
     });
     /* ---- hits: freeze / shake / flash / zoom, all pure functions of scene time ---- */
     const hits=(Array.isArray(P.hits)?P.hits:[]).slice(0,6).map(h=>({at:num(h.at,0)*1000,shake:num(h.shake,0),flash:num(h.flash,0),freeze:num(h.freeze,0)*1000,zoom:num(h.zoom,0)})).sort((x,y)=>x.at-y.at);
