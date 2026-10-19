@@ -37,6 +37,33 @@ try{
     const p=base(subject),{page,ctx,errors}=await open(p,subject);
     try{await capture(page,1500,subject+'.png');assert.equal(await page.locator('canvas[data-world3d]').count(),1);assert.deepEqual(errors,[]);assert.deepEqual((await page.evaluate(()=>window.__captureInfo())).errors,[]);return{objects:p.scenes[0].params.objects.length};}finally{await ctx.close();}
   });
+  await check('continuous bottle profile and physical device bevel change actual rendered pixels',async()=>{
+    const changes={};
+    for(const subject of ['bottle','device']){
+      const p=base(subject),after=await open(p,'shaped-'+subject);let A;
+      try{A=await capture(after.page,1500,'shaped-'+subject+'-after.png');assert.deepEqual(after.errors,[]);}finally{await after.ctx.close();}
+      if(subject==='device')p.scenes[0].params.objects.forEach(o=>{if(o.shape==='rounded_box'){o.shape='box';delete o.radius;}});
+      else {
+        const objects=p.scenes[0].params.objects;p.scenes[0].params.objects=objects.filter(o=>o.id!=='body');
+        p.scenes[0].params.objects.push({id:'body',parent:'product',shape:'cylinder',y:.6,w:.7,h:1.2,d:.7,material:'metal',color:'#49a7c9'},
+          {id:'shoulder',parent:'product',shape:'sphere',y:1.18,w:.7,h:.32,d:.7,material:'metal',color:'#49a7c9'},
+          {id:'neck',parent:'product',shape:'cylinder',y:1.4,w:.27,h:.34,d:.27,material:'metal',color:'#49a7c9'});
+      }
+      const before=await open(p,'primitive-'+subject);try{changes[subject]=delta(A,await capture(before.page,1500,'shaped-'+subject+'-before.png'));assert.ok(changes[subject]>100);}finally{await before.ctx.close();}
+    }
+    return{changedPixels:changes};
+  });
+  await check('distinct lathe profiles do not share the wrong cached mesh',async()=>{
+    const p=base(),profile=[{r:.45,y:-.5},{r:.5,y:0},{r:.25,y:.5}];
+    p.scenes[0].params={objects:[-1,1].map((side,i)=>({id:'body-'+i,shape:'lathe',x:side*.7,y:.6,w:.7,h:1.2,d:.7,profile:structuredClone(profile),color:'#49a7c9',material:'metal',castShadow:false})),cameraPath:[{t:0,x:0,y:.6,z:5,lookY:.6}],ambient:.6};
+    const first=await open(p,'profile-cache-a');let A;try{A=decodePng(await capture(first.page,1000));}finally{await first.ctx.close();}
+    p.scenes[0].params.objects[1].profile=[{r:.1,y:-.5},{r:.2,y:0},{r:.5,y:.5}];
+    const second=await open(p,'profile-cache-b');try{
+      const B=decodePng(await capture(second.page,1000,'distinct-profiles.png'));let left=0,right=0;
+      for(let y=0;y<A.height;y++)for(let x=0;x<A.width;x++){const at=(y*A.width+x)*A.channels;let d=0;for(let c=0;c<3;c++)d+=Math.abs(A.data[at+c]-B.data[at+c]);if(d>12){if(x<400)left++;else right++;}}
+      assert.equal(left,0);assert.ok(right>100);return{unchangedLeftPixels:left,changedRightPixels:right};
+    }finally{await second.ctx.close();}
+  });
   await check('3D depth occlusion works independently of object draw order',async()=>{
     const p=base();p.scenes[0].params={objects:[{id:'front',shape:'box',y:.7,z:1,w:1,h:1,d:.3,color:'#2255ee',material:'rubber'},{id:'back',shape:'box',y:.7,z:0,w:2,h:2,d:.3,color:'#ee3322',material:'rubber'}],cameraPath:[{t:0,x:0,y:.7,z:5,lookY:.7}],ambient:1,lights:[{type:'directional',x:2,y:5,z:4,color:'#ffffff',intensity:2}]};
     const first=await open(p,'occlusion-a');let A;try{A=await capture(first.page,1000,'occlusion.png');const i=decodePng(A),at=(225*800+400)*i.channels;assert.ok(i.data[at+2]>i.data[at]+40,'front blue object covers red back object');}finally{await first.ctx.close();}
@@ -80,11 +107,11 @@ try{
     const {page,ctx}=await open(base(),'unsupported','',{noWebGL:true});try{await assert.rejects(capture(page,1000),/3D renderer unavailable/);return{refused:true};}finally{await ctx.close();}
   });
 }finally{
-  await browser.close();report.pass=report.checks.length===13&&report.checks.every(c=>c.pass);
+  await browser.close();report.pass=report.checks.length===15&&report.checks.every(c=>c.pass);
   await writeFile(join(out,'report.json'),JSON.stringify(report,null,2)+'\n');
   const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const pictures=[];for(const name of [...new Set(report.pictures)])pictures.push(`<figure><img alt="${esc(name)}" src="data:image/png;base64,${(await readFile(join(out,name))).toString('base64')}"><figcaption>${esc(name)}</figcaption></figure>`);
   let video='';try{video=`<video controls preload="metadata" src="data:video/mp4;base64,${(await readFile(join(out,'world3d.mp4'))).toString('base64')}"></video>`;}catch{}
-  await writeFile(join(out,'review.html'),`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nexus 3D language review</title><style>body{max-width:1300px;margin:24px auto;padding:0 16px;background:#10141a;color:#eee;font:16px/1.5 system-ui}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px}figure{margin:0}img,video{max-width:100%;height:auto}figcaption{margin:4px 0 18px;color:#aab5c4}video{width:800px}li{margin:6px}</style><h1>Nexus visual language 1.1 · 3D foundation</h1><p>Procedural geometry, material response, perspective and mapped shadows. Concept assemblies, not supplied product assets or photorealistic-human claims.</p><p>Browser checks: ${report.checks.filter(c=>c.pass).length}/${report.checks.length} passed.</p>${video}<div class="grid">${pictures.join('')}</div><ul>${report.checks.map(c=>`<li>${c.pass?'PASS':'FAIL'} — ${esc(c.name)}</li>`).join('')}</ul></html>`);
+  await writeFile(join(out,'review.html'),`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nexus 3D language review</title><style>body{max-width:1300px;margin:24px auto;padding:0 16px;background:#10141a;color:#eee;font:16px/1.5 system-ui}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px}figure{margin:0}img,video{max-width:100%;height:auto}figcaption{margin:4px 0 18px;color:#aab5c4}video{width:800px}li{margin:6px}</style><h1>Nexus visual language 1.2 · Shaped 3D objects</h1><p>Procedural geometry, material response, perspective and mapped shadows. Concept assemblies, not supplied product assets or photorealistic-human claims.</p><p>Browser checks: ${report.checks.filter(c=>c.pass).length}/${report.checks.length} passed.</p>${video}<div class="grid">${pictures.join('')}</div><ul>${report.checks.map(c=>`<li>${c.pass?'PASS':'FAIL'} — ${esc(c.name)}</li>`).join('')}</ul></html>`);
   console.log(JSON.stringify({pass:report.pass,report:join(out,'report.json'),failures:report.checks.filter(c=>!c.pass)}));if(!report.pass)process.exitCode=1;
 }

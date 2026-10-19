@@ -2,7 +2,7 @@
 // Spec: docs/ad-vocabulary-v1.md. Pure ESM with no imports, shared by browser and server.
 // Additive: legacy 4-scene ads (no specVersion) never pass through this file's validator.
 
-export const VOCABULARY_VERSION = '1.1.0';
+export const VOCABULARY_VERSION = '1.2.0';
 export const SPEC_VERSION = 2;
 
 const deepFreeze = (o) => {
@@ -178,7 +178,7 @@ export function layerCost(L) {
 }
 export const graphicCost = (layers) => (Array.isArray(layers) ? layers : []).reduce((s, L) => s + layerCost(L), 0);
 
-export const WORLD3D_SHAPES = ['group', 'box', 'sphere', 'cylinder', 'cone', 'torus', 'plane'];
+export const WORLD3D_SHAPES = ['group', 'box', 'rounded_box', 'lathe', 'sphere', 'cylinder', 'cone', 'torus', 'plane'];
 export const WORLD3D_MATERIALS = ['plastic', 'metal', 'chrome', 'ceramic', 'rubber', 'stone', 'wood'];
 const worldId = () => ({...ref(false, '^[a-z0-9-]{1,24}$'), label:'a 3D object id (1-24 lowercase letters, digits or hyphens)'});
 const worldColor = () => ({ kind: 'color' });
@@ -197,6 +197,8 @@ export const SCENE_TYPES = [
         id: { ...worldId(), required: true }, parent: worldId(), name: str(40),
         shape: en(WORLD3D_SHAPES, true), x: num(-50, 50), y: num(-50, 50), z: num(-50, 50),
         w: num(0.02, 30), h: num(0.02, 30), d: num(0.02, 30), thickness: num(0.05, 0.45), arc: num(15, 360),
+        radius: num(0, 5), profile: { kind: 'items', min: 2, max: 32, fields: { r: num(0, 0.5, true), y: num(-0.5, 0.5, true) } },
+        profileCurve: en(['smooth', 'linear']), capped: { kind: 'boolean' },
         rx: num(-720, 720), ry: num(-720, 720), rz: num(-720, 720),
         sx: num(0.05, 8), sy: num(0.05, 8), sz: num(0.05, 8),
         material: en(WORLD3D_MATERIALS), color: worldColor(), roughness: num(0.05, 1), metalness: num(0, 1),
@@ -514,6 +516,16 @@ const SCENE_CHECKS = {
       if (seen.has(o.id)) errors.push(`${p}.id: duplicate "${o.id}"`);
       if (o.parent && !seen.has(o.parent)) errors.push(`${p}.parent: must name an earlier object`);
       if (o.arc !== undefined && o.shape !== 'torus') errors.push(`${p}.arc: only torus supports a partial arc`);
+      if (o.radius !== undefined && o.shape !== 'rounded_box') errors.push(`${p}.radius: only rounded_box supports radius`);
+      if (o.shape === 'rounded_box' && o.radius > Math.min(o.w ?? 1, o.h ?? 1, o.d ?? 1) / 2) errors.push(`${p}.radius: must not exceed half the smallest dimension`);
+      if (o.shape !== 'lathe' && ['profile', 'profileCurve', 'capped'].some(k => o[k] !== undefined)) errors.push(`${p}: profile, profileCurve and capped require lathe`);
+      if (o.shape === 'lathe') {
+        if (!o.profile) errors.push(`${p}.profile: lathe requires 2-32 radius/height points`);
+        else {
+          if (!o.profile.some(q => q.r > 0)) errors.push(`${p}.profile: at least one radius must be positive`);
+          for (let j = 1; j < o.profile.length; j++) if (o.profile[j].y - o.profile[j-1].y < 0.0001) errors.push(`${p}.profile[${j}].y: heights must increase by at least 0.0001`);
+        }
+      }
       seen.add(o.id); timeKeys(o.keys, `${p}.keys`);
     }
     timeKeys(params.cameraPath, `${path}.cameraPath`);

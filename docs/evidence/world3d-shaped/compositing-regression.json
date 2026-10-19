@@ -1,0 +1,217 @@
+{
+  "source": "Stage 4c synthetic calibration, NOT camera footage",
+  "at": "2026-10-19T08:27:50.456Z",
+  "environment": {
+    "node": "v24.19.0",
+    "platform": "linux",
+    "arch": "x64",
+    "cpu": "AMD EPYC 9V74 80-Core Processor",
+    "browser": "153.0.8010.0",
+    "viewport": "560x560",
+    "scale": 1
+  },
+  "checks": [
+    {
+      "name": "nested parent keep + animated cut + child keep intersect in pixels",
+      "pass": true,
+      "probes": 6
+    },
+    {
+      "name": "nested: forward, reverse and shuffled seeks agree",
+      "pass": true,
+      "timesMs": [
+        0,
+        250,
+        500,
+        1000,
+        1500,
+        2750
+      ],
+      "comparisons": 12,
+      "exactAfterWarmup": true,
+      "coldStart": {
+        "changedPixels": 0,
+        "maxChannelDelta": 0,
+        "tolerance": "at most 0.05% pixels, at most 16/255 per channel"
+      }
+    },
+    {
+      "name": "keyed-still: forward, reverse and shuffled seeks agree",
+      "pass": true,
+      "timesMs": [
+        0,
+        250,
+        500,
+        1000,
+        1500,
+        2750
+      ],
+      "comparisons": 12,
+      "exactAfterWarmup": true,
+      "coldStart": {
+        "changedPixels": 77,
+        "maxChannelDelta": 16,
+        "tolerance": "at most 0.05% pixels, at most 16/255 per channel"
+      }
+    },
+    {
+      "name": "keyed-video: forward, reverse and shuffled seeks agree",
+      "pass": true,
+      "timesMs": [
+        0,
+        250,
+        500,
+        1000,
+        1500,
+        2750
+      ],
+      "comparisons": 12,
+      "exactAfterWarmup": true,
+      "coldStart": {
+        "changedPixels": 77,
+        "maxChannelDelta": 16,
+        "tolerance": "at most 0.05% pixels, at most 16/255 per channel"
+      }
+    },
+    {
+      "name": "keyed output removes green, keeps subject, and keeps real alpha",
+      "pass": true,
+      "partialAlphaPixels": 6076,
+      "sha256": "5fad614f419f31c7c09a591afa0402122080e463e0b9a40a63e1f9317f61f5b5"
+    },
+    {
+      "name": "selection colours locate subject and backdrop",
+      "pass": true,
+      "layers": 4
+    },
+    {
+      "name": "missing matte image refuses capture instead of exposing an unmasked layer",
+      "pass": true,
+      "refused": true,
+      "stage": "export asset preflight"
+    },
+    {
+      "name": "live preview renderAdFrame matches capture + still + sequence at the same time",
+      "pass": true,
+      "comparisons": 3,
+      "note": "Decoded PNG equality; lossy encoded MP4 pixels are not claimed identical."
+    },
+    {
+      "name": "layer review pack renders final, map, original, foreground and matte",
+      "pass": true,
+      "sheet": "review/sheet.png",
+      "views": [
+        "final.png",
+        "selection.png",
+        "key-subject-original.png",
+        "key-subject-foreground.png",
+        "key-subject-matte.png"
+      ]
+    },
+    {
+      "name": "encoded MP4 dimensions, duration, codec and sampled frame match within lossy tolerance",
+      "pass": true,
+      "codec": "h264",
+      "width": 560,
+      "height": 560,
+      "seconds": 6,
+      "frame": 36,
+      "meanAbsoluteRgbError": 1.6373809523809524,
+      "tolerance": "mean absolute RGB error < 4/255, H.264 is lossy"
+    },
+    {
+      "name": "hard capacity limits refuse instead of silently dropping",
+      "pass": true,
+      "layerLimit": 2048,
+      "expandedLimit": 10000
+    },
+    {
+      "name": "browser reports no runtime errors",
+      "pass": true
+    }
+  ],
+  "capacity": [
+    {
+      "id": "plain-128",
+      "layers": 128,
+      "expandedShapes": 128,
+      "samples": 7,
+      "medianFrameMs": 54.3,
+      "p95FrameMs": 67.87,
+      "metric": "capture barrier + PNG screenshot wall time; warmed; offline; not live FPS"
+    },
+    {
+      "id": "plain-512",
+      "layers": 512,
+      "expandedShapes": 512,
+      "samples": 7,
+      "medianFrameMs": 49.4,
+      "p95FrameMs": 53.94,
+      "metric": "capture barrier + PNG screenshot wall time; warmed; offline; not live FPS"
+    },
+    {
+      "id": "plain-1200",
+      "layers": 1200,
+      "expandedShapes": 1200,
+      "samples": 7,
+      "medianFrameMs": 50.35,
+      "p95FrameMs": 52.65,
+      "metric": "capture barrier + PNG screenshot wall time; warmed; offline; not live FPS"
+    },
+    {
+      "id": "plain-2048",
+      "layers": 2048,
+      "expandedShapes": 2048,
+      "samples": 7,
+      "medianFrameMs": 50.65,
+      "p95FrameMs": 67.76,
+      "metric": "capture barrier + PNG screenshot wall time; warmed; offline; not live FPS"
+    },
+    {
+      "id": "expanded-9984",
+      "layers": 416,
+      "expandedShapes": 9984,
+      "samples": 7,
+      "medianFrameMs": 149.83,
+      "p95FrameMs": 181.16,
+      "metric": "capture barrier + PNG screenshot wall time; warmed; offline; not live FPS"
+    },
+    {
+      "id": "effects-128",
+      "layers": 128,
+      "expandedShapes": 128,
+      "samples": 7,
+      "medianFrameMs": 49.92,
+      "p95FrameMs": 51.51,
+      "metric": "capture barrier + PNG screenshot wall time; warmed; offline; not live FPS"
+    },
+    {
+      "id": "group-effects-128",
+      "layers": 129,
+      "expandedShapes": 129,
+      "samples": 7,
+      "medianFrameMs": 50.07,
+      "p95FrameMs": 50.72,
+      "metric": "capture barrier + PNG screenshot wall time; warmed; offline; not live FPS"
+    },
+    {
+      "id": "keyed-still",
+      "layers": 4,
+      "expandedShapes": 4,
+      "samples": 7,
+      "medianFrameMs": 99.7,
+      "p95FrameMs": 117.7,
+      "metric": "capture barrier + PNG screenshot wall time; warmed; offline; not live FPS"
+    },
+    {
+      "id": "keyed-video",
+      "layers": 4,
+      "expandedShapes": 4,
+      "samples": 7,
+      "medianFrameMs": 129.3,
+      "p95FrameMs": 188.17,
+      "metric": "capture barrier + PNG screenshot wall time; warmed; offline; not live FPS"
+    }
+  ],
+  "pass": true
+}

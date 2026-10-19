@@ -1,4 +1,4 @@
-# Nexus visual language 1.1: a 3D foundation
+# Nexus visual language 1.2: shaped 3D objects
 
 `world3d` adds actual geometry and a perspective camera to the existing vocabulary player. Existing `graphic` scenes and saved v2 ads keep their current rendering path. The first release is aimed at product concepts, props, abstract objects and studio shots. It is a foundation for realism, not a photorealistic image/video model.
 
@@ -26,7 +26,9 @@ This expands into editable objects, lights and camera keys, followed by a concep
 
 | Prompt concept | Language |
 |---|---|
-| Bottle, device, headphones, sculpture | `subject` constructor presets, made of primitives |
+| Bottle, device, headphones, sculpture | `subject` constructor presets; bottle uses a continuous profile, device uses bevels |
+| Rounded device, softened housing | `rounded_box` with `radius` in metres |
+| Turned bottle, shaped prop | `lathe` with an editable radius/height `profile` |
 | Plastic, metal, chrome, ceramic, rubber, stone, wood | Material preset; objects can override `roughness` and `metalness` |
 | Studio, warm, dramatic | `lighting` constructor presets, or explicit directional/point lights |
 | Orbit, dolly, locked camera | `camera_move`, expanded to `cameraPath` |
@@ -38,11 +40,29 @@ Example prompt/brief pairs are in [ad-world3d-examples.json](ad-world3d-examples
 ## Spatial rules
 
 - Units are metres; Y is up. Geometry is centred. A 1m-high box at `y:0.5` rests on the ground plane at `y:0`.
-- Shapes: `box`, `sphere`, `cylinder`, `cone`, `torus`, `plane`, and a non-drawing `group`. A torus can use `arc` (15–360 degrees) for a partial band. Partial tube ends are open; join them into another part when a visible cap is needed.
+- Shapes: `box`, `rounded_box`, `lathe`, `sphere`, `cylinder`, `cone`, `torus`, `plane`, and a non-drawing `group`. A torus can use `arc` (15–360 degrees) for a partial band. Partial tube ends are open; join them into another part when a visible cap is needed.
 - `w/h/d` are geometry dimensions; `x/y/z` are positions; `rx/ry/rz` are degrees. Animated `sx/sy/sz` affect object transforms and their children. Geometry dimensions do not stretch child positions.
 - Stable IDs are unique. Parents must precede children. Build complex objects as assemblies rather than claiming an unsupported imported mesh exists.
 - `cameraPath` defines a real perspective camera position, look-at target and FOV. Do not also apply a scene-level CSS camera unless that extra screen transform is intended.
 - Key times are strictly increasing. Evaluate every frame from scene time; do not accumulate wall-clock simulation state. Existing `lib/adMotion.js` motion-building concepts can inform authored keys, but this release does not add IK, collisions, gravity or character rigs.
+
+## Shape a product
+
+`rounded_box` keeps circular bevels in physical metres even when `w/h/d` differ. `radius` defaults to 15% of the smallest dimension; an explicit radius must be between 0 and 5m and no more than half that dimension. Zero produces the original hard box. Its six faces each have a fixed 10×10 vertex grid. Animating scale can stretch the finished object; use dimensions when authoring a constant physical edge radius.
+
+```json
+{"id":"case","shape":"rounded_box","w":0.85,"h":1.6,"d":0.18,"radius":0.065,"y":0.8,"material":"metal","color":"#49a7c9"}
+```
+
+`lathe` revolves a profile around Y. A profile has 2–32 `{r,y}` points: radius 0–0.5, height -0.5–0.5, with each height at least 0.0001 above the previous one and at least one positive radius. These are normalized local coordinates: `w/h/d` then scale the mesh. A radius of 0.5 gives the full authored width/depth. Points need not reach either height bound; position the object using its actual lowest profile height.
+
+```json
+{"id":"body","shape":"lathe","w":0.7,"h":1.6,"d":0.7,"y":0.8,"material":"ceramic","color":"#eee2ce","profile":[{"r":0.43,"y":-0.5},{"r":0.5,"y":-0.43},{"r":0.5,"y":0.16},{"r":0.37,"y":0.3},{"r":0.19,"y":0.4},{"r":0.19,"y":0.5}]}
+```
+
+`profileCurve:"smooth"` (default) uses monotone cubic interpolation, eight subdivisions per profile interval and 40 radial segments. It stays within adjacent radii, including narrow necks. `"linear"` preserves straight profile segments with distinct normals at their boundaries. The maximum smooth profile has 10,293 vertices including caps, within WebGL1's 16-bit index range. `capped` defaults true; false removes both end discs. It does not create interior walls, wall thickness or glass transmission. Heights must increase: folded profiles, horizontal lips and arbitrary extruded shapes are not supported. Shape parameters are static; transform keys remain seekable.
+
+Existing saved primitive scenes keep their geometry. Newly constructed bottle/device concepts use the improved shapes. The language version is 1.2.0; project `specVersion` stays 2. The mesh cache includes dimensions, radius, profile, interpolation and cap settings so two different objects cannot accidentally reuse one mesh.
 
 ## Rendering and budgets
 
@@ -62,11 +82,11 @@ node --test test/ad-*.test.mjs
 npm run test:ad-world3d -- --out test-results/world3d --chromium /path/to/webgl-capable-chromium
 ```
 
-The explicit browser suite tests constructor examples, depth ordering, actual floor shadows, material changes, perspective orbit, seek determinism, context disposal, alpha and preview/still/sequence agreement, then exports and probes a 6-second H.264 MP4. It runs with network access blocked. Software rendering is supported; phone/WebKit performance must be tested separately. See [verification and visual evidence](ad-world3d-verification.md) for the measured environment and pass/fail results.
+The explicit browser suite tests constructor examples, shaped versus primitive renders, distinct profile caching, depth ordering, actual floor shadows, material changes, perspective orbit, seek determinism, context disposal, alpha and preview/still/sequence agreement, then exports and probes a 6-second H.264 MP4. It runs with network access blocked. Software rendering is supported; phone/WebKit performance must be tested separately. See [shaped geometry verification](ad-world3d-shaped-verification.md) for this increment and [foundation verification](ad-world3d-verification.md) for the earlier baseline.
 
 ## Next increments
 
-1. Better shapes: rounded/extruded profiles, lathe/curve geometry and bevels for convincing product edges.
+1. More shape families: rounded extrusions, interior walls, horizontal lips and spline paths. Rounded boxes and monotone lathe profiles are now available.
 2. Real assets: owned GLB/glTF meshes and texture maps, with upload validation, asset provenance, memory and polygon budgets.
 3. Lighting: image-based environments, reflections, improved area lights and shadow quality.
 4. Motion: rigged characters, IK/foot planting, contact-aware movement and deterministic physics.

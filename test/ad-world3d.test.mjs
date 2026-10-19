@@ -76,3 +76,40 @@ test('documented prompt/brief pairs are executable language examples',()=>{
   const examples=JSON.parse(readFileSync(new URL('../docs/ad-world3d-examples.json',import.meta.url),'utf8'));
   for(const {prompt,brief} of examples){assert.ok(prompt.length>10);const {project}=composeAdFromBrief(brief);assert.equal(project.scenes[0].type,'world3d');assert.ok(project.scenes[0].params.objects.some(o=>o.material===brief.material));}
 });
+test('shaped geometry fields pass the tool envelope and receive semantic registry validation',()=>{
+  const profile=[{r:.3,y:-.5},{r:.5,y:0},{r:.2,y:.5}];
+  for(const o of [{id:'body',shape:'lathe',profile},{id:'case',shape:'rounded_box',w:.8,h:1.6,d:.18,radius:.06}]) {
+    const p=withObjects([o]);assert.equal(validateProjectV2(p).ok,true);assert.equal(adProjectSchemaV2.safeParse(p).success,true);
+  }
+  for(const o of [{shape:'lathe'},{shape:'lathe',profile:[]},{shape:'lathe',profile:[{r:0,y:0},{r:0,y:.5}]},
+    {shape:'lathe',profile:[{r:.5,y:0},{r:.2,y:0}]},{shape:'lathe',profile:[{r:.5,y:.5},{r:.2,y:0}]},
+    {shape:'lathe',profile:[{r:.6,y:-.5},{r:.2,y:.5}]},{shape:'lathe',profile:Array.from({length:33},(_,i)=>({r:.3,y:i/32-.5}))},
+    {shape:'box',profile},{shape:'sphere',radius:.1},{shape:'box',capped:false},{shape:'box',profileCurve:'smooth'},
+    {shape:'rounded_box',d:.1,radius:.06}]) {
+    // MCP params intentionally remain a record; semantic validation is the
+    // shared registry check used by save, edit and render entry points.
+    const p=withObjects([{id:'bad',...o}]);assert.equal(validateProjectV2(p).ok,false,JSON.stringify(o));
+  }
+});
+test('rounded boxes preserve physical radius and smoothly varying corner normals',()=>{
+  const dims=[.8,1.6,.18],r=.06,g=worldGeometry('rounded_box',.2,360,{w:dims[0],h:dims[1],d:dims[2],radius:r});
+  for(let i=0;i<g.positions.length;i+=3){
+    const P=g.positions.slice(i,i+3).map((v,j)=>v*dims[j]);
+    const C=P.map((v,j)=>Math.max(-dims[j]/2+r,Math.min(dims[j]/2-r,v)));
+    assert.ok(Math.abs(Math.hypot(...P.map((v,j)=>v-C[j]))-r)<1e-8);
+    const N=g.normals.slice(i,i+3).map((v,j)=>v/dims[j]),len=Math.hypot(...N);
+    P.forEach((v,j)=>assert.ok(Math.abs(N[j]/len-(v-C[j])/r)<1e-8));
+  }
+  assert.deepEqual(worldGeometry('rounded_box',.2,360,{radius:0}),worldGeometry('box'));
+});
+test('lathe interpolation stays bounded, caps are optional and maximum meshes fit WebGL1 indices',()=>{
+  const profile=Array.from({length:32},(_,i)=>({r:i%2?.5:.01,y:i/31- .5}));
+  for(const profileCurve of ['linear','smooth'])for(const capped of [true,false]){
+    const g=worldGeometry('lathe',.2,360,{profile,profileCurve,capped});
+    assert.ok(g.positions.every(Number.isFinite));assert.ok(g.normals.every(Number.isFinite));assert.ok(g.positions.length/3<65536);
+    assert.ok(g.indices.every(i=>Number.isInteger(i)&&i>=0&&i<g.positions.length/3));
+    for(let i=0;i<g.positions.length;i+=3){assert.ok(Math.hypot(g.positions[i],g.positions[i+2])<=.500001);assert.ok(Math.abs(g.positions[i+1])<=.500001);assert.ok(Math.abs(Math.hypot(...g.normals.slice(i,i+3))-1)<1e-6);}
+  }
+  const p=[{r:.3,y:-.5},{r:.5,y:.5}],open=worldGeometry('lathe',.2,360,{profile:p,capped:false}),closed=worldGeometry('lathe',.2,360,{profile:p});
+  assert.equal(closed.indices.length-open.indices.length,240);
+});

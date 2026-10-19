@@ -61,12 +61,71 @@ function w3normal(m) {
   const a = m.slice(0, 3), b = m.slice(4, 7), c = m.slice(8, 11), A = w3cross(b, c), B = w3cross(c, a), C = w3cross(a, b);
   const d = w3dot(a, A) || 1; return [...A, ...B, ...C].map(v => v / d);
 }
-export function worldGeometry(shape, thickness = 0.2, arc = 360) {
+export function worldGeometry(shape, thickness = 0.2, arc = 360, options = {}) {
   const p = [], n = [], ix = [];
   const vertex = (P, N) => { p.push(...P); n.push(...N); };
   const quad = (a, b, c, d, N) => { const i = p.length / 3; for (const v of [a, b, c, d]) vertex(v, N); ix.push(i, i + 1, i + 2, i, i + 2, i + 3); };
   if (shape === 'plane') quad([-.5, 0, -.5], [-.5, 0, .5], [.5, 0, .5], [.5, 0, -.5], [0, 1, 0]);
-  else if (shape === 'box') {
+  else if (shape === 'rounded_box' && options.radius !== 0) {
+    // Build in metres, then undo dimensions. The normal matrix restores the
+    // physical normal, keeping a circular bevel on thin, non-cubic objects.
+    const dims = [options.w ?? 1, options.h ?? 1, options.d ?? 1];
+    const radius = options.radius ?? Math.min(...dims) * .15;
+    const coords = size => {
+      const h = size / 2, out = [];
+      for (let i = 0; i <= 4; i++) out.push(-h + radius * i / 4);
+      for (let i = 0; i <= 4; i++) out.push(h - radius + radius * i / 4);
+      return out;
+    };
+    for (let axis = 0; axis < 3; axis++) for (const sign of [-1, 1]) {
+      const a = (axis + 1) % 3, b = (axis + 2) % 3, A = coords(dims[a]), B = coords(dims[b]), start = p.length / 3;
+      for (const v of B) for (const u of A) {
+        const P = [0, 0, 0]; P[axis] = sign * dims[axis] / 2; P[a] = u; P[b] = v;
+        const C = P.map((x, i) => Math.max(-dims[i] / 2 + radius, Math.min(dims[i] / 2 - radius, x)));
+        const N = w3unit(P.map((x, i) => x - C[i]));
+        vertex(C.map((x, i) => (x + N[i] * radius) / dims[i]), w3unit(N.map((x, i) => x * dims[i])));
+      }
+      for (let j = 0; j < B.length - 1; j++) for (let i = 0; i < A.length - 1; i++) {
+        const k = start + j * A.length + i, q = k + A.length;
+        if (sign > 0) ix.push(k, k + 1, q, k + 1, q + 1, q);
+        else ix.push(k, q, k + 1, k + 1, q, q + 1);
+      }
+    }
+  } else if (shape === 'lathe') {
+    // Monotone cubic radius interpolation: no shoulder overshoot or negative
+    // radii. Fixed tessellation bounds the allocation for every legal profile.
+    const profile = options.profile, seg = 40, smooth = options.profileCurve !== 'linear';
+    const slopes = profile.slice(1).map((q, i) => (q.r - profile[i].r) / (q.y - profile[i].y));
+    const tangents = profile.map((q, i) => {
+      if (!i) return slopes[0]; if (i === profile.length - 1) return slopes.at(-1);
+      const a = slopes[i - 1], b = slopes[i];
+      if (a * b <= 0) return 0;
+      const h0 = q.y - profile[i - 1].y, h1 = profile[i + 1].y - q.y;
+      return 3 * (h0 + h1) / ((2 * h1 + h0) / a + (h1 + 2 * h0) / b);
+    });
+    let rows = 0;
+    for (let j = 0; j < profile.length - 1; j++) {
+      const a = profile[j], b = profile[j + 1], h = b.y - a.y, steps = smooth ? 8 : 1;
+      for (let k = 0; k <= steps; k++) {
+        if (j && !k && smooth) continue;
+        const t = k / steps, t2 = t * t, t3 = t2 * t;
+        const r = smooth ? (2*t3-3*t2+1)*a.r + (t3-2*t2+t)*h*tangents[j] + (-2*t3+3*t2)*b.r + (t3-t2)*h*tangents[j+1] : a.r + (b.r-a.r)*t;
+        const slope = smooth ? ((6*t2-6*t)*a.r + (3*t2-4*t+1)*h*tangents[j] + (-6*t2+6*t)*b.r + (3*t2-2*t)*h*tangents[j+1])/h : slopes[j];
+        for (let i = 0; i <= seg; i++) {
+          const u = i / seg * Math.PI * 2, c = Math.cos(u), s = Math.sin(u);
+          vertex([r*c, a.y+h*t, r*s], w3unit([c, -slope, s]));
+        }
+        rows++;
+      }
+    }
+    for (let j = 0; j < rows - 1; j++) for (let i = 0; i < seg; i++) { const a = j*(seg+1)+i, b = a+seg+1; ix.push(a,b,a+1,a+1,b,b+1); }
+    if (options.capped !== false) for (const sign of [-1, 1]) {
+      const q = sign < 0 ? profile[0] : profile.at(-1), start = p.length / 3;
+      vertex([0, q.y, 0], [0, sign, 0]);
+      for (let i = 0; i <= seg; i++) { const u = i / seg * Math.PI * 2; vertex([q.r*Math.cos(u),q.y,q.r*Math.sin(u)],[0,sign,0]); }
+      for (let i = 0; i < seg; i++) ix.push(start, start+i+(sign < 0 ? 1 : 2), start+i+(sign < 0 ? 2 : 1));
+    }
+  } else if (shape === 'box' || shape === 'rounded_box') {
     for (let axis = 0; axis < 3; axis++) for (const sign of [-1, 1]) {
       const N = [0, 0, 0]; N[axis] = sign;
       const a = (axis + 1) % 3, b = (axis + 2) % 3;
@@ -134,8 +193,8 @@ rgb+=base*uEmission;rgb*=uExposure;rgb=rgb/(1.+rgb);gl_FragColor=vec4(pow(max(rg
   const meshCache = new Map();
   const buffer = (target, data) => { const b = keep('Buffer', gl.createBuffer()); gl.bindBuffer(target, b); gl.bufferData(target, data, gl.STATIC_DRAW); return b; };
   const mesh = o => {
-    const key = o.shape + ':' + (o.thickness ?? .2) + ':' + (o.arc ?? 360); if (meshCache.has(key)) return meshCache.get(key);
-    const g = worldGeometry(o.shape, o.thickness, o.arc), value = {
+    const key = JSON.stringify([o.shape, o.thickness, o.arc, o.radius, o.w, o.h, o.d, o.profile, o.profileCurve, o.capped]); if (meshCache.has(key)) return meshCache.get(key);
+    const g = worldGeometry(o.shape, o.thickness, o.arc, o), value = {
       p: buffer(gl.ARRAY_BUFFER, new Float32Array(g.positions)), n: buffer(gl.ARRAY_BUFFER, new Float32Array(g.normals)),
       i: buffer(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(g.indices)), count: g.indices.length,
     }; meshCache.set(key, value); return value;
