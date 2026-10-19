@@ -55,3 +55,15 @@ Known limits: dark or low-saturation subject edges near the key (black hair) key
 - `lib/adSelect.js`: `selectionReport`, `pickAt` (which layer is at x%,y%, majority vote of a small window) and `findInLegend`.
 - Antialiased edges blend to non-legend colors and are ignored, so edge pixels count toward no layer.
 - Flattened uploads: a selection map only separates layers that exist. A flat image is one layer; splitting it needs a supplied mask, a key, manual work or an optional segmentation model, and hidden content behind another object cannot be recovered.
+
+## Mattes, crops and reveals (stage 3b)
+Any box layer (image, video, rect, circle, pill, ring, polygon, star) or group can carry:
+- `matte`: a polygon `[{x,y},...]` in percent of the layer's own box (extra polygons use a `g` number 0-7, 3+ points each). `matteMode: keep` shows only inside (a garbage matte for footage); `cut` hides inside (a holdout, or a hole to see through). `matteFeather` (0-20, percent of the box) softens the edge.
+- `matteImage`: an uploaded image used as the matte. `matteChannel: luma` (white shows, default) or `alpha` (its transparency). A missing matte image hides the layer and fails the render with a message naming the layer and the image id; it never renders the layer unmasked by accident.
+- Mattes, `clip` and `mask` combine: a pixel shows only if every one allows it. A matte on a group masks all its children, so masks nest through parents.
+- Keyframes can animate `cropL/cropT/cropR/cropB` (0-100, image and video layers, including keyed ones) and `mx/my` (matte polygon offset, percent of the box) and `ms` (matte scale), so a matte can follow a moving subject. All keyframes (up to 32) are kept; the player used to read only the first 12.
+- Rendering is an SVG/CSS mask, so preview and export are the same pixels, and the matte is a pure function of scene time: a random seek equals sequential playback (checked at six times in forward, reverse and shuffled order).
+- Helpers in `lib/adLayers.js`: `setMatte`, `clearMatte`, `revealWipe` (reveal or hide from any edge; crop keys for pictures, a sliding matte for shapes and groups).
+- `lib/adSeparability.js` `separabilityReport(png)`: from the pixels, says whether an upload already has alpha, has a flat backdrop a key can remove (and which key mode and color), or needs a supplied matte, a hand-drawn polygon, manual work or an optional segmentation model. It never claims hidden content can be recovered.
+
+Limits: a polygon is straight-edged (curves need more points); `matteFeather` is a blur in box percent so it is slightly elliptical on non-square layers; a matte image is stretched to the layer box; text, line and arc layers have no box and take no matte (wrap them in a group).
