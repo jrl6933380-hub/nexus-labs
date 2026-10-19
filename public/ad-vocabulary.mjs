@@ -250,7 +250,7 @@ export const SCENE_TYPES = [
           motion: en(LAYER_MOTIONS),
           delay: num(0, 10),
           keys: {
-            kind: 'items', min: 1, max: 12,
+            kind: 'items', min: 1, max: 32,
             fields: {
               t: num(0, 30, true),
               x: num(-100, 200),
