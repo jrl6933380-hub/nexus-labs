@@ -5,6 +5,7 @@
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}
 body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
 html.sel .layer canvas:not([data-key]){display:none}html.sel .layer{background:#000!important}
+html.tr,html.tr body,html.tr #stage,html.tr .layer{background:transparent!important}
 #stage{position:absolute;left:0;top:0;transform-origin:0 0;overflow:hidden;color:var(--text)}
 .layer{position:absolute;inset:0;overflow:hidden}
 .layer canvas{position:absolute;inset:0;width:100%;height:100%}
@@ -90,7 +91,7 @@ function tokens(p){
 const grainCache={};
 function grainTile(id){if(grainCache[id])return grainCache[id];const c=document.createElement("canvas");c.width=c.height=128;const x=c.getContext("2d"),img=x.createImageData(128,128),r=rng(seedOf(id));for(let i=0;i<img.data.length;i+=4){const v=r()*255;img.data[i]=img.data[i+1]=img.data[i+2]=v;img.data[i+3]=9;}x.putImageData(img,0,0);return grainCache[id]=c;}
 function drawBg(ctx,W,H,kind,id,ms,k){
-  ctx.clearRect(0,0,W,H);ctx.fillStyle=k.bg;ctx.fillRect(0,0,W,H);
+  ctx.clearRect(0,0,W,H);if(TRANS)return;ctx.fillStyle=k.bg;ctx.fillRect(0,0,W,H);
   if(kind==="gradient"||kind==="grain"){const a=.9+ms/24000,g=ctx.createLinearGradient(W/2-Math.cos(a)*W,H/2-Math.sin(a)*H,W/2+Math.cos(a)*W,H/2+Math.sin(a)*H);g.addColorStop(0,k.bg);g.addColorStop(1,mix(k.bg,k.accent,kind==="grain"?.16:.3));ctx.fillStyle=g;ctx.fillRect(0,0,W,H);}
   if(kind==="grain"){const t=grainTile(id),p=ctx.createPattern(t,"repeat"),o=Math.floor(ms/90)%16*7;ctx.save();ctx.translate(-o,-o);ctx.fillStyle=p;ctx.fillRect(0,0,W+130,H+130);ctx.restore();}
   if(kind==="grid"){const s=W/12,o=(ms*.012)%s;ctx.strokeStyle=rgba(k.text,.08);ctx.lineWidth=2;ctx.beginPath();for(let x=-s+o;x<W;x+=s){ctx.moveTo(x,0);ctx.lineTo(x,H);}for(let y=-s+o;y<H;y+=s){ctx.moveTo(0,y);ctx.lineTo(W,y);}ctx.stroke();}
@@ -163,6 +164,8 @@ function selectionColors(ids) {
 }
 const parseHex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));/*SEL-END*/
 const SELMODE=/[?&]select=1(&|$)/.test(location.search);if(SELMODE)document.documentElement.classList.add("sel");
+/* ?transparent=1: no backdrop, so a still or frame keeps real alpha (the layers draw over nothing). */
+const TRANS=/[?&]transparent=1(&|$)/.test(location.search);if(TRANS)document.documentElement.classList.add("tr");
 /*KEY-BEGIN*/const KEY_PRESETS = { green: [24, 190, 72], blue: [24, 64, 200] };
 const KEY_VIEWS = ['final', 'original', 'foreground', 'matte'];
 function keyFrame(src, w, h, o) {
