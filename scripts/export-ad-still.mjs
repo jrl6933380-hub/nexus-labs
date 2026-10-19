@@ -8,6 +8,7 @@
 //
 //   node scripts/export-ad-still.mjs --project ad.json --out still.png [--at 3.5 | --scene hook [--progress 0.85]]
 //        [--scale 2] [--images images.json] [--chromium /path/to/chrome]
+//        [--view selection]   a flat-colour layer-ID map (graphic scenes) plus <out>.selection.json: id, colour, area and position of every layer
 //
 // --project is a v2 project or a saved ad record (anything with .project); use - to read stdin.
 import { readFile, writeFile, mkdtemp, rm } from 'node:fs/promises';
@@ -18,9 +19,10 @@ import {
   planStill, projectFromInput, seedPlayerHtml, verifyCaptureInfo, verifyFrameAck, pngSize, sha256Hex,
   defaultStillName,
 } from '../lib/adExport.js';
+import { selectionReport } from '../lib/adSelect.js';
 
 const PLAYER = fileURLToPath(new URL('../public/ad-designs/vocabulary-player.html', import.meta.url));
-const USAGE = `Usage: node scripts/export-ad-still.mjs --project <file|-> --out <file.png> [--at <seconds> | --scene <id> [--progress 0-1]] [--scale 1|2|3] [--images <file>] [--chromium <path>]`;
+const USAGE = `Usage: node scripts/export-ad-still.mjs --project <file|-> --out <file.png> [--at <seconds> | --scene <id> [--progress 0-1]] [--scale 1|2|3] [--images <file>] [--view selection] [--chromium <path>]`;
 
 function parseArgs(argv) {
   const out = {};
@@ -59,7 +61,9 @@ async function main() {
   if (!args.project || !args.out) throw new Error(USAGE);
 
   const project = projectFromInput(JSON.parse(await readInput(args.project)));
-  const plan = planStill(project, { at: args.at, scene: args.scene, progress: args.progress, scale: args.scale });
+  const selection = args.view === 'selection';
+  if (args.view !== undefined && !selection) throw new Error('--view must be "selection"');
+  const plan = planStill(project, { at: args.at, scene: args.scene, progress: args.progress, scale: selection ? 1 : args.scale });
   const outPath = resolve(args.out);
   const manifestPath = `${outPath.replace(/\.png$/i, '')}.manifest.json`;
 
@@ -87,7 +91,7 @@ async function main() {
     page.on('pageerror', (e) => pageErrors.push(String(e && e.message || e)));
     page.on('console', (m) => { if (m.type() === 'error') pageErrors.push(m.text()); });
 
-    await page.goto(`${pathToFileURL(playerFile).href}?capture=1`);
+    await page.goto(`${pathToFileURL(playerFile).href}?capture=1${selection ? '&select=1' : ''}`);
     await page.waitForFunction(() => typeof window.__capture === 'function' && typeof window.__captureInfo === 'function');
     await page.evaluate(() => document.fonts.ready.then(() => true));
     verifyCaptureInfo(await page.evaluate(() => window.__captureInfo()), plan);
@@ -107,8 +111,17 @@ async function main() {
     const finalInfo = await page.evaluate(() => window.__captureInfo());
     if (finalInfo.errors.length || pageErrors.length) throw new Error(`The page logged errors: ${[...finalInfo.errors, ...pageErrors].slice(0, 3).join(' | ')}`);
 
+    let selectionFile = null;
+    if (selection) {
+      const sel = await page.evaluate(() => window.__sel || null);
+      if (!sel) throw new Error('This moment is not in a graphic scene, so there is no selection map. Selection maps cover graphic scenes only.');
+      const report = selectionReport(png, sel.layers);
+      selectionFile = `${outPath.replace(/\.png$/i, '')}.selection.json`;
+      await writeFile(selectionFile, `${JSON.stringify({ tool: 'scripts/export-ad-still.mjs --view selection', version: sel.version, sceneId: sel.sceneId, timeMs: plan.timeMs, note: 'Colours identify layers only. They are not artwork and not alpha. Anonymous layers (no id) are listed as #index and cannot be patched until given an id.', ...report }, null, 2)}\n`);
+    }
     const manifest = {
       tool: 'scripts/export-ad-still.mjs',
+      ...(selection ? { view: 'selection', selectionFile } : {}),
       vocabularyVersion: plan.vocabularyVersion,
       name: project.name,
       format: plan.format,
