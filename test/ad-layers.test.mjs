@@ -13,14 +13,14 @@ const base = () => mk([
   { id: 'head', name: 'Headline', role: 'text', shape: 'text', text: 'Hello', x: 50, y: 15, size: 8 },
 ]);
 
-test('new layer fields validate; limits are 512 layers and a cost budget', () => {
+test('new layer fields validate; limit is 2048 layers; cost is advisory', () => {
   assert.equal(validateProjectV2(mk([{ shape: 'circle', x: 5, y: 5, w: 5, name: 'a', role: 'subject', visible: false, locked: true, z: 3, sx: 2, sy: 0.5, pivotX: 0, pivotY: 100, cropL: 10, cropT: 5, trate: 2, toffset: 1, tloop: 3 }])).ok, true);
   assert.equal(validateProjectV2(mk([{ shape: 'circle', x: 5, y: 5, role: 'wizard' }])).ok, false);
   assert.equal(validateProjectV2(mk(Array.from({ length: GRAPHIC_MAX_LAYERS }, () => ({ shape: 'circle', x: 5, y: 5, w: 3 })))).ok, true);
   const heavy = Array.from({ length: 200 }, (_, i) => ({ id: 'h' + i, name: 'glow ' + i, shape: 'circle', x: 5, y: 5, w: 3, glow: 3 }));
-  const r = validateProjectV2(mk(heavy));
-  assert.equal(r.ok, false); assert.match(r.errors[0], /over the budget/); assert.match(r.errors[0], /group/);
+  assert.equal(validateProjectV2(mk(heavy)).ok, true); // heavy scenes are allowed; the cost is advice only
   assert.ok(graphicCost(heavy) > GRAPHIC_BUDGET.max);
+  assert.equal(listLayers(mk(heavy), 's1').overWarn, true);
 });
 test('list, read and select give stable ids; ensureIds names anonymous layers', () => {
   const p = base(), l = listLayers(p, 's1');
