@@ -1,6 +1,7 @@
-// GET  /api/waitlist           -> { ok, price } public config for the page
-// GET  /api/waitlist?list=1    -> operator only: entries, newest last
-// POST /api/waitlist           -> submit a request to the waitlist
+// GET  /api/waitlist                 -> { ok, price } public config for the page
+// GET  /api/waitlist?list=1          -> operator only: entries, oldest first
+// GET  /api/waitlist?photo=ID&n=0    -> operator only: one attached photo (image)
+// POST /api/waitlist                 -> submit a request (optional photos[] data URIs)
 import { getRequestUser, isOperatorUser } from '../lib/roomAuth.js';
 import { allowWaitlist, validateWaitlistEntry, waitlistPrice, waitlistStore } from '../lib/waitlist.js';
 
@@ -14,10 +15,18 @@ export async function handleWaitlist(req, res, deps = {}) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
 
   if (req.method === 'GET') {
-    if (req.query?.list) {
+    if (req.query?.list || req.query?.photo) {
       const username = usernameOf(await getUser(req).catch(() => null));
       if (!username || !isOperatorUser(username)) return res.status(403).json({ ok: false, error: 'Owner only.' });
       try {
+        if (req.query.photo) {
+          const uri = await store.photo(String(req.query.photo), Number(req.query.n || 0));
+          const m = uri && /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(uri);
+          if (!m) return res.status(404).json({ ok: false, error: 'No such photo.' });
+          res.setHeader('Content-Type', m[1]);
+          res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+          return res.status(200).send(Buffer.from(m[2], 'base64'));
+        }
         return res.status(200).json({ ok: true, total: await store.count(), entries: await store.list(500) });
       } catch (error) {
         return res.status(503).json({ ok: false, error: 'Storage unavailable.' });
@@ -36,7 +45,7 @@ export async function handleWaitlist(req, res, deps = {}) {
       res.setHeader('Retry-After', '3600');
       return res.status(429).json({ ok: false, error: 'Too many requests from this network. Try again in an hour.' });
     }
-    const result = await store.add(checked.entry);
+    const result = await store.add(checked.entry, checked.photos);
     return res.status(200).json({ ok: true, duplicate: result.duplicate === true });
   } catch (error) {
     console.error('waitlist submit failed:', error.message);

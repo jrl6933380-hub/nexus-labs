@@ -16,19 +16,25 @@ p.lead{color:var(--muted);margin:0 0 20px}
 .steps li{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:14px}
 .steps b{color:var(--gold)}
 form{display:grid;gap:14px}
-label{display:grid;gap:6px;font-size:14px;color:var(--muted)}
+label,.lbl{display:grid;gap:6px;font-size:14px;color:var(--muted)}
 input,select,textarea{width:100%;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:12px;font:inherit}
 textarea{min-height:110px;resize:vertical}
-input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-offset:1px}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
 .check{display:flex;gap:10px;align-items:flex-start;font-size:13px}
 .check input{width:auto;margin-top:3px}
 button{background:var(--gold);color:#1a1405;border:0;border-radius:12px;padding:14px;font:inherit;font-weight:700;cursor:pointer}
 button[disabled]{opacity:.6}
+button.ghost{background:var(--panel);color:var(--text);border:1px dashed var(--line);font-weight:600}
 .hp{position:absolute;left:-9999px;height:0;overflow:hidden}
+#thumbs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.th{position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;border:1px solid var(--line)}
+.th img{width:100%;height:100%;object-fit:cover;display:block}
+.th button{position:absolute;top:2px;right:2px;width:26px;height:26px;padding:0;border-radius:13px;background:rgba(0,0,0,.7);color:#fff;font-size:16px;line-height:1}
 #msg{min-height:22px;font-size:14px}
 #msg.err{color:var(--bad)}
 #msg.ok{color:var(--ok)}
 .fine{color:var(--muted);font-size:12px;margin-top:18px}
+.hint{font-size:12px;color:var(--muted)}
 #done{display:none;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}
 </style>
 </head>
@@ -37,7 +43,7 @@ button[disabled]{opacity:.6}
 <h1>Get a website or AI helper built for your business</h1>
 <p class="lead">Tell us what you want. We'll show you a preview. You only pay if you like it.</p>
 <ol class="steps">
-<li><b>1.</b> Tell us what you want below.</li>
+<li><b>1.</b> Tell us what you want below. Add photos and anything else you like.</li>
 <li><b>2.</b> You join the waitlist. We make a preview of what it could look like.</li>
 <li><b>3.</b> Like it? <b>$<span class="price">9</span></b> to go live. Then <b>$<span class="price">9</span>/month</b> for hosting and reasonable edits.</li>
 </ol>
@@ -46,6 +52,12 @@ button[disabled]{opacity:.6}
 <select name="kind"><option value="website">A business website</option><option value="ai_helper">An AI helper / tool</option><option value="both">Both</option><option value="other">Something else</option></select></label>
 <label>Business name (optional)<input name="business" maxlength="80" autocomplete="organization"></label>
 <label>Describe it<textarea name="what" maxlength="600" required placeholder="What does your business do? What should the site or tool do?"></textarea></label>
+<div class="lbl">Photos (optional)
+<input id="pics" type="file" accept="image/*" multiple hidden>
+<button id="addpic" class="ghost" type="button">+ Add photos (logo, work, products)</button>
+<div id="thumbs"></div>
+<span class="hint">Up to 4 photos. Only add photos you own or have permission to use.</span></div>
+<label>Anything else we should know? (optional)<textarea name="extra" maxlength="1500" placeholder="Colors you like, sites you want to look like, hours, prices, services, anything."></textarea></label>
 <label>Links to your socials or current site (optional)<input name="links" maxlength="300" inputmode="url"></label>
 <label>Your name (optional)<input name="name" maxlength="80" autocomplete="name"></label>
 <label>Email<input name="email" type="email" maxlength="120" autocomplete="email"></label>
@@ -60,19 +72,67 @@ button[disabled]{opacity:.6}
 </main>
 <script>
 (function(){
+ var MAX=4,LIMIT=190000,photos=[];
  var f=document.getElementById('f'),msg=document.getElementById('msg'),go=document.getElementById('go');
+ var pics=document.getElementById('pics'),thumbs=document.getElementById('thumbs');
  function say(t,c){msg.textContent=t;msg.className=c||'';}
  fetch('/api/waitlist').then(function(r){return r.json();}).then(function(d){
   if(d&&d.price){[].forEach.call(document.querySelectorAll('.price'),function(e){e.textContent=d.price;});}
  }).catch(function(){});
+
+ function render(){
+  thumbs.innerHTML='';
+  photos.forEach(function(uri,i){
+   var w=document.createElement('div');w.className='th';
+   var im=document.createElement('img');im.src=uri;im.alt='Photo '+(i+1);
+   var x=document.createElement('button');x.type='button';x.textContent='×';x.setAttribute('aria-label','Remove photo '+(i+1));
+   x.onclick=function(){photos.splice(i,1);render();};
+   w.appendChild(im);w.appendChild(x);thumbs.appendChild(w);
+  });
+  document.getElementById('addpic').style.display=photos.length>=MAX?'none':'';
+ }
+ // Shrink a photo in the browser until its data URI fits the server limit.
+ function shrink(file){
+  return new Promise(function(resolve,reject){
+   var url=URL.createObjectURL(file),img=new Image();
+   img.onload=function(){
+    URL.revokeObjectURL(url);
+    var size=1000,q=.8;
+    for(var i=0;i<12;i++){
+     var s=Math.min(1,size/Math.max(img.naturalWidth,img.naturalHeight));
+     var c=document.createElement('canvas');
+     c.width=Math.max(1,Math.round(img.naturalWidth*s));c.height=Math.max(1,Math.round(img.naturalHeight*s));
+     c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+     var uri=c.toDataURL('image/jpeg',q);
+     if(uri.length<=LIMIT){resolve(uri);return;}
+     if(q>.5)q=Math.round((q-.1)*100)/100;else size=Math.round(size*.8);
+    }
+    reject(new Error('too big'));
+   };
+   img.onerror=function(){URL.revokeObjectURL(url);reject(new Error('unreadable'));};
+   img.src=url;
+  });
+ }
+ document.getElementById('addpic').onclick=function(){pics.click();};
+ pics.onchange=function(){
+  var files=[].slice.call(pics.files),room=MAX-photos.length;
+  pics.value='';
+  if(files.length>room)say('Only '+MAX+' photos fit. Added the first '+room+'.','err');else say('');
+  files.slice(0,room).reduce(function(p,file){
+   return p.then(function(){return shrink(file).then(function(u){photos.push(u);render();}).catch(function(){say('One photo could not be read. Try a JPEG or PNG.','err');});});
+  },Promise.resolve());
+ };
+ render();
+
  f.addEventListener('submit',function(e){
   e.preventDefault();
   var d=new FormData(f),body={};
   d.forEach(function(v,k){body[k]=v;});
   body.consent=f.elements.consent.checked;
-  go.disabled=true;say('Sending...');
+  body.photos=photos;
+  go.disabled=true;say(photos.length?'Sending (photos take a moment)...':'Sending...');
   fetch('/api/waitlist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
-  .then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j};});})
+  .then(function(r){return r.json().catch(function(){return {};}).then(function(j){return {ok:r.ok,j:j};});})
   .then(function(x){
    if(x.ok&&x.j.ok){f.style.display='none';document.getElementById('done').style.display='block';window.scrollTo(0,0);}
    else{say((x.j&&x.j.error)||'Something went wrong. Try again.','err');go.disabled=false;}
