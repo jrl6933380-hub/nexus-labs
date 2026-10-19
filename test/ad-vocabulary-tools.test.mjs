@@ -53,7 +53,7 @@ test('MCP schema rejects ids and fields outside the vocabulary', () => {
 test('describe output is built from the registry and is complete', () => {
   const d = describeAdVocabulary();
   assert.equal(d.vocabulary.vocabularyVersion, REGISTRY.vocabularyVersion);
-  assert.equal(d.vocabulary.sceneTypes.length, 9);
+  assert.equal(d.vocabulary.sceneTypes.length, 10);
   assert.ok(d.vocabulary.palettes.length >= 8);
   assert.equal(d.save_with, 'save_nexus_ad_v2');
   assert.ok(d.rules.some((r) => /Never invent statistics/.test(r)));
@@ -75,7 +75,7 @@ test('workspace service: describe is read-only; save_ad_v2 saves, reads back and
   const run = createWorkspaceService({ ads });
   assert.equal(WORKSPACE_WRITES.has('save_ad_v2'), true);
   assert.equal(WORKSPACE_WRITES.has('ad_vocabulary'), false);
-  assert.equal((await run('ad_vocabulary', {}, account)).vocabulary.sceneTypes.length, 9);
+  assert.equal((await run('ad_vocabulary', {}, account)).vocabulary.sceneTypes.length, 10);
   const saved = await run('save_ad_v2', { campaign_id: 'ad-pat', project: clone() }, account);
   assert.equal(saved.spec_version, 2);
   const read = await run('ad', { campaign_id: 'ad-pat' }, account);

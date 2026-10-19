@@ -2,7 +2,7 @@
 // Spec: docs/ad-vocabulary-v1.md. Pure ESM with no imports, shared by browser and server.
 // Additive: legacy 4-scene ads (no specVersion) never pass through this file's validator.
 
-export const VOCABULARY_VERSION = '1.0.0';
+export const VOCABULARY_VERSION = '1.1.0';
 export const SPEC_VERSION = 2;
 
 const deepFreeze = (o) => {
@@ -178,7 +178,43 @@ export function layerCost(L) {
 }
 export const graphicCost = (layers) => (Array.isArray(layers) ? layers : []).reduce((s, L) => s + layerCost(L), 0);
 
+export const WORLD3D_SHAPES = ['group', 'box', 'sphere', 'cylinder', 'cone', 'torus', 'plane'];
+export const WORLD3D_MATERIALS = ['plastic', 'metal', 'chrome', 'ceramic', 'rubber', 'stone', 'wood'];
+const worldId = () => ({...ref(false, '^[a-z0-9-]{1,24}$'), label:'a 3D object id (1-24 lowercase letters, digits or hyphens)'});
+const worldColor = () => ({ kind: 'color' });
+const worldKeys = {
+  kind: 'items', min: 1, max: 32,
+  fields: { t: num(0, 30, true), x: num(-50, 50), y: num(-50, 50), z: num(-50, 50),
+    rx: num(-720, 720), ry: num(-720, 720), rz: num(-720, 720),
+    sx: num(0.05, 8), sy: num(0.05, 8), sz: num(0.05, 8), opacity: num(0, 1), ease: en(KEY_EASINGS) },
+};
+
 export const SCENE_TYPES = [
+  entry('world3d', '3D world', {
+    purpose: 'True, data-only WebGL geometry, depth occlusion, perspective camera, roughness/metalness shading and a soft-edged directional shadow map. Units are metres, Y is up, rotations are degrees. Start with a ground plane at y=0; objects are centred, so a 1m-high box rests at y=0.5. Shapes have w/h/d dimensions (sphere is diameter; torus is outer diameter with thickness 0.05-0.45 of radius). Parents must appear before children; geometry dimensions do not stretch child positions. Material presets are starting points, not scanned real materials. Use hex or palette colours. Object keys and cameraPath use seconds into the scene, evaluated deterministically on every seek. cameraPath is an actual perspective camera with a look-at target, not a CSS zoom. The first directional light casts the shadow; ambient is a simple hemispheric fill. No uploaded models, texture maps, refraction or photorealistic-human claim in this first release. Existing graphic scenes remain 2D. Use edit_nexus_ad for world3d scene params; read/edit_nexus_layers and selection packs currently cover 2D graphic scenes only.',
+    params: {
+      objects: { kind: 'items', min: 1, max: 64, required: true, fields: {
+        id: { ...worldId(), required: true }, parent: worldId(), name: str(40),
+        shape: en(WORLD3D_SHAPES, true), x: num(-50, 50), y: num(-50, 50), z: num(-50, 50),
+        w: num(0.02, 30), h: num(0.02, 30), d: num(0.02, 30), thickness: num(0.05, 0.45), arc: num(15, 360),
+        rx: num(-720, 720), ry: num(-720, 720), rz: num(-720, 720),
+        sx: num(0.05, 8), sy: num(0.05, 8), sz: num(0.05, 8),
+        material: en(WORLD3D_MATERIALS), color: worldColor(), roughness: num(0.05, 1), metalness: num(0, 1),
+        emission: num(0, 3), opacity: num(0, 1), castShadow: { kind: 'boolean' }, keys: worldKeys,
+      } },
+      lights: { kind: 'items', min: 1, max: 4, fields: {
+        type: en(['directional', 'point'], true), x: num(-50, 50, true), y: num(-50, 50, true), z: num(-50, 50, true),
+        color: worldColor(), intensity: num(0, 8),
+      } },
+      cameraPath: { kind: 'items', min: 1, max: 16, fields: {
+        t: num(0, 30, true), x: num(-50, 50, true), y: num(-50, 50, true), z: num(-50, 50, true),
+        lookX: num(-50, 50), lookY: num(-50, 50), lookZ: num(-50, 50), fov: num(15, 90), ease: en(KEY_EASINGS),
+      } },
+      ambient: num(0, 1), exposure: num(0.25, 3), shadowSpan: num(2, 40),
+      caption: str(60),
+    },
+    check: 'world3d',
+  }),
   entry('hook_text', 'Hook text', {
     purpose: 'Opening line',
     priority: 1,
@@ -415,6 +451,11 @@ function checkKeys(obj, allowed, path, errors) {
 
 function checkField(spec, v, path, errors) {
   switch (spec.kind) {
+    case 'color':
+      if (typeof v !== 'string' || (!HEX.test(v) && !['accent', 'bg', 'text', 'muted', 'white', 'black'].includes(v))) {
+        errors.push(`${path}: must be #rrggbb or a palette role (accent, bg, text, muted, white, black)`); return;
+      }
+      return v;
     case 'string': {
       if (typeof v !== 'string') return errors.push(`${path}: must be a string`);
       const t = v.trim();
@@ -424,7 +465,7 @@ function checkField(spec, v, path, errors) {
       return t;
     }
     case 'ref': {
-      if (typeof v !== 'string' || !new RegExp(spec.pattern).test(v)) return errors.push(`${path}: must be an image id from list_nexus_images`);
+      if (typeof v !== 'string' || !new RegExp(spec.pattern).test(v)) return errors.push(`${path}: must be ${spec.label || 'an image id from list_nexus_images'}`);
       return v;
     }
     case 'enum':
@@ -459,6 +500,35 @@ function checkField(spec, v, path, errors) {
 
 // Cross-field checks that a per-field spec cannot express. Keyed by a scene type's `check` name.
 const SCENE_CHECKS = {
+  world3d(params, path, errors) {
+    const seen = new Set();
+    const timeKeys = (keys, label) => {
+      let last = -1;
+      for (const [i, k] of (keys || []).entries()) {
+        if (k.t <= last) errors.push(`${label}[${i}].t: times must be strictly increasing`);
+        last = k.t;
+      }
+    };
+    for (const [i, o] of params.objects.entries()) {
+      const p = `${path}.objects[${i}]`;
+      if (seen.has(o.id)) errors.push(`${p}.id: duplicate "${o.id}"`);
+      if (o.parent && !seen.has(o.parent)) errors.push(`${p}.parent: must name an earlier object`);
+      if (o.arc !== undefined && o.shape !== 'torus') errors.push(`${p}.arc: only torus supports a partial arc`);
+      seen.add(o.id); timeKeys(o.keys, `${p}.keys`);
+    }
+    timeKeys(params.cameraPath, `${path}.cameraPath`);
+    let previous = {x:3,y:2,z:5,lookX:0,lookY:0.7,lookZ:0};
+    for (const [i, c] of (params.cameraPath || []).entries()) {
+      const next = {...previous,...c}, delta = q => [q.x-q.lookX,q.y-q.lookY,q.z-q.lookZ];
+      const start=delta(previous),end=delta(next),v=end.map((n,j)=>n-start[j]);
+      const len=v.reduce((n,d)=>n+d*d,0),u=c.t===0?1:Math.max(0,Math.min(1,-start.reduce((n,d,j)=>n+d*v[j],0)/(len||1)));
+      if (Math.hypot(...start.map((n,j)=>n+v[j]*u)) < 0.05) errors.push(`${path}.cameraPath[${i}]: camera must not touch or pass through its look-at target`);
+      previous=next;
+    }
+    for (const [i, l] of (params.lights || []).entries()) {
+      if (l.type === 'directional' && Math.hypot(l.x, l.y, l.z) < 0.05) errors.push(`${path}.lights[${i}]: directional light needs a nonzero direction`);
+    }
+  },
   graphic(params, path, errors) {
     const layers = Array.isArray(params.layers) ? params.layers : [];
     const seen = new Set();

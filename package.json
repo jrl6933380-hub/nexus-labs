@@ -7,6 +7,7 @@
     "dev": "vite public",
     "test": "node --test",
     "test:ad-compositing": "node scripts/verify-ad-compositing.mjs",
+    "test:ad-world3d": "node scripts/verify-ad-world3d.mjs",
     "test:deck": "node --test test/workspace-views-delete.test.mjs",
     "test:a11y": "playwright test",
     "test:nex-trials": "node scripts/run-nex-trials.mjs",
