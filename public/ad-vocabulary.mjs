@@ -148,6 +148,8 @@ export const KEY_EASINGS = ['linear', 'smooth', 'snappy', 'bounce'];
 export const LAYER_REVEALS = ['none', 'chars', 'words'];
 export const LAYER_BLENDS = ['normal', 'screen', 'multiply', 'overlay', 'lighten', 'darken', 'color-dodge', 'soft-light', 'hard-light', 'difference', 'exclusion'];
 export const IMAGE_FITS = ['cover', 'contain'];
+export const KEY_MODES = ['green', 'blue', 'custom'];
+export const KEY_VIEWS = ['final', 'original', 'foreground', 'matte'];
 export const LAYER_REACTS = ['beat', 'low', 'mid', 'high', 'level'];
 // Audio envelopes: one 0-100 loudness number per sample, `audioRate` samples per second, up to 30s at 60/s.
 export const AUDIO_MAX_SAMPLES = 1800;
@@ -166,7 +168,7 @@ export function layerCost(L) {
   if (L.clip || L.mask || L.isolate || (L.blend && L.blend !== 'normal')) c += 3;
   if (L.shape === 'path') c += 2;
   if (L.shape === 'video') c += 30;
-  if (L.shape === 'image' || L.shape === 'video') c += L.key ? 20 : 0;
+  if (L.key) c += L.shape === 'video' ? 150 : 20; // a keyed still is processed once; keyed footage is processed every frame (about 100 ms at 1024px)
   if (Array.isArray(L.keys) && L.keys.length) c += 1;
   return c * n;
 }
@@ -269,6 +271,14 @@ export const SCENE_TYPES = [
           toffset: num(0, 600),
           tloop: num(0.1, 600),
           isolate: { kind: 'boolean' },
+          key: en(KEY_MODES),
+          keyColor: str(7),
+          keyTol: num(0, 100),
+          keySoft: num(0, 100),
+          keyFeather: num(0, 20, false, true),
+          keyGrow: num(-10, 10, false, true),
+          keySpill: num(0, 100),
+          keyView: en(KEY_VIEWS),
           clip: en(LAYER_CLIPS),
           mask: en(LAYER_MASKS),
           fill: en(['color', 'none']),
@@ -441,6 +451,9 @@ const SCENE_CHECKS = {
       if (!L || typeof L !== 'object') return;
       const p = `${path}.layers[${i}]`;
       if (L.shape === 'line' && (L.x2 === undefined || L.y2 === undefined)) errors.push(`${p}: a line needs x2 and y2`);
+      if (L.key !== undefined && L.shape !== 'image' && L.shape !== 'video') errors.push(`${p}.key: only image and video layers can be keyed (this is a ${L.shape})`);
+      if (L.key === 'custom' && !/^#[0-9a-fA-F]{6}$/.test(String(L.keyColor || ''))) errors.push(`${p}.keyColor: a custom key needs a hex colour like #00ff00`);
+      if (L.key === undefined && ['keyColor', 'keyTol', 'keySoft', 'keyFeather', 'keyGrow', 'keySpill', 'keyView'].some((f) => L[f] !== undefined)) errors.push(`${p}: key settings need key: green, blue or custom`);
       if (L.id !== undefined) {
         if (seen.has(L.id)) errors.push(`${p}.id: duplicate layer id "${L.id}"`);
         seen.add(L.id);
