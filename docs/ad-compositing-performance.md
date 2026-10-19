@@ -3,13 +3,22 @@
 Stage 1 of the compositing workspace. Measured in headless Chromium with software rendering, so a real GPU browser should do better.
 
 ## Limits (no silent dropping)
-- Layers per graphic scene: 512 (was 48). Expanded shapes (count/emit): 2000 (was 200).
+- Layers per graphic scene: 2048 (was 48). Expanded shapes (count/emit): 10000 (was 200).
+- Saved ad size: 400 KB (was 180 KB), which a 2048-layer scene needs.
 - Anything over a limit is a validation error that names the scene and layer count. Nothing is truncated quietly.
 
-## Cost budget
-Each layer has a cost; the scene total must stay under 2500 (warning at 1200).
+Measured at the new ceiling (headless Chromium, software rendering, plain shapes with some keyframes):
+| Scene | Expanded shapes | ms/frame |
+|---|---|---|
+| 2048 layers | 2048 | ~40 |
+| 2048 layers, 4 copies each | 8192 | ~58 |
+| 416 layers, 24 copies each | 9984 | ~110 |
+Effects (glow/blur/shadow) are far more expensive than shape count; see below.
+
+## Cost estimate (advisory)
+Each layer has an estimated cost. It never blocks an ad: the only hard limits are the layer and shape caps above. `listLayers` reports the total and flags it above 1200 so an agent can see where a heavy scene spends its time.
 Plain shape 1; glow/blur/shadow/rGlow +12; clip/mask/isolate/blend +3; path +2; video +30; keyed image +20; keyed video +150; multiplied by count or emit.
-Over budget the validator lists the costliest layers and says to put the effect on a group or split the scene.
+Heavy scenes render more slowly; putting an effect on a group instead of every child is the main fix.
 
 ## Measured per-frame cost
 | Scene | Layers | ms/frame |
