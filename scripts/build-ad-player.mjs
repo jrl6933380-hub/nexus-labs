@@ -10,8 +10,13 @@ export const PLAYER_PATH = 'public/ad-designs/vocabulary-player.html';
 const root = new URL('../', import.meta.url);
 const VOCAB_LINE = /^const VOCAB=.*;$/m;
 const KEY_BLOCK = /\/\*KEY-BEGIN\*\/[\s\S]*?\/\*KEY-END\*\//;
+const SEL_BLOCK = /\/\*SEL-BEGIN\*\/[\s\S]*?\/\*SEL-END\*\//;
 
 // The keyer is written once (public/ad-key.mjs) and embedded here, so the player and the tests run the same code.
+export function selBlock() {
+  const src = readFileSync(new URL('public/ad-select.mjs', root), 'utf8').replace(/^export /gm, '').replace(/^\/\/.*$/gm, '').replace(/\n{2,}/g, '\n').trim();
+  return `/*SEL-BEGIN*/${src}/*SEL-END*/`;
+}
 export function keyBlock() {
   const src = readFileSync(new URL('public/ad-key.mjs', root), 'utf8').replace(/^export /gm, '').replace(/^\/\/.*$/gm, '').replace(/\n{2,}/g, '\n').trim();
   return `/*KEY-BEGIN*/${src}/*KEY-END*/`;
@@ -32,7 +37,8 @@ export function vocabLine() {
 export function buildAdPlayer(current = readFileSync(new URL(PLAYER_PATH, root), 'utf8')) {
   if (!VOCAB_LINE.test(current)) throw new Error('player is missing its "const VOCAB=...;" line');
   if (!KEY_BLOCK.test(current)) throw new Error('player is missing its KEY block');
-  return current.replace(VOCAB_LINE, () => vocabLine()).replace(KEY_BLOCK, () => keyBlock());
+  if (!SEL_BLOCK.test(current)) throw new Error('player is missing its SEL block');
+  return current.replace(VOCAB_LINE, () => vocabLine()).replace(KEY_BLOCK, () => keyBlock()).replace(SEL_BLOCK, () => selBlock());
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
