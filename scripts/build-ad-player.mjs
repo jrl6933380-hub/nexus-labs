@@ -9,6 +9,13 @@ import { REGISTRY } from '../public/ad-vocabulary.mjs';
 export const PLAYER_PATH = 'public/ad-designs/vocabulary-player.html';
 const root = new URL('../', import.meta.url);
 const VOCAB_LINE = /^const VOCAB=.*;$/m;
+const KEY_BLOCK = /\/\*KEY-BEGIN\*\/[\s\S]*?\/\*KEY-END\*\//;
+
+// The keyer is written once (public/ad-key.mjs) and embedded here, so the player and the tests run the same code.
+export function keyBlock() {
+  const src = readFileSync(new URL('public/ad-key.mjs', root), 'utf8').replace(/^export /gm, '').replace(/^\/\/.*$/gm, '').replace(/\n{2,}/g, '\n').trim();
+  return `/*KEY-BEGIN*/${src}/*KEY-END*/`;
+}
 
 export function vocabLine() {
   const vocab = {
@@ -24,7 +31,8 @@ export function vocabLine() {
 
 export function buildAdPlayer(current = readFileSync(new URL(PLAYER_PATH, root), 'utf8')) {
   if (!VOCAB_LINE.test(current)) throw new Error('player is missing its "const VOCAB=...;" line');
-  return current.replace(VOCAB_LINE, () => vocabLine());
+  if (!KEY_BLOCK.test(current)) throw new Error('player is missing its KEY block');
+  return current.replace(VOCAB_LINE, () => vocabLine()).replace(KEY_BLOCK, () => keyBlock());
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
