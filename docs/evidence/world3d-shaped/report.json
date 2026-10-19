@@ -1,0 +1,106 @@
+{
+  "at": "2026-10-19T08:26:58.422Z",
+  "browser": "153.0.8010.0",
+  "viewport": "800x450",
+  "checks": [
+    {
+      "name": "bottle preset produces visible 3D geometry",
+      "pass": true,
+      "objects": 5
+    },
+    {
+      "name": "device preset produces visible 3D geometry",
+      "pass": true,
+      "objects": 6
+    },
+    {
+      "name": "headphones preset produces visible 3D geometry",
+      "pass": true,
+      "objects": 7
+    },
+    {
+      "name": "sculpture preset produces visible 3D geometry",
+      "pass": true,
+      "objects": 5
+    },
+    {
+      "name": "continuous bottle profile and physical device bevel change actual rendered pixels",
+      "pass": true,
+      "changedPixels": {
+        "bottle": 5532,
+        "device": 5905
+      }
+    },
+    {
+      "name": "distinct lathe profiles do not share the wrong cached mesh",
+      "pass": true,
+      "unchangedLeftPixels": 0,
+      "changedRightPixels": 12802
+    },
+    {
+      "name": "3D depth occlusion works independently of object draw order",
+      "pass": true,
+      "independentOfDrawOrder": true
+    },
+    {
+      "name": "directional light produces a floor shadow from actual geometry",
+      "pass": true,
+      "changedFloorPixels": 1844
+    },
+    {
+      "name": "roughness and metalness alter the rendered surface",
+      "pass": true,
+      "changedPixels": 21519
+    },
+    {
+      "name": "orbit camera changes projection and shuffled seeks reproduce exact frames",
+      "pass": true,
+      "comparisons": 8
+    },
+    {
+      "name": "leaving a 3D scene releases the WebGL context; return seeks remain stable",
+      "pass": true,
+      "contextsReleased": 8
+    },
+    {
+      "name": "transparent still preserves real alpha outside 3D objects",
+      "pass": true,
+      "channels": 4
+    },
+    {
+      "name": "preview, still exporter and sequence frame agree",
+      "pass": true,
+      "comparisons": 3,
+      "projectSha256": "79d8ec74e6261b48bac4087a1077193f3809ebadd986e2f989ad707b6f105288"
+    },
+    {
+      "name": "3D MP4 export encodes a playable 6-second H.264 file",
+      "pass": true,
+      "codec": "h264",
+      "seconds": 6
+    },
+    {
+      "name": "unavailable WebGL refuses frame capture with a clear error",
+      "pass": true,
+      "refused": true
+    }
+  ],
+  "pictures": [
+    "bottle.png",
+    "device.png",
+    "headphones.png",
+    "sculpture.png",
+    "shaped-bottle-after.png",
+    "shaped-bottle-before.png",
+    "shaped-device-after.png",
+    "shaped-device-before.png",
+    "distinct-profiles.png",
+    "occlusion.png",
+    "shadow-on.png",
+    "shadow-off.png",
+    "rubber.png",
+    "alpha.png",
+    "capture.png"
+  ],
+  "pass": true
+}

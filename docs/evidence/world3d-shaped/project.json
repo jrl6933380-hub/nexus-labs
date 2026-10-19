@@ -1,0 +1,193 @@
+{
+  "specVersion": 2,
+  "name": "3D language test · 3D bottle concept",
+  "brand": "3D language test",
+  "initial": "3",
+  "mood": "luxury",
+  "palette": "midnight-gold",
+  "platform": {
+    "format": "landscape",
+    "lengthSec": 6
+  },
+  "concept": true,
+  "scenes": [
+    {
+      "id": "studio-3d",
+      "type": "world3d",
+      "duration": 4,
+      "params": {
+        "objects": [
+          {
+            "id": "floor",
+            "name": "Studio floor",
+            "shape": "plane",
+            "w": 12,
+            "d": 12,
+            "material": "rubber",
+            "color": "#3c4450",
+            "castShadow": false
+          },
+          {
+            "id": "product",
+            "name": "Concept assembly",
+            "shape": "group",
+            "y": 0
+          },
+          {
+            "id": "body",
+            "parent": "product",
+            "name": "Continuous bottle body",
+            "shape": "lathe",
+            "y": 0.8,
+            "w": 0.7,
+            "h": 1.6,
+            "d": 0.7,
+            "profile": [
+              {
+                "r": 0.43,
+                "y": -0.5
+              },
+              {
+                "r": 0.49,
+                "y": -0.48
+              },
+              {
+                "r": 0.5,
+                "y": -0.43
+              },
+              {
+                "r": 0.5,
+                "y": 0.16
+              },
+              {
+                "r": 0.48,
+                "y": 0.23
+              },
+              {
+                "r": 0.37,
+                "y": 0.3
+              },
+              {
+                "r": 0.21,
+                "y": 0.36
+              },
+              {
+                "r": 0.19,
+                "y": 0.4
+              },
+              {
+                "r": 0.19,
+                "y": 0.5
+              }
+            ],
+            "material": "metal",
+            "color": "#49a7c9"
+          },
+          {
+            "id": "cap",
+            "parent": "product",
+            "shape": "lathe",
+            "y": 1.61,
+            "w": 0.34,
+            "h": 0.16,
+            "d": 0.34,
+            "profile": [
+              {
+                "r": 0.43,
+                "y": -0.5
+              },
+              {
+                "r": 0.5,
+                "y": -0.38
+              },
+              {
+                "r": 0.5,
+                "y": 0.32
+              },
+              {
+                "r": 0.44,
+                "y": 0.5
+              }
+            ],
+            "material": "chrome",
+            "color": "#b8c1cd"
+          },
+          {
+            "id": "band",
+            "parent": "product",
+            "shape": "cylinder",
+            "y": 0.63,
+            "w": 0.711,
+            "h": 0.32,
+            "d": 0.711,
+            "material": "rubber",
+            "color": "#24323a"
+          }
+        ],
+        "lights": [
+          {
+            "type": "directional",
+            "x": 3,
+            "y": 6,
+            "z": 4,
+            "color": "#ffffff",
+            "intensity": 3.8
+          },
+          {
+            "type": "directional",
+            "x": -4,
+            "y": 2,
+            "z": -3,
+            "color": "#8dbcf0",
+            "intensity": 2
+          },
+          {
+            "type": "point",
+            "x": 1,
+            "y": 2,
+            "z": -2,
+            "color": "#dbe8f5",
+            "intensity": 3
+          }
+        ],
+        "cameraPath": [
+          {
+            "t": 0,
+            "x": 3,
+            "y": 1.8,
+            "z": 4.2,
+            "lookY": 0.8,
+            "fov": 34
+          },
+          {
+            "t": 2,
+            "x": -0.8,
+            "y": 1.5,
+            "z": 4.5,
+            "ease": "smooth"
+          },
+          {
+            "t": 4,
+            "x": -3.6,
+            "y": 1.8,
+            "z": 3.2,
+            "ease": "smooth"
+          }
+        ],
+        "ambient": 0.35,
+        "exposure": 1.1
+      },
+      "background": "gradient",
+      "transitionOut": "cut"
+    },
+    {
+      "id": "close",
+      "type": "end_card",
+      "duration": 2,
+      "params": {
+        "cta": "Explore the concept",
+        "tagline": "3D language test"
+      }
+    }
+  ]
+}
