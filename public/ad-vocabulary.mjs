@@ -2,7 +2,7 @@
 // Spec: docs/ad-vocabulary-v1.md. Pure ESM with no imports, shared by browser and server.
 // Additive: legacy 4-scene ads (no specVersion) never pass through this file's validator.
 
-export const VOCABULARY_VERSION = '1.2.0';
+export const VOCABULARY_VERSION = '1.3.0';
 export const SPEC_VERSION = 2;
 
 const deepFreeze = (o) => {
@@ -191,7 +191,7 @@ const worldKeys = {
 
 export const SCENE_TYPES = [
   entry('world3d', '3D world', {
-    purpose: 'True, data-only WebGL geometry, depth occlusion, perspective camera, roughness/metalness shading and a soft-edged directional shadow map. Units are metres, Y is up, rotations are degrees. Start with a ground plane at y=0; objects are centred, so a 1m-high box rests at y=0.5. Shapes have w/h/d dimensions (sphere is diameter; torus is outer diameter with thickness 0.05-0.45 of radius). Parents must appear before children; geometry dimensions do not stretch child positions. Material presets are starting points, not scanned real materials. Use hex or palette colours. Object keys and cameraPath use seconds into the scene, evaluated deterministically on every seek. cameraPath is an actual perspective camera with a look-at target, not a CSS zoom. The first directional light casts the shadow; ambient is a simple hemispheric fill. No uploaded models, texture maps, refraction or photorealistic-human claim in this first release. Existing graphic scenes remain 2D. Use edit_nexus_ad for world3d scene params; read/edit_nexus_layers and selection packs currently cover 2D graphic scenes only.',
+    purpose: 'True, data-only WebGL geometry, depth occlusion, perspective camera, roughness/metalness shading and a soft-edged directional shadow map. Units are metres, Y is up, rotations are degrees. Start with a ground plane at y=0; objects are centred, so a 1m-high box rests at y=0.5. Shapes have w/h/d dimensions (sphere is diameter; torus is outer diameter with thickness 0.05-0.45 of radius). Parents must appear before children; geometry dimensions do not stretch child positions. Material presets are starting points, not scanned real materials. Use hex or palette colours. Object keys and cameraPath use seconds into the scene, evaluated deterministically on every seek. cameraPath is an actual perspective camera with a look-at target, not a CSS zoom. The first directional light casts the shadow; ambient is a simple hemispheric fill. Library color/roughness maps are supported; no uploaded models, refraction or photorealistic-human claim. Existing graphic scenes remain 2D. Use edit_nexus_ad for world3d scene params; read/edit_nexus_layers and selection packs currently cover 2D graphic scenes only.',
     params: {
       objects: { kind: 'items', min: 1, max: 64, required: true, fields: {
         id: { ...worldId(), required: true }, parent: worldId(), name: str(40),
@@ -199,6 +199,8 @@ export const SCENE_TYPES = [
         w: num(0.02, 30), h: num(0.02, 30), d: num(0.02, 30), thickness: num(0.05, 0.45), arc: num(15, 360),
         radius: num(0, 5), profile: { kind: 'items', min: 2, max: 32, fields: { r: num(0, 0.5, true), y: num(-0.5, 0.5, true) } },
         profileCurve: en(['smooth', 'linear']), capped: { kind: 'boolean' },
+        colorMap: ref(), roughnessMap: ref(), mapProjection: en(['box', 'cylindrical', 'spherical', 'planar']),
+        mapScale: num(0.125, 16), mapOffsetX: num(-16, 16), mapOffsetY: num(-16, 16),
         rx: num(-720, 720), ry: num(-720, 720), rz: num(-720, 720),
         sx: num(0.05, 8), sy: num(0.05, 8), sz: num(0.05, 8),
         material: en(WORLD3D_MATERIALS), color: worldColor(), roughness: num(0.05, 1), metalness: num(0, 1),
@@ -504,6 +506,7 @@ function checkField(spec, v, path, errors) {
 const SCENE_CHECKS = {
   world3d(params, path, errors) {
     const seen = new Set();
+    const maps = new Set();
     const timeKeys = (keys, label) => {
       let last = -1;
       for (const [i, k] of (keys || []).entries()) {
@@ -516,6 +519,9 @@ const SCENE_CHECKS = {
       if (seen.has(o.id)) errors.push(`${p}.id: duplicate "${o.id}"`);
       if (o.parent && !seen.has(o.parent)) errors.push(`${p}.parent: must name an earlier object`);
       if (o.arc !== undefined && o.shape !== 'torus') errors.push(`${p}.arc: only torus supports a partial arc`);
+      for (const field of ['colorMap', 'roughnessMap']) if (o[field]) maps.add(o[field]);
+      if (o.shape === 'group' && (o.colorMap || o.roughnessMap)) errors.push(`${p}: groups cannot carry surface maps`);
+      if (!o.colorMap && !o.roughnessMap && ['mapProjection','mapScale','mapOffsetX','mapOffsetY'].some(k => o[k] !== undefined)) errors.push(`${p}: map settings require colorMap or roughnessMap`);
       if (o.radius !== undefined && o.shape !== 'rounded_box') errors.push(`${p}.radius: only rounded_box supports radius`);
       if (o.shape === 'rounded_box' && o.radius > Math.min(o.w ?? 1, o.h ?? 1, o.d ?? 1) / 2) errors.push(`${p}.radius: must not exceed half the smallest dimension`);
       if (o.shape !== 'lathe' && ['profile', 'profileCurve', 'capped'].some(k => o[k] !== undefined)) errors.push(`${p}: profile, profileCurve and capped require lathe`);
@@ -528,6 +534,7 @@ const SCENE_CHECKS = {
       }
       seen.add(o.id); timeKeys(o.keys, `${p}.keys`);
     }
+    if (maps.size > 8) errors.push(`${path}.objects: at most 8 distinct surface map images per scene`);
     timeKeys(params.cameraPath, `${path}.cameraPath`);
     let previous = {x:3,y:2,z:5,lookX:0,lookY:0.7,lookZ:0};
     for (const [i, c] of (params.cameraPath || []).entries()) {

@@ -1,4 +1,4 @@
-# Nexus visual language 1.2: shaped 3D objects
+# Nexus visual language 1.3: shaped objects and surface maps
 
 `world3d` adds actual geometry and a perspective camera to the existing vocabulary player. Existing `graphic` scenes and saved v2 ads keep their current rendering path. The first release is aimed at product concepts, props, abstract objects and studio shots. It is a foundation for realism, not a photorealistic image/video model.
 
@@ -29,6 +29,7 @@ This expands into editable objects, lights and camera keys, followed by a concep
 | Bottle, device, headphones, sculpture | `subject` constructor presets; bottle uses a continuous profile, device uses bevels |
 | Rounded device, softened housing | `rounded_box` with `radius` in metres |
 | Turned bottle, shaped prop | `lathe` with an editable radius/height `profile` |
+| Surface artwork, grain or roughness variation | Library image IDs in `colorMap` / `roughnessMap` |
 | Plastic, metal, chrome, ceramic, rubber, stone, wood | Material preset; objects can override `roughness` and `metalness` |
 | Studio, warm, dramatic | `lighting` constructor presets, or explicit directional/point lights |
 | Orbit, dolly, locked camera | `camera_move`, expanded to `cameraPath` |
@@ -64,6 +65,22 @@ Example prompt/brief pairs are in [ad-world3d-examples.json](ad-world3d-examples
 
 Existing saved primitive scenes keep their geometry. Newly constructed bottle/device concepts use the improved shapes. The language version is 1.2.0; project `specVersion` stays 2. The mesh cache includes dimensions, radius, profile, interpolation and cap settings so two different objects cannot accidentally reuse one mesh.
 
+## Surface maps (1.3)
+
+Use `list_nexus_images` / `save_nexus_image` for uploaded or generated image assets. Reference an owned ID in `colorMap` or `roughnessMap` on a drawing object; groups cannot carry maps. Save/render preflight resolves these IDs in the connected account, and the same collector supplies board previews and every exporter. No URL is accepted as a map. Video data is rejected by the renderer; maps require a PNG, JPEG or WebP image.
+
+```json
+{"id":"body","shape":"cylinder","y":0.6,"w":0.7,"h":1.2,"d":0.7,"material":"plastic","color":"#ffffff","colorMap":"img-0123456789","roughnessMap":"img-abcdef0123","roughness":1,"mapProjection":"cylindrical","mapScale":1,"mapOffsetX":0.25}
+```
+
+`colorMap` multiplies object colour in linear light after decoding sRGB, so use white for untinted artwork. Existing procedural wood/stone modulation still applies for those material presets. `roughnessMap` uses the red channel as linear data and multiplies the object's roughness (set `roughness:1` for the map's full range). Effective roughness is clamped to 0.05–1. Texture alpha is ignored: object `opacity` remains the alpha control, and mapped objects cast their full geometry shadow. This is surface detail, not cutout decals, transparency or displacement.
+
+`mapProjection` is `box` (default, dominant local-normal face), `cylindrical` (Y axis), `spherical`, or `planar` (XY). These use normalized local object coordinates, so detail follows transforms and seeks. They do not import UVs; face boundaries/poles can show seams or distortion, especially on rounded/torus shapes. `mapScale` (0.125–16) repeats both UV axes; `mapOffsetX/Y` (-16–16) shift them. Wrapping is performed in the shader, with linear filtering and clamp-to-edge textures so non-power-of-two images work in WebGL1. There are no mipmaps or anisotropic filtering; distant/repeated detail may alias.
+
+Up to eight distinct map images per scene. Each is proportionally resized to at most 1024 pixels on its longest side, bounding RGBA texture storage to 32MiB across eight maps (plus the renderer's existing buffers). Images above 16 megapixels are refused after decode; this is not a pre-decode decompression-bomb guard. Data stays in the existing image library; project data stores IDs only. Asset dimensions and import limits remain the image library's existing upload contract.
+
+Captures wait for decode, upload and a redraw of the requested frame. Decode errors, missing/invalid data, oversized decoded images and eight-second decode timeouts are render errors rather than successful white-placeholder exports. Preview redraws on readiness even when paused. Leaving a scene cancels pending loads and deletes its GPU textures. The public data language is 1.3.0; project `specVersion` stays 2. No normal maps, imported meshes, environment reflections, or photorealism guarantee are added.
+
 ## Rendering and budgets
 
 - WebGL 1, embedded locally in the sandbox player. No external script loading, network requests or new package dependency. The complete player stays under the existing 100,000-character creative-design cap.
@@ -87,7 +104,7 @@ The explicit browser suite tests constructor examples, shaped versus primitive r
 ## Next increments
 
 1. More shape families: rounded extrusions, interior walls, horizontal lips and spline paths. Rounded boxes and monotone lathe profiles are now available.
-2. Real assets: owned GLB/glTF meshes and texture maps, with upload validation, asset provenance, memory and polygon budgets.
+2. Real assets: owned GLB/glTF meshes, imported UVs and normal maps, with upload validation, asset provenance, memory and polygon budgets. Library colour/roughness maps are now supported.
 3. Lighting: image-based environments, reflections, improved area lights and shadow quality.
 4. Motion: rigged characters, IK/foot planting, contact-aware movement and deterministic physics.
 5. Realism evaluation: paired visual references and rendered examples across products, interiors, outdoor scenes and characters. Add accepted examples to fixtures and test capabilities independently.
