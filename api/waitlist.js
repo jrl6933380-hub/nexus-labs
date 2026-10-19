@@ -1,0 +1,56 @@
+// GET  /api/waitlist                 -> { ok, price } public config for the page
+// GET  /api/waitlist?list=1          -> operator only: entries, oldest first
+// GET  /api/waitlist?photo=ID&n=0    -> operator only: one attached photo (image)
+// POST /api/waitlist                 -> submit a request (optional photos[] data URIs)
+import { getRequestUser, isOperatorUser } from '../lib/roomAuth.js';
+import { allowWaitlist, validateWaitlistEntry, waitlistPrice, waitlistStore } from '../lib/waitlist.js';
+
+const usernameOf = (user) => (typeof user === 'string' ? user : user?.username || user?.name || '');
+
+export async function handleWaitlist(req, res, deps = {}) {
+  const store = deps.store || waitlistStore;
+  const allow = deps.allow || allowWaitlist;
+  const getUser = deps.getUser || getRequestUser;
+  res.setHeader('Cache-Control', 'private, no-store');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+
+  if (req.method === 'GET') {
+    if (req.query?.list || req.query?.photo) {
+      const username = usernameOf(await getUser(req).catch(() => null));
+      if (!username || !isOperatorUser(username)) return res.status(403).json({ ok: false, error: 'Owner only.' });
+      try {
+        if (req.query.photo) {
+          const uri = await store.photo(String(req.query.photo), Number(req.query.n || 0));
+          const m = uri && /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(uri);
+          if (!m) return res.status(404).json({ ok: false, error: 'No such photo.' });
+          res.setHeader('Content-Type', m[1]);
+          res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+          return res.status(200).send(Buffer.from(m[2], 'base64'));
+        }
+        return res.status(200).json({ ok: true, total: await store.count(), entries: await store.list(500) });
+      } catch (error) {
+        return res.status(503).json({ ok: false, error: 'Storage unavailable.' });
+      }
+    }
+    return res.status(200).json({ ok: true, price: waitlistPrice() });
+  }
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Use GET or POST.' });
+
+  const checked = validateWaitlistEntry(req.body);
+  if (!checked.ok) return res.status(400).json({ ok: false, error: checked.error });
+  if (checked.honeypot) return res.status(200).json({ ok: true });
+
+  try {
+    if (!(await allow(req))) {
+      res.setHeader('Retry-After', '3600');
+      return res.status(429).json({ ok: false, error: 'Too many requests from this network. Try again in an hour.' });
+    }
+    const result = await store.add(checked.entry, checked.photos);
+    return res.status(200).json({ ok: true, duplicate: result.duplicate === true });
+  } catch (error) {
+    console.error('waitlist submit failed:', error.message);
+    return res.status(503).json({ ok: false, error: 'Could not save that right now. Try again in a minute.' });
+  }
+}
+
+export default function handler(req, res) { return handleWaitlist(req, res); }

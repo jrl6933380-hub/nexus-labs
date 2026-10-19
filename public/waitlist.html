@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Talk to Nex | Get a website or AI helper built</title>
+<meta name="description" content="Tell Nex what you want built. Join the waitlist, see a preview, and only pay if you like it.">
+<style>
+:root{--ink:#06090b;--panel:#101a19;--line:#23342f;--text:#eefaf4;--muted:#8fa8a0;--gold:#86f0b4;--bad:#ff8a8a;--ok:#86f0b4}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:radial-gradient(120% 80% at 50% 22%,#0e211d 0%,var(--ink) 62%);color:var(--text);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+#app{height:100dvh;display:flex;flex-direction:column;align-items:center;max-width:480px;margin:0 auto;padding:max(14px,env(safe-area-inset-top)) 16px 0}
+.top{width:100%;display:flex;justify-content:space-between;align-items:center;min-height:32px;font-size:13px;color:var(--muted)}
+.top button{background:none;border:0;color:var(--muted);font:inherit;padding:6px 8px;cursor:pointer;border-radius:8px}
+.top button[hidden]{visibility:hidden;display:block}
+.stage{flex:1 1 auto;min-height:0;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;overflow-y:auto;padding:6px 0}
+#orb{flex:none;width:min(80vw,300px);aspect-ratio:300/300;height:auto;display:block;pointer-events:none}
+/* nex message */
+.say{width:100%;min-height:84px;text-align:center;font-size:19px;line-height:1.4;padding:0 4px;text-wrap:balance}
+.say .caret{display:inline-block;width:2px;height:1em;background:var(--gold);margin-left:2px;vertical-align:-2px;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.err{color:var(--bad);font-size:14px;text-align:center;min-height:20px;margin-top:-4px}
+/* controls */
+.dock{width:100%;flex:none;padding:10px 0 max(16px,env(safe-area-inset-bottom));display:grid;gap:10px;min-height:150px;align-content:start}
+.dock.hide{visibility:hidden}
+.chips{display:grid;gap:10px}
+.chip,.send,.ghost{font:inherit;border-radius:14px;padding:14px;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--text);text-align:center}
+.chip:active,.ghost:active{transform:scale(.98)}
+.chip.primary,.send{background:var(--gold);color:#04210f;border-color:var(--gold);font-weight:700}
+.send[disabled]{opacity:.6}
+.ghost{background:transparent;color:var(--muted);border-style:dashed}
+.row{display:flex;gap:10px}
+.row>*{flex:1}
+.row .skip{flex:0 0 auto;padding:14px 18px}
+input.f,textarea.f{width:100%;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:14px;padding:14px;font:inherit}
+textarea.f{min-height:96px;max-height:30dvh;resize:none}
+input.f:focus,textarea.f:focus,button:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+.count{font-size:12px;color:var(--muted);text-align:right;margin-top:-4px}
+#thumbs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.th{position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;border:1px solid var(--line)}
+.th img{width:100%;height:100%;object-fit:cover;display:block}
+.th button{position:absolute;top:2px;right:2px;width:26px;height:26px;padding:0;border:0;border-radius:13px;background:rgba(0,0,0,.7);color:#fff;font-size:16px;line-height:1;cursor:pointer}
+.hp{position:absolute;left:-9999px;height:0;overflow:hidden}
+.fine{font-size:11.5px;color:var(--muted);text-align:center;margin:0;padding-top:2px}
+@media (max-height:700px){#orb{width:min(58vw,210px)}.say{font-size:17px;min-height:70px}}
+@media (prefers-reduced-motion:reduce){.say .caret{animation:none!important}}
+</style>
+</head>
+<body>
+<div id="app">
+ <div class="top"><button id="back" type="button" hidden>&larr; Back</button><span>Nex</span><span style="width:60px"></span></div>
+ <div class="stage" id="stage" aria-live="polite">
+  <canvas id="orb" aria-hidden="true"></canvas>
+  <div class="say" id="say"></div>
+  <div class="err" id="err" role="alert"></div>
+ </div>
+ <div class="dock hide" id="dock"></div>
+ <input class="hp" id="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+</div>
+<script>
+(function(){
+var MAX=4,LIMIT=190000,price=9;
+var app=document.getElementById('app'),sayEl=document.getElementById('say'),dock=document.getElementById('dock'),errEl=document.getElementById('err'),backBtn=document.getElementById('back');
+var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---------- Nex: a wispy green-white oracle drawn on a canvas ---------- */
+(function(){
+ var cv=document.getElementById('orb'),g=cv.getContext('2d');
+ var W=300,H=300,CX=150,CY=150,R=84,DPR=Math.min(2,window.devicePixelRatio||1);
+ cv.width=W*DPR;cv.height=H*DPR;
+ var i,j,parts=[],energy=0;
+ for(i=0;i<140;i++){var shell=Math.random()<.62;parts.push({u:Math.random()*2-1,a:Math.random()*6.283,r:shell?1:Math.cbrt(Math.random()),s:.5+Math.random()*1.3,p:Math.random()*6.283,sp:.6+Math.random()*.8});}
+ function rgba(c,a){return 'rgba('+c+','+Math.max(0,Math.min(1,a)).toFixed(3)+')';}
+ function frame(t){
+  var target=app.classList.contains('speaking')?1:0;energy+=(target-energy)*.07;
+  // gentle strobe: ~2 pulses a second, only about +/-12% brightness (kept low on purpose)
+  var sb=Math.sin(t*12.5),fl=1+.12*sb*(.65+.35*Math.sin(t*1.7));
+  g.setTransform(DPR,0,0,DPR,0,0);g.clearRect(0,0,W,H);
+  var bob=Math.sin(t*.9)*5;g.save();g.translate(0,bob);
+  g.globalCompositeOperation='lighter';
+  // halo
+  var hr=R*2.3,hg=g.createRadialGradient(CX,CY,R*.2,CX,CY,hr);
+  hg.addColorStop(0,rgba('120,255,190',(.20+.05*Math.sin(t*1.4)+energy*.14)*fl));hg.addColorStop(.5,rgba('60,200,150',.07));hg.addColorStop(1,rgba('0,0,0',0));
+  g.fillStyle=hg;g.fillRect(0,-40,W,H+80);
+  // glass body
+  var bg=g.createRadialGradient(CX-R*.25,CY-R*.3,R*.1,CX,CY,R);
+  bg.addColorStop(0,rgba('170,255,215',.05));bg.addColorStop(.75,rgba('120,240,190',.07));bg.addColorStop(1,rgba('190,255,230',.20));
+  g.fillStyle=bg;g.beginPath();g.arc(CX,CY,R,0,6.283);g.fill();
+  g.strokeStyle=rgba('200,255,230',.5);g.lineWidth=1.1;g.beginPath();g.arc(CX,CY,R,0,6.283);g.stroke();
+  // meridian lines turning like a globe so the rotation reads
+  g.lineWidth=.8;
+  for(j=0;j<4;j++){g.strokeStyle=rgba('170,255,210',.17);g.beginPath();g.ellipse(CX,CY,Math.abs(Math.cos(t*.55+j*Math.PI/4))*R+.5,R,0,0,6.283);g.stroke();}
+  g.strokeStyle=rgba('170,255,210',.12);g.beginPath();g.ellipse(CX,CY,R,R*.36,0,0,6.283);g.stroke();
+  // faint rainbow rim, like light through glass
+  var rg=g.createLinearGradient(CX-R,CY-R,CX+R,CY+R);rg.addColorStop(0,rgba('255,170,230',.30));rg.addColorStop(.5,rgba('255,255,255',0));rg.addColorStop(1,rgba('130,200,255',.28));
+  g.strokeStyle=rg;g.lineWidth=2.2;g.beginPath();g.arc(CX,CY,R-1.5,.2+t*.55,2.6+t*.55);g.stroke();g.beginPath();g.arc(CX,CY,R-1.5,3.4+t*.55,5.7+t*.55);g.stroke();
+  // crosshair + dotted rings (oracle instrument)
+  g.strokeStyle=rgba('170,255,210',.22);g.lineWidth=.8;
+  g.beginPath();g.moveTo(CX-R*1.12,CY);g.lineTo(CX+R*1.12,CY);g.moveTo(CX,CY-R*1.12);g.lineTo(CX,CY+R*1.12);g.stroke();
+  // two clean orbit rings, each with a small comet of light
+  for(j=0;j<2;j++){
+   var rrx=R*1.26,rry=R*.30;
+   g.save();g.translate(CX,CY);g.rotate(j?.36:-.36);
+   g.strokeStyle=rgba('190,255,225',j?.22:.32);g.lineWidth=.9;
+   if(j)g.setLineDash([1.5,5]);
+   g.beginPath();g.ellipse(0,0,rrx,rry,0,0,6.283);g.stroke();g.setLineDash([]);
+   var h0=t*(j?-.7:.6),pk=null,mm=26;
+   for(var kk=0;kk<=mm;kk++){
+    var aa=h0-kk*.05,qx=rrx*Math.cos(aa),qy=rry*Math.sin(aa),fk=1-kk/mm;
+    if(pk){g.strokeStyle=rgba('225,255,240',fk*.9);g.lineWidth=1.9*fk+.3;g.beginPath();g.moveTo(pk[0],pk[1]);g.lineTo(qx,qy);g.stroke();}
+    pk=[qx,qy];
+   }
+   g.fillStyle=rgba('255,255,255',.95);g.beginPath();g.arc(rrx*Math.cos(h0),rry*Math.sin(h0),2,0,6.283);g.fill();
+   g.restore();
+  }
+  // sparkle particles inside and on the glass
+  var rot=t*.7,cr=Math.cos(rot),sr=Math.sin(rot),tl=.38,ct=Math.cos(tl),st=Math.sin(tl);
+  for(i=0;i<parts.length;i++){
+   var p=parts[i],rho=p.r*R*(.94+.03*Math.sin(t*p.sp+p.p)),q=Math.sqrt(1-p.u*p.u);
+   var x=rho*q*Math.cos(p.a),z=rho*q*Math.sin(p.a),y=rho*p.u;
+   var x2=x*cr+z*sr,z2=-x*sr+z*cr,y2=y*ct-z2*st,z3=y*st+z2*ct;
+   var d=(z3/R+1)/2,tw=.55+.45*Math.sin(t*2.1*p.sp+p.p);
+   g.fillStyle=rgba(d>.5?'235,255,245':'140,255,195',(.12+d*.75)*tw);
+   g.beginPath();g.arc(CX+x2,CY+y2,p.s*(.5+d*.7),0,6.283);g.fill();
+  }
+  // core
+  var cr0=(15+energy*10+Math.sin(t*2.2)*2+Math.sin(t*11)*energy*3)*fl,cg=g.createRadialGradient(CX,CY,0,CX,CY,cr0*3.2);
+  cg.addColorStop(0,rgba('255,255,255',.95));cg.addColorStop(.18,rgba('190,255,220',.75));cg.addColorStop(.5,rgba('90,230,160',.25));cg.addColorStop(1,rgba('0,0,0',0));
+  g.fillStyle=cg;g.beginPath();g.arc(CX,CY,cr0*3.2,0,6.283);g.fill();
+  g.strokeStyle=rgba('230,255,240',.55+energy*.3);g.lineWidth=1;g.beginPath();
+  var ray=cr0*(2.6+Math.sin(t*3)*.3);g.moveTo(CX-ray,CY);g.lineTo(CX+ray,CY);g.moveTo(CX,CY-ray);g.lineTo(CX,CY+ray);g.stroke();
+  g.restore();
+ }
+ if(reduce){frame(2.2);}
+ else{(function loop(ms){frame(ms/1000);requestAnimationFrame(loop);})(0);}
+})();
+
+var ans={photos:[]},hist=[],cur=-1,token=0,busy=false;
+
+fetch('/api/waitlist').then(function(r){return r.json();}).then(function(d){if(d&&d.price)price=d.price;}).catch(function(){});
+
+var KIND={website:'A business website',ai_helper:'An AI helper or tool',both:'Both',other:'Something else'};
+var KIND_REPLY={website:'A website. Great, those are my favorite.',ai_helper:'An AI helper. Now we are talking.',both:'Both. Ambitious, I like it.',other:'Ooh, interesting. Tell me more.'};
+var firstName=function(){return (ans.name||'').split(' ')[0];};
+
+var STEPS=[
+ {id:'kind',type:'chips',say:function(){return "Hey, I'm Nex. Tell me what you want built and I'll get it lined up for a preview. Takes about a minute. What are we making?";},
+  opts:Object.keys(KIND).map(function(k){return {v:k,t:KIND[k]};}),
+  reply:function(v){return KIND_REPLY[v];}},
+ {id:'name',type:'text',skip:true,ph:'Your first name',say:function(){return "First things first, what should I call you?";},
+  reply:function(v){return v?('Nice to meet you, '+v.split(' ')[0]+'.'):'No worries, we can stay mysterious.';}},
+ {id:'business',type:'text',skip:true,ph:'Business name',say:function(){return "What's your business called?";},
+  reply:function(v){return v?(v+'. Love the name.'):'Totally fine, we can figure that out later.';}},
+ {id:'what',type:'area',max:600,min:10,ph:'What does your business do? What should it do for your customers?',say:function(){return "Tell me about it. What do you do, and what should your "+(ans.kind==='ai_helper'?'AI helper':ans.kind==='both'?'site and AI helper':'site')+" do for your customers?";},
+  reply:function(){return "Got it. That gives me a lot to work with.";}},
+ {id:'photos',type:'photos',say:function(){return "Got a logo, or photos of your work or products? Add up to 4. They help me make the preview feel like you.";},
+  reply:function(){return ans.photos.length?'Those look great.':'No problem, we can work without.';}},
+ {id:'extra',type:'area',skip:true,max:1500,ph:'Colors you like, sites you want to look like, hours, prices, services, anything.',say:function(){return "Anything else I should know? Colors, sites you like, hours, prices. Whatever's on your mind.";},
+  reply:function(v){return v?"Noted. Every detail helps.":"Okay, keeping it simple.";}},
+ {id:'links',type:'text',skip:true,ph:'Instagram, Facebook, current site...',say:function(){return "Do you have a link to your socials or a current site? I can use it to match your style.";},
+  reply:function(v){return v?"Perfect, I'll take a look.":"All good.";}},
+ {id:'contact',type:'contact',ph:'Email or phone number',say:function(){return "Last thing"+(firstName()?', '+firstName():'')+". How should we reach you when your preview is ready? Email or phone.";},
+  reply:function(){return "Thanks.";}},
+ {id:'consent',type:'chips',say:function(){return "Is it okay if we contact you about your preview? Nothing is charged until you've seen it and said yes.";},
+  opts:[{v:'yes',t:'Yes, send me my preview',primary:true}],
+  reply:function(){return "Sending it to the team now...";}}
+];
+
+function setDock(html){dock.innerHTML='';dock.classList.remove('hide');if(html)dock.appendChild(html);}
+function el(tag,cls,txt){var e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e;}
+function hideDock(){dock.classList.add('hide');}
+
+function speak(text,done){
+ var my=++token;errEl.textContent='';
+ hideDock();
+ if(reduce){sayEl.textContent=text;if(done)done();return;}
+ app.classList.add('speaking');sayEl.textContent='';
+ var caret=el('span','caret'),i=0;
+ var node=document.createTextNode('');sayEl.appendChild(node);sayEl.appendChild(caret);
+ (function tick(){
+  if(my!==token)return;
+  if(i>=text.length){app.classList.remove('speaking');caret.remove();if(done)done();return;}
+  i+=1;node.nodeValue=text.slice(0,i);
+  var ch=text[i-1];setTimeout(tick,/[.,?!]/.test(ch)?140:22);
+ })();
+}
+
+function show(i,lead){
+ cur=i;var s=STEPS[i];
+ backBtn.hidden=(hist.length===0);
+ speak((lead?lead+' ':'')+s.say(),function(){renderControls(s);});
+}
+function next(i,value,leadOverride){
+ var s=STEPS[i];hist.push(i);
+ var lead=leadOverride!=null?leadOverride:(s.reply?s.reply(value):'');
+ if(i+1<STEPS.length)show(i+1,lead);else finish();
+}
+function back(){
+ if(busy||!hist.length)return;
+ token++;app.classList.remove('speaking');
+ var i=hist.pop();
+ show(i,'');
+}
+backBtn.onclick=back;
+
+function renderControls(s){
+ var box=el('div','chips');
+ if(s.type==='chips'){
+  s.opts.forEach(function(o){var b=el('button','chip'+(o.primary?' primary':''),o.t);b.type='button';b.onclick=function(){ans[s.id]=o.v;if(s.id==='consent'){ans.consent=true;}next(cur,o.v);};box.appendChild(b);});
+  if(s.id==='consent'){var n=el('p','fine','Nex is a guided helper. A real person builds your preview.');box.appendChild(n);}
+  setDock(box);return;
+ }
+ if(s.type==='text'||s.type==='contact'){
+  var inp=el('input','f');inp.type='text';inp.placeholder=s.ph||'';inp.maxLength=s.id==='links'?300:120;
+  if(s.type==='contact'){inp.inputMode='email';inp.autocomplete='email';inp.setAttribute('aria-label','Email or phone');}
+  else if(s.id==='name'){inp.autocomplete='given-name';inp.maxLength=80;}
+  else if(s.id==='business'){inp.autocomplete='organization';inp.maxLength=80;}
+  else if(s.id==='links'){inp.inputMode='url';}
+  if(ans[s.id])inp.value=ans[s.id];
+  var row=el('div','row'),send=el('button','send','Send');send.type='button';
+  var go=function(){
+   var v=inp.value.trim();
+   if(s.type==='contact'){
+    if(!v){nexErr("I'll need an email or a phone number so we can reach you.");return;}
+    if(v.indexOf('@')>-1){ans.email=v;ans.phone='';}else{ans.phone=v;ans.email='';}
+   }
+   ans[s.id]=v;next(cur,v);
+  };
+  send.onclick=go;inp.onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();go();}};
+  row.appendChild(send);
+  if(s.skip){var sk=el('button','ghost skip','Skip');sk.type='button';sk.onclick=function(){ans[s.id]='';next(cur,'');};row.appendChild(sk);}
+  var wrap=el('div','chips');wrap.appendChild(inp);wrap.appendChild(row);setDock(wrap);
+  if(!/iPhone|iPad|Android/.test(navigator.userAgent))inp.focus();return;
+ }
+ if(s.type==='area'){
+  var ta=el('textarea','f');ta.placeholder=s.ph||'';ta.maxLength=s.max;if(ans[s.id])ta.value=ans[s.id];
+  var cnt=el('div','count',(ta.value.length)+' / '+s.max);ta.oninput=function(){cnt.textContent=ta.value.length+' / '+s.max;};
+  var row2=el('div','row'),send2=el('button','send','Send');send2.type='button';
+  send2.onclick=function(){
+   var v=ta.value.trim();
+   if(s.min&&v.length<s.min){nexErr("Give me a little more to work with. A sentence or two is perfect.");return;}
+   ans[s.id]=v;next(cur,v);
+  };
+  row2.appendChild(send2);
+  if(s.skip){var sk2=el('button','ghost skip','Skip');sk2.type='button';sk2.onclick=function(){ans[s.id]='';next(cur,'');};row2.appendChild(sk2);}
+  var wrap2=el('div','chips');wrap2.appendChild(ta);wrap2.appendChild(cnt);wrap2.appendChild(row2);setDock(wrap2);return;
+ }
+ if(s.type==='photos'){
+  var pics=el('input');pics.type='file';pics.accept='image/*';pics.multiple=true;pics.hidden=true;
+  var add=el('button','ghost','+ Add photos (logo, work, products)');add.type='button';
+  var th=el('div');th.id='thumbs';
+  var hint=el('p','fine','Up to 4. Only add photos you own or have permission to use.');
+  var row3=el('div','row'),cont=el('button','send',ans.photos.length?'Continue':'Skip for now');cont.type='button';
+  var draw=function(){
+   th.innerHTML='';
+   ans.photos.forEach(function(u,i){
+    var w=el('div','th'),im=el('img');im.src=u;im.alt='Photo '+(i+1);
+    var x=el('button',null,'×');x.type='button';x.setAttribute('aria-label','Remove photo '+(i+1));x.onclick=function(){ans.photos.splice(i,1);draw();};
+    w.appendChild(im);w.appendChild(x);th.appendChild(w);
+   });
+   add.style.display=ans.photos.length>=MAX?'none':'';
+   cont.textContent=ans.photos.length?'Continue':'Skip for now';
+  };
+  add.onclick=function(){pics.click();};
+  pics.onchange=function(){
+   var files=[].slice.call(pics.files),room=MAX-ans.photos.length;pics.value='';errEl.textContent='';
+   if(files.length>room)nexErr('Only '+MAX+' fit, so I grabbed the first '+room+'.');
+   files.slice(0,room).reduce(function(p,f){return p.then(function(){return shrink(f).then(function(u){ans.photos.push(u);draw();}).catch(function(){nexErr("I couldn't read one of those. A JPEG or PNG works best.");});});},Promise.resolve());
+  };
+  cont.onclick=function(){next(cur,ans.photos.length);};
+  row3.appendChild(cont);
+  var wrap3=el('div','chips');wrap3.appendChild(pics);wrap3.appendChild(add);wrap3.appendChild(th);wrap3.appendChild(row3);wrap3.appendChild(hint);setDock(wrap3);draw();return;
+ }
+}
+function nexErr(t){errEl.textContent=t;}
+
+// Shrink a photo in the browser until its data URI fits the server limit.
+function shrink(file){
+ return new Promise(function(resolve,reject){
+  var url=URL.createObjectURL(file),img=new Image();
+  img.onload=function(){
+   URL.revokeObjectURL(url);
+   var size=1000,q=.8;
+   for(var i=0;i<12;i++){
+    var s=Math.min(1,size/Math.max(img.naturalWidth,img.naturalHeight));
+    var c=document.createElement('canvas');
+    c.width=Math.max(1,Math.round(img.naturalWidth*s));c.height=Math.max(1,Math.round(img.naturalHeight*s));
+    c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+    var uri=c.toDataURL('image/jpeg',q);
+    if(uri.length<=LIMIT){resolve(uri);return;}
+    if(q>.5)q=Math.round((q-.1)*100)/100;else size=Math.round(size*.8);
+   }
+   reject(new Error('too big'));
+  };
+  img.onerror=function(){URL.revokeObjectURL(url);reject(new Error('unreadable'));};
+  img.src=url;
+ });
+}
+
+function errStep(msg){
+ msg=(msg||'').toLowerCase();
+ if(/email|phone/.test(msg))return 7;
+ if(/more about what|what you want/.test(msg))return 3;
+ if(/photo/.test(msg))return 4;
+ return -1;
+}
+function finish(){
+ busy=true;backBtn.hidden=true;
+ token++;
+ var body={kind:ans.kind,name:ans.name||'',business:ans.business||'',what:ans.what||'',extra:ans.extra||'',links:ans.links||'',email:ans.email||'',phone:ans.phone||'',consent:ans.consent===true,photos:ans.photos,company_website:document.getElementById('hp').value};
+ hideDock();
+ speak('Sending it to the team now...',function(){
+  fetch('/api/waitlist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+  .then(function(r){return r.json().catch(function(){return {};}).then(function(j){return {ok:r.ok,j:j};});})
+  .then(function(x){
+   if(x.ok&&x.j.ok){
+    var line=x.j.duplicate?("Looks like you're already on the list. We've got your details and we'll be in touch with a preview."):("You're on the list"+(firstName()?', '+firstName():'')+"! We'll make a concept preview of what yours could look like and reach out. If you love it, it's $"+price+" to go live, then $"+price+"/month for hosting and reasonable edits.");
+    speak(line,function(){setDock(el('p','fine','Previews are concepts of what your site could look like, not a finished product. Nothing is charged until you say yes.'));});
+   }else{
+    busy=false;var j=x.j||{},to=errStep(j.error);
+    var msg=j.error||'Something went wrong on my end.';
+    if(to>=0){hist=hist.filter(function(h){return h<to;});show(to,"Hmm. "+msg);}
+    else{ speak("Hmm, that didn't go through. "+msg,function(){var b=el('button','send','Try again');b.type='button';b.onclick=finish;setDock(b);backBtn.hidden=false;});}
+   }
+  })
+  .catch(function(){busy=false;speak("I lost the connection for a second. Want to try that again?",function(){var b=el('button','send','Try again');b.type='button';b.onclick=finish;setDock(b);});});
+ });
+}
+show(0,'');
+})();
+</script>
+</body>
+</html>
