@@ -50,3 +50,23 @@ test('schema caps edits at 20 and rejects unknown fields', () => {
   assert.equal(layerEditSchema.safeParse({ campaign_id: 'c', scene_id: 's1', edits: [one], extra: 1 }).success, false);
   assert.equal(layerEditSchema.safeParse({ campaign_id: 'c', scene_id: 's1', edits: [one] }).success, true);
 });
+
+test('anonymous layers are addressable on read without saving, including hash-guarded edits', () => {
+  const p = base(), before = JSON.stringify(p);
+  const list = readAdLayers(p, { scene_id: 's1' });
+  const row = list.layers[2];
+  assert.equal(list.generated_ids, 1);
+  assert.equal(list.unaddressable, 0);
+  assert.equal(row.id, 'circle-3');
+  assert.equal(row.name, 'circle-3');
+  const one = readAdLayers(p, { scene_id: 's1', layer_id: row.id });
+  assert.equal(one.hash, row.hash);
+  assert.equal(readAdLayers(p, { scene_id: 's1', find: { shape: 'circle' } }).matches[0].id, row.id);
+  const edited = applyLayerEdits(p, { scene_id: 's1', edits: [
+    { op: 'patch', layer_id: row.id, baseline: row.hash, patch: { x: 20, role: 'prop' } },
+  ] });
+  assert.equal(edited.project.scenes[0].params.layers[2].x, 20);
+  assert.equal(JSON.stringify(p), before, 'reads and preview edits leave the source unchanged');
+  assert.equal(readAdLayers(p, { scene_id: 's1' }).layers[2].id, row.id);
+  assert.throws(() => readAdLayers(p, { scene_id: 'missing' }), /not a graphic scene/);
+});

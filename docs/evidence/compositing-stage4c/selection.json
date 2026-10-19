@@ -1,0 +1,83 @@
+{
+  "width": 560,
+  "height": 560,
+  "matchedPixels": 306252,
+  "layers": [
+    {
+      "id": "backdrop",
+      "name": "Replacement backdrop",
+      "role": "background",
+      "color": "#249224",
+      "visible": true,
+      "pixels": 256233,
+      "coveragePct": 81.7,
+      "bboxPct": {
+        "left": 0,
+        "top": 0,
+        "right": 100,
+        "bottom": 100
+      },
+      "centerPct": {
+        "x": 48.1,
+        "y": 50.2
+      }
+    },
+    {
+      "id": "sun",
+      "name": "Backdrop light",
+      "role": "light",
+      "color": "#00ff49",
+      "visible": true,
+      "pixels": 15118,
+      "coveragePct": 4.8,
+      "bboxPct": {
+        "left": 62.5,
+        "top": 17.5,
+        "right": 87.5,
+        "bottom": 42.5
+      },
+      "centerPct": {
+        "x": 74.9,
+        "y": 29.9
+      }
+    },
+    {
+      "id": "subject",
+      "name": "Synthetic robot on green",
+      "role": "subject",
+      "color": "#6db66d",
+      "visible": true,
+      "pixels": 33326,
+      "coveragePct": 10.6,
+      "bboxPct": {
+        "left": 31.3,
+        "top": 25.7,
+        "right": 73,
+        "bottom": 78
+      },
+      "centerPct": {
+        "x": 52.3,
+        "y": 52.3
+      }
+    },
+    {
+      "id": "label",
+      "name": "Synthetic disclosure",
+      "role": "text",
+      "color": "#24b6ff",
+      "visible": true,
+      "pixels": 1575,
+      "coveragePct": 0.5,
+      "bboxPct": {
+        "left": 26.6,
+        "top": 8.4,
+        "right": 73.8,
+        "bottom": 11.4
+      },
+      "centerPct": {
+        "x": 49.8,
+        "y": 9.7
+      }
+    }
+  ]
+}
