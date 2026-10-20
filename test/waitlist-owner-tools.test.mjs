@@ -85,4 +85,37 @@ test('customer connection hides the owner-only tools', () => {
   const src = readFileSync(new URL('../api/customer-board-mcp.js', import.meta.url), 'utf8');
   assert.match(src, /CUSTOMER_HIDDEN_TOOLS=new Set\(\[[^\]]*list_nexus_waitlist[^\]]*read_nexus_waitlist_entry[^\]]*update_nexus_waitlist_entry/);
   assert.match(src, /CUSTOMER_HIDDEN_TOOLS\.has\(name\)\?undefined:/);
+  assert.match(src, /CUSTOMER_HIDDEN_TOOLS=new Set\(\[[^\]]*import_nexus_waitlist_photos/);
+});
+
+import { createAdImageStore } from '../lib/adImages.js';
+
+function hashRedis() {
+  const h = new Map();
+  return async (p) => {
+    const [c, k, f, v] = p; const m = h.get(k) || new Map(); h.set(k, m);
+    if (c === 'HVALS') return [...m.values()];
+    if (c === 'HLEN') return m.size;
+    if (c === 'HSET') { m.set(f, v); return 1; }
+    if (c === 'HGET') return m.has(f) ? m.get(f) : null;
+    if (c === 'HDEL') return m.delete(f) ? 1 : 0;
+    throw new Error('unexpected ' + c);
+  };
+}
+
+test('import_waitlist_photos copies photos into the image library, once, owner only', async () => {
+  const { store } = await setup();
+  const images = createAdImageStore({ command: hashRedis() });
+  const execute = createWorkspaceService({ waitlist: store, images });
+  assert.ok(WORKSPACE_ACTIONS.import_waitlist_photos);
+  assert.ok(WORKSPACE_WRITES.has('import_waitlist_photos'));
+  assert.ok(WORKSPACE_TOOLS.some(([n]) => n === 'import_nexus_waitlist_photos'));
+  const r = await execute('import_waitlist_photos', { entry_id: 'aaaaaaaa-1' }, owner);
+  assert.equal(r.saved.length, 1); assert.equal(r.saved[0].name, 'Alpha Lawn photo 1');
+  const again = await execute('import_waitlist_photos', { entry_id: 'aaaaaaaa-1' }, owner);
+  assert.equal(again.saved.length, 0); assert.equal(again.skipped[0].reason, 'already imported');
+  assert.equal((await execute('import_waitlist_photos', { entry_id: 'aaaaaaaa-2' }, owner)).saved.length, 0);
+  assert.equal((await execute('images', {}, owner)).images.length, 1);
+  await assert.rejects(() => execute('import_waitlist_photos', { entry_id: 'aaaaaaaa-1' }, customer), /owner/i);
+  await assert.rejects(() => execute('import_waitlist_photos', { entry_id: 'nope-nope-1' }, owner), /owner|No waitlist entry/);
 });
