@@ -93,6 +93,7 @@ Changes to validation:
 | `before_after` | transformation | beforeLabel, afterLabel (20 each), beforeText, afterText (60 each), revealStyle: wipe / slide / fade |
 | `photo_focus` | image with slow motion | image: `photo` or `logo` ref, caption (60), camera |
 | `site_mockup` | concept website preview | siteName (30), headline (65), cta (25), style: light / dark, scroll: bool |
+| `site_page` | full concept website drawn natively and scrolled (vocabulary 1.4.0) | siteName (30), headline (65), eyebrow (30), subhead (120), cta (25); layout: poster / split / editorial; type: condensed / sans / serif / mono; bg, ink, accent, accent2 (hex); imageId (hero picture from the image library); nav[] (2-5 labels); strip (100); sectionTitle (40); cards[] (1-8: title, sub, tag, price, color, imageId); points[] (2-3: title, detail); closer (50), closerCta (25); scroll |
 | `steps_list` | 2 to 4 steps | items[]: title (30), detail (60); stagger |
 | `end_card` | call to action | cta (35), destination (65), tagline (60) |
 
