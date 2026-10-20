@@ -33,7 +33,7 @@ const page = (params = {}) => ({
 test('site_page is in the vocabulary and the player supports it', () => {
   assert.equal(VOCABULARY_VERSION, '1.4.0');
   assert.ok(REGISTRY.sceneTypes.some((t) => t.id === 'site_page'));
-  assert.ok(describeVocabulary().vocabulary.sceneTypes.some((t) => t.id === 'site_page'));
+  assert.ok(describeVocabulary().sceneTypes.some((t) => t.id === 'site_page'));
   assert.ok(PLAYER_SUPPORT.full.includes('site_page'));
   const html = readFileSync(new URL('../public/ad-designs/vocabulary-player.html', import.meta.url), 'utf8');
   assert.match(html, /\n {2}site_page\(cam,sc,ctx\)\{/);
