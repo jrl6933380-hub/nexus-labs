@@ -8,7 +8,9 @@ import subprocess
 import tempfile
 
 from gen import S
-from render import page, INDEX_JS
+from render import page
+from gallery import gallery, prefix_selector
+from directions import thumbnail
 from directions import ORDERS, compose
 
 
@@ -72,9 +74,6 @@ def main():
                 assert raw.startswith(b'\xff\xd8') and raw.endswith(b'\xff\xd9')
                 assert s['hero_image']['alt']
                 assert 'provenance' in s['hero_image']
-        viewer = Path(temp) / 'viewer.js'
-        viewer.write_text(INDEX_JS)
-        subprocess.run(['node', '--check', str(viewer)], check=True, capture_output=True)
         hostile = copy.deepcopy(S[0])
         hostile['svcs'][0] = ('</script><img src=x onerror=alert(1)>', 'literal sample')
         d = Document()
@@ -83,6 +82,20 @@ def main():
         script = Path(temp) / 'escaping.js'
         script.write_text('function check(){\n' + d.scripts[0].split('function $(i)')[0] + '\nreturn D.jobs[0][0]}\nif(check()!==' + json.dumps(hostile['svcs'][0][0]) + ')process.exit(1)')
         subprocess.run(['node', str(script)], check=True, capture_output=True)
+    rendered_gallery = gallery(S, {s['id']: page(s) for s in S}, thumbnail)
+    parsed = Document()
+    parsed.feed(rendered_gallery)
+    assert len(parsed.ids) == len(set(parsed.ids)), 'duplicate gallery IDs'
+    assert set(parsed.hrefs) <= set(parsed.ids), 'broken gallery fragment'
+    assert set(parsed.labels) <= set(parsed.inputs), 'broken gallery label'
+    assert not parsed.scripts, 'gallery must work without scripts'
+    assert '<iframe' not in rendered_gallery
+    assert rendered_gallery.count('<details ') == len(S)
+    assert rendered_gallery.count('<summary>') == len(S)
+    assert 'id="concept-cafe-svc"><a' in rendered_gallery
+    assert '<table id="concept-cafe-hrs"><tr>' in rendered_gallery
+    assert prefix_selector('.site-cafe .hero', 'concept-cafe') == '#concept-cafe.site-cafe .hero'
+    assert prefix_selector('body.site-cafe #s', 'concept-cafe') == '#concept-cafe.site-cafe #concept-cafe-s'
     try:
         compose(S[0], {'hero': ''})
         raise AssertionError('invalid section order accepted')

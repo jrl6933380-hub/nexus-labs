@@ -4,6 +4,7 @@ import json, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from gen import S, E, DARK, FONTS
 from directions import compose, direction_css, hero_art, thumbnail
+from gallery import gallery
 
 CSS_BASE = """
 *{box-sizing:border-box}
@@ -148,43 +149,13 @@ if(!ok){{$(n?'ct':'nm').focus();return;}}$('dn').hidden=false;$('dt').textConten
 paint();hours();setInterval(hours,60000);
 </script></body></html>"""
 
-INDEX_CSS = """:root{--bg:#EFEDE8;--fg:#17191C;--mut:#5C636B;--panel:#FAF9F6;--line:#D6D2C8}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111315;--fg:#EEEBE4;--mut:#9AA2A9;--panel:#1A1D20;--line:#2B3035;color-scheme:dark}}
-:root[data-theme="dark"]{--bg:#111315;--fg:#EEEBE4;--mut:#9AA2A9;--panel:#1A1D20;--line:#2B3035;color-scheme:dark}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,'Segoe UI',sans-serif;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 44px}
-.w{max-width:1100px;margin:0 auto}h1{font-size:clamp(30px,5vw,46px);margin:0 0 8px;line-height:1.05;text-wrap:balance}p{color:var(--mut);max-width:62ch;margin:0 0 26px}
-.g{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
-.c{display:block;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;text-decoration:none;color:inherit}
-.c:hover{border-color:var(--a)}.c:focus-visible{outline:3px solid var(--a);outline-offset:2px}
-.v{aspect-ratio:16/11;background:var(--b)}.v svg{display:block;width:100%;height:100%}
-.t{padding:12px 14px 14px;display:grid;gap:2px}.t b{font-size:16px}.t span{font-size:13px;color:var(--mut)}
-.bar{display:none;align-items:center;gap:12px;padding:8px 0}
-.bar button{font:600 14px system-ui,sans-serif;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 14px;cursor:pointer}
-.bar span{color:var(--mut);font-size:13px}
-#fr{display:none;width:100%;height:calc(100vh - 70px);min-height:520px;border:1px solid var(--line);border-radius:10px;background:#fff}
-body.view #lib{display:none}body.view .bar,body.view #fr{display:block}body.view .bar{display:flex}
-"""
-
-INDEX_JS = """var cache=JSON.parse(document.getElementById('sites').textContent);
-function show(id){var fr=document.getElementById('fr');if(!cache[id])return;fr.srcdoc=cache[id];document.body.classList.add('view');document.getElementById('nm').textContent=id;window.scrollTo(0,0);document.getElementById('bk').focus()}
-function hide(){var id=document.getElementById('nm').textContent;document.body.classList.remove('view');document.getElementById('fr').srcdoc='';var card=document.querySelector('[data-f=\"'+id+'\"]');if(card)card.focus()}
-document.querySelectorAll('[data-f]').forEach(function(a){a.addEventListener('click',function(e){e.preventDefault();show(a.dataset.f)})});
-document.getElementById('bk').addEventListener('click',hide);
-document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.body.classList.contains('view'))hide()});
-"""
-
 def main():
     os.makedirs('out', exist_ok=True)
     pages = {}
     for s in S:
         pages[s['id']] = page(s)
         open(f"out/{s['id']}.html", 'w', encoding='utf-8').write(pages[s['id']])
-    cards = ''.join(f'<a class="c" href="{s["id"]}.html" data-f="{s["id"]}" style="--a:{s["pal"]["acc"]};--b:{s["pal"]["deep"]}"><div class="v">{thumbnail(s)}</div><div class="t"><b>{E(s["name"])}</b><span>{E(s["cat"])}</span></div></a>' for s in S)
-    blob = json.dumps(pages).replace('<', '\\u003c')
-    idx = (f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Nexus Site Library</title><style>{INDEX_CSS}</style></head><body><div class="w">'
-           '<div class="bar"><button id="bk" type="button">Back to all sites</button><span id="nm"></span></div><iframe id="fr" title="Site preview" sandbox="allow-scripts allow-forms"></iframe><div id="lib">'
-           f'<h1>Nexus site library</h1><p>Concept sites, one per kind of local business. Each has its own look, a demo request form, sample open or closed hours and sample content. Nothing here is a real business, price, review or guarantee.</p><div class="g">{cards}</div></div></div>'
-           f'<script type="application/json" id="sites">{blob}</script><script>{INDEX_JS}</script></body></html>')
+    idx = gallery(S, pages, thumbnail)
     open('out/index.html', 'w', encoding='utf-8').write(idx)
     print(len(S), 'sites written to out/')
 

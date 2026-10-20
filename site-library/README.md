@@ -70,7 +70,11 @@ create a real booking, payment or order. Sample open/closed status uses the view
 local clock; actual business timezone/availability requires setup. Inbox delivery
 and other integrations must be connected separately.
 
-Viewer iframes isolate scripts and support Escape/back navigation with focus return.
+The gallery uses native expandable cards with complete inline pages. It requires
+no scripts, iframe support or external page files, including in mobile document
+previewers. Styles and IDs are scoped per business; service choices and sample
+hours are present in the markup. Gallery forms are display-only. Individual site
+files retain their interactive demo forms.
 Reduced-motion, keyboard focus, touch targets and mobile layout rules are included.
 
 ## Validation
@@ -82,7 +86,9 @@ python3 site-library/check.py
 Checks all fifteen generated documents, section order and uniqueness, fragment
 links, form labels, embedded image decoding, script escaping, and JavaScript
 syntax (requires Node for syntax validation). This is structural validation, not
-browser layout or interaction testing. Browser inspection is still needed at
+browser layout or interaction testing. Gallery checks also cover native expand controls, unique scoped IDs, working
+fragment/label references and static services/hours without scripts or iframes.
+Browser inspection is still needed at
 mobile and desktop widths before treating a design as production-ready.
 
 Future work: replace remaining legacy SVG illustrations and sample gallery tiles
