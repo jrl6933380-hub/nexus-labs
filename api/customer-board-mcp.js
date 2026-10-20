@@ -11,7 +11,7 @@ const INSTRUCTIONS='This is the shared customer Nexus Board connection. Every to
 const unavailable=()=>({isError:true,structuredContent:{error:'Your private workspace key is missing, invalid or switched off. Open your Nexus connect page for a new connection request.',code:'INVALID_WORKSPACE_KEY'},content:[{type:'text',text:'Your private workspace key is missing, invalid or switched off. Open your Nexus connect page for a new connection request.'}]});
 
 // Owner-only tools never appear on the customer connection.
-const CUSTOMER_HIDDEN_TOOLS=new Set(['import_form_project','list_nexus_waitlist','read_nexus_waitlist_entry','update_nexus_waitlist_entry']);
+const CUSTOMER_HIDDEN_TOOLS=new Set(['import_form_project','list_nexus_waitlist','read_nexus_waitlist_entry','update_nexus_waitlist_entry','import_nexus_waitlist_photos']);
 
 // One app URL for all customers. Discovery is public; every tool call resolves
 // its own private credential. No cookies, global "current account", or MCP
