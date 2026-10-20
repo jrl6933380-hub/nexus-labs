@@ -3,6 +3,7 @@
 import json, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from gen import S, E, DARK, FONTS
+from directions import compose, direction_css, hero_art, thumbnail
 
 CSS_BASE = """
 *{box-sizing:border-box}
@@ -79,13 +80,14 @@ def page(s):
     P = s['pal']; F = FONTS[s['font']]; rad = RADIUS[s['font']]
     fam = '&family='.join(x.replace(' ', '+') for x in (F[0], F[1]))
     d = dict(DARK)
-    if s['id'] == 'dj':  # already a dark look
+    if s['id'] in ('dj', 'tattoo'):  # preserve each dark brand's material and contrast
         d = dict(bg=P['bg'], panel=P['panel'], fg=P['fg'], mut=P['mut'], line=P['line'], deep=P['deep'], ondeep=P['ondeep'])
     lt = f"--bg:{P['bg']};--panel:{P['panel']};--fg:{P['fg']};--mut:{P['mut']};--line:{P['line']};--deep:{P['deep']};--ondeep:{P['ondeep']};--acc:{P['acc']};--onacc:{P['onacc']};--fd:{F[2]};--fb:{F[3]};--rad:{rad};"
     dk = f"--bg:{d['bg']};--panel:{d['panel']};--fg:{d['fg']};--mut:{d['mut']};--line:{d['line']};--deep:{d['deep']};--ondeep:{d['ondeep']};--acc:{P['accd']};--onacc:{P['onaccd']};color-scheme:dark"
     css = f":root{{{lt}}}\n@media (prefers-color-scheme:dark){{:root:not([data-theme=\"light\"]){{{dk}}}}}\n:root[data-theme=\"dark\"]{{{dk}}}\n" + CSS_BASE
     f = s['form']
-    nav = ''.join(f'<li><a href="#{i}">{E(t)}</a></li>' for i, t in (('s','Services'),('x',s['sec2'][0]),('g','Gallery'),('h','Hours'),('q','Contact')))
+    css += direction_css(s)
+    nav = ''.join(f'<li><a href="#{i}">{E(t)}</a></li>' for i, t in (('s',s['svc_title']),('x',s['sec2'][0]),('g','Gallery'),('h','Visit'),('q','Contact')) if i != 'g' or s.get('show_gallery', True))
     sec2 = s['sec2']; kind = sec2[2]
     lab = {'steps':'Step','events':'Event','listings':'Listing','people':'Team'}[kind]
     cols = ''.join(f'<div class="col"><span class="m ey">{lab if kind != "steps" else "Step " + str(i+1)}</span><h3>{E(a)}</h3><p>{E(b)}</p></div>' for i, (a, b) in enumerate(sec2[1]))
@@ -97,32 +99,39 @@ def page(s):
         else: extras += f'<label for="x{i}">{E(lbl)}<input id="x{i}" placeholder="{E(opt)}"></label>'
     walk = f'<label style="display:flex;gap:10px;align-items:center;font-weight:400"><input id="wk" type="checkbox" style="width:auto"> {E(f["walk"])}</label>' if f['walk'] else ''
     sumx = ''.join(f'<div><dt>{E(l)}</dt><dd id="sx{i}"></dd></div>' for i, (l, _, __) in enumerate(f['extra']))
-    data = json.dumps(dict(jobs=[[a, b] for a, b in s['svcs']], hours=s['hours'], nx=len(f['extra'])))
-    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>{E(s['name'])}</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={fam}&display=swap"><style>{css}</style></head><body>
-<div class="wrap">
-<div class="note"><b>Concept preview</b><span>What Nexus would build for a {E(s['cat'].lower())}. Names, numbers and projects are samples.</span></div>
-<nav><div class="logo">{E(s['name'])}</div><ul>{nav}</ul><a class="btn" href="#q">{E(s['cta'])}</a></nav>
-<header class="hero {s['layout'] if s['layout'] != 'split' else ''}"><div><div class="status m"><span class="dot" id="dot"></span><span id="ot">Checking hours</span></div><span class="m ey" style="display:block;margin-bottom:10px">{E(s['eyebrow'])}</span><h1>{E(s['headline'])}</h1><p class="lead">{E(s['lead'])}</p><div class="cta"><a class="btn" href="#q">{E(s['cta'])}</a><a class="btn line" href="#s">See services</a></div></div><div class="art">{s['hero']}</div></header>
-<section id="s"><span class="m ey">{E(s['svc_title'])}</span><h2>{E(s['svc_title'])}. Pick one to start.</h2><div class="grid" id="svc"></div></section>
-{sec2html}
-<section id="g"><span class="m ey">Gallery</span><h2>Recent work.</h2><div class="gal">{gal}</div></section>
-<section id="h"><span class="m ey">Hours and area</span><h2>When and where.</h2><div class="two"><div class="box"><h3>Hours</h3><table id="hrs"></table></div><div class="box"><h3>Area</h3><p style="margin:0 0 12px;color:var(--mut)">Sample list. The owner supplies the real one.</p><div class="tags">{''.join(f'<span>{E(a)}</span>' for a in s['area'])}</div><p style="margin:16px 0 0;font-weight:700">{E(s['phone'])} <span style="font-weight:400;color:var(--mut)">(sample number)</span></p></div></div></section>
-<section id="q"><span class="m ey">Contact</span><h2>{E(f['title'])}.</h2>
+    data = json.dumps(dict(jobs=[[a, b] for a, b in s['svcs']], hours=s['hours'], nx=len(f['extra']))).replace('<', chr(92) + 'u003c')
+    blocks = dict(
+        hero=f"""<header class="hero {s['layout'] if s['layout'] != 'split' else ''}"><div><div class="status m"><span class="dot" id="dot"></span><span id="ot">Checking hours</span></div><span class="m ey" style="display:block;margin-bottom:10px">{E(s['eyebrow'])}</span><h1>{E(s['headline'])}</h1><p class="lead">{E(s['lead'])}</p><div class="cta"><a class="btn" href="#q">{E(s['cta'])}</a><a class="btn line" href="#s">{E(s["svc_title"])}</a></div></div><div class="art">{hero_art(s)}</div></header>""",
+        s=f"""<section id="s"><span class="m ey">{E(s['svc_title'])}</span><h2>{E(s['svc_title'])}.</h2><p class="service-hint">{E(s.get("service_hint", "Choose a service to start a sample request."))}</p><div class="grid" id="svc"></div></section>""",
+        g=f"""<section id="g"><span class="m ey">Gallery</span><h2>Sample gallery.</h2><div class="gal">{gal}</div></section>""",
+        h=f"""<section id="h"><span class="m ey">Hours and area</span><h2>When and where.</h2><div class="two"><div class="box"><h3>Hours</h3><table id="hrs"></table></div><div class="box"><h3>Area</h3><p style="margin:0 0 12px;color:var(--mut)">Sample list. The owner supplies the real one.</p><div class="tags">{''.join(f'<span>{E(a)}</span>' for a in s['area'])}</div><p style="margin:16px 0 0;font-weight:700">{E(s['phone'])} <span style="font-weight:400;color:var(--mut)">(sample number)</span></p></div></div></section>""",
+        q=f"""<section id="q"><span class="m ey">Contact · demo form</span><h2>{E(f['title'])}.</h2>
 <form id="qf" novalidate><div class="fields">
 <label for="job">{E(f['jobl'])}<select id="job"></select></label>
 {extras}
-<div class="row"><label for="nm">Your name<input id="nm" autocomplete="name"><span class="err" id="e1"></span></label><label for="ct">Phone or email<input id="ct" autocomplete="email"><span class="err" id="e2"></span></label></div>
+<div class="row"><label for="nm">Your name<input id="nm" autocomplete="name" aria-describedby="e1" required><span class="err" id="e1"></span></label><label for="ct">Phone or email<input id="ct" aria-describedby="e2" required><span class="err" id="e2"></span></label></div>
 <label for="nt">Anything we should know?<textarea id="nt"></textarea></label>{walk}
 <div><button class="btn" type="submit">Send request</button></div></div>
-<div><div class="sum" aria-live="polite"><h3>Your request</h3><dl><div><dt>{E(f['jobl'])}</dt><dd id="sj"></dd></div>{sumx}</dl><p class="hint">Concept only. Nothing is sent from this preview. On the live site this goes to the owner's inbox and board.</p></div><div class="done" id="dn" hidden><b>Request ready</b><p id="dt"></p></div></div></form></section>
+<div><div class="sum" aria-live="polite"><h3>Your request</h3><dl><div><dt>{E(f['jobl'])}</dt><dd id="sj"></dd></div>{sumx}</dl><p class="hint">Concept only. Nothing is sent from this preview. Inbox delivery would be connected during setup.</p></div><div class="done" id="dn" hidden><b>Request ready</b><p id="dt"></p></div></div></form></section>""",
+        x=sec2html,
+    )
+    if not s.get('show_gallery', True):
+        blocks['g'] = ''
+    content = compose(s, blocks)
+    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>{E(s['name'])}</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={fam}&display=swap"><style>{css}</style></head><body class="site-{s['id']}">
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="wrap">
+<div class="note"><b>Concept preview</b><span>A {E(s['cat'].lower())} concept. Sample content; generated images are illustrative.</span></div>
+<nav><div class="logo">{E(s['name'])}</div><ul>{nav}</ul><a class="btn" href="#q">{E(s['cta'])}</a></nav>
+{content}
 <footer><span>{E(s['name'])} · concept preview</span><span>Licenses, reviews, prices and guarantees come from the owner. None are shown here.</span></footer>
 </div>
 <script>
 var D={data};var sel=D.jobs[0][0];
 function $(i){{return document.getElementById(i)}}
 function paint(){{var g=$('svc'),j=$('job');g.innerHTML='';j.innerHTML='';
-D.jobs.forEach(function(x){{var b=document.createElement('button');b.type='button';b.className='chip';b.setAttribute('aria-pressed',String(x[0]===sel));b.innerHTML='<b></b><span></span>';b.firstChild.textContent=x[0];b.lastChild.textContent=x[1];b.onclick=function(){{sel=x[0];paint();location.hash='#q'}};g.appendChild(b);
+D.jobs.forEach(function(x){{var b=document.createElement('button');b.type='button';b.className='chip';b.setAttribute('aria-pressed',String(x[0]===sel));b.innerHTML='<b></b><span></span>';b.firstChild.textContent=x[0];b.lastChild.textContent=x[1];b.onclick=function(){{sel=x[0];paint();location.hash='#q';$('job').focus()}};g.appendChild(b);
 var o=document.createElement('option');o.textContent=x[0];if(x[0]===sel)o.selected=true;j.appendChild(o)}});sync()}}
 function sync(){{$('sj').textContent=$('job').value;for(var i=0;i<D.nx;i++){{var e=$('x'+i);$('sx'+i).textContent=e.value||'Not set'}}}}
 $('job').addEventListener('change',function(){{sel=$('job').value;paint()}});
@@ -131,11 +140,11 @@ var N=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 function fmt(h){{var a=h<12?'am':'pm',x=h%12||12;return x+':00 '+a}}
 function hours(){{var d=new Date(),di=(d.getDay()+6)%7,t=d.getHours()+d.getMinutes()/60,tb=$('hrs');tb.innerHTML='';
 D.hours.forEach(function(h,i){{var tr=document.createElement('tr');if(i===di)tr.className='today';tr.innerHTML='<td></td><td></td>';tr.cells[0].textContent=N[i];tr.cells[1].textContent=h[0]?fmt(h[0])+' to '+fmt(h[1]):'Closed';tb.appendChild(tr)}});
-var h=D.hours[di],o=h[0]&&t>=h[0]&&t<h[1];$('dot').className='dot'+(o?' o':'');$('ot').textContent=o?'Open now, until '+fmt(h[1]):'Closed now. We reply next business day'}}
+var h=D.hours[di],o=h[0]&&t>=h[0]&&t<h[1];$('dot').className='dot'+(o?' o':'');$('ot').textContent=o?'Sample hours: open until '+fmt(h[1]):'Sample hours: closed'}}
 $('qf').addEventListener('submit',function(e){{e.preventDefault();var ok=true;
 var n=$('nm').value.trim();$('e1').textContent=n?'':'Enter your name.';ok=ok&&!!n;
 var c=$('ct').value.trim(),v=/^\\S+@\\S+\\.\\S+$/.test(c)||c.replace(/\\D/g,'').length>=10;$('e2').textContent=v?'':'Enter a phone number or email.';ok=ok&&v;
-if(!ok)return;$('dn').hidden=false;$('dt').textContent='Thanks, '+n+'. This preview does not send anything. The live site would send this to the owner and show a confirmation like this.'}});
+if(!ok){{$(n?'ct':'nm').focus();return;}}$('dn').hidden=false;$('dt').textContent='Thanks, '+n+'. This preview does not send anything. Inbox delivery is a separate setup step.'}});
 paint();hours();setInterval(hours,60000);
 </script></body></html>"""
 
@@ -157,10 +166,11 @@ body.view #lib{display:none}body.view .bar,body.view #fr{display:block}body.view
 """
 
 INDEX_JS = """var cache=JSON.parse(document.getElementById('sites').textContent);
-function show(id){var fr=document.getElementById('fr');fr.srcdoc=cache[id];document.body.classList.add('view');document.getElementById('nm').textContent=id;window.scrollTo(0,0)}
-function hide(){document.body.classList.remove('view');document.getElementById('fr').srcdoc=''}
+function show(id){var fr=document.getElementById('fr');if(!cache[id])return;fr.srcdoc=cache[id];document.body.classList.add('view');document.getElementById('nm').textContent=id;window.scrollTo(0,0);document.getElementById('bk').focus()}
+function hide(){var id=document.getElementById('nm').textContent;document.body.classList.remove('view');document.getElementById('fr').srcdoc='';var card=document.querySelector('[data-f=\"'+id+'\"]');if(card)card.focus()}
 document.querySelectorAll('[data-f]').forEach(function(a){a.addEventListener('click',function(e){e.preventDefault();show(a.dataset.f)})});
 document.getElementById('bk').addEventListener('click',hide);
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.body.classList.contains('view'))hide()});
 """
 
 def main():
@@ -168,15 +178,16 @@ def main():
     pages = {}
     for s in S:
         pages[s['id']] = page(s)
-        open(f"out/{s['id']}.html", 'w').write(pages[s['id']])
-    cards = ''.join(f'<a class="c" href="#{s["id"]}" data-f="{s["id"]}" style="--a:{s["pal"]["acc"]};--b:{s["pal"]["deep"]}"><div class="v">{s["hero"]}</div><div class="t"><b>{E(s["name"])}</b><span>{E(s["cat"])}</span></div></a>' for s in S)
+        open(f"out/{s['id']}.html", 'w', encoding='utf-8').write(pages[s['id']])
+    cards = ''.join(f'<a class="c" href="{s["id"]}.html" data-f="{s["id"]}" style="--a:{s["pal"]["acc"]};--b:{s["pal"]["deep"]}"><div class="v">{thumbnail(s)}</div><div class="t"><b>{E(s["name"])}</b><span>{E(s["cat"])}</span></div></a>' for s in S)
     blob = json.dumps(pages).replace('<', '\\u003c')
     idx = (f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Nexus Site Library</title><style>{INDEX_CSS}</style></head><body><div class="w">'
-           '<div class="bar"><button id="bk" type="button">Back to all sites</button><span id="nm"></span></div><iframe id="fr" title="Site preview"></iframe><div id="lib">'
-           f'<h1>Nexus site library</h1><p>Concept sites, one per kind of local business. Each has its own look, a working request form, live open or closed hours and sample content. Nothing here is a real business, price, review or guarantee.</p><div class="g">{cards}</div></div></div>'
+           '<div class="bar"><button id="bk" type="button">Back to all sites</button><span id="nm"></span></div><iframe id="fr" title="Site preview" sandbox="allow-scripts allow-forms"></iframe><div id="lib">'
+           f'<h1>Nexus site library</h1><p>Concept sites, one per kind of local business. Each has its own look, a demo request form, sample open or closed hours and sample content. Nothing here is a real business, price, review or guarantee.</p><div class="g">{cards}</div></div></div>'
            f'<script type="application/json" id="sites">{blob}</script><script>{INDEX_JS}</script></body></html>')
-    open('out/index.html', 'w').write(idx)
+    open('out/index.html', 'w', encoding='utf-8').write(idx)
     print(len(S), 'sites written to out/')
 
 if __name__ == '__main__':
     main()
+

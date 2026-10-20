@@ -138,3 +138,8 @@ site(id='gym',name='Ironwood Fitness',cat='Gym or trainer',font='bebas',
  gallery=[('Barbell room','#E0481F'),('Class time','#3A3A3A'),('Coaching','#6B6B6B'),('Open gym','#262626')],
  form=dict(title='Try a class',jobl='Interested in',extra=[('Experience','sel',['New to lifting','Some experience','Experienced']),('Preferred time','sel',['Morning','Midday','Evening'])],walk=None),
  hours=[(5,21),(5,21),(5,21),(5,21),(5,20),(7,14),(8,12)],area=['Ames'],phone='(555) 010-0186')
+
+
+# Each additional business retains its own content, composition and imagery.
+from new_sites import register
+register(site)
