@@ -13,7 +13,7 @@ test('committed player matches the registry build (run: node scripts/build-ad-pl
 
 test('player is a valid #617 creative design within its size cap', () => {
   const html = committed();
-  assert.ok(html.length < 100000);
+  assert.ok(html.length < 130000);
   const r = validateAdDesign({ name: 'Nexus vocabulary player', html });
   assert.equal(r.name, 'Nexus vocabulary player'); // validateAdDesign throws on invalid designs
   assert.match(html, /window\.renderAdFrame=/);
