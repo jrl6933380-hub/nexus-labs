@@ -2,7 +2,7 @@
 // Spec: docs/ad-vocabulary-v1.md. Pure ESM with no imports, shared by browser and server.
 // Additive: legacy 4-scene ads (no specVersion) never pass through this file's validator.
 
-export const VOCABULARY_VERSION = '1.3.0';
+export const VOCABULARY_VERSION = '1.4.0';
 export const SPEC_VERSION = 2;
 
 const deepFreeze = (o) => {
@@ -257,6 +257,25 @@ export const SCENE_TYPES = [
     params: {
       siteName: str(30, true), headline: str(65, true), cta: str(25),
       style: en(['light', 'dark']), scroll: { kind: 'boolean' },
+    },
+  }),
+  entry('site_page', 'Site page', {
+    purpose: 'A full concept website drawn natively and scrolled top to bottom: nav, hero, optional ticker, a card grid (products, services, menu items), up to three points and a closing band. layout picks the hero composition (poster = giant type over a colour block, split = left-aligned copy with a picture, editorial = centred serif). type picks the display face (condensed, sans, serif, mono). bg, ink, accent and accent2 give each business its own colours. Set imageId to a library photo for the hero and cards[].imageId for card pictures; a card without a picture shows a colour tile. Always labeled concept when concept=true. Never invent prices, reviews or guarantees: leave price empty unless the owner supplied it.',
+    priority: 2,
+    params: {
+      siteName: str(30, true), headline: str(65, true), eyebrow: str(30), subhead: str(120), cta: str(25),
+      layout: en(['poster', 'split', 'editorial']), type: en(['condensed', 'sans', 'serif', 'mono']),
+      bg: worldColor(), ink: worldColor(), accent: worldColor(), accent2: worldColor(),
+      imageId: ref(),
+      nav: { kind: 'items', min: 2, max: 5, fields: { label: str(14, true) } },
+      strip: str(100), sectionTitle: str(40),
+      cards: {
+        kind: 'items', min: 1, max: 8,
+        fields: { title: str(30, true), sub: str(40), tag: str(20), price: str(12), color: worldColor(), imageId: ref() },
+      },
+      points: { kind: 'items', min: 2, max: 3, fields: { title: str(30, true), detail: str(80) } },
+      closer: str(50), closerCta: str(25),
+      scroll: { kind: 'boolean' },
     },
   }),
   entry('steps_list', 'Steps list', {
