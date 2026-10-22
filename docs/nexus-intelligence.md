@@ -31,6 +31,8 @@ Run `node --test test/intelligence.test.mjs`. The suite covers tenant separation
 
 ## Next complete increments
 
+The standalone Apify package is defined at `.actor/actor.json`, with runtime, input/output schemas and build instructions in `actors/intelligence/`. It reuses the page-capture core without Nexus sessions or Redis. `lib/intelligenceBatch.js` is the structured-output engine and `test/intelligence-batch.test.mjs` covers results, caller-supplied comparisons, failures and budget stops. See the Actor README for the exact proposed `page-result` event; committing source does not publish the Actor or activate pricing.
+
 1. A browser capture worker with real durable screenshots and explicit capture outcomes.
 2. Research search/discovery through the existing web-search integration; save selected results into the same evidence model.
 3. Source-backed AI breakdowns with cost accounting and no execution of instructions embedded in captured pages.

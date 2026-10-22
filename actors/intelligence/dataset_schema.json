@@ -1,0 +1,28 @@
+{
+  "actorSpecification": 1,
+  "fields": {
+    "type": "object",
+    "required": ["schemaVersion", "requestedUrl", "url", "status", "comparison"],
+    "properties": {
+      "schemaVersion": {"type": "integer"},
+      "requestedUrl": {"type": "string"},
+      "url": {"type": "string"},
+      "status": {"type": "string", "enum": ["captured", "failed"]},
+      "title": {"type": ["string", "null"]},
+      "capturedAt": {"type": ["string", "null"]},
+      "comparison": {"type": "string", "enum": ["baseline", "changed", "unchanged", "unavailable"]},
+      "previousCapturedAt": {"type": ["string", "null"]},
+      "text": {"type": "string"},
+      "added": {"type": "array", "items": {"type": "string"}},
+      "removed": {"type": "array", "items": {"type": "string"}},
+      "observedAmounts": {"type": "array", "items": {"type": "string"}}
+    }
+  },
+  "views": {
+    "overview": {
+      "title": "Page observations",
+      "transformation": {"fields": ["requestedUrl", "status", "title", "capturedAt", "comparison", "observedAmounts", "added", "removed", "error"]},
+      "display": {"component": "table"}
+    }
+  }
+}
