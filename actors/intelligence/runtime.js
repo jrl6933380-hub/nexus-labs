@@ -3,6 +3,7 @@ import { runIntelligenceBatch, validateIntelligenceInput, INTELLIGENCE_RESULT_EV
 import { capturePublicPage, fetchPublicHtml } from '../../lib/intelligenceCapture.js';
 import { createBrowserRenderer } from '../../lib/intelligenceBrowser.js';
 import { discoverPages } from '../../lib/intelligenceDiscover.js';
+import { renderReport } from '../../lib/intelligenceReport.js';
 
 // Key-value store keys allow limited characters, so derive a stable key from the requested URL.
 export const baselineKey = url => `baseline-${createHash('sha256').update(url).digest('hex').slice(0,40)}`;
@@ -16,7 +17,7 @@ export async function runActor(actor, {capture, renderer: injectedRenderer, fetc
   const store = plan.remember ? await actor.openKeyValueStore(plan.baselineStoreName) : null;
   const canAfford = async event => charging.calculateMaxEventChargeCountWithinLimit(event) > 0;
   const renderer = plan.renderMode === 'html' ? null : (injectedRenderer || createBrowserRenderer());
-  const meta = new Map(), gaps = [];
+  const meta = new Map(), gaps = [], reportRows = [];
   try {
     // Turn competitor websites into the exact pages to watch. Explicit URLs always come first.
     const urls = [...plan.urls];
@@ -47,9 +48,11 @@ export async function runActor(actor, {capture, renderer: injectedRenderer, fetc
     };
     // Competitors with nothing found are reported as free coverage gaps, never silently dropped.
     for (const origin of gaps) {
-      await actor.pushData({schemaVersion:1,competitor:new URL(origin).hostname,requestedUrl:`${origin}/`,url:`${origin}/`,status:'failed',checkedAt:new Date().toISOString(),
+      const gapRow = {schemaVersion:1,competitor:new URL(origin).hostname,requestedUrl:`${origin}/`,url:`${origin}/`,status:'failed',checkedAt:new Date().toISOString(),
         capturedAt:null,title:null,comparison:'unavailable',previousCapturedAt:null,added:[],removed:[],observedAmounts:[],screenshotUrl:null,
-        error:{code:'NO_PAGES_FOUND',message:'No pricing, plans or services page was found. Add the page address in "Competitor page URLs".'}});
+        error:{code:'NO_PAGES_FOUND',message:'No pricing, plans or services page was found. Add the page address in "Competitor page URLs".'}};
+      await actor.pushData(gapRow);
+      reportRows.push(gapRow);
     }
     const summary = await runIntelligenceBatch({...input, urls, competitors: plan.competitors},{
       capture: smartCapture,
@@ -60,6 +63,9 @@ export async function runActor(actor, {capture, renderer: injectedRenderer, fetc
       } : {}),
       canPublish: canAfford,
       publish: async (row,{chargeEvent}) => {
+        // The report never carries page text; it is meant to be opened and shared.
+        const {text, ...forReport} = row;
+        reportRows.push(forReport);
         if(chargeEvent) {
           // SDK pushData applies the per-result event and the caller's charge ceiling.
           await actor.pushData(row,chargeEvent);
@@ -69,6 +75,8 @@ export async function runActor(actor, {capture, renderer: injectedRenderer, fetc
     });
     summary.competitorsWithoutPages = gaps.map(origin => new URL(origin).hostname);
     await actor.setValue('SUMMARY',summary);
+    // A readable one-page report next to the raw data. A failure here must never fail a paid run.
+    try { await actor.setValue('REPORT',renderReport({summary,rows:reportRows}),{contentType:'text/html; charset=utf-8'}); } catch { /* the dataset and SUMMARY are the source of truth */ }
     await actor.setStatusMessage(summary.stoppedForBudget
       ? 'Stopped at the configured result budget. Available results are saved.'
       : `Finished: ${summary.successful} captures (${summary.changed} changed), ${summary.failed + gaps.length} inspection gaps.`,{isStatusMessageTerminal:true});
