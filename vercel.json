@@ -67,6 +67,10 @@
   ],
   "rewrites": [
     {
+      "source": "/intelligence",
+      "destination": "/intelligence.html"
+    },
+    {
       "source": "/connect",
       "destination": "/connect.html"
     },
@@ -190,3 +194,4 @@
     }
   ]
 }
+

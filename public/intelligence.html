@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#244f40">
+  <meta name="description" content="Nexus Intelligence: track competitor pages, compare observed changes and keep your research in one workspace.">
+  <title>Nexus / Intelligence</title>
+  <link rel="stylesheet" href="/intelligence.css">
+  <script type="module" src="/intelligence.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a href="/intelligence" class="brand" aria-label="Nexus Intelligence home"><span class="brand-mark" aria-hidden="true">N</span><span>nexus <span class="brand-slash">/</span> <span class="brand-product">intelligence</span></span></a>
+    <div class="top-meta"><span class="release">EARLY ACCESS</span><span id="account-label">Your market, in focus.</span></div>
+  </header>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="nav-heading">WORKSPACE</div>
+      <nav aria-label="Intelligence workspace">
+        <button type="button" data-tab="feed" aria-current="page"><span aria-hidden="true">◉</span>Intelligence</button>
+        <button type="button" data-tab="board"><span aria-hidden="true">▦</span>Research board</button>
+        <button type="button" data-tab="watchlist"><span aria-hidden="true">◎</span>Competitors</button>
+        <button type="button" data-tab="brief"><span aria-hidden="true">≡</span>Research brief</button>
+      </nav>
+      <div class="sidebar-foot"><p>A clearer view.<br>A better next move.</p><a href="/index.html">Powered by Nexus Labs ↗</a></div>
+    </aside>
+    <main>
+      <div id="notice" class="notice" role="status" aria-live="polite"></div>
+      <section id="auth" hidden>
+        <div class="eyebrow">YOUR COMPETITIVE WORKSPACE</div><h1>Keep your market<br>in sight.</h1>
+        <p class="intro">Save competitor pages, see what changed, and keep the evidence behind your next decision.</p>
+        <form id="auth-form" class="auth-form">
+          <h2 id="auth-title">Sign in to Intelligence</h2><p class="muted">Use your existing Nexus account, or create one here.</p>
+          <label id="name-field" hidden>Your name<input name="name" autocomplete="name" maxlength="80"></label>
+          <label id="login-label">Email or username<input name="username" autocomplete="username" required></label>
+          <label id="email-field" hidden>Email<input name="email" type="email" autocomplete="email"></label>
+          <label>Password<input name="password" type="password" autocomplete="current-password" required minlength="8"></label>
+          <button class="button primary" type="submit" id="auth-submit">Sign in</button>
+          <button class="text-button" type="button" id="auth-toggle">Create a Nexus account</button>
+        </form>
+      </section>
+      <section id="workspace" aria-busy="true"><div class="loading">Opening your Intelligence workspace…</div></section>
+      <footer><a href="/index.html">Powered by Nexus Labs ↗</a><span>Public-page research · Source evidence first</span></footer>
+    </main>
+  </div>
+  <dialog id="add-dialog" aria-labelledby="add-title">
+    <form id="add-form"><div class="heading-row"><div><div class="eyebrow">YOUR WATCHLIST</div><h2 id="add-title">Add a competitor.</h2></div><button type="button" class="icon-button" data-close="add-dialog" aria-label="Close add competitor">×</button></div>
+      <label>Business name<input name="name" required maxlength="100" placeholder="Who are you keeping an eye on?"></label>
+      <label>Page URLs<textarea name="urls" required rows="4" placeholder="https://competitor.com/pricing&#10;https://competitor.com/services"></textarea></label>
+      <p class="muted">One to three public HTTPS pages, one per line. Add the exact pricing, offer or service pages you want to compare.</p>
+      <div id="add-error" class="form-error" role="alert"></div><button class="button primary" type="submit">Save competitor</button>
+    </form>
+  </dialog>
+  <dialog id="evidence-dialog" aria-labelledby="evidence-title"><div id="evidence-content"></div></dialog>
+  <noscript><p class="notice">Enable JavaScript to open Nexus Intelligence.</p></noscript>
+</body>
+</html>
