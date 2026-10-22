@@ -95,3 +95,40 @@ test('rejects bad baseline store names before any work',()=>{
   for(const name of ['A','ab','Has_Upper','-lead','trail-','a'.repeat(64),5])assert.throws(()=>validateIntelligenceInput({urls:['https://public.com'],baselineStoreName:name}));
   assert.throws(()=>validateIntelligenceInput({urls:['https://public.com'],rememberBaselines:'yes'}));
 });
+
+test('rows explain the change in plain language with price movement and full counts',async()=>{
+  const rows=[];const previous={...snapshot('Starter\n$29 per month\nTeam\n$79 per month'),status:'captured'};
+  const summary=await runIntelligenceBatch({urls:['https://public.com/pricing','https://public.com/about-us'],previousResults:[previous]},
+    {capture:async url=>snapshot(url.endsWith('pricing')?'Starter\n$39 per month\nTeam\n$79 per month\nNew\nEnterprise':'Hello there this is a long enough page of text to keep',url),publish:async r=>rows.push(r)});
+  const [priced,other]=rows;
+  assert.equal(priced.pageType,'pricing');assert.equal(other.pageType,'other');
+  assert.deepEqual(priced.priceChanges,{added:['$39'],removed:['$29']});
+  assert.deepEqual(priced.changeCounts,{added:3,removed:1});
+  assert.equal(priced.changeSummary,'Prices: no longer shows $29; now shows $39. 3 passages added, 1 removed.');
+  assert.match(other.changeSummary,/First capture saved as your baseline/);
+  assert.equal(summary.changes.length,1);assert.equal(summary.changes[0].changeSummary,priced.changeSummary);
+  assert.deepEqual(summary.byCompetitor['public.com'],{pages:2,changed:1});
+});
+test('price strings skip stray fragments and keep recurring suffixes',()=>{
+  assert.deepEqual(observedAmounts('Pro $ 1 off, $16/month, $1,299.50, $39.'),['$16/month','$1,299.50','$39']);
+});
+test('failed rows say what happened and that the saved copy is kept',async()=>{
+  let row;await runIntelligenceBatch({urls:['https://public.com/pricing'],previousResults:[{...snapshot(),status:'captured'}]},
+    {capture:async()=>{throw Object.assign(Error('Page returned HTTP 404.'),{code:'HTTP_ERROR'});},publish:async r=>row=r,sleep:async()=>{}});
+  assert.equal(row.changeSummary,'Could not read this page: Page returned HTTP 404. Your saved copy is kept.');
+});
+test('the report is escaped, never carries page text, and the run still succeeds',async()=>{
+  const {renderReport}=await import('../lib/intelligenceReport.js');
+  const html=renderReport({summary:{successful:1,changed:1,unchanged:0,byCompetitor:{'evil.com':{pages:1,changed:1}}},rows:[
+    {status:'captured',comparison:'changed',url:'https://evil.com/pricing',pageType:'pricing',captureMethod:'browser',previousCapturedAt:'2026-10-01T00:00:00Z',
+     changeSummary:'<script>alert(1)</script>',priceChanges:{added:['$39'],removed:['$29']},added:['<img src=x onerror=alert(1)>'],removed:[],changeCounts:{added:1,removed:0}},
+    {status:'failed',url:'javascript:alert(1)',error:{message:'bad "quote"'}}]});
+  assert.ok(!html.includes('<script>alert'));assert.ok(!html.includes('<img src=x'));assert.ok(html.includes('&lt;script&gt;'));assert.ok(!html.includes('href="javascript'));assert.ok(html.includes('$39'));
+});
+test('runActor saves an HTML REPORT without page text',async()=>{
+  const saved={};
+  const actor={getInput:async()=>({urls:['https://public.com/pricing'],rememberBaselines:false,renderMode:'html'}),getChargingManager:()=>({calculateMaxEventChargeCountWithinLimit:()=>10}),
+    openKeyValueStore:async()=>null,setStatusMessage:async()=>{},pushData:async()=>{},setValue:async(k,v,o)=>{saved[k]={v,o};}};
+  await runActor(actor,{capture:async()=>snapshot('Starter\n$39 per month\nSecret page text line'),renderer:null});
+  assert.match(saved.REPORT.o.contentType,/text\/html/);assert.ok(saved.REPORT.v.includes('Competitor page changes'));assert.ok(!saved.REPORT.v.includes('Secret page text line'));
+});
