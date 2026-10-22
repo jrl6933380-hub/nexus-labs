@@ -1,0 +1,15 @@
+{
+  "actorSpecification": 1,
+  "name": "nexus-intelligence",
+  "title": "Nexus Intelligence — Competitor Page Changes",
+  "description": "Capture public competitor pages and compare their text to earlier results, with source URLs, timestamps and observed amount strings.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "dockerfile": "../actors/intelligence/Dockerfile",
+  "readme": "../actors/intelligence/README.md",
+  "input": "../actors/intelligence/input_schema.json",
+  "storages": {
+    "dataset": "../actors/intelligence/dataset_schema.json"
+  },
+  "usesStandbyMode": false
+}

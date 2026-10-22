@@ -1,0 +1,39 @@
+{
+  "title": "Nexus Intelligence input",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "urls": {
+      "title": "Competitor page URLs",
+      "type": "array",
+      "description": "One to 50 public HTTPS page URLs as strings. Duplicate URLs are captured once. The Actor does not crawl beyond the exact URLs you supply.",
+      "editor": "stringList",
+      "items": {"type": "string"},
+      "minItems": 1,
+      "maxItems": 50
+    },
+    "maxPages": {
+      "title": "Maximum pages to inspect",
+      "type": "integer",
+      "description": "Hard cap per run after deduplication. Successful captures count as results even if the text is unchanged.",
+      "default": 10,
+      "minimum": 1,
+      "maximum": 50
+    },
+    "includeText": {
+      "title": "Include captured source text",
+      "type": "boolean",
+      "description": "Keep enabled if you want to pass results back as comparison baselines on the next run. Captures retain at most 24,000 characters.",
+      "default": true
+    },
+    "previousResults": {
+      "title": "Earlier successful results (optional)",
+      "type": "array",
+      "description": "Paste captured rows from an earlier run, including text, requestedUrl, url and capturedAt. Filter out failed rows. No cross-run storage is read automatically.",
+      "editor": "json",
+      "default": [],
+      "maxItems": 50
+    }
+  },
+  "required": ["urls"]
+}
