@@ -10,7 +10,11 @@ No account elsewhere, no dashboard to sign up for, no code. Run it by hand, on a
 - **Changed / unchanged / first-seen** status for every page
 - **Added and removed passages** (up to 8 each, so you read the change, not the whole page)
 - **Price strings spotted on the page** (for example `$39/month`), copied exactly as written
+- **A plain-language summary of every change**, like "Prices: no longer shows $29; now shows $39. 3 passages added, 1 removed."
+- **Price movement**: which price strings appeared and which disappeared since last time
+- **Page type** (pricing, services, features or other) and full counts of added and removed passages
 - **Evidence on every row**: requested URL, final URL, capture time, previous capture time, page title, content hash, how the page was read
+- **A one-page report** that opens first on the Output tab: summary tiles, a card per changed page with old and new prices, and anything that could not be read. It never includes the raw page text.
 - **A run summary** listing which URLs changed and which competitors had no page found
 - **Honest gaps**: if a page can't be read, you get a failed row saying why. Failed pages are never charged and never overwrite your saved copy.
 
@@ -60,7 +64,11 @@ Your saved pages live in a private storage in **your own Apify account**. Nothin
   "title": "Pricing",
   "capturedAt": "2026-10-22T16:00:00.000Z",
   "previousCapturedAt": "2026-10-21T16:00:00.000Z",
+  "pageType": "pricing",
   "observedAmounts": ["$39/month"],
+  "priceChanges": { "added": ["$39"], "removed": ["$29"] },
+  "changeCounts": { "added": 1, "removed": 1 },
+  "changeSummary": "Prices: no longer shows $29; now shows $39. 1 passage added, 1 removed.",
   "added": ["Starter $39 per month"],
   "removed": ["Starter $29 per month"],
   "error": null
@@ -71,7 +79,7 @@ Your saved pages live in a private storage in **your own Apify account**. Nothin
 
 If you switch `renderMode` and a page is read a different way than last time, the Actor starts a fresh baseline for it (`baselineReset: true`) instead of reporting fake changes.
 
-A `SUMMARY` record in the run's key-value store lists counts, changed URLs and competitors with no page found. Those competitors also get a free row telling you to add their page address.
+A `SUMMARY` record in the run's key-value store lists counts, every change with its plain-language summary, a per-competitor rollup, pages that failed, and competitors with no page found. Those competitors also get a free row telling you to add their page address.
 
 ## Pricing
 
