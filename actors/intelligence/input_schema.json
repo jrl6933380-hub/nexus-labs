@@ -10,7 +10,8 @@
       "editor": "stringList",
       "items": {"type": "string"},
       "minItems": 1,
-      "maxItems": 50
+      "maxItems": 50,
+      "prefill": ["https://www.iana.org/help/example-domains"]
     },
     "maxPages": {
       "title": "Maximum pages to inspect",
@@ -23,16 +24,32 @@
     "includeText": {
       "title": "Include captured source text",
       "type": "boolean",
-      "description": "Keep enabled if you want to pass results back as comparison baselines on the next run. Captures retain at most 24,000 characters.",
+      "description": "Include the captured page text in each output row (at most 24,000 characters). Saved baselines always keep the text in your own storage regardless of this setting.",
       "default": true
     },
     "previousResults": {
       "title": "Earlier successful results (optional)",
       "type": "array",
-      "description": "Paste captured rows from an earlier run, including text, requestedUrl, url and capturedAt. Filter out failed rows. No cross-run storage is read automatically.",
+      "description": "Optional. Paste captured rows from an earlier run to compare against them instead of the saved baselines. Rows must be successful captures that include text, requestedUrl, url and capturedAt.",
       "editor": "json",
       "default": [],
       "maxItems": 50
+    },
+    "rememberBaselines": {
+      "title": "Remember pages between runs",
+      "type": "boolean",
+      "description": "Saves the latest successful capture of each URL in a private storage in your own Apify account, so the next run shows what changed with no copy-pasting. Turn off for a stateless run.",
+      "default": true
+    },
+    "baselineStoreName": {
+      "title": "Baseline storage name",
+      "type": "string",
+      "description": "Name of the key-value store in your account that holds saved pages. Use a different name to keep separate watchlists. 3-63 lowercase letters, numbers and hyphens.",
+      "default": "nexus-intelligence-baselines",
+      "minLength": 3,
+      "maxLength": 63,
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "editor": "textfield"
     }
   },
   "required": ["urls"]

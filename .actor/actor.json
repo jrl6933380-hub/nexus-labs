@@ -3,7 +3,7 @@
   "name": "nexus-intelligence",
   "title": "Nexus Intelligence — Competitor Page Changes",
   "description": "Capture public competitor pages and compare their text to earlier results, with source URLs, timestamps and observed amount strings.",
-  "version": "0.1",
+  "version": "0.2",
   "buildTag": "latest",
   "dockerfile": "../actors/intelligence/Dockerfile",
   "readme": "../actors/intelligence/README.md",
@@ -11,5 +11,7 @@
   "storages": {
     "dataset": "../actors/intelligence/dataset_schema.json"
   },
-  "usesStandbyMode": false
+  "usesStandbyMode": false,
+  "minMemoryMbytes": 512,
+  "maxMemoryMbytes": 1024
 }
