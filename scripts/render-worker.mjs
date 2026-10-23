@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import '../lib/store/installFetch.js';
 // Render worker: claims queued render jobs (lib/adRenderJobs.js) and runs them with the real exporters. Run it anywhere
 // that has Node 20+, Chromium (Playwright), ffmpeg and the same KV_REST_API_URL / KV_REST_API_TOKEN as the app:
 //

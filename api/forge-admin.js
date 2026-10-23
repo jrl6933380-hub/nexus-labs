@@ -1,3 +1,4 @@
+import '../lib/store/installFetch.js';
 // api/forge-admin.js
 // Operator-only endpoint to seat the first Forge manager/worker
 // accounts. There's no real admin console yet (see MVP scope item 2
