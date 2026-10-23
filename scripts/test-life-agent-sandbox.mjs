@@ -1,3 +1,4 @@
+import '../lib/store/installFetch.js';
 import fs from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import path from 'node:path';
