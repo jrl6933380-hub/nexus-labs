@@ -15,6 +15,7 @@ import { enableAgent, grantBonusReplies, getProjectBySubscription, disableAgent 
 import { readInvoice, getInvoiceChargeId } from '../../lib/forgeStripe.js';
 import { recordPaidInvoice, getClient, requestCancel } from '../../lib/forgeDb.js';
 import { payCommissionEvents } from '../../lib/forgePayouts.js';
+import { markWaitlistPaid } from '../../lib/waitlistPayments.js';
 
 const FORGE_REVOKING = new Set(['past_due', 'unpaid', 'incomplete_expired', 'paused', 'canceled']);
 
@@ -100,6 +101,21 @@ export default async function handler(req, res) {
         console.error('stripe webhook: forge invoice.paid failed, asking Stripe to retry:', err.message);
         return res.status(500).json({ error: 'forge invoice processing failed' });
       }
+    }
+  }
+  // ---- Waitlist go-live payments ----
+  // A visitor paid the payment link we sent them (client_reference_id is their waitlist entry). Failures return
+  // 500 so Stripe retries; marking an entry paid twice is harmless.
+  if (['checkout.session.completed', 'checkout.session.async_payment_succeeded'].includes(event.type) && forgeObj.metadata?.kind === 'waitlist') {
+    try {
+      if (forgeObj.payment_status === 'paid' || forgeObj.payment_status === 'no_payment_required') {
+        const result = await markWaitlistPaid(forgeObj);
+        if (!result.handled) console.error('stripe webhook: waitlist payment not matched:', result.reason, forgeObj.id);
+      }
+      return res.status(200).json({ received: true, waitlist: true });
+    } catch (err) {
+      console.error('stripe webhook: waitlist payment failed, asking Stripe to retry:', err.message);
+      return res.status(500).json({ error: 'waitlist payment processing failed' });
     }
   }
   if (forgeObj.metadata?.kind === 'forge_client') {
