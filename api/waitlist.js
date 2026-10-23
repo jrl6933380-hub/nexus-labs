@@ -2,12 +2,17 @@
 // GET  /api/waitlist?list=1          -> operator only: entries, oldest first
 // GET  /api/waitlist?preview=ID      -> public: the saved concept preview page (also at /p/ID), sandboxed
 // GET  /api/waitlist?photo=ID&n=0    -> operator only: one attached photo (image)
+// GET  /api/waitlist?me=1            -> the customer's own stage and links (header x-waitlist-token)
+// GET  /api/waitlist?claim=cs_...    -> after paying: verify the Stripe session, mark paid, hand back the token
 // POST /api/waitlist                 -> submit a request (optional photos[] data URIs)
 import { getRequestUser, isOperatorUser } from '../lib/roomAuth.js';
 import { allowWaitlist, validateWaitlistEntry, waitlistPrice, waitlistStore } from '../lib/waitlist.js';
 import { publicBuildStatus, wakeWaitlistBuilder } from '../lib/waitlistBuilderWake.js';
 import { waitlistAlerts } from '../lib/waitlistAlerts.js';
 import { getNexusOwner } from '../lib/nexusOwnerAuth.js';
+import { signEntryToken, verifyEntryToken, accountView } from '../lib/waitlistAccount.js';
+import { markWaitlistPaid } from '../lib/waitlistPayments.js';
+import { waitlistPaymentLink } from '../lib/waitlistPaymentLink.js';
 
 const usernameOf = (user) => (typeof user === 'string' ? user : user?.username || user?.name || '');
 const PREVIEW_CSP = [
@@ -23,6 +28,13 @@ const PREVIEW_CSP = [
   "frame-ancestors 'none'",
 ].join('; ');
 const STATUS_ID_RE = /^[0-9a-f-]{36}$/i;
+const SESSION_RE = /^cs_(?:live|test)_[A-Za-z0-9]{10,200}$/;
+
+async function fetchCheckoutSession(id, env = process.env) {
+  if (!env.STRIPE_SECRET_KEY) return null;
+  const r = await fetch('https://api.stripe.com/v1/checkout/sessions/' + encodeURIComponent(id), { headers: { Authorization: 'Bearer ' + env.STRIPE_SECRET_KEY } });
+  return r.ok ? r.json() : null;
+}
 // Hosts a preview link may point at: this site, claude.ai, plus anything listed in WAITLIST_PREVIEW_HOSTS.
 const previewHosts = (req, env = process.env) => [
   req.headers?.host,
@@ -35,6 +47,7 @@ export async function handleWaitlist(req, res, deps = {}) {
   const allow = deps.allow || allowWaitlist;
   const getUser = deps.getUser || getRequestUser;
   const wake = deps.wake || wakeWaitlistBuilder;
+  const getSession = deps.getSession || fetchCheckoutSession;
   const alerts = deps.alerts || waitlistAlerts;
   const isOwner = deps.isOwner || (async (r) => Boolean(await getNexusOwner(r).catch(() => null)));
   res.setHeader('Cache-Control', 'private, no-store');
@@ -47,11 +60,38 @@ export async function handleWaitlist(req, res, deps = {}) {
       const id = String(req.query.status);
       if (!STATUS_ID_RE.test(id)) return res.status(404).json({ ok: false, error: 'Not found.' });
       try {
-        const view = publicBuildStatus(await store.get(id), { allowedHosts: previewHosts(req) });
+        const view = publicBuildStatus(await store.get(id), { allowedHosts: previewHosts(req), payUrl: waitlistPaymentLink(id) });
         return view ? res.status(200).json({ ok: true, ...view }) : res.status(404).json({ ok: false, error: 'Not found.' });
       } catch (error) {
         return res.status(503).json({ ok: false, error: 'Status unavailable.' });
       }
+    }
+    // The customer's own page state. The signed token proves they own this entry; the id alone never would.
+    if (req.query?.me) {
+      const id = verifyEntryToken(req.headers?.['x-waitlist-token']);
+      if (!id) return res.status(401).json({ ok: false, error: 'Not signed in.' });
+      try {
+        const entry = await store.get(id);
+        const view = accountView(entry);
+        if (!view) return res.status(404).json({ ok: false, error: 'Not found.' });
+        if (view.stage === 'preview') view.pay_url = waitlistPaymentLink(id);
+        return res.status(200).json({ ok: true, ...view });
+      } catch { return res.status(503).json({ ok: false, error: 'Status unavailable.' }); }
+    }
+    // Stripe sends the payer back with ?session_id=cs_... . Only the payer has that id, so it proves who paid.
+    if (req.query?.claim) {
+      const sid = String(req.query.claim);
+      if (!SESSION_RE.test(sid)) return res.status(404).json({ ok: false, error: 'Not found.' });
+      try {
+        const session = await getSession(sid);
+        const ok = session && session.metadata?.kind === 'waitlist' && (session.payment_status === 'paid' || session.payment_status === 'no_payment_required');
+        if (!ok || !STATUS_ID_RE.test(String(session.client_reference_id || ''))) return res.status(404).json({ ok: false, error: 'We could not confirm that payment yet. Give it a minute and refresh.' });
+        const id = String(session.client_reference_id);
+        await (deps.markPaid || markWaitlistPaid)(session);
+        const view = accountView(await store.get(id));
+        if (!view) return res.status(404).json({ ok: false, error: 'Not found.' });
+        return res.status(200).json({ ok: true, token: signEntryToken(id), ...view });
+      } catch { return res.status(503).json({ ok: false, error: 'Status unavailable.' }); }
     }
     // Public concept preview. The id is an unguessable capability. The page was written by an AI from stranger-typed
     // text, so it is served inside a CSP sandbox with no same-origin access, no network calls and no forms.
@@ -113,9 +153,11 @@ export async function handleWaitlist(req, res, deps = {}) {
     const alertEntry = { ...checked.entry, id: result.id };
     await alerts.newRequest(alertEntry, result.id).catch(() => {});
     if (!(woke && woke.woke === true)) await alerts.builderNotStarted(alertEntry, result.id, woke?.reason).catch(() => {});
+    // token: lets this browser come back to its own preview or live site later (see lib/waitlistAccount.js).
+    const token = signEntryToken(result.id);
     return res.status(200).json(woke && woke.woke === true
-      ? { ok: true, duplicate: false, building: true, id: result.id }
-      : { ok: true, duplicate: false });
+      ? { ok: true, duplicate: false, building: true, id: result.id, ...(token ? { token } : {}) }
+      : { ok: true, duplicate: false, ...(token ? { token } : {}) });
   } catch (error) {
     console.error('waitlist submit failed:', error.message);
     return res.status(503).json({ ok: false, error: 'Could not save that right now. Try again in a minute.' });
