@@ -3,6 +3,7 @@ import {calendarWithReminders} from '../lib/calendarReminders.js';
 import { lifeStore } from '../lib/life.js';
 import { reminderStore } from '../lib/reminders.js';
 import { pushService } from '../lib/pushNotifications.js';
+import { createAlertsHandler } from '../lib/alertsApi.js';
 import { socialAuth } from '../lib/socialAuth.js';
 import { accountDataService } from '../lib/accountData.js';
 import { feedbackStore } from '../lib/feedback.js';
@@ -202,6 +203,7 @@ export function createPushDeliveryHandler({authorized=cronAuthorized,service=pus
   };
 }
 const handlePushDelivery=createPushDeliveryHandler();
+const handleAlerts=createAlertsHandler();
 
 const SOCIAL_BROWSER_COOKIE='__Host-nexus_social_browser';
 function socialBrowserCookie(value){return `${SOCIAL_BROWSER_COOKIE}=${value || ''}; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=${value ? 600 : 0}`;}
@@ -819,6 +821,7 @@ export default async function handler(req, res) {
     if(path==='/api/availability'){res.setHeader('Cache-Control','no-store');return req.method==='GET'?res.status(200).json({availability:podAvailability()}):res.status(405).json({error:'Method Not Allowed'});}
     if (path.startsWith('/api/life')) return await handleLife(req,res);
     if (path.startsWith('/api/reminders')) return await handleReminders(req, res);
+    if (path.startsWith('/api/alerts')) return await handleAlerts(req, res);
     if (path.startsWith('/api/push-deliver')) return await handlePushDelivery(req, res);
     if (path.startsWith('/api/push')) return await handlePush(req, res);
     if (path.startsWith('/api/social-auth')) return await handleSocialAuth(req, res);
