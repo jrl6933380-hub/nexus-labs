@@ -131,6 +131,10 @@
       "destination": "/api/board"
     },
     {
+      "source": "/api/alerts",
+      "destination": "/api/board"
+    },
+    {
       "source": "/api/push-deliver",
       "destination": "/api/board"
     },
@@ -191,6 +195,10 @@
     {
       "path": "/api/push-deliver",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/alerts?sweep=1",
+      "schedule": "*/2 * * * *"
     },
     {
       "path": "/api/team-sweep",
