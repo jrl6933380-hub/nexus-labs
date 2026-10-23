@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Nexus TikTok Planner</title>
+<style>
+:root{--bg:#0e1013;--panel:#171a1f;--panel2:#1d2127;--line:#2a2f37;--text:#eceef1;--mute:#8d96a3;--acc:#25f4ee;--acc2:#fe2c55;--ok:#46d37f;--warn:#f5b84b}
+@media(prefers-color-scheme:light){:root{--bg:#f5f6f8;--panel:#fff;--panel2:#f0f2f5;--line:#dde1e7;--text:#16191d;--mute:#5d6673;--acc:#008f8a;--acc2:#d4163c;--ok:#1d9a56;--warn:#b57a0a}}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding-bottom:env(safe-area-inset-bottom)}
+header{position:sticky;top:0;z-index:5;background:var(--bg);padding:12px 16px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+h1{font-size:18px;margin:0}h1 span{color:var(--acc)}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+nav{display:flex;gap:6px;overflow-x:auto;padding:10px 16px;border-bottom:1px solid var(--line)}
+button,select,input,textarea{font:inherit;color:inherit}
+button{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 12px;cursor:pointer;white-space:nowrap}
+button:hover:not(:disabled){border-color:var(--acc)}button:disabled{opacity:.5;cursor:default}
+button.on{background:var(--acc);color:#04100f;border-color:var(--acc);font-weight:600}
+button.pri{background:var(--acc2);border-color:var(--acc2);color:#fff;font-weight:600}
+button.sm{padding:3px 9px;font-size:13px}
+main{padding:16px;max-width:1240px;margin:0 auto}
+.board{display:grid;grid-template-columns:repeat(5,minmax(220px,1fr));gap:10px;overflow-x:auto;padding-bottom:10px;-webkit-overflow-scrolling:touch}
+.col{background:var(--panel2);border-radius:10px;padding:8px;min-height:140px}.col.over{outline:2px dashed var(--acc)}
+.col h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute);margin:4px 4px 8px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:10px;margin-bottom:8px}
+.card b{display:block;cursor:pointer}.meta{color:var(--mute);font-size:12px;margin-top:4px}
+.card .mv{display:flex;gap:6px;margin-top:8px;justify-content:space-between}
+.tag{display:inline-block;font-size:11px;border-radius:99px;padding:1px 8px;background:var(--panel2);border:1px solid var(--line);color:var(--mute);margin:2px 4px 0 0}
+.tag.ok{color:var(--ok);border-color:var(--ok)}.tag.warn{color:var(--warn);border-color:var(--warn)}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}.dow{font-size:11px;color:var(--mute);text-align:center}
+.day{min-height:84px;background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:4px;font-size:12px;cursor:pointer}.day.dim{opacity:.45}.day.today{border-color:var(--acc)}
+.day .n{color:var(--mute)}.pill{display:block;margin-top:3px;padding:2px 5px;border-radius:5px;background:var(--panel2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pill.posted{border-left:3px solid var(--ok)}.pill.ready,.pill.scheduled{border-left:3px solid var(--acc)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px}.panel h2{font-size:16px;margin:0 0 6px}
+label{display:block;font-size:12px;color:var(--mute);margin:10px 0 3px}
+input,textarea,select{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:8px 10px}textarea{min-height:90px;resize:vertical}
+pre{white-space:pre-wrap;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;font:13px/1.45 ui-monospace,Menlo,monospace;margin:6px 0}
+dialog{width:min(680px,95vw);max-height:92vh;overflow:auto;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:12px;padding:16px}dialog::backdrop{background:#000a}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}@media(max-width:560px){.grid{grid-template-columns:1fr}}
+.small{font-size:12px;color:var(--mute)}.empty{color:var(--mute);padding:24px;text-align:center}
+.status{font-size:12px;color:var(--mute)}.status.err{color:var(--acc2)}.status.ok{color:var(--ok)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:9px 14px;border-radius:9px;z-index:20;max-width:90vw}
+hr{border:0;border-top:1px solid var(--line);margin:14px 0}
+@media(max-width:700px){.board{grid-template-columns:repeat(5,240px)}.day{min-height:62px}}
+</style>
+</head>
+<body>
+<header>
+  <h1><span>TikTok</span> Planner</h1>
+  <div class="bar">
+    <select id="camp" aria-label="Campaign" style="width:auto"></select>
+    <button id="newCamp">+ Campaign</button>
+    <button id="newVideo" class="pri">+ Video</button>
+    <button id="refresh" title="Reload from the server">&#8635;</button>
+  </div>
+</header>
+<nav id="tabs"></nav>
+<main id="view"><div class="empty">Loading&hellip;</div></main>
+<dialog id="dlg"></dialog>
+<script type="module">
+import {REGISTRY,TAGS} from './ad-vocabulary.mjs';
+const STAGES=['idea','scripted','ready','scheduled','posted'];
+const LABEL={idea:'Ideas',scripted:'Scripted',ready:'Ready to post',scheduled:'Scheduled',posted:'Posted'};
+const TABS=[['board','Board'],['calendar','Calendar'],['queue','Post queue'],['campaigns','Campaigns']];
+const st={campaigns:[],videos:[],campaign:'all',tab:'board',editing:null,loaded:false};
+const $=id=>document.getElementById(id);
+const uid=p=>p+'-'+(crypto.randomUUID?crypto.randomUUID().slice(0,8):Math.random().toString(36).slice(2,10));
+
+function el(tag,attrs,kids){const e=document.createElement(tag);for(const[k,v]of Object.entries(attrs||{})){if(k==='class')e.className=v;else if(k==='text')e.textContent=v;else if(k.startsWith('on'))e.addEventListener(k.slice(2),v);else if(v!==false&&v!=null)e.setAttribute(k,v);}for(const c of kids||[]){if(c==null)continue;e.append(c);}return e;}
+function toast(msg){for(const o of document.querySelectorAll('.toast'))o.remove();const t=el('div',{class:'toast',text:msg});document.body.append(t);setTimeout(()=>t.remove(),3200);}
+async function api(action,input={},write=false){
+  const body={action,input};if(write)body.request_id='req-'+crypto.randomUUID();
+  const res=await fetch('/api/tiktok-plans',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  let data=null;try{data=await res.json();}catch{}
+  if(!res.ok){const e=new Error(res.status===401?'Sign in to Nexus in this browser first.':res.status===403?'The planner is only for the Nexus owner.':(data&&data.error)||'Could not reach the planner.');e.status=res.status;throw e;}
+  return data.data;
+}
+const copy=async(text,btn)=>{try{await navigator.clipboard.writeText(text);}catch{const t=el('textarea');t.value=text;document.body.append(t);t.select();try{document.execCommand('copy');}catch{}t.remove();}if(btn){const o=btn.textContent;btn.textContent='Copied';setTimeout(()=>btn.textContent=o,1000);}};
+const campName=id=>(st.campaigns.find(c=>c.id===id)||{}).name||'No campaign';
+const visible=()=>st.videos.filter(v=>st.campaign==='all'||v.campaign_id===st.campaign);
+const fields=v=>{const{id,baseline,kind,created_at,updated_at,...rest}=v;return rest;};
+const pkg=v=>['CAPTION:',v.caption,'','HASHTAGS:',v.hashtags||'(none)','','SOUND:',v.sound||'original audio','','VIDEO FILE:',v.video_ref||'(not attached)','','POST DATE:',v.date||'(no date)'].join('\n');
+const adUrl=v=>v.ad_campaign_id?'/ad-maker.html?ad='+encodeURIComponent(v.ad_campaign_id):'';
+
+function put(rec){const list=rec.kind==='v'?st.videos:st.campaigns,i=list.findIndex(x=>x.id===rec.id);if(i>=0)list[i]=rec;else list.push(rec);}
+async function load(quiet){
+  try{const d=await api('overview');st.campaigns=d.campaigns;st.videos=d.videos;st.loaded=true;
+    if(st.campaign!=='all'&&!st.campaigns.some(c=>c.id===st.campaign))st.campaign='all';
+    if(!st.editing)render();else renderChrome();
+  }catch(e){if(!quiet||!st.loaded)$('view').replaceChildren(el('div',{class:'empty',text:e.message}));}
+}
+async function saveVideo(v,patch){
+  const next={...fields(v),...patch};
+  const rec=await api('save_video',{id:v.id,baseline:v.baseline,video:next},true);put(rec);return rec;
+}
+async function move(v,status){
+  try{await saveVideo(v,{status});render();}
+  catch(e){toast(e.message);if(e.status===409)load();else openEditor(v.id);}
+}
+
+function renderChrome(){
+  const sel=$('camp');sel.replaceChildren(el('option',{value:'all',text:'All campaigns'}),...st.campaigns.map(c=>el('option',{value:c.id,text:c.name})));sel.value=st.campaign;
+  $('tabs').replaceChildren(...TABS.map(([k,l])=>el('button',{class:st.tab===k?'on':'',text:l+(k==='queue'?' ('+st.videos.filter(v=>v.status==='ready'||v.status==='scheduled').length+')':''),onclick:()=>{st.tab=k;render();}})));
+}
+function card(v){
+  const tags=[];if(v.date)tags.push(el('span',{class:'tag',text:v.date}));if(v.ad_campaign_id)tags.push(el('span',{class:'tag ok',text:'ad built'}));else if(v.scope.ready)tags.push(el('span',{class:'tag ok',text:'scoped'}));
+  const i=STAGES.indexOf(v.status);
+  const c=el('div',{class:'card',draggable:'true'},[el('b',{text:v.title,onclick:()=>openEditor(v.id)}),el('div',{class:'meta',text:v.hook||campName(v.campaign_id)}),el('div',{},tags),
+    el('div',{class:'mv'},[el('button',{class:'sm',text:'◀',disabled:i===0,'aria-label':'Move back',onclick:()=>move(v,STAGES[i-1])}),el('button',{class:'sm',text:'Edit',onclick:()=>openEditor(v.id)}),el('button',{class:'sm',text:'▶',disabled:i===STAGES.length-1,'aria-label':'Move forward',onclick:()=>move(v,STAGES[i+1])})])]);
+  c.addEventListener('dragstart',e=>{e.dataTransfer.setData('text/plain',v.id);});
+  return c;
+}
+function viewBoard(root){
+  if(!st.campaigns.length){root.append(el('div',{class:'empty',text:'Make your first campaign to start planning videos.'}));return;}
+  const b=el('div',{class:'board'});
+  for(const s of STAGES){
+    const list=visible().filter(v=>v.status===s);
+    const col=el('div',{class:'col'},[el('h3',{text:LABEL[s]+' ('+list.length+')'}),...list.map(card)]);
+    col.addEventListener('dragover',e=>{e.preventDefault();col.classList.add('over');});col.addEventListener('dragleave',()=>col.classList.remove('over'));
+    col.addEventListener('drop',e=>{e.preventDefault();col.classList.remove('over');const v=st.videos.find(x=>x.id===e.dataTransfer.getData('text/plain'));if(v&&v.status!==s)move(v,s);});
+    b.append(col);
+  }
+  root.append(b);
+}
+let calMonth=new Date();calMonth.setDate(1);
+function viewCalendar(root){
+  const y=calMonth.getFullYear(),m=calMonth.getMonth();
+  root.append(el('div',{class:'row'},[el('button',{text:'<',onclick:()=>{calMonth=new Date(y,m-1,1);render();}}),el('b',{text:calMonth.toLocaleString(undefined,{month:'long',year:'numeric'})}),el('button',{text:'>',onclick:()=>{calMonth=new Date(y,m+1,1);render();}})]));
+  const g=el('div',{class:'cal'});for(const d of['Sun','Mon','Tue','Wed','Thu','Fri','Sat'])g.append(el('div',{class:'dow',text:d}));
+  const start=new Date(y,m,1-new Date(y,m,1).getDay()),t=new Date(),today=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
+  for(let i=0;i<42;i++){
+    const d=new Date(start.getFullYear(),start.getMonth(),start.getDate()+i),key=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    const cell=el('div',{class:'day'+(d.getMonth()!==m?' dim':'')+(key===today?' today':''),onclick:()=>newVideoDialog(key)},[el('div',{class:'n',text:String(d.getDate())})]);
+    for(const v of visible().filter(x=>x.date===key))cell.append(el('span',{class:'pill '+v.status,text:v.title,onclick:e=>{e.stopPropagation();openEditor(v.id);}}));
+    g.append(cell);
+  }
+  root.append(g,el('div',{class:'small',style:'margin-top:8px',text:'Tap an empty day to plan a video for it.'}));
+}
+function viewQueue(root){
+  const q=visible().filter(v=>v.status==='ready'||v.status==='scheduled').sort((a,b)=>(a.date||'9')<(b.date||'9')?-1:1);
+  root.append(el('div',{class:'panel'},[el('h2',{text:'Post queue'}),el('div',{class:'small',text:'Ready and scheduled videos, earliest first. Copy the package, post it, then paste the live link and press Mark posted. ChatGPT and Claude see the same queue through the connector.'})]));
+  if(!q.length)root.append(el('div',{class:'empty',text:'Nothing ready to post yet.'}));
+  for(const v of q){
+    const url=el('input',{placeholder:'https://www.tiktok.com/@.../video/...',value:v.post_url});
+    const cp=el('button',{text:'Copy package',onclick:()=>copy(pkg(v),cp)}),cc=el('button',{text:'Caption + tags',onclick:()=>copy(v.caption+(v.hashtags?'\n\n'+v.hashtags:''),cc)});
+    root.append(el('div',{class:'panel'},[el('h2',{text:v.title}),el('div',{class:'small',text:(v.date?'Post '+v.date:'No date')+' · '+campName(v.campaign_id)}),el('pre',{text:pkg(v)}),
+      el('div',{class:'row'},[cp,cc,adUrl(v)?el('a',{href:adUrl(v),target:'_blank',rel:'noopener',text:'Open ad'}):null]),
+      el('label',{text:'Live TikTok link (after posting)'}),url,
+      el('div',{class:'row'},[el('button',{class:'pri',text:'Mark posted',onclick:async()=>{try{await saveVideo(v,{status:'posted',post_url:url.value.trim()});toast('Marked posted');render();}catch(e){toast(e.message);if(e.status===409)load();}}}),el('button',{text:'Edit',onclick:()=>openEditor(v.id)})])]));
+  }
+  const done=visible().filter(v=>v.status==='posted');
+  if(done.length)root.append(el('div',{class:'panel'},[el('h2',{text:'Posted'}),...done.map(v=>el('div',{class:'meta'},[v.title+' · ',v.post_url?el('a',{href:v.post_url,target:'_blank',rel:'noopener',text:'view'}):'no link']))]));
+}
+function viewCampaigns(root){
+  if(!st.campaigns.length)root.append(el('div',{class:'empty',text:'No campaigns yet.'}));
+  for(const c of st.campaigns){
+    const vs=st.videos.filter(v=>v.campaign_id===c.id);
+    root.append(el('div',{class:'panel'},[el('h2',{text:c.name}),el('div',{class:'small',text:(c.start||'?')+' to '+(c.end||'?')+' · '+c.status+' · '+vs.length+' video'+(vs.length===1?'':'s')}),
+      el('label',{text:'Goal'}),el('div',{text:c.goal||'-'}),el('label',{text:'Audience'}),el('div',{text:c.audience||'-'}),
+      el('div',{class:'row'},[el('button',{text:'Edit',onclick:()=>campaignDialog(c)}),el('button',{text:'Show videos',onclick:()=>{st.campaign=c.id;st.tab='board';render();}})])]));
+  }
+}
+function render(){renderChrome();const root=$('view');root.replaceChildren();({board:viewBoard,calendar:viewCalendar,queue:viewQueue,campaigns:viewCampaigns}[st.tab]||viewBoard)(root);}
+
+// ---- dialogs ----
+let fieldN=0;
+function field(parent,label,node){const id='f'+(++fieldN);node.id=id;parent.append(el('div',{},[el('label',{for:id,text:label}),node]));return node;}
+function opts(list,cur,none){const s=el('select');if(none)s.append(el('option',{value:'',text:none}));for(const o of list)s.append(el('option',{value:o.id??o,text:o.label??o}));s.value=cur??'';return s;}
+function campaignDialog(c){
+  const d=$('dlg');d.replaceChildren();const isNew=!c;const cur=c||{name:'',goal:'',audience:'',start:'',end:'',status:'planning'};
+  const f={};d.append(el('h2',{text:isNew?'New campaign':'Edit campaign'}));
+  f.name=field(d,'Name',el('input',{value:cur.name,maxlength:'80'}));f.goal=field(d,'Goal',el('textarea',{text:cur.goal}));f.goal.value=cur.goal;f.audience=field(d,'Audience',el('textarea',{}));f.audience.value=cur.audience;
+  const g=el('div',{class:'grid'});d.append(g);f.start=field(g,'Start',el('input',{type:'date',value:cur.start}));f.end=field(g,'End',el('input',{type:'date',value:cur.end}));
+  f.status=field(d,'Status',opts(['planning','active','done'],cur.status));
+  const msg=el('div',{class:'status'});
+  d.append(msg,el('div',{class:'row'},[el('button',{class:'pri',text:'Save',onclick:async()=>{
+    try{const camp={name:f.name.value.trim(),goal:f.goal.value.trim(),audience:f.audience.value.trim(),start:f.start.value,end:f.end.value,status:f.status.value};
+      if(!camp.name){f.name.focus();return;}
+      const rec=await api('save_campaign',{id:isNew?uid('camp'):c.id,baseline:isNew?undefined:c.baseline,campaign:camp},true);put(rec);if(isNew)st.campaign=rec.id;d.close();render();
+    }catch(e){msg.className='status err';msg.textContent=e.message;if(e.status===409)load(true);}
+  }}),el('button',{text:'Cancel',onclick:()=>d.close()}),
+  !isNew?el('button',{text:'Delete',onclick:async()=>{if(!confirm('Delete this campaign? It must have no videos.'))return;try{await api('delete_campaign',{id:c.id,baseline:c.baseline},true);st.campaigns=st.campaigns.filter(x=>x.id!==c.id);d.close();render();}catch(e){msg.className='status err';msg.textContent=e.message;}}}):null]));
+  d.showModal();
+}
+function newVideoDialog(date){
+  if(!st.campaigns.length){toast('Make a campaign first.');campaignDialog(null);return;}
+  const d=$('dlg');d.replaceChildren(el('h2',{text:'New video'}));
+  const title=field(d,'Title',el('input',{maxlength:'100',placeholder:'What is this video?'}));
+  const camp=field(d,'Campaign',opts(st.campaigns.map(c=>({id:c.id,label:c.name})),st.campaign!=='all'?st.campaign:st.campaigns[0].id));
+  const dt=field(d,'Post date (optional)',el('input',{type:'date',value:date||''}));
+  const msg=el('div',{class:'status'});
+  d.append(msg,el('div',{class:'row'},[el('button',{class:'pri',text:'Create',onclick:async()=>{
+    if(!title.value.trim()){title.focus();return;}
+    try{const rec=await api('save_video',{id:uid('vid'),video:{campaign_id:camp.value,title:title.value.trim(),date:dt.value}},true);put(rec);d.close();render();openEditor(rec.id);}catch(e){msg.className='status err';msg.textContent=e.message;}
+  }}),el('button',{text:'Cancel',onclick:()=>d.close()})]));
+  d.showModal();title.focus();
+}
+const IND=TAGS.industry,GOAL=TAGS.goal,HOOK=TAGS.hook;
+function openEditor(id){
+  const d=$('dlg');d.replaceChildren();st.editing=id;
+  const get=()=>st.videos.find(x=>x.id===id);const v0=get();if(!v0)return;
+  const draft={...fields(v0),scope:{ready:v0.scope.ready,brief:{...(v0.scope.brief||{})}}};
+  const status=el('span',{class:'status',text:'Saved'});let timer=null,saving=false,again=false,lastErr='';
+  async function flush(){
+    if(saving){again=true;return;}saving=true;status.className='status';status.textContent='Saving…';
+    try{
+      const cur=get();const brief=draft.scope.brief&&Object.keys(draft.scope.brief).length?cleanBrief(draft.scope.brief):null;
+      await saveVideo(cur,{...draft,scope:{ready:draft.scope.ready&&Boolean(brief),brief}});
+      status.className='status ok';status.textContent='Saved';lastErr='';
+    }catch(e){status.className='status err';status.textContent='Not saved: '+e.message;lastErr=e.message;
+      if(e.status===409){status.append(' ',el('button',{class:'sm',text:'Reload',onclick:async()=>{await load(true);d.close();st.editing=null;render();openEditor(id);}}));}}
+    finally{saving=false;if(again){again=false;flush();}}
+  }
+  const queue=()=>{status.className='status';status.textContent='Unsaved…';clearTimeout(timer);timer=setTimeout(flush,700);};
+  const bind=(parent,label,node,key,scope)=>{field(parent,label,node);node.addEventListener('input',()=>{(scope?draft.scope.brief:draft)[key]=node.value;queue();});node.addEventListener('change',()=>{(scope?draft.scope.brief:draft)[key]=node.value;queue();});return node;};
+  d.append(el('div',{class:'row',style:'justify-content:space-between'},[el('h2',{text:'Video',style:'margin:0'}),status]));
+  bind(d,'Title',el('input',{value:draft.title,maxlength:'100'}),'title');
+  const g1=el('div',{class:'grid'});d.append(g1);
+  bind(g1,'Stage',opts(STAGES.map(s=>({id:s,label:LABEL[s]})),draft.status),'status');
+  bind(g1,'Campaign',opts(st.campaigns.map(c=>({id:c.id,label:c.name})),draft.campaign_id),'campaign_id');
+  bind(g1,'Post date',el('input',{type:'date',value:draft.date}),'date');
+  bind(g1,'Sound',el('input',{value:draft.sound,maxlength:'100',placeholder:'original audio'}),'sound');
+  bind(d,'Hook (first 2 seconds)',el('input',{value:draft.hook,maxlength:'150'}),'hook');
+  const sc=el('textarea');sc.value=draft.script;bind(d,'Script',sc,'script');
+  const cap=el('textarea');cap.value=draft.caption;bind(d,'Caption',cap,'caption');
+  bind(d,'Hashtags',el('input',{value:draft.hashtags,maxlength:'300'}),'hashtags');
+  bind(d,'Video file (where it lives)',el('input',{value:draft.video_ref,maxlength:'300'}),'video_ref');
+  bind(d,'Live TikTok link',el('input',{value:draft.post_url,maxlength:'300',placeholder:'Needed to mark posted'}),'post_url');
+  const nt=el('textarea');nt.value=draft.notes;bind(d,'Notes',nt,'notes');
+
+  d.append(el('hr'),el('h2',{text:'Ad for this video'}),el('div',{class:'small',text:'Fill in the brief, agree it, tick Scoped, then build the ad. Claude and ChatGPT read this same scope through the connector.'}));
+  const b=draft.scope.brief;
+  const g2=el('div',{class:'grid'});d.append(g2);
+  bind(g2,'Business name',el('input',{value:b.business_name||'',maxlength:'35'}),'business_name',true);
+  bind(g2,'Industry',opts(IND,b.industry,'Choose…'),'industry',true);
+  bind(g2,'Goal',opts(GOAL,b.goal,'Choose…'),'goal',true);
+  bind(g2,'Opening hook style',opts(HOOK,b.hook,'Automatic'),'hook',true);
+  bind(g2,'Mood',opts(REGISTRY.moods,b.mood,'Automatic'),'mood',true);
+  bind(g2,'Palette',opts(REGISTRY.palettes,b.palette,'Automatic'),'palette',true);
+  bind(g2,'Length',opts(REGISTRY.lengths.map(l=>({id:String(l.seconds),label:l.seconds+' seconds'})),b.length_sec!=null?String(b.length_sec):'','Automatic'),'length_sec',true);
+  bind(g2,'Location',el('input',{value:b.location||'',maxlength:'30'}),'location',true);
+  bind(d,'Headline',el('input',{value:b.headline||'',maxlength:'60'}),'headline',true);
+  bind(d,'Supporting line',el('input',{value:b.support||'',maxlength:'120'}),'support',true);
+  const g3=el('div',{class:'grid'});d.append(g3);
+  bind(g3,'Offer',el('input',{value:b.offer||'',maxlength:'60'}),'offer',true);
+  bind(g3,'Button text',el('input',{value:b.cta||'',maxlength:'25'}),'cta',true);
+  bind(g3,'Destination',el('input',{value:b.destination||'',maxlength:'65'}),'destination',true);
+  const chk=el('input',{type:'checkbox',style:'width:auto'});chk.checked=draft.scope.ready;chk.addEventListener('change',()=>{draft.scope.ready=chk.checked;queue();});
+  d.append(el('label',{style:'display:flex;gap:8px;align-items:center;color:var(--text);font-size:14px;margin-top:12px'},[chk,'Scoped: this brief is agreed and ready to build']));
+  const build=el('button',{class:'pri',text:v0.ad_campaign_id?'Rebuild not available (edit in studio)':'Build ad from this brief',disabled:Boolean(v0.ad_campaign_id),onclick:async()=>{
+    clearTimeout(timer);await flush();if(lastErr){toast(lastErr);return;}
+    build.disabled=true;build.textContent='Building…';
+    try{await api('build_ad',{video_id:id},true);await load(true);toast('Ad built');d.close();st.editing=null;render();openEditor(id);}
+    catch(e){toast(e.message);build.disabled=false;build.textContent='Build ad from this brief';}
+  }});
+  d.append(el('div',{class:'row'},[build,v0.ad_campaign_id?el('a',{href:adUrl(v0),target:'_blank',rel:'noopener',text:'Open ad in studio'}):null]));
+  d.append(el('hr'),el('div',{class:'row'},[el('button',{text:'Close',onclick:()=>d.close()}),el('button',{text:'Delete video',onclick:async()=>{
+    if(!confirm('Delete this video? A built ad stays in Ad Maker.'))return;
+    try{await api('delete_video',{id,baseline:get().baseline},true);st.videos=st.videos.filter(x=>x.id!==id);d.close();render();}catch(e){toast(e.message);}
+  }})]));
+  d.addEventListener('close',()=>{clearTimeout(timer);st.editing=null;render();},{once:true});
+  d.showModal();
+}
+function cleanBrief(b){
+  const out={};for(const[k,v]of Object.entries(b)){if(v===''||v==null)continue;out[k]=k==='length_sec'?Number(v):v;}
+  return Object.keys(out).length?out:null;
+}
+
+$('camp').addEventListener('change',e=>{st.campaign=e.target.value;render();});
+$('newCamp').addEventListener('click',()=>campaignDialog(null));
+$('newVideo').addEventListener('click',()=>newVideoDialog(''));
+$('refresh').addEventListener('click',()=>load());
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)load(true);});
+setInterval(()=>{if(!document.hidden&&!st.editing)load(true);},60000);
+load();
+</script>
+</body>
+</html>
