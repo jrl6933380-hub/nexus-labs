@@ -1,3 +1,4 @@
+import '../lib/store/installFetch.js';
 import {podAvailability} from '../lib/podAvailability.js';
 import {ownerWorkbenchUsername} from '../lib/roomAuth.js';
 import {validTimezone,resolveUserTimezone} from '../lib/userClock.js';
