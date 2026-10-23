@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Competitor Research | Nexus</title>
+<style>
+:root{--bg:#0e1013;--panel:#171a1f;--line:#2a2f37;--text:#eceef1;--mute:#8d96a3;--acc:#25f4ee;--acc2:#fe2c55;--ok:#46d37f}
+@media(prefers-color-scheme:light){:root{--bg:#f5f6f8;--panel:#fff;--line:#dde1e7;--text:#16191d;--mute:#5d6673;--acc:#008f8a;--acc2:#d4163c;--ok:#1d9a56}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:16px}
+main{max-width:680px;margin:0 auto}h1{font-size:22px;margin:8px 0}h1 span{color:var(--acc)}h2{font-size:15px;margin:18px 0 6px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:14px}
+label{display:block;font-size:13px;color:var(--mute);margin:12px 0 4px}
+input,textarea,button{font:inherit;color:inherit;width:100%}input,textarea{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+button{background:var(--acc2);border:0;border-radius:8px;padding:12px;font-weight:600;color:#fff;margin-top:14px;cursor:pointer}button:disabled{opacity:.5}
+.mute{color:var(--mute);font-size:14px}.err{color:var(--acc2)}ul{padding-left:20px;margin:4px 0}li{margin:3px 0}
+.idea{border-top:1px solid var(--line);padding:8px 0}a{color:var(--acc)}
+</style>
+</head>
+<body>
+<main>
+<h1><span>Competitor</span> research</h1>
+<p class="mute">Type a competitor. You get what they post, the hooks that work for them, and a week of content ideas for you. Results take a few minutes.</p>
+<div class="panel" id="form">
+  <label for="c">Competitor (name or handle)</label><input id="c" maxlength="120" autocomplete="off" placeholder="e.g. @theirbusiness">
+  <label for="g">What are you promoting? (optional)</label><textarea id="g" maxlength="300" rows="2" placeholder="e.g. my plumbing company in Des Moines"></textarea>
+  <button id="go">Start research</button>
+  <p class="mute" id="left"></p>
+  <p class="err" id="err" role="alert"></p>
+</div>
+<div class="panel" id="out" hidden></div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const key=new URLSearchParams(location.search).get('k')||'';
+let timer=null;
+function store(k,v){try{if(v==null)localStorage.removeItem(k);else localStorage.setItem(k,v);}catch{}}
+function load(k){try{return localStorage.getItem(k);}catch{return null;}}
+async function api(action,input){
+  const r=await fetch('/api/research-jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,key,input})});
+  let d=null;try{d=await r.json();}catch{}
+  if(!r.ok){const e=new Error((d&&d.error)||'Could not reach the server.');e.status=r.status;throw e;}
+  return d.data;
+}
+function el(t,txt,cls){const e=document.createElement(t);if(txt!=null)e.textContent=txt;if(cls)e.className=cls;return e;}
+function list(title,items){if(!items||!items.length)return null;const d=el('div');d.append(el('h2',title));const u=el('ul');for(const i of items)u.append(el('li',i));d.append(u);return d;}
+function show(d){
+  const out=$('out');out.hidden=false;out.replaceChildren();
+  if(d.status==='queued'){out.append(el('b','In line'),el('p','Position '+d.position+'. This page updates by itself.','mute'));return;}
+  if(d.status==='working'){out.append(el('b','Researching '+d.competitor+'...'),el('p','This usually takes a few minutes. You can leave this page open.','mute'));return;}
+  if(d.status==='failed'){out.append(el('b','Could not finish'),el('p',d.error,'err'));return;}
+  const r=d.result;out.append(el('b','Results for '+d.competitor),el('p',r.summary));
+  for(const s of [list('What they post',r.what_they_post),list('Hooks they use',r.hooks)])if(s)out.append(s);
+  if(r.content_ideas.length){out.append(el('h2','Content ideas for you'));for(const i of r.content_ideas){const b=el('div',null,'idea');b.append(el('b',i.title),el('div','Hook: '+i.hook,'mute'));if(i.format)b.append(el('div','Format: '+i.format,'mute'));out.append(b);}}
+  const a=list('Ad angles',r.ad_angles);if(a)out.append(a);
+  if(r.sources.length){out.append(el('h2','Sources'));const u=el('ul');for(const s of r.sources){const li=el('li'),l=el('a',s.title||s.url);l.href=s.url;l.target='_blank';l.rel='noopener noreferrer';li.append(l);u.append(li);}out.append(u);}
+  if(r.notes)out.append(el('p',r.notes,'mute'));
+}
+async function poll(id){
+  clearTimeout(timer);
+  try{const d=await api('status',{job_id:id});$('left').textContent=d.runs_left+' run'+(d.runs_left===1?'':'s')+' left on this link';show(d);
+    if(d.status==='queued'||d.status==='working')timer=setTimeout(()=>poll(id),6000);else{store('job:'+key,null);$('go').disabled=false;}
+  }catch(e){$('err').textContent=e.message;store('job:'+key,null);$('go').disabled=false;}
+}
+$('go').addEventListener('click',async()=>{
+  $('err').textContent='';const c=$('c').value.trim();if(c.length<2){$('c').focus();return;}
+  $('go').disabled=true;
+  try{const d=await api('submit',{competitor:c,goal:$('g').value.trim()||undefined});store('job:'+key,d.job_id);$('left').textContent=d.runs_left+' runs left on this link';poll(d.job_id);}
+  catch(e){$('err').textContent=e.message;$('go').disabled=false;}
+});
+if(!key){$('err').textContent='This page needs the link you were given.';$('go').disabled=true;}
+else{const j=load('job:'+key);if(j){$('go').disabled=true;poll(j);}}
+</script>
+</body>
+</html>
