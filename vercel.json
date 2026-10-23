@@ -67,6 +67,10 @@
   ],
   "rewrites": [
     {
+      "source": "/p/:id",
+      "destination": "/api/waitlist?preview=:id"
+    },
+    {
       "source": "/intelligence",
       "destination": "/intelligence.html"
     },

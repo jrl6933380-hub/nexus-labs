@@ -1,5 +1,6 @@
 // GET  /api/waitlist                 -> { ok, price } public config for the page
 // GET  /api/waitlist?list=1          -> operator only: entries, oldest first
+// GET  /api/waitlist?preview=ID      -> public: the saved concept preview page (also at /p/ID), sandboxed
 // GET  /api/waitlist?photo=ID&n=0    -> operator only: one attached photo (image)
 // POST /api/waitlist                 -> submit a request (optional photos[] data URIs)
 import { getRequestUser, isOperatorUser } from '../lib/roomAuth.js';
@@ -7,6 +8,18 @@ import { allowWaitlist, validateWaitlistEntry, waitlistPrice, waitlistStore } fr
 import { publicBuildStatus, wakeWaitlistBuilder } from '../lib/waitlistBuilderWake.js';
 
 const usernameOf = (user) => (typeof user === 'string' ? user : user?.username || user?.name || '');
+const PREVIEW_CSP = [
+  "sandbox allow-scripts", // opaque origin: cannot touch our cookies, storage or APIs
+  "default-src 'none'",
+  "img-src data: https:",
+  "style-src 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src data: https://fonts.gstatic.com",
+  "script-src 'unsafe-inline'",
+  "connect-src 'none'",
+  "form-action 'none'",
+  "base-uri 'none'",
+  "frame-ancestors 'none'",
+].join('; ');
 const STATUS_ID_RE = /^[0-9a-f-]{36}$/i;
 // Hosts a preview link may point at: this site, claude.ai, plus anything listed in WAITLIST_PREVIEW_HOSTS.
 const previewHosts = (req, env = process.env) => [
@@ -34,6 +47,25 @@ export async function handleWaitlist(req, res, deps = {}) {
         return view ? res.status(200).json({ ok: true, ...view }) : res.status(404).json({ ok: false, error: 'Not found.' });
       } catch (error) {
         return res.status(503).json({ ok: false, error: 'Status unavailable.' });
+      }
+    }
+    // Public concept preview. The id is an unguessable capability. The page was written by an AI from stranger-typed
+    // text, so it is served inside a CSP sandbox with no same-origin access, no network calls and no forms.
+    if (req.query?.preview) {
+      const id = String(req.query.preview);
+      if (!STATUS_ID_RE.test(id)) return res.status(404).json({ ok: false, error: 'Not found.' });
+      try {
+        const entry = await store.get(id);
+        const html = entry && ['preview_sent', 'paid', 'live'].includes(entry.status) ? await store.getPreview(id) : null;
+        if (!html) return res.status(404).json({ ok: false, error: 'Not found.' });
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.setHeader('Content-Security-Policy', PREVIEW_CSP);
+        res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+        res.setHeader('Referrer-Policy', 'no-referrer');
+        res.setHeader('Cache-Control', 'public, max-age=60');
+        return res.status(200).send(html);
+      } catch (error) {
+        return res.status(503).json({ ok: false, error: 'Preview unavailable.' });
       }
     }
     if (req.query?.list || req.query?.photo) {
