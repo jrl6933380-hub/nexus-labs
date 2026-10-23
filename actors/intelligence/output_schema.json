@@ -1,0 +1,25 @@
+{
+  "actorOutputSchemaVersion": 1,
+  "title": "Competitor Page Change Monitor output",
+  "description": "A one-page report, the page-by-page table, and a run summary.",
+  "properties": {
+    "report": {
+      "type": "string",
+      "title": "Report (open this first)",
+      "description": "A one-page report: what changed, price movement and pages that could not be read.",
+      "template": "{{links.apiDefaultKeyValueStoreUrl}}/records/REPORT"
+    },
+    "pages": {
+      "type": "string",
+      "title": "Page observations",
+      "description": "One row per page: changed, unchanged or first seen, with added and removed passages and prices spotted.",
+      "template": "{{links.apiDefaultDatasetUrl}}/items?view=overview"
+    },
+    "summary": {
+      "type": "string",
+      "title": "Run summary",
+      "description": "Counts, every change with a plain-language summary, and competitors with no page found.",
+      "template": "{{links.apiDefaultKeyValueStoreUrl}}/records/SUMMARY"
+    }
+  }
+}
