@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#070f0d"><meta name="robots" content="noindex"><title>Nexus Labs | Building your preview</title>
+<style>
+:root{--ink:#06090b;--panel:#101a19;--line:#23342f;--text:#eefaf4;--muted:#8fa8a0;--gold:#86f0b4}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:radial-gradient(120% 80% at 50% 30%,#0e211d 0%,var(--ink) 62%);color:var(--text);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+main{height:100dvh;max-width:480px;margin:0 auto;padding:max(18px,env(safe-area-inset-top)) 20px max(18px,env(safe-area-inset-bottom));display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;text-align:center}
+.label{font-size:11px;letter-spacing:2px;color:var(--muted)}
+/* orb: three counter-rotating rings, a pulsing core and drifting sparks. Pure CSS. */
+.orb{position:relative;width:min(70vw,250px);aspect-ratio:1}
+.ring,.core,.spark{position:absolute;border-radius:50%}
+.ring{inset:0;border:1px solid transparent;border-top-color:var(--gold);border-right-color:#86f0b455;animation:spin 5s linear infinite}
+.ring.r2{inset:12%;border-top-color:#86f0b4aa;border-right-color:transparent;border-left-color:#86f0b433;animation-duration:3.4s;animation-direction:reverse}
+.ring.r3{inset:24%;border-top-color:var(--gold);border-bottom-color:#86f0b455;animation-duration:2.2s}
+.core{inset:38%;background:radial-gradient(circle at 35% 35%,#d9ffe9,var(--gold) 45%,#2f9a63 100%);box-shadow:0 0 40px #86f0b466,0 0 90px #86f0b422;animation:pulse 2.4s ease-in-out infinite}
+.spark{width:6px;height:6px;background:var(--gold);left:50%;top:50%;opacity:0;animation:drift 4.8s ease-out infinite}
+.spark:nth-child(5){--x:-110px;--y:-70px;animation-delay:0s}
+.spark:nth-child(6){--x:100px;--y:-90px;animation-delay:1.2s}
+.spark:nth-child(7){--x:-90px;--y:90px;animation-delay:2.4s}
+.spark:nth-child(8){--x:120px;--y:60px;animation-delay:3.6s}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{50%{transform:scale(1.14);filter:brightness(1.25)}}
+@keyframes drift{0%{opacity:0;transform:translate(0,0) scale(.4)}20%{opacity:.9}100%{opacity:0;transform:translate(var(--x),var(--y)) scale(1)}}
+h1{margin:0;font-size:26px;line-height:1.2;font-weight:600;text-wrap:balance}
+#msg{margin:0;color:var(--muted);min-height:3em;text-wrap:balance}
+/* stage dots follow the real saved status, not a fake timer */
+.stages{display:flex;gap:10px;align-items:center;font-size:12px;color:var(--muted)}
+.stages i{width:8px;height:8px;border-radius:50%;background:var(--line);display:inline-block;margin-right:6px;vertical-align:0}
+.stages span.on{color:var(--text)}
+.stages span.on i{background:var(--gold);box-shadow:0 0 10px #86f0b4aa}
+.stages span.done i{background:#2f9a63}
+a.go,button.go{display:inline-block;font:inherit;font-weight:700;background:var(--gold);color:#04210f;border:0;border-radius:14px;padding:14px 26px;text-decoration:none;cursor:pointer}
+.fine{font-size:11.5px;color:var(--muted);margin:0}
+[hidden]{display:none!important}
+.done .ring,.done .core,.done .spark{animation-play-state:paused}
+@media (prefers-reduced-motion:reduce){.ring,.core,.spark{animation:none!important}.spark{display:none}}
+</style></head><body>
+<main id="main">
+  <div class="label" id="label">BUILDING YOUR PREVIEW</div>
+  <div class="orb" aria-hidden="true"><div class="ring"></div><div class="ring r2"></div><div class="ring r3"></div><div class="core"></div><div class="spark"></div><div class="spark"></div><div class="spark"></div><div class="spark"></div></div>
+  <h1 id="title">Nex is on it</h1>
+  <p id="msg" aria-live="polite">Reading your request.</p>
+  <div class="stages" id="stages"><span id="s1" class="on"><i></i>Queued</span><span id="s2"><i></i>Building</span><span id="s3"><i></i>Ready</span></div>
+  <a class="go" id="open" hidden target="_blank" rel="noopener noreferrer">See your preview</a>
+  <p class="fine" id="fine">You can leave this page open. It updates by itself.</p>
+</main>
+<script>
+(function(){
+'use strict';
+var id=new URLSearchParams(location.search).get('e')||'';
+var $=function(i){return document.getElementById(i);};
+var lines=['Reading your request.','Picking a look that fits your business.','Laying out your pages.','Writing it in your words.','Adding the finishing touches.'];
+var li=0,cur='queued',started=Date.now(),timer=null,rot=null,finished=false;
+var MAX_WAIT_MS=12*60*1000;
+function setStages(stage){
+  var order={queued:1,building:2,ready:3},n=order[stage]||1;
+  [1,2,3].forEach(function(k){var e=$('s'+k);e.className=k<n?'done':(k===n?'on':'');});
+}
+function stop(){finished=true;clearTimeout(timer);clearInterval(rot);document.getElementById('main').classList.add('done');}
+function ready(url){
+  stop();setStages('ready');
+  $('label').textContent='PREVIEW READY';$('title').textContent='Your concept preview is ready';
+  $('msg').textContent='This is a concept of what your site could look like. Nothing is charged until you say yes.';
+  $('fine').textContent=url?'':'We will reach out with your preview shortly.';
+  if(url&&/^https:\/\//.test(url)){$('open').href=url;$('open').hidden=false;}
+}
+function slow(){
+  stop();$('label').textContent='REQUEST SAVED';$('title').textContent='Taking a little longer';
+  $('msg').textContent='Your request is saved. We will reach out with your preview. You can close this page.';$('fine').textContent='';
+}
+function closed(){stop();$('label').textContent='REQUEST SAVED';$('title').textContent='Thanks for your request';$('msg').textContent='We will be in touch.';$('fine').textContent='';}
+function poll(){
+  if(finished)return;
+  if(Date.now()-started>MAX_WAIT_MS)return slow();
+  fetch('/api/waitlist?status='+encodeURIComponent(id),{cache:'no-store'})
+    .then(function(r){return r.ok?r.json():null;})
+    .then(function(j){
+      if(!j||!j.ok){timer=setTimeout(poll,6000);return;}
+      if(j.stage==='ready')return ready(j.preview_url);
+      if(j.stage==='closed')return closed();
+      if(j.stage!==cur){cur=j.stage;li=0;$('msg').textContent=cur==='building'?lines[0]:'Waiting for a builder to pick up your request.';}
+      setStages(j.stage);timer=setTimeout(poll,4000);
+    })
+    .catch(function(){timer=setTimeout(poll,8000);});
+}
+if(!/^[0-9a-f-]{36}$/i.test(id)){
+  stop();$('label').textContent='NEXUS LABS';$('title').textContent='Nothing to show here';$('msg').textContent='Open this page from your request confirmation.';$('stages').hidden=true;$('fine').textContent='';
+}else{
+  $('msg').textContent='Waiting for a builder to pick up your request.';
+  rot=setInterval(function(){if(cur==='building'&&li<lines.length-1){li++;$('msg').textContent=lines[li];}},6500);
+  poll();
+}
+})();
+</script></body></html>

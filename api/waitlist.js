@@ -4,17 +4,38 @@
 // POST /api/waitlist                 -> submit a request (optional photos[] data URIs)
 import { getRequestUser, isOperatorUser } from '../lib/roomAuth.js';
 import { allowWaitlist, validateWaitlistEntry, waitlistPrice, waitlistStore } from '../lib/waitlist.js';
+import { publicBuildStatus, wakeWaitlistBuilder } from '../lib/waitlistBuilderWake.js';
 
 const usernameOf = (user) => (typeof user === 'string' ? user : user?.username || user?.name || '');
+const STATUS_ID_RE = /^[0-9a-f-]{36}$/i;
+// Hosts a preview link may point at: this site, claude.ai, plus anything listed in WAITLIST_PREVIEW_HOSTS.
+const previewHosts = (req, env = process.env) => [
+  req.headers?.host,
+  'claude.ai',
+  ...String(env.WAITLIST_PREVIEW_HOSTS || '').split(',').map((h) => h.trim()),
+].filter(Boolean);
 
 export async function handleWaitlist(req, res, deps = {}) {
   const store = deps.store || waitlistStore;
   const allow = deps.allow || allowWaitlist;
   const getUser = deps.getUser || getRequestUser;
+  const wake = deps.wake || wakeWaitlistBuilder;
   res.setHeader('Cache-Control', 'private, no-store');
   res.setHeader('X-Content-Type-Options', 'nosniff');
 
   if (req.method === 'GET') {
+    // Public build status for the loading page. The entry id is an unguessable capability; only the stage
+    // (and an allowed preview link) is returned, never contact details.
+    if (req.query?.status) {
+      const id = String(req.query.status);
+      if (!STATUS_ID_RE.test(id)) return res.status(404).json({ ok: false, error: 'Not found.' });
+      try {
+        const view = publicBuildStatus(await store.get(id), { allowedHosts: previewHosts(req) });
+        return view ? res.status(200).json({ ok: true, ...view }) : res.status(404).json({ ok: false, error: 'Not found.' });
+      } catch (error) {
+        return res.status(503).json({ ok: false, error: 'Status unavailable.' });
+      }
+    }
     if (req.query?.list || req.query?.photo) {
       const username = usernameOf(await getUser(req).catch(() => null));
       if (!username || !isOperatorUser(username)) return res.status(403).json({ ok: false, error: 'Owner only.' });
@@ -46,7 +67,13 @@ export async function handleWaitlist(req, res, deps = {}) {
       return res.status(429).json({ ok: false, error: 'Too many requests from this network. Try again in an hour.' });
     }
     const result = await store.add(checked.entry, checked.photos);
-    return res.status(200).json({ ok: true, duplicate: result.duplicate === true });
+    if (result.duplicate === true || !result.id) return res.status(200).json({ ok: true, duplicate: result.duplicate === true });
+    // New request: wake the preview builder (best effort). Only hand back the status handle when it fired,
+    // so the page shows the loading screen only when something is actually building.
+    const woke = await Promise.resolve(wake(result.id)).catch(() => ({ woke: false }));
+    return res.status(200).json(woke && woke.woke === true
+      ? { ok: true, duplicate: false, building: true, id: result.id }
+      : { ok: true, duplicate: false });
   } catch (error) {
     console.error('waitlist submit failed:', error.message);
     return res.status(503).json({ ok: false, error: 'Could not save that right now. Try again in a minute.' });
