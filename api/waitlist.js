@@ -6,6 +6,8 @@
 import { getRequestUser, isOperatorUser } from '../lib/roomAuth.js';
 import { allowWaitlist, validateWaitlistEntry, waitlistPrice, waitlistStore } from '../lib/waitlist.js';
 import { publicBuildStatus, wakeWaitlistBuilder } from '../lib/waitlistBuilderWake.js';
+import { waitlistAlerts } from '../lib/waitlistAlerts.js';
+import { getNexusOwner } from '../lib/nexusOwnerAuth.js';
 
 const usernameOf = (user) => (typeof user === 'string' ? user : user?.username || user?.name || '');
 const PREVIEW_CSP = [
@@ -33,6 +35,8 @@ export async function handleWaitlist(req, res, deps = {}) {
   const allow = deps.allow || allowWaitlist;
   const getUser = deps.getUser || getRequestUser;
   const wake = deps.wake || wakeWaitlistBuilder;
+  const alerts = deps.alerts || waitlistAlerts;
+  const isOwner = deps.isOwner || (async (r) => Boolean(await getNexusOwner(r).catch(() => null)));
   res.setHeader('Cache-Control', 'private, no-store');
   res.setHeader('X-Content-Type-Options', 'nosniff');
 
@@ -58,6 +62,8 @@ export async function handleWaitlist(req, res, deps = {}) {
         const entry = await store.get(id);
         const html = entry && ['preview_sent', 'paid', 'live'].includes(entry.status) ? await store.getPreview(id) : null;
         if (!html) return res.status(404).json({ ok: false, error: 'Not found.' });
+        // First open by someone other than you rings the bell once (deduped by entry id).
+        if (!(await isOwner(req).catch(() => false))) await alerts.previewViewed(entry, id, `/p/${id}`).catch(() => {});
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.setHeader('Content-Security-Policy', PREVIEW_CSP);
         res.setHeader('X-Robots-Tag', 'noindex, nofollow');
@@ -103,6 +109,10 @@ export async function handleWaitlist(req, res, deps = {}) {
     // New request: wake the preview builder (best effort). Only hand back the status handle when it fired,
     // so the page shows the loading screen only when something is actually building.
     const woke = await Promise.resolve(wake(result.id)).catch(() => ({ woke: false }));
+    // Ring the owner's bell. Alerts never block or break a signup.
+    const alertEntry = { ...checked.entry, id: result.id };
+    await alerts.newRequest(alertEntry, result.id).catch(() => {});
+    if (!(woke && woke.woke === true)) await alerts.builderNotStarted(alertEntry, result.id, woke?.reason).catch(() => {});
     return res.status(200).json(woke && woke.woke === true
       ? { ok: true, duplicate: false, building: true, id: result.id }
       : { ok: true, duplicate: false });
