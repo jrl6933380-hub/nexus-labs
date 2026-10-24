@@ -273,3 +273,16 @@ test('when there is no poster, the result says why', async () => {
   const ok = await useMedia({ user: 'owner', candidate_id: 'pexels:photo:111' }, { media, env, fetchImpl: net().fetchImpl });
   assert.ok(ok.preview && !('preview_note' in ok));
 });
+
+test('a video poster may be up to 100 KB, a photo preview only 40 KB', async () => {
+  const media = freshMedia();
+  const jpeg = (n) => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(n, 1)]);
+  const hit = { id: 557, pageURL: 'https://pixabay.com/videos/id-557/', tags: 'sea', user: 'someone', duration: 5,
+    videos: { small: { url: 'https://cdn.pixabay.com/video/s.mp4', width: 1280, height: 720 }, tiny: { url: 'https://cdn.pixabay.com/video/t.mp4', width: 640, height: 360, thumbnail: 'https://cdn.pixabay.com/video/t.jpg' } } };
+  const okVideo = await useMedia({ user: 'owner', candidate_id: 'pixabay:video:557' }, { media, env, fetchImpl: net({ 'pixabay.com/api/videos/': json({ hits: [hit] }), 't.jpg': body(jpeg(70 * 1024)) }).fetchImpl });
+  assert.match(okVideo.preview, /^data:image\/jpeg;base64,/);
+  assert.ok(!('preview_note' in okVideo));
+  const tooBig = await useMedia({ user: 'owner', candidate_id: 'pixabay:video:557' }, { media, env, fetchImpl: net({ 'pixabay.com/api/videos/': json({ hits: [hit] }), 't.jpg': body(jpeg(BROKER_LIMITS.posterBytes + 10)) }).fetchImpl });
+  assert.equal(tooBig.preview, '');
+  assert.match(tooBig.preview_note, /larger than 100 KB/);
+});
