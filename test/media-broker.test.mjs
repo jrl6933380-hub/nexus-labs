@@ -240,3 +240,16 @@ test('a slow library is reported as too slow and does not hold up the others', a
   assert.deepEqual(out.candidates.map((c) => c.source), ['pixabay', 'openverse']);
   assert.deepEqual(out.skipped, [{ source: 'pexels', reason: 'took too long' }]);
 });
+
+test('pixabay video uses the small (about 720p) file first, so the clip fits inside an ad', async () => {
+  const hit = { id: 555, pageURL: 'https://pixabay.com/videos/id-555/', tags: 'city, night', user: 'someone', duration: 8,
+    videos: { large: { url: 'https://cdn.pixabay.com/video/l.mp4', width: 3840, height: 2160 }, medium: { url: 'https://cdn.pixabay.com/video/m.mp4', width: 1920, height: 1080 },
+      small: { url: 'https://cdn.pixabay.com/video/s.mp4', width: 1280, height: 720 }, tiny: { url: 'https://cdn.pixabay.com/video/t.mp4', width: 640, height: 360, thumbnail: 'https://cdn.pixabay.com/video/t.jpg' } } };
+  const media = freshMedia();
+  const { fetchImpl, calls } = net({ 'pixabay.com/api/videos/': json({ hits: [hit] }) });
+  const out = await useMedia({ user: 'owner', candidate_id: 'pixabay:video:555' }, { media, env, fetchImpl });
+  assert.equal(out.kind, 'video');
+  assert.equal(out.width, 1280);
+  assert.ok(calls.some((c) => c.url === 'https://cdn.pixabay.com/video/s.mp4'));
+  assert.ok(!calls.some((c) => c.url.endsWith('/l.mp4') || c.url.endsWith('/m.mp4')));
+});
