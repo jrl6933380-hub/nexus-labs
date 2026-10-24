@@ -45,15 +45,15 @@ function view(v){
   clearTimeout(timer);
   var who=v.business?v.business:'your site';
   if(v.stage==='live'&&v.site_url){
-    set({label:'YOU ARE LIVE',title:who+' is live',msg:'Your site is up. Share it anywhere.',fine:'$'+price+'/month covers hosting and reasonable edits.'});steps(4);cta(v.site_url,'Open my site',true);return;
+    set({label:'YOU ARE LIVE',title:who+' is live',msg:'Your '+((v.offer&&v.offer.noun)||'site')+' is up. Share it anywhere.',fine:v.offer?v.offer.after:'$'+price+'/month covers hosting and reasonable edits.'});steps(4);cta(v.site_url,'Open my site',true);return;
   }
   if(v.stage==='live'||v.stage==='setup'){
     set({label:'PAYMENT RECEIVED',title:'You are in',msg:'We are getting '+who+' ready to go live. This page updates by itself, and your link stays the same.',fine:'Keep this page handy. It always opens your site once it is live.',spin:true});steps(2);
     timer=setTimeout(refresh,15000);return;
   }
   if(v.stage==='preview'){
-    set({label:'PREVIEW READY',title:'Your preview is ready',msg:'Take a look. If you love it, going live is $'+price+', then $'+price+'/month.'});
-    if(v.pay_url&&/^https:\/\/buy\.stripe\.com\//.test(v.pay_url))cta(v.pay_url,'Take it live');else if(v.preview_url)cta(v.preview_url,'See my preview');
+    set({label:'PREVIEW READY',title:'Your preview is ready',msg:'Take a look. If you love it, '+(v.offer?v.offer.text:'going live is $'+price+', then $'+price+'/month.')});
+    if(v.pay_url&&/^https:\/\/buy\.stripe\.com\//.test(v.pay_url))cta(v.pay_url,(v.offer&&v.offer.cta)||'Take it live');else if(v.preview_url)cta(v.preview_url,'See my preview');
     if(v.preview_url){$('alt').href=v.preview_url;$('alt').textContent='See my preview again';$('alt').hidden=false;}return;
   }
   if(v.stage==='closed'){set({title:'Thanks for your request',msg:'We will be in touch.'});return;}
