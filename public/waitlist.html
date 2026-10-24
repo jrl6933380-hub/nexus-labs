@@ -358,7 +358,7 @@ function finish(){
   .then(function(x){
    if(x.ok&&x.j.ok){document.getElementById('progress-label').textContent='REQUEST RECEIVED';
     var line=x.j.duplicate?("Looks like you're already on the list. We've got your details and we'll be in touch with a preview."):("You're on the list"+(firstName()?', '+firstName():'')+"! We'll make a concept preview of what yours could look like and reach out. If you love it, it's $"+price+" to go live, then $"+price+"/month for hosting and reasonable edits.");
-    if(x.j.building&&x.j.id&&/^[0-9a-f-]{36}$/i.test(x.j.id)){location.href='/building.html?e='+encodeURIComponent(x.j.id);return;}
+    if(x.j.building&&x.j.id&&/^[0-9a-f-]{36}$/i.test(x.j.id)){try{localStorage.setItem('nexus_wl_entry',x.j.id);}catch(e){}location.href='/building.html?e='+encodeURIComponent(x.j.id);return;}
     speak(line,function(){setDock(el('p','fine','Previews are concepts of what your site could look like, not a finished product. Nothing is charged until you say yes.'));});
    }else{
     busy=false;var j=x.j||{},to=errStep(j.error);
@@ -370,6 +370,18 @@ function finish(){
   .catch(function(){busy=false;speak("I lost the connection for a second. Want to try that again?",function(){var b=el('button','send','Try again');b.type='button';b.onclick=finish;setDock(b);});});
  });
 }
+// Returning visitor: link straight back to their preview (their own browser remembers it; nothing is rebuilt).
+try{
+ var saved=localStorage.getItem('nexus_wl_entry');
+ if(saved&&/^[0-9a-f-]{36}$/i.test(saved)){
+  var back=el('p','fine');
+  var lnk=el('a',null,'See your preview');lnk.href='/building.html?e='+encodeURIComponent(saved);lnk.style.fontWeight='700';
+  var no=el('button','ghost','Not you?');no.type='button';no.style.marginLeft='10px';
+  no.onclick=function(){try{localStorage.removeItem('nexus_wl_entry');}catch(e){}back.remove();};
+  back.appendChild(document.createTextNode('Welcome back. '));back.appendChild(lnk);back.appendChild(no);
+  welcome.insertBefore(back,welcome.firstChild);
+ }
+}catch(e){}
 // The approved welcome screen owns the initial kind selection.
 app.hidden=true;welcome.hidden=false;
 })();
