@@ -1,0 +1,16 @@
+{
+  "_note": "gpu_mem of all enabled parts must add up to 0.90 or less. Parts start in this order.",
+  "parts": [
+    {
+      "name": "nex-main",
+      "enabled": true,
+      "model": "/workspace/models/qwen3.8-27b",
+      "served_name": "nex",
+      "port": 8000,
+      "gpu_mem": 0.85,
+      "max_len": 32768,
+      "quantization": "fp8",
+      "thinking": false
+    }
+  ]
+}
