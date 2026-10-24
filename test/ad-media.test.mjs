@@ -70,6 +70,20 @@ test('save stores a small file in one call and resolveImages returns the origina
   assert.deepEqual(r.missing,['med-nothere1']);
 });
 
+test('resolveImages returns video clips as data URIs (for footage layers) but not audio or clips over the inline limit',async()=>{
+  const {s}=store();
+  const put=async(kind,file)=>{const b=await s.begin('justin',{name:kind+file.length,kind,bytes:file.length,sha256:sha(file)});
+    for(let i=0;i<b.chunks;i++)await s.putChunk('justin',b.media_id,i,file.subarray(i*MEDIA_LIMITS.chunkBytes,(i+1)*MEDIA_LIMITS.chunkBytes).toString('base64'));
+    return (await s.finish('justin',b.media_id)).media_id;};
+  const small=mp4(5000),clip=await put('video',small);
+  const big=await put('video',mp4(MEDIA_LIMITS.maxInlineImageBytes+1000));
+  const wav=await put('audio',Buffer.concat([Buffer.from('RIFF'),Buffer.alloc(4),Buffer.from('WAVEfmt '),Buffer.alloc(200)]));
+  const r=await s.resolveImages('justin',[clip,big,wav]);
+  assert.equal(r.images[clip].src,'data:video/mp4;base64,'+small.toString('base64'));
+  assert.equal(r.images[clip].original,true);
+  assert.deepEqual(r.missing.sort(),[big,wav].sort());
+});
+
 test('accounts are separate; list shows metadata and usage; remove deletes the chunks',async()=>{
   const {s,f}=store();
   const a=await s.save('a',{name:'One',data_base64:PNG_B64});
