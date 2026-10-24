@@ -374,9 +374,9 @@ function finish(){
 try{
  var saved=localStorage.getItem('nexus_wl_entry');
  if(saved&&/^[0-9a-f-]{36}$/i.test(saved)){
-  var back=el('p','fine');
-  var lnk=el('a',null,'See your preview');lnk.href='/building.html?e='+encodeURIComponent(saved);lnk.style.fontWeight='700';
-  var no=el('button','ghost','Not you?');no.type='button';no.style.marginLeft='10px';
+  var back=el('p','fine');back.style.cssText='display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin:0 auto 14px;padding:8px 16px;width:fit-content;max-width:100%;border:1px solid rgba(160,230,190,.35);border-radius:999px;background:rgba(160,230,190,.08);font-size:14px;line-height:1.3';
+  var lnk=el('a',null,'See your preview');lnk.href='/building.html?e='+encodeURIComponent(saved);lnk.style.cssText='font-weight:700;color:#a8f0c6;text-decoration:underline;text-underline-offset:3px';
+  var no=el('button','ghost','Not you?');no.type='button';no.style.cssText='all:unset;cursor:pointer;font-size:13px;opacity:.65;text-decoration:underline;text-underline-offset:3px;padding:6px 2px';
   no.onclick=function(){try{localStorage.removeItem('nexus_wl_entry');}catch(e){}back.remove();};
   back.appendChild(document.createTextNode('Welcome back. '));back.appendChild(lnk);back.appendChild(no);
   welcome.insertBefore(back,welcome.firstChild);
