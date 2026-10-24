@@ -253,3 +253,13 @@ test('pixabay video uses the small (about 720p) file first, so the clip fits ins
   assert.ok(calls.some((c) => c.url === 'https://cdn.pixabay.com/video/s.mp4'));
   assert.ok(!calls.some((c) => c.url.endsWith('/l.mp4') || c.url.endsWith('/m.mp4')));
 });
+
+test('pixabay video saves the smallest thumbnail as its poster', async () => {
+  const hit = { id: 556, pageURL: 'https://pixabay.com/videos/id-556/', tags: 'sea', user: 'someone', duration: 5,
+    videos: { small: { url: 'https://cdn.pixabay.com/video/s.mp4', width: 1280, height: 720, thumbnail: 'https://cdn.pixabay.com/video/s.jpg' }, tiny: { url: 'https://cdn.pixabay.com/video/t.mp4', width: 640, height: 360, thumbnail: 'https://cdn.pixabay.com/video/t.jpg' } } };
+  const media = freshMedia();
+  const { fetchImpl, calls } = net({ 'pixabay.com/api/videos/': json({ hits: [hit] }), 't.jpg': body(THUMB), 's.jpg': body(JPEG) });
+  const out = await useMedia({ user: 'owner', candidate_id: 'pixabay:video:556' }, { media, env, fetchImpl });
+  assert.match(out.preview, /^data:image\/jpeg;base64,/);
+  assert.ok(calls.some((c) => c.url.endsWith('/t.jpg')) && !calls.some((c) => c.url.endsWith('/s.jpg')));
+});
