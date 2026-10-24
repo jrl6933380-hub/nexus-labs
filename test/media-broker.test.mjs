@@ -221,3 +221,22 @@ test('media tools are registered: find is a read, use is a write, both are owner
   await assert.rejects(() => execute('use_media', { candidate_id: 'pexels:photo:111' }, customer), /owner/i);
   assert.equal(seen.length, 2);
 });
+
+test('openverse photos whose license forbids changes (ND) are left out, in search and in use', async () => {
+  const nd = { ...openverseHit, id: 'ndndndnd-1111-2222-3333-bbbbbbbbbbbb', license: 'by-nd' };
+  const nc = { ...openverseHit, id: 'ncncncnc-1111-2222-3333-bbbbbbbbbbbb', license: 'by-sa' };
+  const out = await searchMedia({ query: 'harbor', sources: ['openverse'] }, { env, fetchImpl: net({ 'api.openverse.org/v1/images/?': json({ results: [nd, openverseHit, nc] }) }).fetchImpl });
+  assert.deepEqual(out.candidates.map((c) => c.id), [`openverse:photo:${openverseHit.id}`, `openverse:photo:${nc.id}`]);
+  const media = freshMedia();
+  await assert.rejects(() => useMedia({ user: 'owner', candidate_id: `openverse:photo:${nd.id}` }, { media, env, fetchImpl: net({ [`/images/${nd.id}/`]: json(nd) }).fetchImpl }), (e) => e.code === 'INVALID_INPUT' && /changes/.test(e.message));
+  assert.deepEqual((await media.list('owner')).media, []);
+});
+
+test('a slow library is reported as too slow and does not hold up the others', async () => {
+  const hang = () => new Promise(() => {});
+  const started = Date.now();
+  const out = await searchMedia({ query: 'dog' }, { env, fetchImpl: net({ 'api.pexels.com': hang }).fetchImpl });
+  assert.ok(Date.now() - started < 20000);
+  assert.deepEqual(out.candidates.map((c) => c.source), ['pixabay', 'openverse']);
+  assert.deepEqual(out.skipped, [{ source: 'pexels', reason: 'took too long' }]);
+});
