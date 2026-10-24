@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#070f0d"><meta name="robots" content="noindex"><title>Nexus Labs | Your site</title>
+<style>
+:root{--ink:#06090b;--panel:#101a19;--line:#23342f;--text:#eefaf4;--muted:#8fa8a0;--gold:#86f0b4}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:radial-gradient(120% 80% at 50% 30%,#0e211d 0%,var(--ink) 62%);color:var(--text);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+main{min-height:100dvh;max-width:480px;margin:0 auto;padding:max(24px,env(safe-area-inset-top)) 20px max(24px,env(safe-area-inset-bottom));display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;text-align:center}
+.label{font-size:11px;letter-spacing:2px;color:var(--muted)}
+.badge{width:84px;height:84px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--gold);color:var(--gold);font-size:38px;box-shadow:0 0 40px #86f0b433}
+.badge.spin{border-color:transparent;border-top-color:var(--gold);animation:spin 1.6s linear infinite;color:transparent}
+@keyframes spin{to{transform:rotate(360deg)}}
+h1{margin:0;font-size:28px;line-height:1.2;font-weight:600;text-wrap:balance}
+p{margin:0;color:var(--muted);text-wrap:balance}
+.steps{display:flex;gap:14px;align-items:center;font-size:12px;color:var(--muted)}
+.steps i{width:8px;height:8px;border-radius:50%;background:var(--line);display:inline-block;margin-right:6px}
+.steps .on{color:var(--text)}.steps .on i{background:var(--gold);box-shadow:0 0 10px #86f0b4aa}.steps .done i{background:#2f9a63}
+a.go{display:inline-block;font:inherit;font-weight:700;background:var(--gold);color:#04210f;border-radius:14px;padding:14px 26px;text-decoration:none}
+a.ghost{color:var(--muted);font-size:14px}
+.fine{font-size:12px}
+[hidden]{display:none!important}
+@media (prefers-reduced-motion:reduce){.badge.spin{animation:none}}
+</style></head><body>
+<main>
+  <div class="label" id="label">NEXUS LABS</div>
+  <div class="badge spin" id="badge" aria-hidden="true">✓</div>
+  <h1 id="title">One sec</h1>
+  <p id="msg" aria-live="polite">Checking your payment.</p>
+  <div class="steps" id="steps" hidden><span id="p1"><i></i>Paid</span><span id="p2"><i></i>Setting up</span><span id="p3"><i></i>Live</span></div>
+  <a class="go" id="cta" hidden rel="noopener">Open</a>
+  <a class="ghost" id="alt" hidden>Back to the waitlist</a>
+  <p class="fine" id="fine"></p>
+</main>
+<script>
+(function(){
+'use strict';
+var KEY='nexusWaitlistToken',q=new URLSearchParams(location.search),$=function(i){return document.getElementById(i);};
+var token='',price=9,timer=null,tries=0;
+function store(t){token=t;try{localStorage.setItem(KEY,t);}catch(e){}}
+function load(){try{return localStorage.getItem(KEY)||'';}catch(e){return '';}}
+function cta(href,text,newTab){var a=$('cta');a.href=href;a.textContent=text;a.hidden=false;if(newTab){a.target='_blank';a.rel='noopener noreferrer';}else{a.removeAttribute('target');}}
+function steps(n){$('steps').hidden=false;[1,2,3].forEach(function(k){$('p'+k).className=k<n?'done':(k===n?'on':'');});}
+function set(o){$('label').textContent=o.label||'NEXUS LABS';$('title').textContent=o.title;$('msg').textContent=o.msg||'';$('fine').textContent=o.fine||'';$('badge').className='badge'+(o.spin?' spin':'');$('cta').hidden=true;$('alt').hidden=true;}
+function view(v){
+  clearTimeout(timer);
+  var who=v.business?v.business:'your site';
+  if(v.stage==='live'&&v.site_url){
+    set({label:'YOU ARE LIVE',title:who+' is live',msg:'Your site is up. Share it anywhere.',fine:'$'+price+'/month covers hosting and reasonable edits.'});steps(4);cta(v.site_url,'Open my site',true);return;
+  }
+  if(v.stage==='live'||v.stage==='setup'){
+    set({label:'PAYMENT RECEIVED',title:'You are in',msg:'We are getting '+who+' ready to go live. This page updates by itself, and your link stays the same.',fine:'Keep this page handy. It always opens your site once it is live.',spin:true});steps(2);
+    timer=setTimeout(refresh,15000);return;
+  }
+  if(v.stage==='preview'){
+    set({label:'PREVIEW READY',title:'Your preview is ready',msg:'Take a look. If you love it, going live is $'+price+', then $'+price+'/month.'});
+    if(v.pay_url&&/^https:\/\/buy\.stripe\.com\//.test(v.pay_url))cta(v.pay_url,'Take it live');else if(v.preview_url)cta(v.preview_url,'See my preview');
+    if(v.preview_url){$('alt').href=v.preview_url;$('alt').textContent='See my preview again';$('alt').hidden=false;}return;
+  }
+  if(v.stage==='closed'){set({title:'Thanks for your request',msg:'We will be in touch.'});return;}
+  set({label:'IN PROGRESS',title:'We are building your preview',msg:'You will get a preview to look at. Nothing is charged until you say yes.',spin:true});
+  if(v.id)cta('/building.html?e='+encodeURIComponent(v.id),'See progress');
+  timer=setTimeout(refresh,15000);
+}
+function lost(){
+  set({title:'We cannot find your site on this device',msg:'Open the link from your confirmation email, or start a request.'});
+  $('alt').href='/waitlist.html';$('alt').hidden=false;
+}
+function refresh(){
+  if(!token)return lost();
+  fetch('/api/waitlist?me=1',{headers:{'x-waitlist-token':token},cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(j){
+    if(!j||!j.ok){try{localStorage.removeItem(KEY);}catch(e){}token='';return lost();}
+    view(j);
+  }).catch(function(){timer=setTimeout(refresh,10000);});
+}
+function claim(sid){
+  fetch('/api/waitlist?claim='+encodeURIComponent(sid),{cache:'no-store'}).then(function(r){return r.json().catch(function(){return {};}).then(function(j){return {ok:r.ok,j:j};});}).then(function(x){
+    if(x.ok&&x.j.ok&&x.j.token){store(x.j.token);try{history.replaceState(null,'','/welcome.html');}catch(e){}return view(x.j);}
+    // The payment can take a few seconds to confirm. Keep trying briefly before giving up.
+    if(++tries<8){timer=setTimeout(function(){claim(sid);},3000);return;}
+    token=load();if(token)refresh();else set({title:'Payment received',msg:'We could not load your page yet. Check your email for your link, or refresh in a minute.'});
+  }).catch(function(){if(++tries<8)timer=setTimeout(function(){claim(sid);},3000);});
+}
+fetch('/api/waitlist').then(function(r){return r.json();}).then(function(d){if(d&&d.price)price=d.price;}).catch(function(){});
+var sid=q.get('session_id'),t=q.get('t');
+if(t){store(t);try{history.replaceState(null,'','/welcome.html');}catch(e){}refresh();}
+else if(sid)claim(sid);
+else{token=load();refresh();}
+})();
+</script></body></html>
