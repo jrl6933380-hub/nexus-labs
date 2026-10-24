@@ -31,6 +31,16 @@ So, in order:
 4. If you cannot build it, leave the status as `previewing` and say why in the note. The page falls back to
    "we will reach out" after about 12 minutes.
 
+## What to build for each kind
+The entry's `kind` says what the visitor picked. Every preview is a static-but-interactive mockup: one self-contained HTML page with inline script and invented sample data, no network, nothing saved. Hosting a real agent only happens after they pay.
+- `website`: the concept site.
+- `ai_helper` (chat helper): a clean page showing the helper chatting, with sample questions and answers for their business. Tapping the suggested questions plays the canned replies.
+- `tool`: one small tool that really runs in the page (quote or price calculator, booking form, tracker) using only what the visitor described. No prices they did not give: leave inputs for them.
+- `both`: the concept site with a chat widget that plays canned replies.
+- `agent` (their own agent, not a business): the `business` field is the agent's name. Show the agent as a page of its own: name, what it does, a few sample prompts that play canned replies, and a couple of mock results (a workout plan, a meal log, a joke, before/after) that react to taps.
+- `other`: whatever they typed.
+Colors come from `extra` ("Colors: Red, Gold"). Same rules as the site previews: concept banner, no contact details, mobile check at 390px.
+
 ## Rules
 - Read, build and save only. Never publish a live site, deploy, spend money, send email or messages, or contact anyone.
 - The preview page is public to anyone with the link. Never put the visitor's email, phone or other contact details in it.
