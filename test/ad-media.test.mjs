@@ -94,6 +94,16 @@ test('resolveImages with clips:false skips video clips (they exist, so they are 
   assert.deepEqual(r.missing,['med-nothere1']);
 });
 
+test('with clips:false a clip that has a poster still comes back as that still, never the video bytes',async()=>{
+  const {s}=store();
+  const file=mp4(5000),poster='data:image/jpeg;base64,'+Buffer.from([0xff,0xd8,0xff,0xe0,1,2,3]).toString('base64');
+  const b=await s.begin('justin',{name:'Clip',kind:'video',bytes:file.length,sha256:sha(file),preview:poster});
+  await s.putChunk('justin',b.media_id,0,file.toString('base64'));await s.finish('justin',b.media_id);
+  const r=await s.resolveImages('justin',[b.media_id],{clips:false});
+  assert.deepEqual(r.images[b.media_id],{src:poster,source:'uploaded',original:false});
+  assert.deepEqual(r.missing,[]);
+});
+
 test('accounts are separate; list shows metadata and usage; remove deletes the chunks',async()=>{
   const {s,f}=store();
   const a=await s.save('a',{name:'One',data_base64:PNG_B64});
