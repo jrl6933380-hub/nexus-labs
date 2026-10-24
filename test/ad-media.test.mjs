@@ -84,6 +84,16 @@ test('resolveImages returns video clips as data URIs (for footage layers) but no
   assert.deepEqual(r.missing.sort(),[big,wav].sort());
 });
 
+test('resolveImages with clips:false skips video clips (they exist, so they are not missing) but still reports unknown ids',async()=>{
+  const {s}=store();
+  const file=mp4(5000),b=await s.begin('justin',{name:'Clip',kind:'video',bytes:file.length,sha256:sha(file)});
+  await s.putChunk('justin',b.media_id,0,file.toString('base64'));await s.finish('justin',b.media_id);
+  const png=await s.save('justin',{name:'Pixel',data_base64:PNG_B64});
+  const r=await s.resolveImages('justin',[b.media_id,png.media_id,'med-nothere1'],{clips:false});
+  assert.deepEqual(Object.keys(r.images),[png.media_id]);
+  assert.deepEqual(r.missing,['med-nothere1']);
+});
+
 test('accounts are separate; list shows metadata and usage; remove deletes the chunks',async()=>{
   const {s,f}=store();
   const a=await s.save('a',{name:'One',data_base64:PNG_B64});
