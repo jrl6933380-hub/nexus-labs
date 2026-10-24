@@ -263,3 +263,13 @@ test('pixabay video saves the smallest thumbnail as its poster', async () => {
   assert.match(out.preview, /^data:image\/jpeg;base64,/);
   assert.ok(calls.some((c) => c.url.endsWith('/t.jpg')) && !calls.some((c) => c.url.endsWith('/s.jpg')));
 });
+
+test('when there is no poster, the result says why', async () => {
+  const media = freshMedia();
+  const big = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(BROKER_LIMITS.previewBytes + 10, 1)]);
+  const out = await useMedia({ user: 'owner', candidate_id: 'pexels:photo:111' }, { media, env, fetchImpl: net({ 'tiny.jpg': body(big) }).fetchImpl });
+  assert.equal(out.preview, '');
+  assert.match(out.preview_note, /larger than 40 KB/);
+  const ok = await useMedia({ user: 'owner', candidate_id: 'pexels:photo:111' }, { media, env, fetchImpl: net().fetchImpl });
+  assert.ok(ok.preview && !('preview_note' in ok));
+});
