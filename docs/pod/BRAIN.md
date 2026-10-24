@@ -1,6 +1,6 @@
 # Nex brain: one volume, one startup
 
-Nex is one mind made of parts. Every part's files live on the one network volume (`/workspace`, 100GB, US-CA-2). A manifest says which parts run, and one script starts them in order. Your site only ever calls one endpoint, `nex`.
+Nex is one mind made of parts. Every part's files live on the one network volume (`/workspace`, 100GB, US-CA-2). A manifest says which parts run, and one script starts them in order. Your site calls the pod by one model name, `nex-base`, which is the name `lib/forge/podBrain.js` already uses.
 
 This replaces nothing yet. `RUNBOOK.md` still describes the first Qwen3-32B-AWQ session. This file is the plan for the next one.
 
@@ -9,7 +9,7 @@ This replaces nothing yet. `RUNBOOK.md` still describes the first Qwen3-32B-AWQ 
 - Dense 27B, Apache 2.0, takes images and video, 262K native context.
 - Qwen reports Vision2Web (site from a visual) 62.9 vs 45.0 for Qwen3.6-27B. Scores are vendor-reported: run our own one-prompt site builds on it and on Qwen3-32B-AWQ before retiring the old model.
 - Official model: `Qwen/Qwen3.8-27B` (bf16, about 55GB). Serve it with `--quantization fp8` so vLLM compresses it on load (about 28-30GB in GPU memory). No third-party quantized repo is needed.
-- Thinking is on by default and uses about 2x the tokens of 3.6. The manifest turns it off for fast site builds. Switch a part to `"thinking": true` for harder jobs.
+- Thinking is on by default and uses about 2x the tokens of 3.6. The site already sends `reasoning_effort: medium` with each request (`podRequestBody` in `lib/forge/podBrain.js`), so the manifest leaves the server default on. Set a part's `"thinking": false` to switch thinking off for every request.
 
 ## Volume layout
 
@@ -62,5 +62,5 @@ The Qwen3.6 vLLM recipe uses `--reasoning-parser qwen3` and `--tool-call-parser 
 ## Not done here
 
 - No hosting for customer agents, credit ledger or metering. Agent payments stay off (`WAITLIST_AGENT_PAYMENTS`) until hosting exists.
-- No router between parts yet: the first start is one part (`nex`).
+- No router between parts yet: the first start is one part (`nex-base`).
 - RunPod balance was below zero at last check, so nothing can start until it is topped up.
