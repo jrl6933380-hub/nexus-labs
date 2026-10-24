@@ -189,7 +189,7 @@ document.querySelector('.nx-brand').onclick=function(e){e.preventDefault();home(
 document.querySelector('.nx-how').onclick=function(){processPanel.hidden=!processPanel.hidden;if(!processPanel.hidden)processPanel.scrollIntoView({behavior:reduce?'auto':'smooth',block:'nearest'});};
 document.querySelectorAll('[data-kind]').forEach(function(b){b.onclick=function(){startKind(b.dataset.kind);};});
 document.querySelectorAll('[data-example]').forEach(function(b){b.onclick=function(){var detail=document.querySelector('.nx-example-detail');detail.textContent=b.dataset.example+' — '+b.dataset.description;detail.hidden=false;};});
-function drawTranscript(i){var area=document.getElementById('transcript');area.replaceChildren();hist.filter(function(h){return h<i;}).forEach(function(h){var step=STEPS[h],value=h===0?KIND[ans.kind]:h===4?(ans.photos.length?ans.photos.length+' photo(s) added':'Photos skipped'):ans[step.id];if(!value)return;var row=el('div','nx-user',String(value));var label=el('span','nx-answer-label',h===0?'Your project':step.id==='what'?'Your idea':step.id==='extra'?'Your style':step.id==='contact'?'Your contact':step.id.charAt(0).toUpperCase()+step.id.slice(1));row.prepend(label);area.appendChild(row);});document.getElementById('progress-label').textContent=i<4?'YOUR IDEA · 1 / 3':i<7?'YOUR STYLE · 2 / 3':'YOUR DETAILS · 3 / 3';}
+function drawTranscript(i){var area=document.getElementById('transcript');area.replaceChildren();hist.filter(function(h){return h<i;}).forEach(function(h){var step=STEPS[h],value=h===0?KIND[ans.kind]:h===3?(ans.photos.length?ans.photos.length+' photo(s) added':'Photos skipped'):ans[step.id];if(!value)return;var row=el('div','nx-user',String(value));var label=el('span','nx-answer-label',h===0?'Your project':step.id==='what'?'Your idea':step.id==='extra'?'Your style':step.id==='contact'?'Your contact':step.id.charAt(0).toUpperCase()+step.id.slice(1));row.prepend(label);area.appendChild(row);});document.getElementById('progress-label').textContent=i<4?'YOUR IDEA · 1 / 3':i<7?'YOUR STYLE · 2 / 3':'YOUR DETAILS · 3 / 3';}
 var KIND={website:'A business website',ai_helper:'An AI helper or tool',both:'Both',other:'Something else'};
 var KIND_REPLY={website:'A website. Great, those are my favorite.',ai_helper:'An AI helper. Now we are talking.',both:'Both. Ambitious, I like it.',other:'Ooh, interesting. Tell me more.'};
 var firstName=function(){return (ans.name||'').split(' ')[0];};
@@ -198,23 +198,14 @@ var STEPS=[
  {id:'kind',type:'chips',say:function(){return "Hey, I'm Nex. Tell me what you want built and I'll get it lined up for a preview. What are we making?";},
   opts:Object.keys(KIND).map(function(k){return {v:k,t:KIND[k]};}),
   reply:function(v){return KIND_REPLY[v];}},
- {id:'name',type:'text',skip:true,ph:'Your first name',say:function(){return "First things first, what should I call you?";},
-  reply:function(v){return v?('Nice to meet you, '+v.split(' ')[0]+'.'):'No worries, we can stay mysterious.';}},
  {id:'business',type:'text',skip:true,ph:'Business name',say:function(){return "What's your business called?";},
   reply:function(v){return v?(v+'. Love the name.'):'Totally fine, we can figure that out later.';}},
- {id:'what',type:'area',max:600,min:10,ph:'What does your business do? What should it do for your customers?',say:function(){return "Tell me about it. What do you do, and what should your "+(ans.kind==='ai_helper'?'AI helper':ans.kind==='both'?'site and AI helper':ans.kind==='other'?'project':'site')+" do for your customers?";},
+ {id:'what',type:'area',max:600,min:10,ph:'What you do, what it should do for customers, and any colors, sites you like or links (Instagram, current site).',say:function(){return "Tell me about it. What do you do, and what should your "+(ans.kind==='ai_helper'?'AI helper':ans.kind==='both'?'site and AI helper':ans.kind==='other'?'project':'site')+" do for your customers? Add colors or sites you like if you have them.";},
   reply:function(){return "Got it. That gives me a lot to work with.";}},
- {id:'photos',type:'photos',say:function(){return "Got a logo, or photos of your work or products? Add up to 4. They help me make the preview feel like you.";},
+ {id:'photos',type:'photos',say:function(){return "Got a logo or photos of your work? Add up to 4, or skip.";},
   reply:function(){return ans.photos.length?'Those look great.':'No problem, we can work without.';}},
- {id:'extra',type:'area',skip:true,max:1500,ph:'Colors you like, sites you want to look like, hours, prices, services, anything.',say:function(){return "Anything else I should know? Colors, sites you like, hours, prices. Whatever's on your mind.";},
-  reply:function(v){return v?"Noted. Every detail helps.":"Okay, keeping it simple.";}},
- {id:'links',type:'text',skip:true,ph:'Instagram, Facebook, current site...',say:function(){return "Do you have a link to your socials or a current site? I can use it to match your style.";},
-  reply:function(v){return v?"Perfect, I'll take a look.":"All good.";}},
- {id:'contact',type:'contact',ph:'Email or phone number',say:function(){return "Last thing"+(firstName()?', '+firstName():'')+". How should we reach you when your preview is ready? Email or phone.";},
-  reply:function(){return "Thanks.";}},
- {id:'consent',type:'chips',say:function(){return "Is it okay if we contact you about your preview? Nothing is charged until you've seen it and said yes.";},
-  opts:[{v:'yes',t:'Yes, send me my preview',primary:true}],
-  reply:function(){return "Sending it to the team now...";}}
+ {id:'contact',type:'contact',ph:'Email or phone number',say:function(){return "Last thing. Where should we send your preview? Email or phone.";},
+  reply:function(){return "Thanks.";}}
 ];
 
 function setDock(html){dock.innerHTML='';dock.classList.remove('hide');if(html)dock.appendChild(html);}
@@ -274,14 +265,14 @@ function renderControls(s){
    var v=inp.value.trim();
    if(s.type==='contact'){
     if(!v){nexErr("I'll need an email or a phone number so we can reach you.");return;}
-    if(v.indexOf('@')>-1){ans.email=v;ans.phone='';}else{ans.phone=v;ans.email='';}
+    if(v.indexOf('@')>-1){ans.email=v;ans.phone='';}else{ans.phone=v;ans.email='';}ans.consent=true;
    }
    ans[s.id]=v;next(cur,v);
   };
   send.onclick=go;inp.onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();go();}};
   row.appendChild(send);
   if(s.skip){var sk=el('button','ghost skip','Skip');sk.type='button';sk.onclick=function(){ans[s.id]='';next(cur,'');};row.appendChild(sk);}
-  var wrap=el('div','chips');wrap.appendChild(inp);wrap.appendChild(row);setDock(wrap);
+  var wrap=el('div','chips');wrap.appendChild(inp);wrap.appendChild(row);if(s.type==='contact'){wrap.appendChild(el('p','fine','By sending, you agree we can contact you about your preview. Nothing is charged until you have seen it and said yes. Nex is a guided helper; a real person builds your preview.'));}setDock(wrap);
   if(!/iPhone|iPad|Android/.test(navigator.userAgent))inp.focus();return;
  }
  if(s.type==='area'){
@@ -351,9 +342,9 @@ function shrink(file){
 
 function errStep(msg){
  msg=(msg||'').toLowerCase();
- if(/email|phone/.test(msg))return 7;
- if(/more about what|what you want/.test(msg))return 3;
- if(/photo/.test(msg))return 4;
+ if(/email|phone|contacted/.test(msg))return 4;
+ if(/more about what|what you want/.test(msg))return 2;
+ if(/photo/.test(msg))return 3;
  return -1;
 }
 function finish(){
