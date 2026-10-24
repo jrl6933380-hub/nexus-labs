@@ -59,14 +59,14 @@ function setStages(stage){
   [1,2,3].forEach(function(k){var e=$('s'+k);e.className=k<n?'done':(k===n?'on':'');});
 }
 function stop(){finished=true;clearTimeout(timer);clearInterval(rot);document.getElementById('main').classList.add('done');}
-function ready(url,payUrl,paid){
+function ready(url,payUrl,paid,offer){
   if(paid){location.replace('/welcome.html');return;}
   stop();setStages('ready');
   $('label').textContent='PREVIEW READY';$('title').textContent='Your concept preview is ready';
-  $('msg').textContent='This is a concept of what your site could look like. Nothing is charged until you say yes.';
+  $('msg').textContent='This is a concept of what your '+((offer&&offer.noun)||'site')+' could look like. Nothing is charged until you say yes.';
   $('fine').textContent=url?'':'We will reach out with your preview shortly.';
   if(url&&/^https:\/\//.test(url)){$('open').href=url;$('open').hidden=false;}
-  if(payUrl&&/^https:\/\/buy\.stripe\.com\//.test(payUrl)){$('pay').href=payUrl;$('pay').hidden=false;}
+  if(payUrl&&/^https:\/\/buy\.stripe\.com\//.test(payUrl)){$('pay').href=payUrl;if(offer&&offer.cta)$('pay').textContent=offer.cta;$('pay').hidden=false;}
 }
 function slow(){
   stop();$('label').textContent='REQUEST SAVED';$('title').textContent='Taking a little longer';
@@ -80,7 +80,7 @@ function poll(){
     .then(function(r){return r.ok?r.json():null;})
     .then(function(j){
       if(!j||!j.ok){timer=setTimeout(poll,6000);return;}
-      if(j.stage==='ready')return ready(j.preview_url,j.pay_url,j.paid);
+      if(j.stage==='ready')return ready(j.preview_url,j.pay_url,j.paid,j.offer);
       if(j.stage==='closed')return closed();
       if(j.stage!==cur){cur=j.stage;li=0;$('msg').textContent=cur==='building'?lines[0]:'Waiting for a builder to pick up your request.';}
       setStages(j.stage);timer=setTimeout(poll,4000);

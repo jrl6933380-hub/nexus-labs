@@ -139,7 +139,7 @@ test('status endpoint returns only the stage, never contact details', async () =
   await store.update(id, { status: 'preview_sent', note: 'https://site.example/p/1' });
   const res2 = mockRes();
   await handleWaitlist({ method: 'GET', query: { status: id }, headers: { host: 'site.example' } }, res2, { store });
-  assert.deepEqual(res2.body, { ok: true, stage: 'ready', preview_url: 'https://site.example/p/1', pay_url: `https://buy.stripe.com/00w6oH15NaHj9pf2mR4Ja02?client_reference_id=${id}` });
+  assert.deepEqual(res2.body, { ok: true, stage: 'ready', offer: { tier: 'site', noun: 'site', cta: 'Take it live', text: 'going live is $9, then $9/month.', after: '$9/month covers hosting and reasonable edits.' }, preview_url: 'https://site.example/p/1', pay_url: `https://buy.stripe.com/00w6oH15NaHj9pf2mR4Ja02?client_reference_id=${id}` });
   await store.update(id, { status: 'paid' });
   const res3 = mockRes();
   await handleWaitlist({ method: 'GET', query: { status: id }, headers: { host: 'site.example' } }, res3, { store });

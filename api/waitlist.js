@@ -12,7 +12,7 @@ import { waitlistAlerts } from '../lib/waitlistAlerts.js';
 import { getNexusOwner } from '../lib/nexusOwnerAuth.js';
 import { signEntryToken, verifyEntryToken, accountView } from '../lib/waitlistAccount.js';
 import { markWaitlistPaid } from '../lib/waitlistPayments.js';
-import { waitlistPaymentLink } from '../lib/waitlistPaymentLink.js';
+import { ACTIVATION_PRICES, waitlistOffer, waitlistPaymentLink } from '../lib/waitlistPaymentLink.js';
 
 const usernameOf = (user) => (typeof user === 'string' ? user : user?.username || user?.name || '');
 const PREVIEW_CSP = [
@@ -60,7 +60,8 @@ export async function handleWaitlist(req, res, deps = {}) {
       const id = String(req.query.status);
       if (!STATUS_ID_RE.test(id)) return res.status(404).json({ ok: false, error: 'Not found.' });
       try {
-        const view = publicBuildStatus(await store.get(id), { allowedHosts: previewHosts(req), payUrl: waitlistPaymentLink(id) });
+        const entry = await store.get(id);
+        const view = publicBuildStatus(entry, { allowedHosts: previewHosts(req), payUrl: waitlistPaymentLink(id, process.env, entry), offer: entry ? waitlistOffer(entry) : null });
         return view ? res.status(200).json({ ok: true, ...view }) : res.status(404).json({ ok: false, error: 'Not found.' });
       } catch (error) {
         return res.status(503).json({ ok: false, error: 'Status unavailable.' });
@@ -74,7 +75,8 @@ export async function handleWaitlist(req, res, deps = {}) {
         const entry = await store.get(id);
         const view = accountView(entry);
         if (!view) return res.status(404).json({ ok: false, error: 'Not found.' });
-        if (view.stage === 'preview') view.pay_url = waitlistPaymentLink(id);
+        view.offer = waitlistOffer(entry);
+        if (view.stage === 'preview') view.pay_url = waitlistPaymentLink(id, process.env, entry);
         return res.status(200).json({ ok: true, ...view });
       } catch { return res.status(503).json({ ok: false, error: 'Status unavailable.' }); }
     }
@@ -131,7 +133,7 @@ export async function handleWaitlist(req, res, deps = {}) {
         return res.status(503).json({ ok: false, error: 'Storage unavailable.' });
       }
     }
-    return res.status(200).json({ ok: true, price: waitlistPrice() });
+    return res.status(200).json({ ok: true, price: waitlistPrice(), prices: ACTIVATION_PRICES });
   }
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Use GET or POST.' });
 
