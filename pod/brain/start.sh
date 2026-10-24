@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Start every enabled part in manifest.json, one at a time, waiting for each to be healthy.
+# Part types: "vllm" (default, a language model) and "diffusion" (the image service).
 set -euo pipefail
 
 ROOT=/workspace
@@ -19,24 +20,32 @@ m = json.load(open(sys.argv[1]))
 for p in m["parts"]:
     if p.get("enabled", True):
         print("\t".join(str(x) for x in [
-            p["name"], p["model"], p["served_name"], p["port"], p["gpu_mem"],
-            p["max_len"], p.get("quantization") or "-", "1" if p.get("thinking", False) else "0",
+            p["name"], p.get("type", "vllm"), p["model"], p.get("served_name") or "-", p["port"],
+            p.get("gpu_mem", 0), p.get("max_len", 0), p.get("quantization") or "-",
+            "1" if p.get("thinking", False) else "0",
         ]))
 PY
 
-while IFS=$'\t' read -r name model served port mem maxlen quant think <&3; do
+while IFS=$'\t' read -r name type model served port mem maxlen quant think <&3; do
   if [ -f "$RUN/$name.pid" ] && kill -0 "$(cat "$RUN/$name.pid")" 2>/dev/null; then
     echo "[$name] already running"
     continue
   fi
-  args=(serve "$model" --served-model-name "$served" --host 0.0.0.0 --port "$port"
-        --api-key "$NEX_POD_KEY" --max-model-len "$maxlen" --gpu-memory-utilization "$mem"
-        --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder)
-  [ "$quant" != "-" ] && args+=(--quantization "$quant")
-  [ "$think" = "0" ] && args+=(--default-chat-template-kwargs '{"enable_thinking": false}')
 
-  echo "[$name] starting on port $port"
-  nohup vllm "${args[@]}" > "$LOGS/$name.log" 2>&1 < /dev/null &
+  echo "[$name] starting ($type) on port $port"
+  if [ "$type" = "diffusion" ]; then
+    # The image service has its own environment so its packages cannot break vLLM.
+    IMAGE_MODEL_DIR="$model" IMAGE_PORT="$port" \
+      nohup "$ROOT/venv-image/bin/python" "$ROOT/brain/diffusion/server.py" \
+      > "$LOGS/$name.log" 2>&1 < /dev/null &
+  else
+    args=(serve "$model" --served-model-name "$served" --host 0.0.0.0 --port "$port"
+          --api-key "$NEX_POD_KEY" --max-model-len "$maxlen" --gpu-memory-utilization "$mem"
+          --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder)
+    [ "$quant" != "-" ] && args+=(--quantization "$quant")
+    [ "$think" = "0" ] && args+=(--default-chat-template-kwargs '{"enable_thinking": false}')
+    nohup vllm "${args[@]}" > "$LOGS/$name.log" 2>&1 < /dev/null &
+  fi
   echo $! > "$RUN/$name.pid"
 
   waited=0

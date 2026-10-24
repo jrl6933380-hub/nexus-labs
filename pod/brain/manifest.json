@@ -1,5 +1,5 @@
 {
-  "_note": "gpu_mem of all enabled parts must add up to 0.90 or less. Parts start in this order. served_name must stay nex-base: lib/forge/podBrain.js calls the pod by that name.",
+  "_note": "gpu_mem of all enabled vLLM parts must add up to 0.90 or less, and leave room for any enabled diffusion part (about 14GB for Z-Image Turbo: on an 80GB card set nex-main to 0.70 first). Parts start in this order. served_name must stay nex-base: lib/forge/podBrain.js calls the pod by that name.",
   "parts": [
     {
       "name": "nex-main",
@@ -11,6 +11,13 @@
       "max_len": 32768,
       "quantization": "fp8",
       "thinking": true
+    },
+    {
+      "name": "nex-image",
+      "type": "diffusion",
+      "enabled": false,
+      "model": "/workspace/models/z-image-turbo",
+      "port": 8001
     }
   ]
 }
