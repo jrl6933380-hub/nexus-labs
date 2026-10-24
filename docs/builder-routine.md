@@ -33,9 +33,9 @@ So, in order:
 
 ## What to build for each kind
 The entry's `kind` says what the visitor picked. Every preview is a static-but-interactive mockup: one self-contained HTML page with inline script and invented sample data, no network, nothing saved. Hosting a real agent only happens after they pay.
-- `website`: the concept site.
+- `website`: the concept site. `extra` may carry add-on answers: "Wants custom tools on the site" (build a working calculator, quote or booking form into the page, using only numbers they gave), "Wants an AI helper on the site" (the entry kind is then `both`: add a chat widget that plays canned replies), and "Adding to their existing site" (do not build a full site: build a standalone preview of just the tool or helper, with a line that it attaches to their current site).
 - `ai_helper` (chat helper): a clean page showing the helper chatting, with sample questions and answers for their business. Tapping the suggested questions plays the canned replies.
-- `tool`: one small tool that really runs in the page (quote or price calculator, booking form, tracker) using only what the visitor described. No prices they did not give: leave inputs for them.
+- `tool` (shown to visitors as "An app for me"): something that is not a website, such as an ad maker, stream overlays, a tax helper, a tracker, a converter or a planner. Build an app-style page (no hero or nav): a working mockup with their app name, sample data and tappable controls. The `business` field is the app's name. Never invent figures they did not give.
 - `both`: the concept site with a chat widget that plays canned replies.
 - `agent` (their own agent, not a business): the `business` field is the agent's name. Show the agent as a page of its own: name, what it does, a few sample prompts that play canned replies, and a couple of mock results (a workout plan, a meal log, a joke, before/after) that react to taps.
 - `other`: whatever they typed.
