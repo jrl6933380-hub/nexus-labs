@@ -33,7 +33,7 @@ So, in order:
 
 ## What to build for each kind
 The entry's `kind` says what the visitor picked. Every preview is a static-but-interactive mockup: one self-contained HTML page with inline script and invented sample data, no network, nothing saved. Hosting a real agent only happens after they pay.
-- `website`: the concept site.
+- `website`: the concept site. `extra` may carry add-on answers: "Wants custom tools on the site" (build a working calculator, quote or booking form into the page, using only numbers they gave), "Wants an AI helper on the site" (the entry kind is then `both`: add a chat widget that plays canned replies), and "Adding to their existing site" (do not build a full site: build a standalone preview of just the tool or helper, with a line that it attaches to their current site).
 - `ai_helper` (chat helper): a clean page showing the helper chatting, with sample questions and answers for their business. Tapping the suggested questions plays the canned replies.
 - `tool`: one small tool that really runs in the page (quote or price calculator, booking form, tracker) using only what the visitor described. No prices they did not give: leave inputs for them.
 - `both`: the concept site with a chat widget that plays canned replies.
