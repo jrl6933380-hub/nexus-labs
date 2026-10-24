@@ -104,6 +104,22 @@ test('with clips:false a clip that has a poster still comes back as that still, 
   assert.deepEqual(r.missing,[]);
 });
 
+test('a clip may carry a larger poster than a photo preview; lists leave a big poster out but say it exists, read returns it',async()=>{
+  const {s}=store();
+  const jpegOf=n=>'data:image/jpeg;base64,'+Buffer.concat([Buffer.from([0xff,0xd8,0xff,0xe0]),Buffer.alloc(n,1)]).toString('base64');
+  const file=mp4(5000),big=jpegOf(80000),small=jpegOf(1000);
+  assert.ok(big.length>MEDIA_LIMITS.maxPreviewChars&&big.length<=MEDIA_LIMITS.maxPosterChars);
+  await assert.rejects(s.begin('justin',{name:'Photo',kind:'image',bytes:100,sha256:'a'.repeat(64),preview:big}),/preview is too large/);
+  await assert.rejects(s.begin('justin',{name:'Huge',kind:'video',bytes:file.length,sha256:sha(file),preview:jpegOf(120000)}),/preview is too large/);
+  const mk=async(preview)=>{const b=await s.begin('justin',{name:'Clip',kind:'video',bytes:file.length,sha256:sha(file),preview});await s.putChunk('justin',b.media_id,0,file.toString('base64'));await s.finish('justin',b.media_id);return b.media_id;};
+  const idBig=await mk(big),idSmall=await mk(small);
+  const l=(await s.list('justin')).media,byId=Object.fromEntries(l.map(m=>[m.media_id,m]));
+  assert.equal(byId[idBig].preview,'');assert.equal(byId[idBig].has_poster,true);
+  assert.equal(byId[idSmall].preview,small);assert.equal('has_poster' in byId[idSmall],false);
+  assert.equal((await s.read('justin',idBig)).preview,big);
+  assert.equal((await s.resolveImages('justin',[idBig],{clips:false})).images[idBig].src,big);
+});
+
 test('accounts are separate; list shows metadata and usage; remove deletes the chunks',async()=>{
   const {s,f}=store();
   const a=await s.save('a',{name:'One',data_base64:PNG_B64});
