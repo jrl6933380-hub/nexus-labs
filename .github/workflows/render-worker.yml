@@ -35,6 +35,12 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg fonts-inter fonts-liberation
           npx playwright install --with-deps chromium
+      - name: Check database connection
+        if: steps.gate.outputs.run == 'true'
+        env:
+          NEXUS_DATABASE_URL: ${{ secrets.NEXUS_DATABASE_URL }}
+        run: |
+          node scripts/render-worker-diagnose.mjs | while read -r line; do echo "::notice title=Render worker database check::$line"; done
       - name: Work the queue
         if: steps.gate.outputs.run == 'true'
         env:
