@@ -12,6 +12,7 @@ One way to make an ad, whoever builds it. Goal: **cinematic** (real footage doin
   3. **Proof or steps, 3 to 4 s.** Typographic scene (the IMAGINE / CREATE / RENDER style) or a stat.
   4. **End card, 2 to 3 s.** Brand and one call to action.
 - **Footage is the hero.** The clip fills the frame (`fit: cover`, box 100 x 100) in the hook and the reveal. Do not shrink it into a thin band on black unless the clip is a cutout on a dark background on purpose.
+- **Blend, don't hard-cut.** The demo ads that felt cinematic used full-bleed footage plus `transitionOut: crossfade` (about 400 ms) into the next scene. Use crossfade out of footage scenes. Use a cut only for a deliberate hit, such as into a typographic scene.
 - **Legibility:** put a black shade rectangle between the footage and the text (opacity 0.25 to 0.35 worked well). Text goes over the shade, never straight on bright footage.
 - **Type:** bold, high contrast, two lines at most per headline. Keep long words clear of the sides: a word that fills the width in a fallback font will clip in a wider one.
 - **TikTok safe zone:** keep text away from the top, bottom and right edges where the app draws its own interface. Put the credit line inside the same safe zone.
