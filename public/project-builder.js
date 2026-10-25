@@ -69,15 +69,15 @@ export function mountProjectBuilder({projectId,label,html,buildId,conversation,m
   const sizeObserver=new ResizeObserver(()=>{if(composer.offsetHeight)shell.style.setProperty('--pb-collapsed-chat-height',(chatToggle.offsetHeight+composer.offsetHeight)+'px');shell.style.setProperty('--pb-dock-height',dock.offsetHeight+'px');shell.style.setProperty('--pb-top-height',(top.offsetHeight+status.offsetHeight)+'px');fitViewport();});
   sizeObserver.observe(dock);sizeObserver.observe(top);sizeObserver.observe(status);sizeObserver.observe(composer);sizeObserver.observe(chatToggle);fitViewport();
   window.visualViewport?.addEventListener('resize',fitViewport);window.visualViewport?.addEventListener('scroll',fitViewport);
-  const token=crypto.randomUUID();let currentHtml=html,currentId=buildId,currentMode=mode,returnMode='overview',selection=null,proposed=null,busy=false,beforePreview=false,scroll={x:0,y:0},undoId=null,persistenceError='',saving=false;
-  function renderFrame(content=currentHtml){frame.srcdoc=previewDocument(content,token,currentMode);}
+  const token=crypto.randomUUID();let currentHtml=html,currentId=buildId,currentMode=mode,returnMode='overview',selection=null,proposed=null,busy=false,beforePreview=false,scroll={x:0,y:0},undoId=null,persistenceError='',saving=false,bare=false,embedPath='';
+  function renderFrame(content=currentHtml){if(embedPath)return;frame.srcdoc=previewDocument(content,token,currentMode);}
   function setMode(value){
     if(value!==currentMode && ['preview','fine'].includes(value) && ['build','overview'].includes(currentMode))returnMode=currentMode;
     const shelfFocused=projectShelf.contains(document.activeElement);
     currentMode=value;onMode?.(value);shell.dataset.mode=value;
     if(shelfFocused&&['preview','fine'].includes(value))controls.find(c=>c.dataset.builderMode===value)?.focus();
     const backMode=['preview','fine'].includes(value)?returnMode:'overview';
-    back.onclick=value==='overview'?onExit:()=>setMode(backMode);
+    back.onclick=value==='overview'?onExit:()=>setMode(backMode);if(bare)back.onclick=onExit;
     back.setAttribute('aria-label',value==='overview'?'Back to Projects':backMode==='build'?'Back to Build with Nex':'Back to project');
     canvas.setAttribute('aria-hidden','false');frame.tabIndex=0;
     chatToggle.textContent=value==='build'?'Hide chat ↓':'Chat with Nex ↑';chatToggle.setAttribute('aria-expanded',String(value==='build'));
@@ -92,6 +92,10 @@ export function mountProjectBuilder({projectId,label,html,buildId,conversation,m
   }
   function receive(event){if(event.source!==frame.contentWindow || event.data?.nexusBuilder!==token)return;const message=event.data;if(message.type==='ready')frame.contentWindow.postMessage({nexusBuilder:token,type:'scroll',...scroll},'*');if(message.type==='scroll' && Number.isFinite(message.x) && Number.isFinite(message.y))scroll={x:message.x,y:message.y};if(message.type==='select' && currentMode==='fine' && /^\d{1,5}$/.test(message.id)){selection={id:message.id,tag:String(message.tag),text:String(message.text || '').slice(0,8000),draft:{text:String(message.text || '').slice(0,8000),color:'#edf3ee',fontSize:'',src:null}};editSheet();}}
   window.addEventListener('message',receive);renderFrame();setMode(mode);
+  // Owner only: a project whose whole content is <!--nexus:embed=/page.html--> opens that page of this site full screen,
+  // with no chat, dock, preview or publish controls. The server says whether the viewer is the operator; nobody else gets this.
+  const embedMatch=/^\s*<!--\s*nexus:embed=(\/[a-z0-9-]+\.html)\s*-->\s*$/i.exec(html||'');
+  if(embedMatch&&['/ads.html','/tiktok-planner.html'].includes(embedMatch[1].toLowerCase()))fetch('/api/room-history',{credentials:'include'}).then(r=>r.ok?r.json():null).then(d=>{if(!d?.workbench?.operator)return;embedPath=embedMatch[1].toLowerCase();bare=true;shell.classList.add('pb-bare');frame.setAttribute('sandbox','allow-scripts allow-forms allow-same-origin allow-popups allow-downloads');frame.removeAttribute('srcdoc');frame.src=embedPath;back.onclick=onExit;}).catch(()=>{});
   function closePanel(){panel.hidden=true;}
   function editSheet(){
     panel.replaceChildren();panel.hidden=false;panel.append(make('h2',selection.tag==='IMG'?'Edit this image':'Edit this element'));
