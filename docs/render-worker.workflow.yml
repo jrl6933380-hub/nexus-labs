@@ -1,0 +1,76 @@
+name: Render worker
+# Renders ads that agents or the board queued (lib/adRenderJobs.js). Starts on demand when a render is queued (lib/adRenderDispatch.js), plus every 15 minutes as a backup.
+# Jobs that waited more than an hour are expired, never rendered, so an old backlog cannot flood a run.
+# Needs one repository secret: NEXUS_DATABASE_URL (the same Postgres store the app uses). Value is never printed.
+# Optional: set the repository variable RENDER_SAVE_FILES to 'true' to also keep each finished file as a downloadable run artifact (7 days).
+# This repository is public, so only turn that on while you are comfortable with run artifacts being reachable by anyone signed in to GitHub.
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+concurrency:
+  group: render-worker
+  cancel-in-progress: false
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check secret
+        id: gate
+        env:
+          NEXUS_DATABASE_URL: ${{ secrets.NEXUS_DATABASE_URL }}
+        run: |
+          if [ -z "$NEXUS_DATABASE_URL" ]; then echo "NEXUS_DATABASE_URL is not set; nothing to do."; echo "run=false" >> "$GITHUB_OUTPUT"; else echo "run=true" >> "$GITHUB_OUTPUT"; fi
+      - if: steps.gate.outputs.run == 'true'
+        # npm install, not npm ci: package.json lists pg but package-lock.json does not, so npm ci refuses to run.
+        # The exporter uses the project's own @playwright/test; do not install a second Playwright, or the browser builds mismatch.
+        run: npm install --no-audit --no-fund
+      - if: steps.gate.outputs.run == 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-inter fonts-liberation
+          # Install the browsers for the same Playwright the exporter loads (@playwright/test from package.json).
+          node_modules/.bin/playwright --version
+          node_modules/.bin/playwright install --with-deps chromium chromium-headless-shell
+          echo "::notice title=Playwright browsers::$(node_modules/.bin/playwright --version) | $(ls ~/.cache/ms-playwright | tr '\n' ' ')"
+      - name: Check database connection
+        if: steps.gate.outputs.run == 'true'
+        env:
+          NEXUS_DATABASE_URL: ${{ secrets.NEXUS_DATABASE_URL }}
+        run: |
+          node scripts/render-worker-diagnose.mjs | while read -r line; do echo "::notice title=Render worker database check::$line"; done
+      - name: Work the queue
+        if: steps.gate.outputs.run == 'true'
+        env:
+          NEXUS_DATABASE_URL: ${{ secrets.NEXUS_DATABASE_URL }}
+          # Only keep file copies when the repository variable RENDER_SAVE_FILES is 'true' (see the upload step below).
+          RENDER_COPY_DIR: ${{ vars.RENDER_SAVE_FILES == 'true' && format('{0}/rendered', runner.temp) || '' }}
+        run: |
+          # Launch the full Chromium directly (same as the manual exporter), not the headless-shell build.
+          export CHROMIUM_PATH=$(find ~/.cache/ms-playwright -path '*chromium-*' -name chrome -type f | head -1)
+          echo "::notice title=Chromium path::${CHROMIUM_PATH:-not found}"
+          export NODE_NO_WARNINGS=1
+          for i in 1 2 3 4 5 6; do
+            # stdout carries one JSON line per finished job; stderr is kept apart so warnings cannot look like work.
+            out=$(node scripts/render-worker.mjs --once --worker-id "gha-${GITHUB_RUN_ID}-$i" 2>worker-err.txt) || {
+              # Surface the failure as a readable annotation (database addresses are masked before printing).
+              msg=$(tail -6 worker-err.txt | sed -E 's#postgres(ql)?://[^[:space:]]+#[db-url]#g' | tr '\n' ' ' | cut -c1-600)
+              echo "::error title=Render worker failed::$msg"
+              exit 1
+            }
+            if [ -z "$out" ]; then echo "Queue empty."; break; fi
+            echo "$out" | tail -3
+          done
+      - name: Save rendered files
+        if: always() && steps.gate.outputs.run == 'true' && vars.RENDER_SAVE_FILES == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: renders-${{ github.run_id }}
+          path: ${{ runner.temp }}/rendered
+          if-no-files-found: ignore
+          retention-days: 7
