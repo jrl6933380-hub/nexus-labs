@@ -16,11 +16,11 @@
 </head>
 <body>
 <header class="bar">
-  <a class="bar-link" href="/ad-maker.html?new=1">Studio</a>
+  <span class="bar-link" aria-hidden="true"></span>
   <span class="bar-title">nexus.ads</span>
   <div class="bar-actions">
     <button id="refresh" class="icon-btn" type="button" aria-label="Refresh ads">&#8635;</button>
-    <a class="icon-btn" href="/ad-maker.html?new=1" aria-label="New ad">+</a>
+    <button id="newad-plus" class="icon-btn" type="button" aria-label="New ad">+</button>
   </div>
 </header>
 <main>
@@ -28,8 +28,8 @@
     <div class="avatar" aria-hidden="true">N</div>
     <div class="stats">
       <div><b id="stat-ads">-</b><span>ads</span></div>
-      <div><b id="stat-cine">-</b><span>cinematic</span></div>
-      <div><b id="stat-studio">-</b><span>studio</span></div>
+      <div><b id="stat-cine">-</b><span>videos</span></div>
+      <div><b id="stat-studio">-</b><span>posted</span></div>
     </div>
   </section>
   <div class="bio">
@@ -37,13 +37,13 @@
     <p>Every ad you, ChatGPT and Claude have saved, in one place. Tap one to open it.</p>
   </div>
   <div class="actions">
-    <a class="btn primary" href="/ad-maker.html?new=1">New ad</a>
+    <button id="newad-btn" class="btn primary" type="button">New ad</button>
     <a class="btn" href="/tiktok-planner.html">Post plan</a>
   </div>
   <div class="tabs" role="tablist" aria-label="Filter ads">
     <button type="button" role="tab" aria-selected="true" data-filter="all">All</button>
-    <button type="button" role="tab" aria-selected="false" data-filter="cinematic">Cinematic</button>
-    <button type="button" role="tab" aria-selected="false" data-filter="studio">Studio</button>
+    <button type="button" role="tab" aria-selected="false" data-filter="todo">To post</button>
+    <button type="button" role="tab" aria-selected="false" data-filter="posted">Posted</button>
   </div>
   <p id="status" class="status" role="status" aria-live="polite">Loading your ads...</p>
   <div id="message" class="message" hidden></div>
@@ -81,11 +81,39 @@
     </section>
     <div class="sheet-actions">
       <button id="sheet-watch" class="btn primary" type="button" hidden>Watch video</button>
-      <a id="sheet-open" class="btn primary" href="/ad-maker.html">Open</a>
+      <a id="sheet-open" class="btn primary" href="/ads.html">Open</a>
       <button id="sheet-copy" class="btn" type="button">Copy ID</button>
       <button id="sheet-close" class="btn ghost" type="button">Close</button>
     </div>
     <p class="sheet-note">Copy the ID to tell Claude or ChatGPT which ad to render or change.</p>
+  </div>
+</div>
+<div id="newad" class="sheet" hidden>
+  <div class="sheet-backdrop" id="newad-backdrop"></div>
+  <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="newad-title">
+    <div class="sheet-handle" aria-hidden="true"></div>
+    <h2 id="newad-title">New ad</h2>
+    <p class="sheet-meta">Tell Claude or ChatGPT what to make. It shows up in your feed when it is built.</p>
+    <section class="post" aria-label="New ad request">
+      <div class="post-fields">
+        <label>What should it be?<textarea id="newad-text" rows="5" maxlength="900" placeholder="Example: 15s ad for Lopez Shirt. Show the jacket clip, upbeat beat, end on the shop link."></textarea></label>
+      </div>
+      <div id="newad-format" class="seg three" role="group" aria-label="Shape">
+        <button type="button" data-value="portrait" aria-pressed="true">Portrait</button>
+        <button type="button" data-value="square" aria-pressed="false">Square</button>
+        <button type="button" data-value="landscape" aria-pressed="false">Landscape</button>
+      </div>
+      <div id="newad-length" class="seg three" role="group" aria-label="Length">
+        <button type="button" data-value="15" aria-pressed="true">15s</button>
+        <button type="button" data-value="30" aria-pressed="false">30s</button>
+        <button type="button" data-value="45" aria-pressed="false">45s</button>
+      </div>
+      <button id="newad-send" class="btn primary" type="button">Send request</button>
+      <p id="newad-msg" class="post-msg" role="status" aria-live="polite"></p>
+    </section>
+    <div class="sheet-actions">
+      <button id="newad-close" class="btn ghost" type="button">Close</button>
+    </div>
   </div>
 </div>
 <script src="/ads.js"></script>
