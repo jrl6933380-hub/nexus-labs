@@ -2,7 +2,7 @@
 // Spec: docs/ad-vocabulary-v1.md. Pure ESM with no imports, shared by browser and server.
 // Additive: legacy 4-scene ads (no specVersion) never pass through this file's validator.
 
-export const VOCABULARY_VERSION = '1.4.0';
+export const VOCABULARY_VERSION = '1.5.0';
 export const SPEC_VERSION = 2;
 
 const deepFreeze = (o) => {
@@ -315,6 +315,7 @@ export const SCENE_TYPES = [
           shadow: num(0, 20),
           radius: num(0, 50),
           fit: en(IMAGE_FITS),
+          footageLayout: en(['full_bleed', 'custom']),
           blend: en(LAYER_BLENDS),
           name: str(40),
           role: en(LAYER_ROLES),
@@ -573,6 +574,20 @@ const SCENE_CHECKS = {
     layers.forEach((L, i) => {
       if (!L || typeof L !== 'object') return;
       const p = `${path}.layers[${i}]`;
+      if (L.footageLayout !== undefined && L.shape !== 'video') errors.push(`${p}.footageLayout: only video layers support footage layout`);
+      if (L.footageLayout === 'full_bleed') {
+        // Store the actual geometry, so preview and export consume the same layout.
+        Object.assign(L, { x: 50, y: 50, w: 100, h: 100, fit: 'cover', origin: 'center', radius: 0 });
+        const moved = q => (q.x !== undefined && q.x !== 50) || (q.y !== undefined && q.y !== 50) || (q.rotate !== undefined && q.rotate !== 0) || (q.scale !== undefined && q.scale < 1);
+        if (L.parent || L.clip || L.mask || L.matte || L.matteImage || L.key || L.emit || (L.count || 1) > 1 ||
+            moved(L) || (L.sx !== undefined && L.sx < 1) || (L.sy !== undefined && L.sy < 1) ||
+            L.pivotX !== undefined || L.pivotY !== undefined || L.cropL || L.cropT || L.cropR || L.cropB ||
+            ['rX', 'rY', 'rRot', 'rStretch', 'rScale', 'stepX', 'stepY', 'stepRotate'].some(f => L[f]) ||
+            (L.motion && !['none', 'fade_in'].includes(L.motion)) ||
+            (L.keys || []).some(q => moved(q) || q.cropL || q.cropT || q.cropR || q.cropB)) {
+          errors.push(`${p}: full_bleed footage needs an unmasked, centered cover box; use focusX/focusY for cropping or footageLayout: custom for an intentional inset/composite`);
+        }
+      }
       if (L.shape === 'line' && (L.x2 === undefined || L.y2 === undefined)) errors.push(`${p}: a line needs x2 and y2`);
       if (L.key !== undefined && L.shape !== 'image' && L.shape !== 'video') errors.push(`${p}.key: only image and video layers can be keyed (this is a ${L.shape})`);
       if (L.key === 'custom' && !/^#[0-9a-fA-F]{6}$/.test(String(L.keyColor || ''))) errors.push(`${p}.keyColor: a custom key needs a hex colour like #00ff00`);
@@ -718,6 +733,24 @@ export function validateProjectV2(raw) {
   return { ok: true, errors: [], value: out };
 }
 
+// Creation defaults are materialized once at the save boundary, never on read/export.
+// Existing campaigns retain their authored treatment. Explicit cuts are deliberate overrides.
+export function withFootageDefaults(project) {
+  if (!isSpecV2(project) || !Array.isArray(project.scenes)) return project;
+  return { ...project, scenes: project.scenes.map(scene => {
+    if (scene?.type !== 'graphic' || !Array.isArray(scene.params?.layers)) return scene;
+    if (!scene.params.layers.some(layer => layer?.shape === 'video')) return scene;
+    return {
+      ...scene,
+      transitionOut: scene.transitionOut ?? 'crossfade',
+      transitionMs: scene.transitionMs ?? 400,
+      params: { ...scene.params, layers: scene.params.layers.map(layer => layer?.shape === 'video'
+        ? { ...layer, footageLayout: layer.footageLayout ?? 'full_bleed' }
+        : layer) },
+    };
+  }) };
+}
+
 // Total v2 duration in seconds.
 export const totalDurationV2 = (p) => p.scenes.reduce((n, s) => n + s.duration, 0);
 
@@ -737,3 +770,4 @@ export function frameAtV2(p, ms) {
   }
   return null;
 }
+
