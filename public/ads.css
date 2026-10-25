@@ -20,11 +20,11 @@ a{color:inherit}
 .bio h1{margin:0 0 2px;font-size:15px}
 .bio p{margin:0;color:var(--mute);font-size:14px}
 .actions{display:flex;gap:8px;padding:0 16px 14px}
-.btn{flex:1;min-height:44px;display:inline-flex;align-items:center;justify-content:center;padding:0 14px;border:0;border-radius:10px;background:var(--panel);color:var(--text);font:600 14px/1 inherit;font-family:inherit;text-decoration:none;cursor:pointer;border:1px solid var(--line)}
+.btn{flex:1;min-height:44px;display:inline-flex;align-items:center;justify-content:center;padding:0 14px;border:0;border-radius:10px;background:var(--panel);color:var(--text);font-family:inherit;font-weight:600;font-size:14px;line-height:1;text-decoration:none;cursor:pointer;border:1px solid var(--line)}
 .btn.primary{background:var(--acc);color:var(--accText);border-color:transparent}
 .btn.ghost{background:none}
 .tabs{display:flex;border-top:1px solid var(--line)}
-.tabs button{flex:1;min-height:46px;background:none;border:0;border-bottom:2px solid transparent;color:var(--mute);font:600 13px/1 inherit;font-family:inherit;letter-spacing:.4px;text-transform:uppercase;cursor:pointer}
+.tabs button{flex:1;min-height:46px;background:none;border:0;border-bottom:2px solid transparent;color:var(--mute);font-family:inherit;font-weight:600;font-size:13px;line-height:1;letter-spacing:.4px;text-transform:uppercase;cursor:pointer}
 .tabs button[aria-selected=true]{color:var(--text);border-bottom-color:var(--text)}
 .status{margin:0;padding:10px 16px;color:var(--mute);font-size:13px;text-align:center}
 .status:empty{display:none}
