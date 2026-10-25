@@ -143,7 +143,7 @@
     var project = record.project || {};
     $('title').textContent = project.name || 'Untitled ad';
     if (project.specVersion !== 2) {
-      location.replace('/ad-maker.html?ad=' + encodeURIComponent(id));
+      say('This ad uses the old format and cannot be opened here.', '/ads.html', 'Back to Ads');
       return;
     }
     var imagesReq = fetch('/api/ad-campaigns', {
