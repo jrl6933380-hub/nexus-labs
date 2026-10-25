@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0d10">
+<title>Nexus Ads</title>
+<meta name="description" content="Every Nexus ad in one feed. Open, plan and post from here.">
+<link rel="stylesheet" href="/ads.css">
+</head>
+<body>
+<header class="bar">
+  <a class="bar-link" href="/ad-maker.html">Studio</a>
+  <span class="bar-title">nexus.ads</span>
+  <div class="bar-actions">
+    <button id="refresh" class="icon-btn" type="button" aria-label="Refresh ads">&#8635;</button>
+    <a class="icon-btn" href="/ad-maker.html" aria-label="New ad">+</a>
+  </div>
+</header>
+<main>
+  <section class="profile" aria-label="Profile">
+    <div class="avatar" aria-hidden="true">N</div>
+    <div class="stats">
+      <div><b id="stat-ads">-</b><span>ads</span></div>
+      <div><b id="stat-cine">-</b><span>cinematic</span></div>
+      <div><b id="stat-studio">-</b><span>studio</span></div>
+    </div>
+  </section>
+  <div class="bio">
+    <h1>Nexus Ads</h1>
+    <p>Every ad you, ChatGPT and Claude have saved, in one place. Tap one to open it.</p>
+  </div>
+  <div class="actions">
+    <a class="btn primary" href="/ad-maker.html">New ad</a>
+    <a class="btn" href="/tiktok-planner.html">Post plan</a>
+  </div>
+  <div class="tabs" role="tablist" aria-label="Filter ads">
+    <button type="button" role="tab" aria-selected="true" data-filter="all">All</button>
+    <button type="button" role="tab" aria-selected="false" data-filter="cinematic">Cinematic</button>
+    <button type="button" role="tab" aria-selected="false" data-filter="studio">Studio</button>
+  </div>
+  <p id="status" class="status" role="status" aria-live="polite">Loading your ads...</p>
+  <div id="message" class="message" hidden></div>
+  <ul id="grid" class="grid"></ul>
+</main>
+
+<div id="sheet" class="sheet" hidden>
+  <div class="sheet-backdrop" id="sheet-backdrop"></div>
+  <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+    <div class="sheet-handle" aria-hidden="true"></div>
+    <h2 id="sheet-title"></h2>
+    <p id="sheet-meta" class="sheet-meta"></p>
+    <p id="sheet-id" class="sheet-id"></p>
+    <div class="sheet-actions">
+      <a id="sheet-open" class="btn primary" href="/ad-maker.html">Open</a>
+      <button id="sheet-copy" class="btn" type="button">Copy ID</button>
+      <a class="btn" href="/tiktok-planner.html">Plan a post</a>
+      <button id="sheet-close" class="btn ghost" type="button">Close</button>
+    </div>
+    <p class="sheet-note">Copy the ID to tell Claude or ChatGPT which ad to render or change.</p>
+  </div>
+</div>
+<script src="/ads.js"></script>
+</body>
+</html>
