@@ -1,10 +1,10 @@
 name: Render worker
-# Renders ads that agents or the board queued (lib/adRenderJobs.js). Runs every 5 minutes and on demand.
+# Renders ads that agents or the board queued (lib/adRenderJobs.js). Starts on demand when a render is queued (lib/adRenderDispatch.js), plus every 15 minutes as a backup.
 # Jobs that waited more than an hour are expired, never rendered, so an old backlog cannot flood a run.
 # Needs one repository secret: NEXUS_DATABASE_URL (the same Postgres store the app uses). Value is never printed.
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '*/15 * * * *'
   workflow_dispatch:
 concurrency:
   group: render-worker
