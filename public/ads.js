@@ -5,6 +5,8 @@
   var filter = 'all';
   var lastTile = null;
   var loading = false;
+  var renders = {};
+  var videoUrl = null;
 
   function setStatus(text) { $('status').textContent = text || ''; }
 
@@ -32,6 +34,7 @@
     var parts = [];
     if (ad.duration) parts.push(Math.round(ad.duration) + 's');
     if (ad.format) parts.push(ad.format);
+    if (renders[ad.campaign_id]) parts.push('video');
     return parts.join(' · ');
   }
 
@@ -145,6 +148,7 @@
         if (!res.ok || !body || !body.data) throw new Error((body && body.error) || 'Could not load your ads.');
         ads = Array.isArray(body.data.campaigns) ? body.data.campaigns : [];
         render();
+        loadRenders();
       });
     }).catch(function (err) {
       $('grid').textContent = '';
@@ -153,8 +157,96 @@
     }).then(function () { loading = false; });
   }
 
+  function api(action, input) {
+    return fetch('/api/ad-campaigns', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: action, input: input || {} })
+    }).then(function (res) {
+      return res.json().catch(function () { return null; }).then(function (body) {
+        if (!res.ok || !body || !body.data) throw new Error((body && body.error) || 'Request failed.');
+        return body.data;
+      });
+    });
+  }
+
+  // Which ads have a finished video. A failure just means no video buttons.
+  function loadRenders() {
+    api('renders').then(function (data) {
+      renders = (data && data.renders) || {};
+      render();
+    }).catch(function () {});
+  }
+
+  function b64ToBytes(b64) {
+    var bin = atob(b64), bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  }
+
+  function clearVideo() {
+    var box = $('sheet-video');
+    box.textContent = '';
+    box.hidden = true;
+    if (videoUrl) { URL.revokeObjectURL(videoUrl); videoUrl = null; }
+  }
+
+  // Download the finished MP4 in its stored chunks, then play it here and offer a save link.
+  function watchVideo(ad, info) {
+    var btn = $('sheet-watch');
+    clearVideo();
+    btn.disabled = true;
+    btn.textContent = 'Loading video...';
+    var parts = new Array(info.chunks), next = 0, done = 0;
+    function lane() {
+      if (next >= info.chunks) return Promise.resolve();
+      var i = next++;
+      return api('render_chunk', { job_id: info.job_id, index: i }).then(function (c) {
+        parts[i] = b64ToBytes(c.data_base64);
+        done++;
+        btn.textContent = 'Loading video ' + Math.round(done / info.chunks * 100) + '%';
+        return lane();
+      });
+    }
+    var lanes = [];
+    for (var n = 0; n < 4; n++) lanes.push(lane());
+    Promise.all(lanes).then(function () {
+      videoUrl = URL.createObjectURL(new Blob(parts, { type: 'video/mp4' }));
+      var box = $('sheet-video');
+      var v = document.createElement('video');
+      v.src = videoUrl;
+      v.controls = true;
+      v.loop = true;
+      v.setAttribute('playsinline', '');
+      v.style.cssText = 'width:100%;max-height:60vh;border-radius:12px;background:#000;margin:8px 0';
+      var save = document.createElement('a');
+      save.className = 'btn';
+      save.href = videoUrl;
+      save.download = ((ad.name || 'ad').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'ad') + '.mp4';
+      save.textContent = 'Save video';
+      box.appendChild(v);
+      box.appendChild(save);
+      box.hidden = false;
+      btn.hidden = true;
+      var p = v.play(); if (p && p.catch) p.catch(function () {});
+    }).catch(function (err) {
+      btn.disabled = false;
+      btn.textContent = 'Watch video';
+      var box = $('sheet-video');
+      box.textContent = /expired|410/i.test((err && err.message) || '') ? 'This video expired. Ask Claude to render the ad again.' : 'Could not load the video. Try again.';
+      box.hidden = false;
+    });
+  }
+
   function openSheet(ad, tile) {
     lastTile = tile;
+    clearVideo();
+    var info = renders[ad.campaign_id], watch = $('sheet-watch');
+    watch.disabled = false;
+    watch.textContent = 'Watch video';
+    watch.hidden = !info;
+    watch.onclick = function () { watchVideo(ad, info); };
     $('sheet-title').textContent = ad.name || 'Untitled ad';
     var bits = [isCinematic(ad) ? 'Cinematic ad' : 'Studio ad'];
     var meta = metaOf(ad);
@@ -173,6 +265,7 @@
 
   function closeSheet() {
     $('sheet').hidden = true;
+    clearVideo();
     if (lastTile) lastTile.focus();
   }
 
