@@ -5,9 +5,10 @@ import {workspaceRequests} from '../lib/workspaceRequests.js';
 import {adImageStore,imageIdsOf} from '../lib/adImages.js';
 import {adMediaStore} from '../lib/adMedia.js';
 // Same split the render worker uses: med- ids come from the media library, the rest from the image library.
+// clips:false returns a video's poster still, not the clip: whole clips are megabytes and would blow past the response size limit.
 async function resolveProjectImages(account,project,images=adImageStore,media=adMediaStore){
  const ids=imageIdsOf(project),lib=ids.filter(i=>!i.startsWith('med-')),med=ids.filter(i=>i.startsWith('med-'));
- const a=lib.length?await images.resolve(account,lib):{images:{},missing:[]},b=med.length?await media.resolveImages(account,med):{images:{},missing:[]};
+ const a=lib.length?await images.resolve(account,lib):{images:{},missing:[]},b=med.length?await media.resolveImages(account,med,{clips:false}):{images:{},missing:[]};
  return {images:{...a.images,...b.images},missing:[...a.missing,...b.missing]};
 }
 export function createAdCampaignHandler({resolveAccount=resolveWorkspaceAccount,store=adCampaignStore,once=workspaceRequests}={}){
