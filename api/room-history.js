@@ -175,6 +175,7 @@ return async function handler(req, res) {
         count: withLive.length,
         limit: allowance.limit,
         planName: allowance.planName,
+        operator: isOperatorUser(username),
         canCreate: allowance.limit === null || withLive.length < allowance.limit,
       },
     });
