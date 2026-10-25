@@ -189,6 +189,7 @@
     var box = $('sheet-video');
     box.textContent = '';
     box.hidden = true;
+    box.style.display = 'none';
     if (videoUrl) { URL.revokeObjectURL(videoUrl); videoUrl = null; }
   }
 
@@ -228,7 +229,9 @@
       box.appendChild(v);
       box.appendChild(save);
       box.hidden = false;
+      box.style.display = '';
       btn.hidden = true;
+      btn.style.display = 'none';
       var p = v.play(); if (p && p.catch) p.catch(function () {});
     }).catch(function (err) {
       btn.disabled = false;
@@ -236,6 +239,7 @@
       var box = $('sheet-video');
       box.textContent = /expired|410/i.test((err && err.message) || '') ? 'This video expired. Ask Claude to render the ad again.' : 'Could not load the video. Try again.';
       box.hidden = false;
+      box.style.display = '';
     });
   }
 
@@ -246,7 +250,8 @@
     watch.disabled = false;
     watch.textContent = 'Watch video';
     watch.hidden = !info;
-    watch.onclick = function () { watchVideo(ad, info); };
+    watch.style.display = info ? '' : 'none'; // .btn's display would otherwise override the hidden attribute
+    watch.onclick = function () { if (info) watchVideo(ad, info); };
     $('sheet-title').textContent = ad.name || 'Untitled ad';
     var bits = [isCinematic(ad) ? 'Cinematic ad' : 'Studio ad'];
     var meta = metaOf(ad);
