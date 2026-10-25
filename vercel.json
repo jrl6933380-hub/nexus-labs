@@ -15,6 +15,15 @@
   },
   "redirects": [
     {
+      "source": "/ad-maker.html",
+      "missing": [
+        { "type": "query", "key": "ad" },
+        { "type": "query", "key": "new" }
+      ],
+      "destination": "/ads.html",
+      "permanent": false
+    },
+    {
       "source": "/workspace-key-setup.html",
       "destination": "/workspace-connection-guide.html",
       "permanent": false
