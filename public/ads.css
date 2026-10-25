@@ -67,3 +67,7 @@ a{color:inherit}
 .post-msg.err{color:#ff6b6b}
 .tile-post{position:absolute!important;top:7px;left:7px;z-index:2;padding:2px 7px;border-radius:99px;background:rgba(0,0,0,.55);font-size:11px;font-weight:700}
 .tile-post.posted{background:var(--ok);color:#06210f}
+.tile.pending{cursor:default;background:var(--panel);outline:2px dashed var(--line);outline-offset:-6px;justify-content:center;align-items:center;text-align:center}
+.tile.pending::after{display:none}
+.tile.pending .tile-name{color:var(--text);text-shadow:none}
+.tile.pending .tile-meta{color:var(--mute)}
