@@ -90,7 +90,7 @@
     clearMessage();
     setStatus('');
     if (!ads.length) {
-      showMessage('No ads yet. Make your first one and it will show up here.', '/ad-maker.html', 'New ad');
+      showMessage('No ads yet. Make your first one and it will show up here.', '/ad-maker.html?new=1', 'New ad');
       return;
     }
     if (!shown.length) {
