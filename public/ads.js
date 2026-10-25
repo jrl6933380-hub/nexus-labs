@@ -35,6 +35,11 @@
     return parts.join(' · ');
   }
 
+  function openUrl(ad) {
+    if (isCinematic(ad)) return '/ad-view.html?ad=' + encodeURIComponent(ad.campaign_id || '');
+    return safeStudioUrl(ad);
+  }
+
   function safeStudioUrl(ad) {
     var url = typeof ad.studio_url === 'string' ? ad.studio_url : '';
     if (url.indexOf('/ad-maker.html') === 0) return url;
@@ -158,7 +163,8 @@
     if (when) bits.push('updated ' + when);
     $('sheet-meta').textContent = bits.join(' · ');
     $('sheet-id').textContent = ad.campaign_id || '';
-    $('sheet-open').href = safeStudioUrl(ad);
+    $('sheet-open').href = openUrl(ad);
+    $('sheet-open').textContent = isCinematic(ad) ? 'Play ad' : 'Open in studio';
     $('sheet-copy').textContent = 'Copy ID';
     $('sheet-copy').onclick = function () { copyId(ad.campaign_id || ''); };
     $('sheet').hidden = false;
