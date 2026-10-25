@@ -82,7 +82,7 @@ const campName=id=>(st.campaigns.find(c=>c.id===id)||{}).name||'No campaign';
 const visible=()=>st.videos.filter(v=>st.campaign==='all'||v.campaign_id===st.campaign);
 const fields=v=>{const{id,baseline,kind,created_at,updated_at,...rest}=v;return rest;};
 const pkg=v=>['CAPTION:',v.caption,'','HASHTAGS:',v.hashtags||'(none)','','SOUND:',v.sound||'original audio','','VIDEO FILE:',v.video_ref||'(not attached)','','POST DATE:',v.date||'(no date)'].join('\n');
-const adUrl=v=>v.ad_campaign_id?'/ad-maker.html?ad='+encodeURIComponent(v.ad_campaign_id):'';
+const adUrl=v=>v.ad_campaign_id?'/ad-view.html?ad='+encodeURIComponent(v.ad_campaign_id):'';
 
 function put(rec){const list=rec.kind==='v'?st.videos:st.campaigns,i=list.findIndex(x=>x.id===rec.id);if(i>=0)list[i]=rec;else list.push(rec);}
 async function load(quiet){
