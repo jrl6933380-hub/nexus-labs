@@ -50,13 +50,15 @@ jobs:
           # Launch the full Chromium directly (same as the manual exporter), not the headless-shell build.
           export CHROMIUM_PATH=$(find ~/.cache/ms-playwright -path '*chromium-*' -name chrome -type f | head -1)
           echo "::notice title=Chromium path::${CHROMIUM_PATH:-not found}"
+          export NODE_NO_WARNINGS=1
           for i in 1 2 3 4 5 6; do
-            out=$(node scripts/render-worker.mjs --once --worker-id "gha-${GITHUB_RUN_ID}-$i" 2>&1) || {
+            # stdout carries one JSON line per finished job; stderr is kept apart so warnings cannot look like work.
+            out=$(node scripts/render-worker.mjs --once --worker-id "gha-${GITHUB_RUN_ID}-$i" 2>worker-err.txt) || {
               # Surface the failure as a readable annotation (database addresses are masked before printing).
-              msg=$(echo "$out" | tail -6 | sed -E 's#postgres(ql)?://[^[:space:]]+#[db-url]#g' | tr '\n' ' ' | cut -c1-600)
+              msg=$(tail -6 worker-err.txt | sed -E 's#postgres(ql)?://[^[:space:]]+#[db-url]#g' | tr '\n' ' ' | cut -c1-600)
               echo "::error title=Render worker failed::$msg"
               exit 1
             }
+            if [ -z "$out" ]; then echo "Queue empty."; break; fi
             echo "$out" | tail -3
-            [ -z "$out" ] && break
           done
