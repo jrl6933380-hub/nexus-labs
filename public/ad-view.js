@@ -46,14 +46,24 @@
       location.replace('/ad-maker.html?ad=' + encodeURIComponent(id));
       return;
     }
-    return fetch('/ad-designs/vocabulary-player.html').then(function (r) {
+    var imagesReq = fetch('/api/ad-campaigns', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'images', input: { campaign_id: id } })
+    }).then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (b) { return (b && b.data && b.data.images) || {}; })
+      .catch(function () { return {}; });
+    return Promise.all([fetch('/ad-designs/vocabulary-player.html').then(function (r) {
       if (!r.ok) throw new Error('Could not load the player.');
       return r.text();
-    }).then(function (html) {
+    }), imagesReq]).then(function (parts) {
+      var html = parts[0], images = parts[1];
       var marker = '<div id="stage"></div>';
       if (html.indexOf(marker) < 0) throw new Error('Player format changed.');
       var seeded = html.replace(marker, function () {
-        return marker + '<script id="ad-project" type="application/json">' + json(project) + '<\/script>';
+        return marker + '<script id="ad-project" type="application/json">' + json(project) + '<\/script>' +
+          (Object.keys(images).length ? '<script id="ad-images" type="application/json">' + json(images) + '<\/script>' : '');
       });
       var frame = $('frame');
       frame.srcdoc = seeded;
