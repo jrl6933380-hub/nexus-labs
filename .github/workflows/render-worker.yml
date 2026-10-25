@@ -1,4 +1,3 @@
-# MOVE THIS FILE to .github/workflows/render-worker.yml to turn it on. (The connector token cannot write to .github/workflows.)
 name: Render worker
 # Renders ads that agents or the board queued (lib/adRenderJobs.js). Runs every 5 minutes and on demand.
 # Jobs that waited more than an hour are expired, never rendered, so an old backlog cannot flood a run.
