@@ -2,6 +2,8 @@ name: Render worker
 # Renders ads that agents or the board queued (lib/adRenderJobs.js). Starts on demand when a render is queued (lib/adRenderDispatch.js), plus every 15 minutes as a backup.
 # Jobs that waited more than an hour are expired, never rendered, so an old backlog cannot flood a run.
 # Needs one repository secret: NEXUS_DATABASE_URL (the same Postgres store the app uses). Value is never printed.
+# Optional: set the repository variable RENDER_SAVE_FILES to 'true' to also keep each finished file as a downloadable run artifact (7 days).
+# This repository is public, so only turn that on while you are comfortable with run artifacts being reachable by anyone signed in to GitHub.
 on:
   schedule:
     - cron: '*/15 * * * *'
@@ -46,6 +48,8 @@ jobs:
         if: steps.gate.outputs.run == 'true'
         env:
           NEXUS_DATABASE_URL: ${{ secrets.NEXUS_DATABASE_URL }}
+          # Only keep file copies when the repository variable RENDER_SAVE_FILES is 'true' (see the upload step below).
+          RENDER_COPY_DIR: ${{ vars.RENDER_SAVE_FILES == 'true' && format('{0}/rendered', runner.temp) || '' }}
         run: |
           # Launch the full Chromium directly (same as the manual exporter), not the headless-shell build.
           export CHROMIUM_PATH=$(find ~/.cache/ms-playwright -path '*chromium-*' -name chrome -type f | head -1)
@@ -62,3 +66,11 @@ jobs:
             if [ -z "$out" ]; then echo "Queue empty."; break; fi
             echo "$out" | tail -3
           done
+      - name: Save rendered files
+        if: always() && steps.gate.outputs.run == 'true' && vars.RENDER_SAVE_FILES == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: renders-${{ github.run_id }}
+          path: ${{ runner.temp }}/rendered
+          if-no-files-found: ignore
+          retention-days: 7
