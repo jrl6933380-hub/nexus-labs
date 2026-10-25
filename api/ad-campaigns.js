@@ -2,6 +2,14 @@ import {adDesignPreset} from '../lib/adDesigns.js';
 import {resolveWorkspaceAccount,validateWorkspaceInput} from '../lib/workspaceConnector.js';
 import {adCampaignStore} from '../lib/adCampaigns.js';
 import {workspaceRequests} from '../lib/workspaceRequests.js';
+import {adImageStore,imageIdsOf} from '../lib/adImages.js';
+import {adMediaStore} from '../lib/adMedia.js';
+// Same split the render worker uses: med- ids come from the media library, the rest from the image library.
+async function resolveProjectImages(account,project,images=adImageStore,media=adMediaStore){
+ const ids=imageIdsOf(project),lib=ids.filter(i=>!i.startsWith('med-')),med=ids.filter(i=>i.startsWith('med-'));
+ const a=lib.length?await images.resolve(account,lib):{images:{},missing:[]},b=med.length?await media.resolveImages(account,med):{images:{},missing:[]};
+ return {images:{...a.images,...b.images},missing:[...a.missing,...b.missing]};
+}
 export function createAdCampaignHandler({resolveAccount=resolveWorkspaceAccount,store=adCampaignStore,once=workspaceRequests}={}){
  return async(req,res)=>{
   res.setHeader('Cache-Control','private, no-store');res.setHeader('X-Content-Type-Options','nosniff');
@@ -12,10 +20,11 @@ export function createAdCampaignHandler({resolveAccount=resolveWorkspaceAccount,
    if(origin && new URL(origin).host!==host)return res.status(403).json({error:'Open Ad Maker on this Nexus site.'});
    if(req.headers?.['sec-fetch-site']==='cross-site')return res.status(403).json({error:'Cross-site requests are not allowed.'});
    if(!String(req.headers?.['content-type']||'').startsWith('application/json'))return res.status(415).json({error:'Use application/json.'});
-   const account=await resolveAccount(req);if(!req.body || typeof req.body!=='object' || Array.isArray(req.body) || Object.keys(req.body).some(k=>!['action','input','request_id'].includes(k)))return res.status(400).json({error:'Provide action, input, and request_id only.'});const {action,input={},request_id}=req.body;const operation={list:'ads',read:'ad',save:'save_ad',design:'save_ad_design',preset:'apply_ad_design'}[action];if(!operation)return res.status(400).json({error:'Unknown ad action.'});validateWorkspaceInput(operation,input);
+   const account=await resolveAccount(req);if(!req.body || typeof req.body!=='object' || Array.isArray(req.body) || Object.keys(req.body).some(k=>!['action','input','request_id'].includes(k)))return res.status(400).json({error:'Provide action, input, and request_id only.'});const {action,input={},request_id}=req.body;const operation={list:'ads',read:'ad',images:'ad',save:'save_ad',design:'save_ad_design',preset:'apply_ad_design'}[action];if(!operation)return res.status(400).json({error:'Unknown ad action.'});validateWorkspaceInput(operation,input);
    let data;
    if(action==='list')data=await store.list(account.id);
    else if(action==='read')data=await store.read(account.id,input.campaign_id);
+   else if(action==='images'){const record=await store.read(account.id,input.campaign_id);data=await resolveProjectImages(account.id,record.project);}
    else if(action==='design')data=await once(account.id,request_id,'save_ad_design',input,()=>store.saveDesign(account.id,input));
    else if(action==='preset')data=await once(account.id,request_id,'apply_ad_design',input,async()=>store.saveDesign(account.id,{campaign_id:input.campaign_id,baseline:input.baseline,design:await adDesignPreset(input.preset)}));
    else if(action==='save')data=await once(account.id,request_id,'save_ad',input,()=>store.save(account.id,input));
