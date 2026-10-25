@@ -10,6 +10,8 @@
   var plans = {};
   var planCampaign = null;
   var postStatus = 'idea';
+  var postPlatform = 'tiktok';
+  var PLATFORMS = ['tiktok', 'instagram', 'facebook'];
   var currentAd = null;
   var CAMPAIGN_ID = 'camp-ad-maker-feed';
 
@@ -128,7 +130,7 @@
       var meta = document.createElement('span');
       meta.className = 'tile-meta';
       meta.textContent = metaOf(ad);
-      var plan = plans[ad.campaign_id];
+      var plan = bestPlan(ad.campaign_id);
       if (plan && (plan.status === 'posted' || plan.status === 'scheduled' || plan.status === 'ready')) {
         var pb = document.createElement('span');
         pb.className = 'tile-post' + (plan.status === 'posted' ? ' posted' : '');
@@ -198,6 +200,18 @@
     }).catch(function () {});
   }
 
+  function planKey(adId, platform) { return adId + '|' + platform; }
+
+  // The furthest-along posting across platforms, for the tile tag.
+  function bestPlan(adId) {
+    var rank = { posted: 3, scheduled: 2, ready: 1 }, best = null;
+    PLATFORMS.forEach(function (k) {
+      var p = plans[planKey(adId, k)];
+      if (p && rank[p.status] && (!best || rank[p.status] > rank[best.status])) best = p;
+    });
+    return best;
+  }
+
   function rid() {
     if (window.crypto && crypto.randomUUID) return 'req-' + crypto.randomUUID();
     return 'req-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
@@ -227,7 +241,7 @@
   function loadPlans() {
     planApi('overview').then(function (data) {
       plans = {};
-      (data.videos || []).forEach(function (v) { if (v.ad_campaign_id) plans[v.ad_campaign_id] = v; });
+      (data.videos || []).forEach(function (v) { if (v.ad_campaign_id) plans[planKey(v.ad_campaign_id, v.platform || 'tiktok')] = v; });
       planCampaign = (data.campaigns || []).filter(function (c) { return c.id === CAMPAIGN_ID; })[0] || null;
       render();
     }).catch(function () {});
@@ -256,7 +270,15 @@
   }
 
   function fillPost(ad) {
-    var p = plans[ad.campaign_id];
+    postPlatform = PLATFORMS.filter(function (k) { return plans[planKey(ad.campaign_id, k)]; })[0] || 'tiktok';
+    showPlatform(ad);
+  }
+
+  function showPlatform(ad) {
+    Array.prototype.forEach.call(document.querySelectorAll('#post-platform button'), function (b) {
+      b.setAttribute('aria-pressed', b.getAttribute('data-platform') === postPlatform ? 'true' : 'false');
+    });
+    var p = plans[planKey(ad.campaign_id, postPlatform)];
     setPostStatus(p ? p.status : 'idea');
     $('post-date').value = (p && p.date) || '';
     $('post-caption').value = (p && p.caption) || '';
@@ -273,7 +295,8 @@
     if (status !== 'idea' && !caption) { postMsg('Add a caption first.', true); return; }
     if (status === 'scheduled' && !date) { postMsg('Pick a post date.', true); return; }
     if (status === 'posted' && !/^https?:\/\/\S+$/.test(url)) { postMsg('Paste the live TikTok link.', true); return; }
-    var old = plans[ad.campaign_id];
+    var platform = postPlatform;
+    var old = plans[planKey(ad.campaign_id, platform)];
     var btn = $('post-save');
     btn.disabled = true;
     btn.textContent = 'Saving...';
@@ -283,6 +306,7 @@
         campaign_id: CAMPAIGN_ID,
         title: (ad.name || 'Untitled ad').slice(0, 100),
         status: status,
+        platform: platform,
         date: status === 'scheduled' ? date : (old && old.date) || '',
         caption: status === 'idea' ? (old && old.caption) || caption : caption,
         post_url: status === 'posted' ? url : (old && old.post_url) || '',
@@ -291,10 +315,10 @@
       if (old) {
         ['hook', 'script', 'hashtags', 'sound', 'video_ref', 'notes', 'scope'].forEach(function (k) { if (old[k] !== undefined) video[k] = old[k]; });
       }
-      var id = old ? old.id : ('ad-' + String(ad.campaign_id || '').replace(/[^a-zA-Z0-9_-]/g, '-')).slice(0, 100);
+      var id = old ? old.id : ('ad-' + String(ad.campaign_id || '').replace(/[^a-zA-Z0-9_-]/g, '-')).slice(0, 88) + '-' + platform;
       return planApi('save_video', { id: id, baseline: old ? old.baseline : undefined, video: video }, true);
     }).then(function (rec) {
-      plans[ad.campaign_id] = rec;
+      plans[planKey(ad.campaign_id, platform)] = rec;
       postMsg('Saved.');
       render();
     }).catch(function (err) {
@@ -416,6 +440,9 @@
   $('refresh').addEventListener('click', load);
   $('sheet-close').addEventListener('click', closeSheet);
   $('post-save').addEventListener('click', savePost);
+  Array.prototype.forEach.call(document.querySelectorAll('#post-platform button'), function (b) {
+    b.addEventListener('click', function () { postPlatform = b.getAttribute('data-platform'); if (currentAd) showPlatform(currentAd); });
+  });
   Array.prototype.forEach.call(document.querySelectorAll('#post-status button'), function (b) {
     b.addEventListener('click', function () { setPostStatus(b.getAttribute('data-status')); });
   });

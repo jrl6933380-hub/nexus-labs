@@ -58,6 +58,7 @@ a{color:inherit}
 .seg button{min-height:44px;padding:0 4px;border:1px solid var(--line);border-radius:10px;background:none;color:var(--text);font-family:inherit;font-size:13px;font-weight:600;cursor:pointer}
 .seg button[aria-pressed=true]{background:var(--acc);color:var(--accText);border-color:transparent}
 .seg button:focus-visible,.post input:focus-visible,.post textarea:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.seg.three{grid-template-columns:repeat(3,1fr)}
 .post-fields{display:grid;gap:8px;margin-bottom:10px}
 .post label{display:grid;gap:4px;font-size:13px;color:var(--mute)}
 .post input,.post textarea{width:100%;min-height:44px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);font:inherit;font-size:16px}
