@@ -28,6 +28,18 @@ const make = () => { const f = fake(); let n = 0, t = 1000; const clock = { t: (
   return { clock, store: createRenderJobStore({ command: f.command, now: () => t, newId: () => 'rnd-' + String(++n).padStart(6, '0') }) }; };
 const project = () => promoVideo({ brand: 'Nexus', hook: 'Hello world', cta: 'Go' });
 
+test('a job that waited longer than the queue limit is expired, not rendered', async () => {
+  const { store, clock } = make();
+  const stale = await store.create('u', { kind: 'still', project: project(), options: {} });
+  clock.set(1000 + (JOB_LIMITS.queueMaxAgeSec + 1) * 1000);
+  const fresh = await store.create('u', { kind: 'still', project: project(), options: {} });
+  const claimed = await store.claim('w');
+  assert.equal(claimed.job.job_id, fresh.job_id);
+  const old = await store.get('u', stale.job_id);
+  assert.equal(old.status, 'failed'); assert.equal(old.error.code, 'QUEUE_EXPIRED');
+  assert.equal(await store.claim('w2'), null);
+});
+
 test('options are normalised per kind and bad ones refused', () => {
   assert.deepEqual(normalizeRenderOptions('mp4', { quality: 'preview' }), { quality: 'preview', fps: 24, scale: 1, crf: 28 });
   assert.equal(normalizeRenderOptions('mp4', {}).fps, 30);
