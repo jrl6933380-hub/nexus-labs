@@ -26,15 +26,13 @@ jobs:
           if [ -z "$NEXUS_DATABASE_URL" ]; then echo "NEXUS_DATABASE_URL is not set; nothing to do."; echo "run=false" >> "$GITHUB_OUTPUT"; else echo "run=true" >> "$GITHUB_OUTPUT"; fi
       - if: steps.gate.outputs.run == 'true'
         # npm install, not npm ci: package.json lists pg but package-lock.json does not, so npm ci refuses to run.
-        # Playwright is imported by the exporter but is not a project dependency, so it is installed here.
-        run: |
-          npm install --no-audit --no-fund
-          npm install --no-save --no-audit --no-fund playwright
+        # The exporter uses the project's own @playwright/test; do not install a second Playwright, or the browser builds mismatch.
+        run: npm install --no-audit --no-fund
       - if: steps.gate.outputs.run == 'true'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg fonts-inter fonts-liberation
-          # Use the exact playwright that was just installed (the exporter imports it), and install both browser builds it may launch.
+          # Install the browsers for the same Playwright the exporter loads (@playwright/test from package.json).
           node_modules/.bin/playwright --version
           node_modules/.bin/playwright install --with-deps chromium chromium-headless-shell
           echo "::notice title=Playwright browsers::$(node_modules/.bin/playwright --version) | $(ls ~/.cache/ms-playwright | tr '\n' ' ')"
