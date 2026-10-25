@@ -34,7 +34,10 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg fonts-inter fonts-liberation
-          npx playwright install --with-deps chromium
+          # Use the exact playwright that was just installed (the exporter imports it), and install both browser builds it may launch.
+          node_modules/.bin/playwright --version
+          node_modules/.bin/playwright install --with-deps chromium chromium-headless-shell
+          echo "::notice title=Playwright browsers::$(node_modules/.bin/playwright --version) | $(ls ~/.cache/ms-playwright | tr '\n' ' ')"
       - name: Check database connection
         if: steps.gate.outputs.run == 'true'
         env:
