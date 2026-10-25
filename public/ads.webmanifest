@@ -1,0 +1,14 @@
+{
+  "name": "Nexus Ads",
+  "short_name": "Ads",
+  "description": "Your ads, videos and posting in one place.",
+  "start_url": "/ads.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0d10",
+  "theme_color": "#0b0d10",
+  "icons": [
+    {"src": "/ads-icons/icon-192.png", "sizes": "192x192", "type": "image/png"}
+  ]
+}
