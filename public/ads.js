@@ -106,6 +106,12 @@
       tile.type = 'button';
       tile.className = 'tile';
       tile.style.setProperty('--h', String(hueOf(String(ad.campaign_id || ad.name || ''))));
+      var kept = renders[ad.campaign_id];
+      if (kept && kept.poster && /^data:image\/jpeg;base64,[A-Za-z0-9+\/=]+$/.test(kept.poster)) {
+        tile.style.backgroundImage = 'url("' + kept.poster + '")';
+        tile.style.backgroundSize = 'cover';
+        tile.style.backgroundPosition = 'center';
+      }
       tile.setAttribute('aria-label', (ad.name || 'Untitled ad') + ', ' + (isCinematic(ad) ? 'cinematic' : 'studio') + ' ad. Open details.');
       var badge = document.createElement('span');
       badge.className = 'tile-badge';
@@ -203,7 +209,8 @@
     function lane() {
       if (next >= info.chunks) return Promise.resolve();
       var i = next++;
-      return api('render_chunk', { job_id: info.job_id, index: i }).then(function (c) {
+      var req = info.source === 'library' ? api('media_chunk', { media_id: info.media_id, index: i }) : api('render_chunk', { job_id: info.job_id, index: i });
+      return req.then(function (c) {
         parts[i] = b64ToBytes(c.data_base64);
         done++;
         btn.textContent = 'Loading video ' + Math.round(done / info.chunks * 100) + '%';

@@ -11,6 +11,7 @@ import { workOnce } from '../lib/adRenderWorker.js';
 import { createRunner } from '../lib/adRenderRunner.js';
 import { adImageStore } from '../lib/adImages.js';
 import { adMediaStore } from '../lib/adMedia.js';
+import { createAdRenderLinks, createRenderPersist } from '../lib/adRenderPersist.js';
 import { hostname } from 'node:os';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
@@ -40,6 +41,9 @@ const store = !copyDir ? adRenderJobStore : new Proxy(adRenderJobStore, {
   },
 });
 
+// Finished MP4s are also saved to the media library and linked to their ad (set RENDER_KEEP=0 to turn this off).
+const persist = process.env.RENDER_KEEP === '0' ? null : createRenderPersist({ media: adMediaStore, links: createAdRenderLinks(), log: (m) => console.error(m) });
+
 const resolveImages = async (user, ids) => {
   const lib = ids.filter((i) => !i.startsWith('med-')), med = ids.filter((i) => i.startsWith('med-'));
   const a = lib.length ? await adImageStore.resolve(user, lib) : { images: {}, missing: [] };
@@ -50,7 +54,7 @@ const resolveImages = async (user, ids) => {
 const poll = Number(args.poll || 3) * 1000;
 for (;;) {
   try {
-    const job = await workOnce({ store, workerId, runner, resolveImages, media: adMediaStore });
+    const job = await workOnce({ store, workerId, runner, resolveImages, media: adMediaStore, persist });
     if (job) { console.log(JSON.stringify({ job_id: job.job_id, status: job.status, kind: job.kind, error: job.error?.code })); if (!args.once) continue; }
     if (args.once) break;
   } catch (e) { console.error(`worker error: ${e.message}`); if (args.once) { process.exitCode = 1; break; } }
