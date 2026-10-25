@@ -47,6 +47,9 @@ jobs:
         env:
           NEXUS_DATABASE_URL: ${{ secrets.NEXUS_DATABASE_URL }}
         run: |
+          # Launch the full Chromium directly (same as the manual exporter), not the headless-shell build.
+          export CHROMIUM_PATH=$(find ~/.cache/ms-playwright -path '*chromium-*' -name chrome -type f | head -1)
+          echo "::notice title=Chromium path::${CHROMIUM_PATH:-not found}"
           for i in 1 2 3 4 5 6; do
             out=$(node scripts/render-worker.mjs --once --worker-id "gha-${GITHUB_RUN_ID}-$i" 2>&1) || {
               # Surface the failure as a readable annotation (database addresses are masked before printing).
