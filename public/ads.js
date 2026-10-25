@@ -14,6 +14,11 @@
   var PLATFORMS = ['tiktok', 'instagram', 'facebook'];
   var currentAd = null;
   var CAMPAIGN_ID = 'camp-ad-maker-feed';
+  var REQ_CAMPAIGN = 'camp-ad-requests';
+  var requests = [];
+  var hasReqCampaign = false;
+  var newFormat = 'portrait';
+  var newLength = '15';
 
   function setStatus(text) { $('status').textContent = text || ''; }
 
@@ -47,7 +52,7 @@
 
   function openUrl(ad) {
     if (isCinematic(ad)) return '/ad-view.html?ad=' + encodeURIComponent(ad.campaign_id || '');
-    return safeStudioUrl(ad);
+    return '/ad-view.html?ad=' + encodeURIComponent(ad.campaign_id || '');
   }
 
   function safeStudioUrl(ad) {
@@ -86,13 +91,13 @@
   }
 
   function render() {
-    var cine = ads.filter(isCinematic).length;
+    var isPosted = function (ad) { var p = bestPlan(ad.campaign_id); return !!(p && p.status === 'posted'); };
     $('stat-ads').textContent = String(ads.length);
-    $('stat-cine').textContent = String(cine);
-    $('stat-studio').textContent = String(ads.length - cine);
+    $('stat-cine').textContent = String(ads.filter(function (ad) { return !!renders[ad.campaign_id]; }).length);
+    $('stat-studio').textContent = String(ads.filter(isPosted).length);
     var shown = ads.filter(function (ad) {
-      if (filter === 'cinematic') return isCinematic(ad);
-      if (filter === 'studio') return !isCinematic(ad);
+      if (filter === 'posted') return isPosted(ad);
+      if (filter === 'todo') return !isPosted(ad);
       return true;
     });
     var grid = $('grid');
@@ -100,12 +105,29 @@
     clearMessage();
     setStatus('');
     if (!ads.length) {
-      showMessage('No ads yet. Make your first one and it will show up here.', '/ad-maker.html?new=1', 'New ad');
+      showMessage('No ads yet. Tap New ad to ask for your first one.');
       return;
     }
     if (!shown.length) {
       showMessage('No ads in this view yet.');
       return;
+    }
+    if (filter === 'all' || filter === 'todo') {
+      requests.filter(function (r) { return !r.ad_campaign_id && r.status !== 'posted'; }).forEach(function (r) {
+        var rli = document.createElement('li');
+        var rt = document.createElement('div');
+        rt.className = 'tile pending';
+        var rn = document.createElement('span');
+        rn.className = 'tile-name';
+        rn.textContent = r.title || 'New ad';
+        var rm = document.createElement('span');
+        rm.className = 'tile-meta';
+        rm.textContent = 'Requested';
+        rt.appendChild(rn);
+        rt.appendChild(rm);
+        rli.appendChild(rt);
+        grid.appendChild(rli);
+      });
     }
     shown.forEach(function (ad) {
       var li = document.createElement('li');
@@ -241,7 +263,9 @@
   function loadPlans() {
     planApi('overview').then(function (data) {
       plans = {};
-      (data.videos || []).forEach(function (v) { if (v.ad_campaign_id) plans[planKey(v.ad_campaign_id, v.platform || 'tiktok')] = v; });
+      requests = (data.videos || []).filter(function (v) { return v.campaign_id === REQ_CAMPAIGN; });
+      hasReqCampaign = (data.campaigns || []).some(function (c) { return c.id === REQ_CAMPAIGN; });
+      (data.videos || []).forEach(function (v) { if (v.ad_campaign_id && v.campaign_id !== REQ_CAMPAIGN) plans[planKey(v.ad_campaign_id, v.platform || 'tiktok')] = v; });
       planCampaign = (data.campaigns || []).filter(function (c) { return c.id === CAMPAIGN_ID; })[0] || null;
       render();
     }).catch(function () {});
@@ -330,6 +354,67 @@
     });
   }
 
+  function newMsg(text, bad) {
+    var el = $('newad-msg');
+    el.textContent = text || '';
+    el.className = 'post-msg' + (bad ? ' err' : '');
+  }
+
+  function openNewAd() {
+    $('newad-text').value = '';
+    newMsg('');
+    $('newad-send').disabled = false;
+    $('newad-send').textContent = 'Send request';
+    $('newad').hidden = false;
+    $('newad-text').focus();
+  }
+
+  function closeNewAd() { $('newad').hidden = true; }
+
+  function pickSeg(groupId, onPick) {
+    Array.prototype.forEach.call(document.querySelectorAll('#' + groupId + ' button'), function (b) {
+      b.addEventListener('click', function () {
+        Array.prototype.forEach.call(document.querySelectorAll('#' + groupId + ' button'), function (o) {
+          o.setAttribute('aria-pressed', o === b ? 'true' : 'false');
+        });
+        onPick(b.getAttribute('data-value'));
+      });
+    });
+  }
+
+  // A new-ad request is a planner record in the Ad requests campaign. Claude or ChatGPT reads it, builds the ad, and links it back.
+  function sendRequest() {
+    var text = $('newad-text').value.trim();
+    if (!text) { newMsg('Say what the ad should be.', true); return; }
+    var btn = $('newad-send');
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+    newMsg('');
+    var ready = hasReqCampaign ? Promise.resolve() : planApi('save_campaign', { id: REQ_CAMPAIGN, campaign: { name: 'Ad requests', goal: 'New ads asked for from the Ads feed', status: 'active' } }, true).then(function () { hasReqCampaign = true; });
+    ready.then(function () {
+      var id = 'req-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      var title = text.split('\n')[0].slice(0, 100);
+      var video = {
+        campaign_id: REQ_CAMPAIGN,
+        title: title,
+        status: 'idea',
+        platform: 'tiktok',
+        notes: 'New ad request. Shape: ' + newFormat + '. Length: ' + newLength + 's.\n' + text
+      };
+      return planApi('save_video', { id: id, video: video }, true);
+    }).then(function (rec) {
+      requests.push(rec);
+      render();
+      newMsg('Sent. Tell Claude or ChatGPT to pick it up.');
+      btn.textContent = 'Sent';
+      setTimeout(closeNewAd, 1200);
+    }).catch(function (err) {
+      newMsg((err && err.message) || 'Could not send.', true);
+      btn.disabled = false;
+      btn.textContent = 'Send request';
+    });
+  }
+
   function b64ToBytes(b64) {
     var bin = atob(b64), bytes = new Uint8Array(bin.length);
     for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
@@ -415,7 +500,7 @@
     $('sheet-meta').textContent = bits.join(' · ');
     $('sheet-id').textContent = ad.campaign_id || '';
     $('sheet-open').href = openUrl(ad);
-    $('sheet-open').textContent = isCinematic(ad) ? 'Play ad' : 'Open in studio';
+    $('sheet-open').textContent = 'Play ad';
     $('sheet-copy').textContent = 'Copy ID';
     $('sheet-copy').onclick = function () { copyId(ad.campaign_id || ''); };
     $('sheet').hidden = false;
@@ -440,6 +525,13 @@
   $('refresh').addEventListener('click', load);
   $('sheet-close').addEventListener('click', closeSheet);
   $('post-save').addEventListener('click', savePost);
+  $('newad-btn').addEventListener('click', openNewAd);
+  $('newad-plus').addEventListener('click', openNewAd);
+  $('newad-close').addEventListener('click', closeNewAd);
+  $('newad-backdrop').addEventListener('click', closeNewAd);
+  $('newad-send').addEventListener('click', sendRequest);
+  pickSeg('newad-format', function (v) { newFormat = v; });
+  pickSeg('newad-length', function (v) { newLength = v; });
   Array.prototype.forEach.call(document.querySelectorAll('#post-platform button'), function (b) {
     b.addEventListener('click', function () { postPlatform = b.getAttribute('data-platform'); if (currentAd) showPlatform(currentAd); });
   });
