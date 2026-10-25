@@ -20,6 +20,17 @@ One way to make an ad, whoever builds it. Goal: **cinematic** (real footage doin
 
 ## Steps
 
+### Enforced creation defaults
+
+The campaign save path now materializes these settings for **new spec v2 campaigns**:
+
+- Graphic video layers default to `footageLayout: full_bleed`. Validation stores a centered `x:50, y:50, w:100, h:100, fit:cover` box with square corners. This overrides an accidentally authored thin strip. Use `focusX/focusY` to frame the subject.
+- Footage scenes with no explicit transition get `transitionOut: crossfade` and `transitionMs:400`. An explicit `cut` is preserved for a deliberate hit; the last scene has no next scene to fade into.
+- Use `footageLayout: custom` for intentional inset video, keyed subjects, split screens or masked composites. Full-bleed layout rejects transforms that would move or crop the box away from the frame; it does not silently discard those effects.
+- Reads, exports and edits of existing campaigns do not acquire new creation defaults. Saved full-bleed layers remain full-bleed on validation; switch them to `custom` before changing their box geometry. Export and preview use the saved normalized project rather than an export-only patch.
+
+These defaults cover the video box and outgoing transition. They do not remove black bars baked into source footage, choose the subject crop, guarantee text contrast, or prevent a scene camera from moving the frame. Those still need visual review. Custom creative/legacy ads are unaffected.
+
 1. **Brief.** Write goal, platform, one message, and tone before building.
 2. **Footage.** `find_nexus_media`, pick one, then `use_nexus_media` (owner only). Prefer clips of 10 s or more, 1080p, with the subject large in frame.
 3. **Build.** `describe_nexus_ad_vocabulary`, then `save_nexus_ad_v2` with a fresh campaign id: `<builder>-<topic>-<yyyymmdd>`. Fix layout with `edit_nexus_layers`, not by rebuilding.
@@ -32,3 +43,4 @@ One way to make an ad, whoever builds it. Goal: **cinematic** (real footage doin
 - Sandboxes without web-font access render fallback fonts. Check edge clearance with that in mind and say which font was used.
 - Clips have no preview thumbnail in the board yet (Pixabay thumbnails exceed the 100 KB limit).
 - No production render worker is running. Renders are done by hand with the exporter until one is set up.
+
