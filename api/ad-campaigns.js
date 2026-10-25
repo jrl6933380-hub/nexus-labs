@@ -5,14 +5,22 @@ import {workspaceRequests} from '../lib/workspaceRequests.js';
 import {adImageStore,imageIdsOf} from '../lib/adImages.js';
 import {adMediaStore,isMediaId} from '../lib/adMedia.js';
 import {adRenderJobStore} from '../lib/adRenderJobs.js';
-// Latest finished MP4 per ad, from the render job store. Files expire a week after the render.
-async function latestRenders(account,jobs=adRenderJobStore){
+import {createAdRenderLinks} from '../lib/adRenderPersist.js';
+const adRenderLinks=createAdRenderLinks();
+// Finished MP4 per ad. Renders the worker kept in the media library (source 'library', with a poster still) win; others come
+// from the render job store (source 'job'), whose files expire a week after the render.
+async function latestRenders(account,jobs=adRenderJobStore,links=adRenderLinks,media=adMediaStore){
  const out={};
  for(const j of (await jobs.list(account)).jobs){
   if(j.kind!=='mp4'||j.status!=='succeeded'||!j.campaign_id)continue;
   const f=(j.files||[]).find(x=>x.name==='ad.mp4');if(!f)continue;
   const at=j.finished_at||0,prev=out[j.campaign_id];if(prev&&prev.finished_at>=at)continue;
-  out[j.campaign_id]={job_id:j.job_id,finished_at:at,bytes:f.bytes,chunks:f.chunks,width:j.result?.width,height:j.result?.height,duration_sec:j.result?.duration_sec,quality:j.options?.quality};
+  out[j.campaign_id]={source:'job',job_id:j.job_id,finished_at:at,bytes:f.bytes,chunks:f.chunks,width:j.result?.width,height:j.result?.height,duration_sec:j.result?.duration_sec,quality:j.options?.quality};
+ }
+ for(const r of await links.list(account)){
+  let poster='';
+  try{const m=await media.read(account,r.media_id);if(m.status!=='ready')continue;if(m.preview&&m.preview.length<=60000)poster=m.preview;}catch{continue;} // deleted from the library: not kept any more
+  out[r.campaign_id]={source:'library',media_id:r.media_id,job_id:r.job_id,finished_at:r.at,bytes:r.bytes,chunks:r.chunks,width:r.width,height:r.height,duration_sec:r.seconds,quality:r.quality,poster};
  }
  return out;
 }
