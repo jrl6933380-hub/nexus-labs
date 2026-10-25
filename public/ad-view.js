@@ -20,7 +20,9 @@
 
   // JSON for a <script type="application/json"> tag; "<" is escaped so it cannot close the tag.
   function json(value) {
-    return JSON.stringify(value).replace(/</g, '\\u003c').replace(/ /g, '\\u2028').replace(/ /g, '\\u2029');
+    return JSON.stringify(value).replace(/</g, '\\u003c')
+      .split(String.fromCharCode(8232)).join('\\u2028')
+      .split(String.fromCharCode(8233)).join('\\u2029');
   }
 
   if (!id) { $('title').textContent = 'No ad chosen'; say('Pick an ad from the feed.', '/ads.html', 'Back to Ads'); return; }
