@@ -10,6 +10,7 @@ body.workbench .rail,body.workbench #headBtn,body.workbench .composer-actions{di
 .projectbuilder .pb-chat-toggle{flex-shrink:0;border:0;border-radius:0;background:#142219;min-height:44px;font-size:12px;color:#bacbbb;touch-action:manipulation}
 .pb-chat .conversation-pane{overflow:hidden}.pb-chat .foot{flex-shrink:0}.pb-stage{overflow:hidden}
 @media(prefers-reduced-motion:reduce){.pb-chat{transition:none!important}}
+.projectbuilder.pb-bare .pb-chat,.projectbuilder.pb-bare .pb-dock,.projectbuilder.pb-bare .pb-project-shelf,.projectbuilder.pb-bare .pb-status,.projectbuilder.pb-bare .pb-sheet,.projectbuilder.pb-bare .pb-top>.pb-gold{display:none!important}
 .pb-dock{flex-shrink:0;background:#101a13;border-top:1px solid #354839;padding:8px 12px calc(env(safe-area-inset-bottom) + 10px)}.pb-dock nav{display:flex;gap:6px;justify-content:center}.pb-dock nav button{flex:1;max-width:240px;white-space:nowrap;font-size:13px}.pb-dock nav button[aria-pressed=true]{background:#2b4935;border-color:#97c6a5}/* A compact project shelf keeps the original card experience beneath the live site. */
 .pb-tools{display:flex;flex-direction:column;gap:6px;max-width:732px;max-height:34dvh;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;margin:8px auto 0;padding:0 2px 4px}
 .pb-project-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}.pb-project-heading h2{font-size:14px;margin:2px 0;font-weight:650}.pb-project-heading button{border:0;background:none;font-size:11px;min-height:32px;padding:4px 8px;color:#b0c5b8}
