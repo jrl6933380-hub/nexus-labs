@@ -41,7 +41,12 @@ jobs:
           NEXUS_DATABASE_URL: ${{ secrets.NEXUS_DATABASE_URL }}
         run: |
           for i in 1 2 3 4 5 6; do
-            out=$(node scripts/render-worker.mjs --once --worker-id "gha-${GITHUB_RUN_ID}-$i" 2>&1) || { echo "$out" | tail -5; exit 1; }
+            out=$(node scripts/render-worker.mjs --once --worker-id "gha-${GITHUB_RUN_ID}-$i" 2>&1) || {
+              # Surface the failure as a readable annotation (database addresses are masked before printing).
+              msg=$(echo "$out" | tail -6 | sed -E 's#postgres(ql)?://[^[:space:]]+#[db-url]#g' | tr '\n' ' ' | cut -c1-600)
+              echo "::error title=Render worker failed::$msg"
+              exit 1
+            }
             echo "$out" | tail -3
             [ -z "$out" ] && break
           done
