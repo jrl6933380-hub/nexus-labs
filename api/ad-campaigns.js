@@ -4,6 +4,18 @@ import {adCampaignStore} from '../lib/adCampaigns.js';
 import {workspaceRequests} from '../lib/workspaceRequests.js';
 import {adImageStore,imageIdsOf} from '../lib/adImages.js';
 import {adMediaStore,isMediaId} from '../lib/adMedia.js';
+import {adRenderJobStore} from '../lib/adRenderJobs.js';
+// Latest finished MP4 per ad, from the render job store. Files expire a week after the render.
+async function latestRenders(account,jobs=adRenderJobStore){
+ const out={};
+ for(const j of (await jobs.list(account)).jobs){
+  if(j.kind!=='mp4'||j.status!=='succeeded'||!j.campaign_id)continue;
+  const f=(j.files||[]).find(x=>x.name==='ad.mp4');if(!f)continue;
+  const at=j.finished_at||0,prev=out[j.campaign_id];if(prev&&prev.finished_at>=at)continue;
+  out[j.campaign_id]={job_id:j.job_id,finished_at:at,bytes:f.bytes,chunks:f.chunks,width:j.result?.width,height:j.result?.height,duration_sec:j.result?.duration_sec,quality:j.options?.quality};
+ }
+ return out;
+}
 // Same split the render worker uses: med- ids come from the media library, the rest from the image library.
 // clips:false returns a video's poster still, not the clip: whole clips are megabytes and would blow past the response size limit.
 async function resolveProjectImages(account,project,images=adImageStore,media=adMediaStore){
@@ -21,11 +33,13 @@ export function createAdCampaignHandler({resolveAccount=resolveWorkspaceAccount,
    if(origin && new URL(origin).host!==host)return res.status(403).json({error:'Open Ad Maker on this Nexus site.'});
    if(req.headers?.['sec-fetch-site']==='cross-site')return res.status(403).json({error:'Cross-site requests are not allowed.'});
    if(!String(req.headers?.['content-type']||'').startsWith('application/json'))return res.status(415).json({error:'Use application/json.'});
-   const account=await resolveAccount(req);if(!req.body || typeof req.body!=='object' || Array.isArray(req.body) || Object.keys(req.body).some(k=>!['action','input','request_id'].includes(k)))return res.status(400).json({error:'Provide action, input, and request_id only.'});const {action,input={},request_id}=req.body;const operation={list:'ads',read:'ad',images:'ad',media_chunk:'ad',save:'save_ad',design:'save_ad_design',preset:'apply_ad_design'}[action];if(!operation)return res.status(400).json({error:'Unknown ad action.'});if(action!=='media_chunk')validateWorkspaceInput(operation,input);
+   const account=await resolveAccount(req);if(!req.body || typeof req.body!=='object' || Array.isArray(req.body) || Object.keys(req.body).some(k=>!['action','input','request_id'].includes(k)))return res.status(400).json({error:'Provide action, input, and request_id only.'});const {action,input={},request_id}=req.body;const operation={list:'ads',read:'ad',images:'ad',media_chunk:'ad',renders:'ad',render_chunk:'ad',save:'save_ad',design:'save_ad_design',preset:'apply_ad_design'}[action];if(!operation)return res.status(400).json({error:'Unknown ad action.'});if(!['media_chunk','renders','render_chunk'].includes(action))validateWorkspaceInput(operation,input);
    let data;
    if(action==='list')data=await store.list(account.id);
    else if(action==='read')data=await store.read(account.id,input.campaign_id);
    else if(action==='media_chunk'){if(!input||typeof input!=='object'||Object.keys(input).some(k=>!['media_id','index'].includes(k))||!isMediaId(input.media_id)||!Number.isInteger(input.index))return res.status(400).json({error:'Provide media_id and index only.'});data=await adMediaStore.getChunk(account.id,input.media_id,input.index);}
+   else if(action==='renders')data={renders:await latestRenders(account.id)};
+   else if(action==='render_chunk'){if(!input||typeof input!=='object'||Object.keys(input).some(k=>!['job_id','index'].includes(k))||typeof input.job_id!=='string'||!Number.isInteger(input.index))return res.status(400).json({error:'Provide job_id and index only.'});data=await adRenderJobStore.chunk(account.id,input.job_id,'ad.mp4',input.index);}
    else if(action==='images'){const record=await store.read(account.id,input.campaign_id);data=await resolveProjectImages(account.id,record.project);}
    else if(action==='design')data=await once(account.id,request_id,'save_ad_design',input,()=>store.saveDesign(account.id,input));
    else if(action==='preset')data=await once(account.id,request_id,'apply_ad_design',input,async()=>store.saveDesign(account.id,{campaign_id:input.campaign_id,baseline:input.baseline,design:await adDesignPreset(input.preset)}));
