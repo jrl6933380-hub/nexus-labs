@@ -1,0 +1,45 @@
+# MOVE THIS FILE to .github/workflows/render-worker.yml to turn it on. (The connector token cannot write to .github/workflows.)
+name: Render worker
+# Renders ads that agents or the board queued (lib/adRenderJobs.js). Runs every 5 minutes and on demand.
+# Jobs that waited more than an hour are expired, never rendered, so an old backlog cannot flood a run.
+# Needs one repository secret: NEXUS_DATABASE_URL (the same Postgres store the app uses). Value is never printed.
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+concurrency:
+  group: render-worker
+  cancel-in-progress: false
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Check secret
+        id: gate
+        env:
+          NEXUS_DATABASE_URL: ${{ secrets.NEXUS_DATABASE_URL }}
+        run: |
+          if [ -z "$NEXUS_DATABASE_URL" ]; then echo "NEXUS_DATABASE_URL is not set; nothing to do."; echo "run=false" >> "$GITHUB_OUTPUT"; else echo "run=true" >> "$GITHUB_OUTPUT"; fi
+      - if: steps.gate.outputs.run == 'true'
+        run: npm ci
+      - if: steps.gate.outputs.run == 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-inter fonts-liberation
+          npx playwright install --with-deps chromium
+      - name: Work the queue
+        if: steps.gate.outputs.run == 'true'
+        env:
+          NEXUS_DATABASE_URL: ${{ secrets.NEXUS_DATABASE_URL }}
+        run: |
+          for i in 1 2 3 4 5 6; do
+            out=$(node scripts/render-worker.mjs --once --worker-id "gha-${GITHUB_RUN_ID}-$i" 2>&1) || { echo "$out" | tail -5; exit 1; }
+            echo "$out" | tail -3
+            [ -z "$out" ] && break
+          done
