@@ -744,11 +744,32 @@ export function withFootageDefaults(project) {
       ...scene,
       transitionOut: scene.transitionOut ?? 'crossfade',
       transitionMs: scene.transitionMs ?? 400,
-      params: { ...scene.params, layers: scene.params.layers.map(layer => layer?.shape === 'video'
+      params: { ...scene.params, layers: cinematicLayers(scene, scene.params.layers.map(layer => layer?.shape === 'video'
         ? { ...layer, footageLayout: layer.footageLayout ?? 'full_bleed' }
-        : layer) },
+        : layer)) },
     };
   }) };
+}
+
+// Cinematic look for new full-bleed footage: a slow push-in on the clip and a dark shade between
+// the clip and any text so captions stay readable on bright footage. Both are skipped when the author
+// already supplied their own movement or shade, and for footageLayout: custom (deliberate composites).
+export const CINEMATIC = Object.freeze({ shadeOpacity: 0.3, pushInScale: 1.06 });
+function cinematicLayers(scene, layers) {
+  const hasText = layers.some(l => l?.shape === 'text');
+  const isFullFrame = l => l && l.x === 50 && l.y === 50 && l.w === 100 && l.h === 100;
+  const hasShade = layers.some(l => l?.shape === 'rect' && isFullFrame(l));
+  let out = layers.map(l => (l?.shape === 'video' && l.footageLayout === 'full_bleed'
+    && l.keys === undefined && l.motion === undefined && l.scale === undefined)
+    ? { ...l, keys: [{ t: 0, scale: 1 }, { t: scene.duration, scale: CINEMATIC.pushInScale, ease: 'smooth' }] }
+    : l);
+  if (hasText && !hasShade) {
+    const at = out.map(l => l?.shape === 'video' && l.footageLayout === 'full_bleed').lastIndexOf(true);
+    if (at >= 0) out = [...out.slice(0, at + 1),
+      { shape: 'rect', id: 'shade', x: 50, y: 50, w: 100, h: 100, color: 'black', opacity: CINEMATIC.shadeOpacity, name: 'Legibility shade' },
+      ...out.slice(at + 1)];
+  }
+  return out;
 }
 
 // Total v2 duration in seconds.
