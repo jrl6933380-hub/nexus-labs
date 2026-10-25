@@ -52,11 +52,26 @@
     <p id="sheet-meta" class="sheet-meta"></p>
     <p id="sheet-id" class="sheet-id"></p>
     <div id="sheet-video" hidden></div>
+    <section id="post" class="post" aria-labelledby="post-h">
+      <h3 id="post-h">Posting</h3>
+      <div id="post-status" class="seg" role="group" aria-label="Posting status">
+        <button type="button" data-status="idea" aria-pressed="false">Not ready</button>
+        <button type="button" data-status="ready" aria-pressed="false">Ready</button>
+        <button type="button" data-status="scheduled" aria-pressed="false">Scheduled</button>
+        <button type="button" data-status="posted" aria-pressed="false">Posted</button>
+      </div>
+      <div id="post-fields" class="post-fields">
+        <label id="post-date-row">Post date<input id="post-date" type="date"></label>
+        <label>Caption<textarea id="post-caption" rows="3" maxlength="2200" placeholder="What you will post with it"></textarea></label>
+        <label id="post-url-row">Live TikTok link<input id="post-url" type="url" inputmode="url" placeholder="https://www.tiktok.com/..."></label>
+      </div>
+      <button id="post-save" class="btn primary" type="button">Save posting</button>
+      <p id="post-msg" class="post-msg" role="status" aria-live="polite"></p>
+    </section>
     <div class="sheet-actions">
       <button id="sheet-watch" class="btn primary" type="button" hidden>Watch video</button>
       <a id="sheet-open" class="btn primary" href="/ad-maker.html">Open</a>
       <button id="sheet-copy" class="btn" type="button">Copy ID</button>
-      <a class="btn" href="/tiktok-planner.html">Plan a post</a>
       <button id="sheet-close" class="btn ghost" type="button">Close</button>
     </div>
     <p class="sheet-note">Copy the ID to tell Claude or ChatGPT which ad to render or change.</p>

@@ -7,6 +7,11 @@
   var loading = false;
   var renders = {};
   var videoUrl = null;
+  var plans = {};
+  var planCampaign = null;
+  var postStatus = 'idea';
+  var currentAd = null;
+  var CAMPAIGN_ID = 'camp-ad-maker-feed';
 
   function setStatus(text) { $('status').textContent = text || ''; }
 
@@ -123,6 +128,13 @@
       var meta = document.createElement('span');
       meta.className = 'tile-meta';
       meta.textContent = metaOf(ad);
+      var plan = plans[ad.campaign_id];
+      if (plan && (plan.status === 'posted' || plan.status === 'scheduled' || plan.status === 'ready')) {
+        var pb = document.createElement('span');
+        pb.className = 'tile-post' + (plan.status === 'posted' ? ' posted' : '');
+        pb.textContent = plan.status === 'posted' ? 'Posted' : plan.status === 'scheduled' ? 'Scheduled' : 'Ready';
+        tile.appendChild(pb);
+      }
       tile.appendChild(badge);
       tile.appendChild(name);
       tile.appendChild(meta);
@@ -155,6 +167,7 @@
         ads = Array.isArray(body.data.campaigns) ? body.data.campaigns : [];
         render();
         loadRenders();
+        loadPlans();
       });
     }).catch(function (err) {
       $('grid').textContent = '';
@@ -183,6 +196,114 @@
       renders = (data && data.renders) || {};
       render();
     }).catch(function () {});
+  }
+
+  function rid() {
+    if (window.crypto && crypto.randomUUID) return 'req-' + crypto.randomUUID();
+    return 'req-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+  }
+
+  function planApi(action, input, write) {
+    var body = { action: action, input: input || {} };
+    if (write) body.request_id = rid();
+    return fetch('/api/tiktok-plans', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(function (res) {
+      return res.json().catch(function () { return null; }).then(function (b) {
+        if (!res.ok || !b || !b.data) {
+          var e = new Error((b && b.error) || 'Request failed.');
+          e.status = res.status;
+          throw e;
+        }
+        return b.data;
+      });
+    });
+  }
+
+  // Posting info for each ad, kept in the TikTok planner. A failure just hides the badges.
+  function loadPlans() {
+    planApi('overview').then(function (data) {
+      plans = {};
+      (data.videos || []).forEach(function (v) { if (v.ad_campaign_id) plans[v.ad_campaign_id] = v; });
+      planCampaign = (data.campaigns || []).filter(function (c) { return c.id === CAMPAIGN_ID; })[0] || null;
+      render();
+    }).catch(function () {});
+  }
+
+  function ensureCampaign() {
+    if (planCampaign) return Promise.resolve(planCampaign);
+    return planApi('save_campaign', { id: CAMPAIGN_ID, campaign: { name: 'Ad Maker feed', goal: 'Ads posted from the Nexus Ads feed', status: 'active' } }, true)
+      .then(function (rec) { planCampaign = rec; return rec; });
+  }
+
+  function setPostStatus(status) {
+    postStatus = status;
+    Array.prototype.forEach.call(document.querySelectorAll('#post-status button'), function (b) {
+      b.setAttribute('aria-pressed', b.getAttribute('data-status') === status ? 'true' : 'false');
+    });
+    $('post-date-row').style.display = status === 'scheduled' ? '' : 'none';
+    $('post-url-row').style.display = status === 'posted' ? '' : 'none';
+    $('post-caption').parentNode.style.display = status !== 'idea' ? '' : 'none';
+  }
+
+  function postMsg(text, bad) {
+    var el = $('post-msg');
+    el.textContent = text || '';
+    el.className = 'post-msg' + (bad ? ' err' : '');
+  }
+
+  function fillPost(ad) {
+    var p = plans[ad.campaign_id];
+    setPostStatus(p ? p.status : 'idea');
+    $('post-date').value = (p && p.date) || '';
+    $('post-caption').value = (p && p.caption) || '';
+    $('post-url').value = (p && p.post_url) || '';
+    postMsg('');
+    $('post-save').disabled = false;
+    $('post-save').textContent = 'Save posting';
+  }
+
+  function savePost() {
+    var ad = currentAd;
+    if (!ad) return;
+    var status = postStatus, caption = $('post-caption').value.trim(), date = $('post-date').value, url = $('post-url').value.trim();
+    if (status !== 'idea' && !caption) { postMsg('Add a caption first.', true); return; }
+    if (status === 'scheduled' && !date) { postMsg('Pick a post date.', true); return; }
+    if (status === 'posted' && !/^https?:\/\/\S+$/.test(url)) { postMsg('Paste the live TikTok link.', true); return; }
+    var old = plans[ad.campaign_id];
+    var btn = $('post-save');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+    postMsg('');
+    ensureCampaign().then(function () {
+      var video = {
+        campaign_id: CAMPAIGN_ID,
+        title: (ad.name || 'Untitled ad').slice(0, 100),
+        status: status,
+        date: status === 'scheduled' ? date : (old && old.date) || '',
+        caption: status === 'idea' ? (old && old.caption) || caption : caption,
+        post_url: status === 'posted' ? url : (old && old.post_url) || '',
+        ad_campaign_id: ad.campaign_id || ''
+      };
+      if (old) {
+        ['hook', 'script', 'hashtags', 'sound', 'video_ref', 'notes', 'scope'].forEach(function (k) { if (old[k] !== undefined) video[k] = old[k]; });
+      }
+      var id = old ? old.id : ('ad-' + String(ad.campaign_id || '').replace(/[^a-zA-Z0-9_-]/g, '-')).slice(0, 100);
+      return planApi('save_video', { id: id, baseline: old ? old.baseline : undefined, video: video }, true);
+    }).then(function (rec) {
+      plans[ad.campaign_id] = rec;
+      postMsg('Saved.');
+      render();
+    }).catch(function (err) {
+      postMsg((err && err.message) || 'Could not save.', true);
+      if (err && err.status === 409) loadPlans();
+    }).then(function () {
+      btn.disabled = false;
+      btn.textContent = 'Save posting';
+    });
   }
 
   function b64ToBytes(b64) {
@@ -252,6 +373,8 @@
 
   function openSheet(ad, tile) {
     lastTile = tile;
+    currentAd = ad;
+    fillPost(ad);
     clearVideo();
     var info = renders[ad.campaign_id], watch = $('sheet-watch');
     watch.disabled = false;
@@ -292,6 +415,10 @@
 
   $('refresh').addEventListener('click', load);
   $('sheet-close').addEventListener('click', closeSheet);
+  $('post-save').addEventListener('click', savePost);
+  Array.prototype.forEach.call(document.querySelectorAll('#post-status button'), function (b) {
+    b.addEventListener('click', function () { setPostStatus(b.getAttribute('data-status')); });
+  });
   $('sheet-backdrop').addEventListener('click', closeSheet);
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('sheet').hidden) closeSheet(); });
   Array.prototype.forEach.call(document.querySelectorAll('.tabs button'), function (btn) {
