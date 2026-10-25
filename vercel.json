@@ -16,10 +16,6 @@
   "redirects": [
     {
       "source": "/ad-maker.html",
-      "missing": [
-        { "type": "query", "key": "ad" },
-        { "type": "query", "key": "new" }
-      ],
       "destination": "/ads.html",
       "permanent": false
     },
