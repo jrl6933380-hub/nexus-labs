@@ -1,6 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createResearchStore } from '../lib/researchJobs.js';
+import { createResearchStore, resultSchema } from '../lib/researchJobs.js';
+
+test('result accepts competitor pricing fields and still accepts old reports', () => {
+  const r = resultSchema.parse({
+    summary: 'Buffet chain.', website: 'https://example.com',
+    products: [{ name: 'Large pizza', price: '$14.99', url: 'https://example.com/menu' }],
+    subscriptions: [{ name: 'Rewards', price: 'Free', billing: 'n/a', includes: '$5 back per $100' }],
+    deals: [{ title: 'Take two', details: '2 slices, 2 chicken, 2 sides', ends: '' }],
+    fees_and_policies: ['Delivery fee varies'], strengths: ['Arcade'], weaknesses: ['Slow on weekends'], opportunities: ['Beat them on delivery'],
+  });
+  assert.equal(r.products[0].price, '$14.99');
+  assert.deepEqual(resultSchema.parse({ summary: 'old' }).products, []);
+  assert.throws(() => resultSchema.parse({ summary: 'x', products: [{ name: 'a', price: '1', url: 'javascript:alert(1)' }] }));
+});
 import { createWorkspaceService, WORKSPACE_WRITES } from '../lib/workspaceConnector.js';
 
 function memory() {
