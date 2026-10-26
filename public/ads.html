@@ -44,10 +44,14 @@
     <button type="button" role="tab" aria-selected="true" data-filter="all">All</button>
     <button type="button" role="tab" aria-selected="false" data-filter="todo">To post</button>
     <button type="button" role="tab" aria-selected="false" data-filter="posted">Posted</button>
+    <button type="button" role="tab" aria-selected="false" data-filter="queue">Queue</button>
+    <button type="button" role="tab" aria-selected="false" data-filter="accounts">Accounts</button>
   </div>
   <p id="status" class="status" role="status" aria-live="polite">Loading your ads...</p>
   <div id="message" class="message" hidden></div>
   <ul id="grid" class="grid"></ul>
+  <div id="queue" class="panelview" style="display:none"></div>
+  <div id="accounts" class="panelview" style="display:none"></div>
 </main>
 
 <div id="sheet" class="sheet" hidden>
@@ -108,6 +112,8 @@
         <button type="button" data-value="30" aria-pressed="false">30s</button>
         <button type="button" data-value="45" aria-pressed="false">45s</button>
       </div>
+      <p class="qmeta">Clips and pictures to use (optional, up to 5)</p>
+      <div id="newad-media" class="media-pick"></div>
       <button id="newad-send" class="btn primary" type="button">Send request</button>
       <p id="newad-msg" class="post-msg" role="status" aria-live="polite"></p>
     </section>
