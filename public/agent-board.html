@@ -44,6 +44,13 @@
   .step { display: flex; gap: 8px; align-items: center; font-size: 15px; padding: 3px 0; }
   .step input { width: 20px; height: 20px; padding: 0; }
   .empty { color: var(--dim); font-size: 14px; padding: 6px 0; }
+  .light { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
+  .light::before { content: ''; width: 12px; height: 12px; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; }
+  .light.green { color: var(--green); } .light.yellow { color: var(--amber); } .light.red { color: var(--red); }
+  .card.lit-red { border-left: 4px solid var(--red); } .card.lit-yellow { border-left: 4px solid var(--amber); } .card.lit-green { border-left: 4px solid var(--green); }
+  .tally { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 6px; }
+  .goalbox input { font-size: 18px; padding: 14px; }
+  body.embed .bar h1 { display: none; }
   .toast { position: fixed; left: 14px; right: 14px; bottom: 16px; background: #14202f; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: none; }
   .toast.show { display: block; }
 </style>
@@ -52,23 +59,27 @@
 <div class="bar">
   <div>
     <h1>Agent Board</h1>
-    <div class="sub" id="meta">Loading…</div><a id="signIn" href="/nexus-login.html?next=%2Fagent-board.html" hidden style="color:var(--gold)">Sign in to Nexus</a>
+    <div class="sub" id="meta">Loading…</div>
+    <div class="tally" id="tally"></div><a id="signIn" href="/nexus-login.html?next=%2Fagent-board.html" hidden style="color:var(--gold)">Sign in to Nexus</a>
   </div>
   <button id="refresh">Refresh</button>
 </div>
 
-<h2>Who is working on what</h2>
-<div class="people" id="people"></div>
-
-<h2>New goal</h2>
-<div class="card">
-  <input id="goalTitle" placeholder="Big goal, e.g. Launch the waitlist site" maxlength="140">
-  <textarea id="goalTasks" placeholder="Break it into tasks, one per line. Optional."></textarea>
-  <div class="row" style="margin-top:8px"><button class="primary" id="goalAdd" disabled>Create goal</button><span class="sub">Claude and ChatGPT claim the tasks from here.</span></div>
+<div class="card goalbox" style="margin-top:14px">
+  <div class="title" style="margin-bottom:8px">What's the goal?</div>
+  <input id="goalTitle" placeholder="e.g. Get 10 businesses on the waitlist this week" maxlength="140">
+  <textarea id="goalDetails" placeholder="Any details, deadline or must-haves (optional)" maxlength="1500" style="margin-top:8px;min-height:64px"></textarea>
+  <details style="margin-top:4px"><summary>I'll list the tasks myself</summary>
+    <textarea id="goalTasks" placeholder="One task per line"></textarea></details>
+  <div class="row" style="margin-top:10px"><button class="primary" id="goalAdd" disabled>Set goal</button>
+    <span class="sub" id="goalHint">Claude and ChatGPT break it into tasks and claim them.</span></div>
 </div>
 
 <h2>Goals</h2>
 <div id="goals"></div>
+
+<h2>Who is working on what</h2>
+<div class="people" id="people"></div>
 
 <h2>Other tasks</h2>
 <div id="loose"></div>
@@ -116,6 +127,7 @@ async function act(fn, done) {
 const label = (s) => String(s || '').replace(/_/g, ' ');
 const keep = new Set(); // ids of open <details> so a refresh does not collapse them
 
+function lightTag(l) { return l ? h('span', { class: 'light ' + l.color }, l.why) : null; }
 function progressBar(p) {
   return [h('div', { class: 'progress' }, h('i', { style: 'width:' + p.percent + '%' })), h('div', { class: 'sub' }, p.done + ' of ' + p.total + ' done')];
 }
@@ -127,12 +139,12 @@ function taskCard(task, opts = {}) {
   const steps = task.steps || [];
   return h('div', { class: 'task' },
     h('div', { class: 'row' },
+      lightTag(task.light),
       h('span', { class: 'chip ' + task.status }, label(task.status)),
       h('span', { class: 'chip' }, task.owner ? task.owner : 'unclaimed'),
       h('span', { class: 'sub' }, ago(task.age_ms))),
     h('div', { class: 'title', style: 'margin-top:6px' }, task.title),
     task.last_note ? h('div', { class: 'note' }, task.last_note) : null,
-    task.blocked_reason && task.status === 'blocked' ? h('div', { class: 'note', style: 'color:var(--red)' }, 'Blocked: ' + task.blocked_reason) : null,
     steps.length ? h('div', {}, steps.map((s, i) => h('label', { class: 'step' },
       h('input', { type: 'checkbox', checked: s.done ? 'checked' : false, onchange: () => act(() => api('toggle_step', { id: task.id, index: i })) }), s.text))) : null,
     steps.length ? progressBar(task.progress) : null,
@@ -152,13 +164,14 @@ function taskCard(task, opts = {}) {
 
 function goalCard(goal) {
   const kid = h('input', { placeholder: 'Add a task to this goal', maxlength: '140' });
-  return h('div', { class: 'card' },
-    h('div', { class: 'row' }, h('span', { class: 'chip ' + goal.status }, label(goal.status)), h('span', { class: 'sub' }, goal.tasks.length + ' tasks')),
+  const details = String(goal.description || '').split('\n---\n')[0];
+  return h('div', { class: 'card lit-' + (goal.light?.color || 'yellow') },
+    h('div', { class: 'row' }, lightTag(goal.light), h('span', { class: 'sub' }, goal.tasks.length + ' tasks')),
     h('div', { class: 'title', style: 'margin-top:6px;font-size:18px' }, goal.title),
-    goal.description && !/^goal:/i.test(goal.description) ? h('div', { class: 'note' }, goal.description) : null,
-    progressBar(goal.progress),
+    details && !/^goal:/i.test(details) ? h('div', { class: 'note' }, details) : null,
+    goal.tasks.length ? progressBar(goal.progress) : null,
     (goal.owner_notes || []).map((n) => h('div', { class: 'note mine' }, n.from + ': ' + n.text)),
-    goal.tasks.length ? goal.tasks.map((t) => taskCard(t)) : h('div', { class: 'empty' }, 'No tasks yet. Add one below.'),
+    goal.tasks.length ? goal.tasks.map((t) => taskCard(t)) : h('div', { class: 'empty' }, 'Claude or ChatGPT will break this into tasks. You can also add one below.'),
     h('div', { class: 'row', style: 'margin-top:10px' },
       kid,
       h('button', { class: 'small', onclick: () => { if (kid.value.trim()) act(() => api('create_task', { title: kid.value.trim(), description: 'goal: ' + goal.id }), 'Task added'); } }, 'Add')),
@@ -170,6 +183,10 @@ function goalCard(goal) {
 function render(data) {
   const d = data.dashboard;
   $('meta').textContent = d.counts.goals + ' goals · ' + d.counts.tasks + ' tasks · ' + d.counts.unclaimed + ' unclaimed · updated ' + new Date(data.observed_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const L = d.counts.lights || {};
+  $('tally').replaceChildren(h('span', { class: 'light green' }, (L.green || 0) + ' moving'), h('span', { class: 'light yellow' }, (L.yellow || 0) + ' waiting'), h('span', { class: 'light red' }, (L.red || 0) + ' in trouble'));
+  const order = { red: 0, yellow: 1, green: 2 };
+  d.goals.sort((a, b) => (a.status === 'complete') - (b.status === 'complete') || order[a.light?.color] - order[b.light?.color] || b.created_at - a.created_at);
   $('people').replaceChildren(...d.people.map((p) => h('div', { class: 'card', style: 'margin:0' },
     h('div', { class: 'row' }, h('span', { class: 'dot ' + p.status }), h('span', { class: 'title' }, p.name), h('span', { class: 'sub' }, p.status)),
     p.working_on.length ? p.working_on.map((w) => h('div', { class: 'note' }, label(w.status) + ': ' + w.title)) : h('div', { class: 'empty' }, 'Nothing active'))));
@@ -196,16 +213,18 @@ $('refresh').addEventListener('click', load);
 $('goalAdd').addEventListener('click', () => act(async () => {
   const title = $('goalTitle').value.trim();
   if (!title) throw new Error('Give the goal a name first');
-  const { task: goal } = await api('create_task', { title, description: 'Big goal. Break it into tasks below.', kind: 'goal' });
-  for (const line of $('goalTasks').value.split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 25)) {
-    await api('create_task', { title: line.slice(0, 140), description: 'goal: ' + goal.id });
-  }
-  $('goalTitle').value = ''; $('goalTasks').value = '';
-}, 'Goal created'));
+  const details = $('goalDetails').value.trim();
+  const own = $('goalTasks').value.split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 25);
+  const forAgents = 'For agents: this is a goal from Justin. Break it into 3 to 8 small tasks anyone can pick up: create_task with the first line of the description "goal: <this goal id>" and no owner. Claim a task with claim_task before working on it, update progress as you go, and complete it when done. Never take a task someone else has claimed.';
+  const { task: goal } = await api('create_task', { title, description: (details || 'Big goal.') + '\n---\n' + forAgents, kind: 'goal' });
+  for (const line of own) await api('create_task', { title: line.slice(0, 140), description: 'goal: ' + goal.id });
+  await api('post_message', { from: 'justin', message: 'NEW GOAL: ' + title + ' (goal id ' + goal.id + '). ' + (own.length ? own.length + ' tasks listed; claim them with claim_task.' : 'Claude or ChatGPT: break it into 3-8 tasks with "goal: ' + goal.id + '" as the first description line, no owner, then claim before working.') + (details ? ' Details: ' + details.slice(0, 400) : '') });
+  $('goalTitle').value = ''; $('goalDetails').value = ''; $('goalTasks').value = '';
+}, 'Goal set. Claude and ChatGPT will see it on the board.'));
 
+if (new URLSearchParams(location.search).get('embed') === '1') document.body.classList.add('embed');
 load();
 setInterval(load, 20000);
 </script>
 </body>
 </html>
-
