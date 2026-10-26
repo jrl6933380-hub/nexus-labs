@@ -1,0 +1,24 @@
+name: Build browser template
+
+# Run by hand from the Actions tab. Builds the E2B sandbox template "nexus-browser" (2 CPU, 2 GB RAM, Chromium)
+# that the live browser connector starts. Needs the repo secret E2B_API_KEY.
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build the template
+        env:
+          E2B_API_KEY: ${{ secrets.E2B_API_KEY }}
+        run: |
+          mkdir -p /tmp/tpl && cd /tmp/tpl
+          npm init -y >/dev/null
+          npm i e2b@2
+          cp "$GITHUB_WORKSPACE/scripts/build-browser-template.mjs" .
+          REPO_ROOT="$GITHUB_WORKSPACE" node build-browser-template.mjs
