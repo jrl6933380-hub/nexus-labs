@@ -49,6 +49,11 @@
       if (!frame.getAttribute('src')) frame.setAttribute('src', destinations[tab.id]);
       history.replaceState(null, '', '#' + tab.id.replace('-tab', ''));
     }
+    window.addEventListener('hashchange', function () {
+      if (document.getElementById('content').hidden) return;
+      const tab = tabs.find(function (item) { return '#' + item.id.replace('-tab', '') === location.hash; });
+      if (tab) select(tab);
+    });
     function message(text, link) {
       state.textContent = text;
       if (link) {
