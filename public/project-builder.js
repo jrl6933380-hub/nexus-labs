@@ -16,7 +16,7 @@ function previewDocument(html,token,mode){
 }
 export function preferredBuilderMode(){try{const mode=localStorage.getItem('nexus:builder-mode');return ['preview','build','fine'].includes(mode)?mode:'build';}catch{return 'build';}}
 export function mountProjectBuilder({projectId,label,html,buildId,conversation,mode='build',onMode,onExit,onPublish,onSave,onRestore,onRetrySave,onPiece,onOptions,sourceConversation}){
-  const shell=make('section',undefined,'projectbuilder');shell.setAttribute('aria-label','Project builder');
+  const shell=make('section',undefined,'projectbuilder pb-checking');shell.setAttribute('aria-label','Project builder');
   const top=make('header',undefined,'pb-top'),status=make('span','Saved draft','pb-status');const title=make('strong',label);status.setAttribute('role','status');status.setAttribute('aria-live','polite');const back=button('‹ Projects',onExit);back.setAttribute('aria-label','Back to Projects');const topAction=button('Open',()=>setMode('preview'),'pb-gold');top.append(back,title,topAction);shell.append(top,status);
   const stage=make('div',undefined,'pb-stage'),frame=make('iframe');frame.title='Interactive project preview';frame.setAttribute('sandbox','allow-scripts allow-forms');frame.setAttribute('referrerpolicy','no-referrer');const canvas=make('div',undefined,'pb-canvas');canvas.append(frame);stage.append(canvas);
   const chat=make('div',undefined,'pb-chat');
@@ -69,9 +69,10 @@ export function mountProjectBuilder({projectId,label,html,buildId,conversation,m
   const sizeObserver=new ResizeObserver(()=>{if(composer.offsetHeight)shell.style.setProperty('--pb-collapsed-chat-height',(chatToggle.offsetHeight+composer.offsetHeight)+'px');shell.style.setProperty('--pb-dock-height',dock.offsetHeight+'px');shell.style.setProperty('--pb-top-height',(top.offsetHeight+status.offsetHeight)+'px');fitViewport();});
   sizeObserver.observe(dock);sizeObserver.observe(top);sizeObserver.observe(status);sizeObserver.observe(composer);sizeObserver.observe(chatToggle);fitViewport();
   window.visualViewport?.addEventListener('resize',fitViewport);window.visualViewport?.addEventListener('scroll',fitViewport);
-  const token=crypto.randomUUID();let currentHtml=html,currentId=buildId,currentMode=mode,returnMode='overview',selection=null,proposed=null,busy=false,beforePreview=false,scroll={x:0,y:0},undoId=null,persistenceError='',saving=false,bare=false,embedPath='';
-  function renderFrame(content=currentHtml){if(embedPath)return;frame.srcdoc=previewDocument(content,token,currentMode);}
+  const token=crypto.randomUUID();let currentHtml=html,currentId=buildId,currentMode=mode,returnMode='overview',selection=null,proposed=null,busy=false,beforePreview=false,scroll={x:0,y:0},undoId=null,persistenceError='',saving=false,bare=false,embedPath='',destroyed=false;
+  function renderFrame(content=currentHtml){if(embedPath)return;frame.srcdoc=bare?content:previewDocument(content,token,currentMode);}
   function setMode(value){
+    if(bare){currentMode='preview';shell.dataset.mode='preview';back.onclick=onExit;back.setAttribute('aria-label','Back to Projects');return;}
     if(value!==currentMode && ['preview','fine'].includes(value) && ['build','overview'].includes(currentMode))returnMode=currentMode;
     const shelfFocused=projectShelf.contains(document.activeElement);
     currentMode=value;onMode?.(value);shell.dataset.mode=value;
@@ -92,10 +93,18 @@ export function mountProjectBuilder({projectId,label,html,buildId,conversation,m
   }
   function receive(event){if(event.source!==frame.contentWindow || event.data?.nexusBuilder!==token)return;const message=event.data;if(message.type==='ready')frame.contentWindow.postMessage({nexusBuilder:token,type:'scroll',...scroll},'*');if(message.type==='scroll' && Number.isFinite(message.x) && Number.isFinite(message.y))scroll={x:message.x,y:message.y};if(message.type==='select' && currentMode==='fine' && /^\d{1,5}$/.test(message.id)){selection={id:message.id,tag:String(message.tag),text:String(message.text || '').slice(0,8000),draft:{text:String(message.text || '').slice(0,8000),color:'#edf3ee',fontSize:'',src:null}};editSheet();}}
   window.addEventListener('message',receive);renderFrame();setMode(mode);
-  // Owner only: a project whose HTML contains <!--nexus:embed=/page.html--> opens that page of this site full screen,
-  // with no chat, dock, preview or publish controls. The server says whether the viewer is the operator; nobody else gets this.
+  // Owner Projects run directly. Only explicitly allowlisted first-party tools
+  // receive same-origin access; ordinary saved HTML keeps its existing sandbox.
   const embedMatch=/<!--\s*nexus:embed=(\/[a-z0-9-]+\.html)\s*-->/i.exec(html||'');
-  if(embedMatch&&['/ads.html','/tiktok-planner.html','/forge-hub.html'].includes(embedMatch[1].toLowerCase()))fetch('/api/room-history',{credentials:'include'}).then(r=>r.ok?r.json():null).then(d=>{if(!d?.workbench?.operator)return;embedPath=embedMatch[1].toLowerCase();bare=true;shell.classList.add('pb-bare');frame.setAttribute('sandbox','allow-scripts allow-forms allow-same-origin allow-popups allow-downloads');frame.removeAttribute('srcdoc');frame.src=embedPath;back.onclick=onExit;}).catch(()=>{});
+  fetch('/api/room-history',{credentials:'include',cache:'no-store'}).then(r=>r.ok?r.json():null).then(d=>{
+    if(destroyed || !d?.workbench?.operator)return;
+    bare=true;shell.classList.add('pb-bare');shell.setAttribute('aria-label','Project');
+    setMode('preview');
+    if(embedMatch&&['/ads.html','/tiktok-planner.html','/forge-hub.html'].includes(embedMatch[1].toLowerCase())){
+      embedPath=embedMatch[1].toLowerCase();frame.setAttribute('sandbox','allow-scripts allow-forms allow-same-origin allow-popups allow-downloads');frame.removeAttribute('srcdoc');frame.src=embedPath;
+    }else renderFrame();
+    fitViewport();
+  }).catch(()=>{}).finally(()=>{shell.classList.remove('pb-checking');});
   function closePanel(){panel.hidden=true;}
   function editSheet(){
     panel.replaceChildren();panel.hidden=false;panel.append(make('h2',selection.tag==='IMG'?'Edit this image':'Edit this element'));
@@ -127,7 +136,7 @@ export function mountProjectBuilder({projectId,label,html,buildId,conversation,m
   function markSaving(){saving=true;topAction.disabled=true;status.textContent='Saving this version…';}
   function markUnsaved(message){saving=false;topAction.disabled=true;persistenceError=message;status.textContent='Unsaved · '+message;if(onRetrySave)status.append(button('Retry saving',async()=>{if(busy)return;busy=true;try{const saved=await onRetrySave(currentHtml,currentId);update(saved.html,saved.id);}catch(error){markUnsaved(error.message);}finally{busy=false;}}));}
   function update(nextHtml,nextId){saving=false;topAction.disabled=false;persistenceError='';currentHtml=nextHtml;currentId=nextId;proposed=null;thumbnail.srcdoc=nextHtml;renderFrame();status.textContent='Saved draft';}
-  return {projectId,setMode,update,markUnsaved,markSaving,updateLabel(value){title.textContent=value;},destroy(){conversation.removeEventListener('focusin',expandChat);conversation.id=originalConversationId;conversation.querySelector('.thread').removeAttribute('aria-hidden');if(originalThreadTabIndex===null)thread.removeAttribute('tabindex');else thread.setAttribute('tabindex',originalThreadTabIndex);sizeObserver.disconnect();window.visualViewport?.removeEventListener('resize',fitViewport);window.visualViewport?.removeEventListener('scroll',fitViewport);window.removeEventListener('message',receive);anchor.replaceWith(conversation);shell.remove();}};
+  return {projectId,setMode,update,markUnsaved,markSaving,updateLabel(value){title.textContent=value;},destroy(){destroyed=true;conversation.removeEventListener('focusin',expandChat);conversation.id=originalConversationId;conversation.querySelector('.thread').removeAttribute('aria-hidden');if(originalThreadTabIndex===null)thread.removeAttribute('tabindex');else thread.setAttribute('tabindex',originalThreadTabIndex);sizeObserver.disconnect();window.visualViewport?.removeEventListener('resize',fitViewport);window.visualViewport?.removeEventListener('scroll',fitViewport);window.removeEventListener('message',receive);anchor.replaceWith(conversation);shell.remove();}};
 }
 
 async function prepareProjectPhoto(file,budget){
