@@ -19,7 +19,7 @@ let sandbox;
 try {
   sandbox = await Sandbox.create('nexus-browser', {timeoutMs: 5 * 60_000});
   check('starts a sandbox from the nexus-browser template', true);
-  await sandbox.commands.run('cd /opt/nexus-browser && node live-browser-agent.mjs', {background: true, envs: {LB_TOKEN: TOKEN}, timeoutMs: 0});
+  await sandbox.commands.run('cd /opt/nexus-browser && PLAYWRIGHT_BROWSERS_PATH=/ms-playwright node live-browser-agent.mjs', {background: true, envs: {LB_TOKEN: TOKEN}, timeoutMs: 0});
   const base = 'https://' + sandbox.getHost(9333);
   let healthy = false;
   for (let i = 0; i < 30 && !healthy; i++) { try { healthy = (await fetch(base + '/health')).ok; } catch {} if (!healthy) await sleep(1000); }
