@@ -95,7 +95,7 @@ export function mountProjectBuilder({projectId,label,html,buildId,conversation,m
   // Owner only: a project whose HTML contains <!--nexus:embed=/page.html--> opens that page of this site full screen,
   // with no chat, dock, preview or publish controls. The server says whether the viewer is the operator; nobody else gets this.
   const embedMatch=/<!--\s*nexus:embed=(\/[a-z0-9-]+\.html)\s*-->/i.exec(html||'');
-  if(embedMatch&&['/ads.html','/tiktok-planner.html'].includes(embedMatch[1].toLowerCase()))fetch('/api/room-history',{credentials:'include'}).then(r=>r.ok?r.json():null).then(d=>{if(!d?.workbench?.operator)return;embedPath=embedMatch[1].toLowerCase();bare=true;shell.classList.add('pb-bare');frame.setAttribute('sandbox','allow-scripts allow-forms allow-same-origin allow-popups allow-downloads');frame.removeAttribute('srcdoc');frame.src=embedPath;back.onclick=onExit;}).catch(()=>{});
+  if(embedMatch&&['/ads.html','/tiktok-planner.html','/forge-hub.html'].includes(embedMatch[1].toLowerCase()))fetch('/api/room-history',{credentials:'include'}).then(r=>r.ok?r.json():null).then(d=>{if(!d?.workbench?.operator)return;embedPath=embedMatch[1].toLowerCase();bare=true;shell.classList.add('pb-bare');frame.setAttribute('sandbox','allow-scripts allow-forms allow-same-origin allow-popups allow-downloads');frame.removeAttribute('srcdoc');frame.src=embedPath;back.onclick=onExit;}).catch(()=>{});
   function closePanel(){panel.hidden=true;}
   function editSheet(){
     panel.replaceChildren();panel.hidden=false;panel.append(make('h2',selection.tag==='IMG'?'Edit this image':'Edit this element'));
