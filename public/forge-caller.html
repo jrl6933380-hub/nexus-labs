@@ -70,10 +70,13 @@
   .obj .a { color: #d9cdb8; }
 
   .site-actions { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
-  .site-actions button {
+  .site-actions button, .site-actions a {
     background: #d97b2f; color: #14100b; border: none; border-radius: 8px; padding: 9px 13px; font-weight: 700; font-size: 12px; cursor: pointer;
   }
-  .site-actions button.secondary { background: #241a10; color: #f0dfc5; border: 1px solid #3a2c1c; }
+  .site-actions button.secondary, .site-actions a.secondary { background: #241a10; color: #f0dfc5; border: 1px solid #3a2c1c; }
+  .template-choices { display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px; }
+  .template-choices button { min-height:44px;padding:9px 13px;border:1px solid #73502b;border-radius:9px;background:#241a10;color:#f2e9dd;cursor:pointer; }
+  .template-choices button[aria-pressed=true] { background:#d97b2f;color:#14100b; }
   .site-frame-wrap { border: 1px solid #3a2c1c; border-radius: 10px; overflow: hidden; height: 360px; margin-bottom: 10px; background: #0b0806; }
   .site-frame-wrap iframe { width: 100%; height: 100%; border: 0; }
   .site-status { font-size: 12px; color: #a9977d; margin-bottom: 8px; }
@@ -304,10 +307,12 @@ function siteBodyHtml(lead) {
   if (lead.siteStatus === 'ready' && lead.siteHtml) {
     frame = '<div class="site-frame-wrap"><iframe id="site-frame" sandbox="allow-scripts allow-forms" title="Demo site preview"></iframe></div>';
   }
-  return '' +
-    '<div class="site-actions">' +
-      (showGenerate ? '<button type="button" id="generate-site-btn">Generate site preview</button>' : '') +
-      (lead.siteStatus === 'ready' ? '<button type="button" class="secondary" id="regen-site-btn">Regenerate</button>' : '') +
+  const variants = Array.isArray(lead.siteVariants) ? lead.siteVariants : [];
+  const choices = variants.length ? '<div class="template-choices" role="group" aria-label="Website direction">' + variants.map(function (v) { return '<button type="button" data-template="' + escapeHtml(v.id) + '" aria-pressed="' + String(v.id === lead.siteTemplateId) + '">' + escapeHtml(v.label) + '</button>'; }).join('') + '</div>' : '';
+  return choices +
+    '<div class="site-actions"><a class="secondary" href="/forge-templates.html" target="_blank" rel="noopener">Browse starters ↗</a>' +
+      (showGenerate ? '<button type="button" id="generate-site-btn">Generate 3 looks</button>' : '') +
+      (lead.siteStatus === 'ready' ? '<button type="button" class="secondary" id="regen-site-btn">Rebuild 3 looks</button><button type="button" class="secondary" id="expand-site-btn">Full screen ↗</button>' : '') +
     '</div>' +
     (statusLine ? '<div class="site-status">' + statusLine + '</div>' : '') +
     frame +
@@ -349,6 +354,27 @@ function renderLead(id) {
 
   const siteFrame = document.getElementById('site-frame');
   if (siteFrame && lead.siteHtml) siteFrame.srcdoc = lead.siteHtml;
+
+  view.querySelectorAll('[data-template]').forEach(function (btn) {
+    btn.addEventListener('click', function () { runSiteAction(lead.id, 'select_template', undefined, btn.dataset.template); });
+  });
+  const expandBtn = document.getElementById('expand-site-btn');
+  if (expandBtn) expandBtn.addEventListener('click', function () {
+    const dialog = document.createElement('dialog');
+    dialog.setAttribute('aria-label', 'Full website preview');
+    dialog.style.cssText = 'position:fixed;inset:0;width:100vw;height:100dvh;max-width:none;max-height:none;margin:0;padding:0;border:0;background:#14100b;color:#f2e9dd;';
+    const box = document.createElement('div');
+    box.style.cssText = 'height:100%;display:flex;flex-direction:column;';
+    const close = document.createElement('button');
+    close.type = 'button'; close.textContent = '← Back to call';
+    close.style.cssText = 'flex-shrink:0;min-height:48px;padding:12px;border:0;background:#241a10;color:#f2e9dd;font:inherit;';
+    const frame = document.createElement('iframe');
+    frame.title = 'Full website preview';frame.setAttribute('sandbox', 'allow-scripts allow-forms');
+    frame.style.cssText = 'border:0;width:100%;flex:1;min-height:0;';frame.srcdoc = lead.siteHtml;
+    close.addEventListener('click', function () { dialog.close(); });
+    dialog.addEventListener('close', function () { dialog.remove();expandBtn.focus(); });
+    box.append(close, frame);dialog.append(box);document.body.append(dialog);dialog.showModal();
+  });
 
   let chosenTier = 'standard';
   view.querySelectorAll('.tier-opt').forEach(function (opt) {
@@ -398,14 +424,14 @@ function renderLead(id) {
     // generation only ever happens for a call that actually connected.
     answeredBtn.addEventListener('click', function () {
       document.getElementById('panel-site').classList.add('open');
-      runSiteAction(lead.id, 'generate');
+      runSiteAction(lead.id, 'templates');
     });
   }
 
   const generateBtn = document.getElementById('generate-site-btn');
-  if (generateBtn) generateBtn.addEventListener('click', function () { runSiteAction(lead.id, 'generate'); });
+  if (generateBtn) generateBtn.addEventListener('click', function () { runSiteAction(lead.id, 'templates'); });
   const regenBtn = document.getElementById('regen-site-btn');
-  if (regenBtn) regenBtn.addEventListener('click', function () { runSiteAction(lead.id, 'generate'); });
+  if (regenBtn) regenBtn.addEventListener('click', function () { runSiteAction(lead.id, 'templates'); });
   const editBtn = document.getElementById('edit-site-btn');
   if (editBtn) editBtn.addEventListener('click', function () {
     const instruction = document.getElementById('edit-instruction').value.trim();
@@ -432,14 +458,14 @@ function renderLead(id) {
   });
 }
 
-async function runSiteAction(leadId, action, instruction) {
+async function runSiteAction(leadId, action, instruction, templateId) {
   const lead = leads.find(function (l) { return l.id === leadId; });
-  if (lead) { lead.siteStatus = 'generating'; renderLead(leadId); }
+  if (lead && action !== 'select_template') { lead.siteStatus = 'generating'; renderLead(leadId); }
   try {
     const res = await fetch('/api/forge-site', {
       method: 'POST', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ leadId: leadId, action: action, instruction: instruction }),
+      body: JSON.stringify({ leadId: leadId, action: action, instruction: instruction, templateId: templateId }),
     });
     const data = await res.json();
     if (!res.ok) { alert(data.error || 'Site action failed.'); await loadLeads(); return; }
@@ -465,3 +491,4 @@ loadEarnings();
 </script>
 </body>
 </html>
+
