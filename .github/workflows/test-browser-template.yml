@@ -12,7 +12,7 @@ jobs:
         with:
           node-version: 22
       - name: Install
-        run: npm ci --ignore-scripts
+        run: npm i --no-save --ignore-scripts --no-audit --no-fund e2b@^1 zod@^3
       - name: Run the live browser engine against real E2B
         env:
           E2B_API_KEY: ${{ secrets.E2B_API_KEY }}
