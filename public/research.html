@@ -102,15 +102,7 @@ function show(d){
   const sw=el('div',null,'two');for(const s of [list('Strengths',r.strengths),list('Weaknesses',r.weaknesses)])if(s)sw.append(s);if(sw.children.length)out.append(sw);
   if(r.opportunities&&r.opportunities.length){
     out.append(el('h2','How you can beat them'));const u=el('ul');
-    r.opportunities.forEach((x,i)=>{const li=el('li',typeof x==='string'?x:x.text);
-      if(x&&x.ad_idea){const dd=el('details',null,'adx'),sm=el('summary','Want an ad for this?');dd.append(sm,el('p',x.ad_idea,'mute'));
-        const req=(d.ad_requests||[]).find(a=>a.index===i);
-        if(!req){const b=el('button','Request this ad (uses 1 run)');b.addEventListener('click',()=>askAd(d.job_id,i,b));dd.append(b);}
-        else if(req.status==='done'){dd.open=true;dd.append(el('b','Your ad is ready'));if(req.note)dd.append(el('p',req.note,'mute'));if(req.preview_url){const l=el('a','Open your ad');l.href=req.preview_url;l.target='_blank';l.rel='noopener noreferrer';dd.append(l);}}
-        else if(req.status==='failed')dd.append(el('p','We could not make this ad. Ask Justin.','err'));
-        else{dd.open=true;dd.append(working('Ad requested. We are making it.'));}
-        li.append(dd);}
-      u.append(li);});
+    r.opportunities.forEach(x=>u.append(el('li',typeof x==='string'?x:x.text)));
     out.append(u);
   }
   if(r.sources&&r.sources.length){out.append(el('h2','Sources'));const u=el('ul');for(const s of r.sources){const li=el('li'),l=el('a',s.title||s.url);l.href=s.url;l.target='_blank';l.rel='noopener noreferrer';li.append(l);u.append(li);}out.append(u);}
