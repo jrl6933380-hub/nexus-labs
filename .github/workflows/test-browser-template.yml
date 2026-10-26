@@ -16,4 +16,5 @@ jobs:
       - name: Run the live browser engine against real E2B
         env:
           E2B_API_KEY: ${{ secrets.E2B_API_KEY }}
+          NEXUS_CREDENTIAL_ENC_KEY: e2e-test-key-not-a-secret
         run: node scripts/e2e-live-browser.mjs
