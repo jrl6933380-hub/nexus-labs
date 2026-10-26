@@ -33,7 +33,7 @@ try {
   check('opens example.com in Chromium', opened.ok === true && /example/i.test(opened.title || ''), opened.error || opened.title);
   check('returns a real screenshot', typeof opened.shot === 'string' && opened.shot.length > 2000, `${(opened.shot || '').length} base64 chars`);
   const text = await act({action: 'text'});
-  check('reads page text', /Example Domain/.test(text.text || ''), text.error || '');
+  check('reads page text', /Example Domain/.test(text.text || ''), text.error || JSON.stringify(text).slice(0, 200));
   check('refuses http:// pages', (await act({action: 'open', url: 'http://example.com/'})).ok === false);
 
   const tiktok = await act({action: 'open', url: 'https://www.tiktok.com/login'});
