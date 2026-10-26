@@ -17,7 +17,7 @@ export function createTikTokPlansHandler({resolveAccount=resolveWorkspaceAccount
    const body=req.body;
    if(!body||typeof body!=='object'||Array.isArray(body)||Object.keys(body).some(k=>!['action','input','request_id'].includes(k)))return res.status(400).json({error:'Provide action, input, and request_id only.'});
    const {action,input={},request_id}=body;
-   const writes={save_campaign:'saveCampaign',save_video:'saveVideo',delete_video:'deleteVideo',delete_campaign:'deleteCampaign',build_ad:'buildAd'};
+   const writes={save_campaign:'saveCampaign',save_video:'saveVideo',save_account:'saveAccount',delete_video:'deleteVideo',delete_campaign:'deleteCampaign',build_ad:'buildAd'};
    let data;
    if(action==='overview')data=await store.overview(account.id);
    else if(action==='scope')data=await store.scope(account.id,input);
