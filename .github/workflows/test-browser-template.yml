@@ -1,0 +1,24 @@
+name: Test browser template
+
+# Run by hand. Starts a sandbox from the "nexus-browser" template and checks that Chromium really runs in it.
+# Needs the repo secret E2B_API_KEY and an already-built template (workflow "Build browser template").
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test the template
+        env:
+          E2B_API_KEY: ${{ secrets.E2B_API_KEY }}
+        run: |
+          mkdir -p /tmp/tpl && cd /tmp/tpl
+          npm init -y >/dev/null
+          npm i e2b@2
+          cp "$GITHUB_WORKSPACE/scripts/test-browser-template.mjs" .
+          node test-browser-template.mjs
