@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Nexus Browser</title>
+<style>
+:root{color-scheme:dark light;--bg:light-dark(#f6f8f2,#0c1210);--panel:light-dark(#fff,#142018);--text:light-dark(#203529,#e7eee9);--muted:light-dark(#596c5e,#a4b4a8);--line:light-dark(#c8d3c7,#35483b);--gold:light-dark(#866514,#d9bd72);--button:light-dark(#f1e5bd,#d9bd72);--button-text:#172119;--error:light-dark(#9a3824,#ffb19a);--ok:light-dark(#2f7a45,#7fd39a)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,-apple-system,Segoe UI,sans-serif;padding:max(12px,env(safe-area-inset-top)) 12px max(16px,env(safe-area-inset-bottom))}
+main{max-width:980px;margin:0 auto;display:flex;flex-direction:column;gap:10px}
+header{display:flex;align-items:center;gap:10px}
+h1{font-size:18px;margin:0}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--muted);flex:none}.dot.on{background:var(--ok)}
+.where{min-width:0;flex:1;color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stage{position:relative;background:#000;border:1px solid var(--line);border-radius:10px;overflow:hidden;aspect-ratio:16/9;touch-action:manipulation}
+.stage img{display:block;width:100%;height:100%;object-fit:fill;cursor:crosshair;-webkit-user-drag:none;user-select:none}
+.stage .msg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:16px;color:#cfd9d2;font-size:15px;pointer-events:none}
+.tap{position:absolute;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;border:2px solid var(--gold);background:#d9bd7255;pointer-events:none;animation:ping .6s ease-out forwards}
+@keyframes ping{to{transform:scale(2);opacity:0}}
+@media(prefers-reduced-motion:reduce){.tap{animation:none;opacity:.6}}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row>input{flex:1;min-width:140px}
+input{font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;min-height:44px}
+button{font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 14px;min-height:44px;cursor:pointer;touch-action:manipulation}
+button.primary{background:var(--button);color:var(--button-text);border-color:transparent;font-weight:600}
+button:disabled{opacity:.5;cursor:default}
+button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.card h2{font-size:13px;margin:0;color:var(--muted);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.banner{border:1px solid var(--gold);border-radius:10px;padding:10px 12px;background:light-dark(#fbf3d8,#2a2616)}
+.note{font-size:13px;color:var(--muted)}
+#status{min-height:1.4em;font-size:14px}#status.err{color:var(--error)}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <span class="dot" id="dot" aria-hidden="true"></span>
+    <h1>Nexus Browser</h1>
+    <span class="where" id="where">Not running</span>
+  </header>
+  <div class="banner" id="pending" hidden></div>
+  <div class="stage" id="stage">
+    <img id="view" alt="The live browser page. Tap it to click." hidden draggable="false">
+    <div class="msg" id="empty">The browser is off. Type an address below and tap Go to start it. The first start takes about 15 seconds.</div>
+  </div>
+  <p id="status" role="status" aria-live="polite"></p>
+  <form class="row" id="goForm"><input id="url" type="url" inputmode="url" placeholder="https://" autocomplete="off" aria-label="Web address"><button class="primary" type="submit">Go</button></form>
+  <form class="row" id="typeForm"><input id="text" type="text" autocomplete="off" autocapitalize="off" placeholder="Type into the selected box" aria-label="Text to type"><button type="submit">Type</button></form>
+  <div class="row" aria-label="Keys and scrolling">
+    <button data-key="Enter">Enter</button><button data-key="Tab">Tab</button><button data-key="Backspace">Delete</button><button data-key="Escape">Esc</button>
+    <button data-scroll="-500" aria-label="Scroll up">Up</button><button data-scroll="500" aria-label="Scroll down">Down</button>
+  </div>
+  <section class="card" id="signins" hidden>
+    <h2>Saved sign-ins</h2>
+    <p class="note">Open the sign-in page, then tap Sign in. Your saved password is typed in by the server. Claude never sees it. If a code or CAPTCHA appears, finish it here.</p>
+    <div id="accounts"></div>
+  </section>
+  <div class="row"><button id="close">Turn the browser off</button></div>
+  <p class="note">You and Claude share this one browser. What Claude does shows up here within a couple of seconds.</p>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const SIGN_IN={tiktok:'https://www.tiktok.com/login',instagram:'https://www.instagram.com/accounts/login/',facebook:'https://www.facebook.com/login/'};
+const NAMES={tiktok:'TikTok',instagram:'Instagram',facebook:'Facebook'};
+let busy=false,timer=null,lastShot='';
+function say(text,bad){const s=$('status');s.textContent=text||'';s.className=bad?'err':'';}
+async function api(action,input={}){
+  const res=await fetch('/api/live-browser',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({action,...input})});
+  const data=await res.json().catch(()=>({error:'Unreadable reply.'}));
+  if(!res.ok)throw Object.assign(new Error(res.status===401?'Sign in to Nexus as the owner first.':data.error||'That did not work.'),{status:res.status});
+  return data;
+}
+function show(shot){
+  if(!shot||shot===lastShot)return;
+  lastShot=shot;$('view').src='data:image/jpeg;base64,'+shot;$('view').hidden=false;$('empty').hidden=true;
+}
+function draw(f){
+  $('dot').classList.toggle('on',Boolean(f.running));
+  $('where').textContent=f.running?(f.title?f.title+' · ':'')+(f.url||'starting'):'Not running';
+  if(f.shot)show(f.shot);
+  if(!f.running&&!f.shot){$('view').hidden=true;$('empty').hidden=false;lastShot='';}
+  const p=f.pending_login;$('pending').hidden=!p;
+  if(p)$('pending').textContent='Claude opened the '+NAMES[p.platform]+' sign-in page and is waiting for you. Tap "Sign in with saved login" below.';
+  const logins=(f.logins||[]).filter(l=>l.has_password);$('signins').hidden=!logins.length;
+  const box=$('accounts');box.replaceChildren();
+  for(const l of logins){
+    const row=document.createElement('div');row.className='row';
+    const open=document.createElement('button');open.textContent='Open '+NAMES[l.platform]+' sign-in';open.onclick=()=>doing(()=>api('open',{url:SIGN_IN[l.platform]}),'Opening…');
+    const go=document.createElement('button');go.className='primary';go.textContent='Sign in with saved login';go.setAttribute('aria-label','Sign in to '+NAMES[l.platform]+' with the saved login'+(l.username?' for '+l.username:''));
+    go.onclick=()=>doing(async()=>{const r=await api('approve_login',{platform:l.platform});say(r.note||'Signed in request sent.');},'Signing in…');
+    row.append(open,go);box.append(row);
+  }
+}
+async function refresh(){if(busy||document.hidden)return;try{draw(await api('frame'));if(!busy)say($('status').className==='err'?'':$('status').textContent);}catch(e){say(e.message,true);if(e.status===401||e.status===403)stop();}}
+function stop(){clearInterval(timer);timer=null;}
+function start(){if(!timer)timer=setInterval(refresh,2000);}
+async function doing(fn,label){
+  if(busy)return;busy=true;say(label||'Working…');
+  try{const r=await fn();if(r&&r.shot)show(r.shot);if(r&&r.url)$('where').textContent=(r.title?r.title+' · ':'')+r.url;$('dot').classList.add('on');say('');}
+  catch(e){say(e.message,true);}
+  finally{busy=false;try{draw(await api('frame'));}catch{}}
+}
+$('view').addEventListener('click',e=>{
+  const r=$('view').getBoundingClientRect(),x=Math.round((e.clientX-r.left)/r.width*1280),y=Math.round((e.clientY-r.top)/r.height*720);
+  const dot=document.createElement('div');dot.className='tap';dot.style.left=(e.clientX-r.left)+'px';dot.style.top=(e.clientY-r.top)+'px';$('stage').append(dot);setTimeout(()=>dot.remove(),700);
+  doing(()=>api('click',{x,y}),'Tapping…');
+});
+$('goForm').addEventListener('submit',e=>{e.preventDefault();let u=$('url').value.trim();if(!u)return;if(!/^https?:\/\//i.test(u))u='https://'+u;doing(()=>api('open',{url:u}),'Opening… the first start takes about 15 seconds');});
+$('typeForm').addEventListener('submit',e=>{e.preventDefault();const t=$('text').value;if(!t)return;doing(async()=>{const r=await api('type',{text:t});$('text').value='';return r;},'Typing…');});
+document.querySelectorAll('[data-key]').forEach(b=>b.addEventListener('click',()=>doing(()=>api('press',{key:b.dataset.key}))));
+document.querySelectorAll('[data-scroll]').forEach(b=>b.addEventListener('click',()=>doing(()=>api('scroll',{dy:Number(b.dataset.scroll)}))));
+$('close').addEventListener('click',()=>doing(async()=>{await api('close');lastShot='';return null;},'Turning it off…'));
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});
+refresh();start();
+</script>
+</body>
+</html>
