@@ -21,6 +21,8 @@
   var newLength = '15';
   var allVideos = [];
   var accounts = {};
+  var logins = {};
+  var loginsLoaded = false;
   var mediaCache = null;
   var pickedMedia = [];
 
@@ -466,11 +468,99 @@
     });
   }
 
-  // Handle and link only. No passwords are stored anywhere in Nexus.
+  // The login block under each account: username, a hidden password with tap-to-reveal, edit, and remove.
+  // Passwords are encrypted on the server and never come back unless you tap Show.
+  function loginBlock(card, p) {
+    var cur = logins[p] || null;
+    card.appendChild(mk('p', 'qmeta', 'Login (private, only you can see it)'));
+    function lfield(label, type, ph) {
+      var l = document.createElement('label');
+      l.appendChild(document.createTextNode(label));
+      var i = document.createElement('input');
+      i.type = type;
+      i.placeholder = ph;
+      i.autocomplete = 'off';
+      i.setAttribute('autocapitalize', 'off');
+      i.spellcheck = false;
+      l.appendChild(i);
+      card.appendChild(l);
+      return i;
+    }
+    var user = lfield('Username or email', 'text', 'Login name');
+    user.value = (cur && cur.username) || '';
+    var pw = lfield('Password', 'password', cur && cur.has_password ? 'Saved. Leave blank to keep it' : 'Password');
+    pw.autocomplete = 'new-password';
+    var revealed = false;
+    var row = mk('div', 'qrow');
+    var show = mk('button', 'btn', 'Show');
+    show.type = 'button';
+    var saveL = mk('button', 'btn primary', 'Save login');
+    saveL.type = 'button';
+    var rem = mk('button', 'btn', 'Remove login');
+    rem.type = 'button';
+    row.appendChild(show);
+    row.appendChild(saveL);
+    row.appendChild(rem);
+    card.appendChild(row);
+    var msg = mk('p', 'post-msg', '');
+    card.appendChild(msg);
+    function say(t, bad) { msg.textContent = t || ''; msg.className = 'post-msg' + (bad ? ' err' : ''); }
+    function hidePw() { pw.type = 'password'; if (revealed) pw.value = ''; revealed = false; show.textContent = 'Show'; }
+    show.addEventListener('click', function () {
+      if (pw.type === 'text') { hidePw(); return; }
+      if (pw.value || !(logins[p] && logins[p].has_password)) { pw.type = 'text'; show.textContent = 'Hide'; return; }
+      show.disabled = true;
+      planApi('reveal_login', { platform: p }).then(function (r) {
+        pw.value = r.password || '';
+        revealed = true;
+        pw.type = 'text';
+        show.textContent = 'Hide';
+        say('');
+      }).catch(function (err) { say((err && err.message) || 'Could not show it.', true); })
+        .then(function () { show.disabled = false; });
+    });
+    saveL.addEventListener('click', function () {
+      saveL.disabled = true;
+      say('');
+      var input = { platform: p, username: user.value.trim() };
+      if (pw.value) input.password = pw.value;
+      planApi('save_login', input).then(function (rec) {
+        logins[p] = rec;
+        hidePw();
+        pw.value = '';
+        pw.placeholder = rec.has_password ? 'Saved. Leave blank to keep it' : 'Password';
+        say('Saved.');
+      }).catch(function (err) { say((err && err.message) || 'Could not save.', true); })
+        .then(function () { saveL.disabled = false; });
+    });
+    rem.addEventListener('click', function () {
+      if (!logins[p]) { say('Nothing saved yet.'); return; }
+      if (!window.confirm('Remove the saved login for ' + p + '?')) return;
+      rem.disabled = true;
+      planApi('delete_login', { platform: p }).then(function () {
+        delete logins[p];
+        hidePw();
+        user.value = '';
+        pw.value = '';
+        pw.placeholder = 'Password';
+        say('Removed.');
+      }).catch(function (err) { say((err && err.message) || 'Could not remove.', true); })
+        .then(function () { rem.disabled = false; });
+    });
+  }
+
   function renderAccounts() {
     var box = $('accounts');
     box.textContent = '';
-    box.appendChild(mk('p', 'qmeta', 'Handle and link only. Passwords are never stored in Nexus. ChatGPT signs in with its own browser.'));
+    if (!loginsLoaded) {
+      loginsLoaded = true;
+      planApi('login_status').then(function (d) {
+        logins = {};
+        (d.logins || []).forEach(function (l) { logins[l.platform] = l; });
+        renderAccounts();
+      }).catch(function () { loginsLoaded = false; });
+    }
+    box.appendChild(mk('p', 'qmeta', 'Handle, link, and a private login for each account. Passwords are encrypted, hidden by default, and only you can reveal them. Claude and ChatGPT sign in through the browser.'));
     PLATFORMS.forEach(function (p) {
       var cur = accounts[p] || null;
       var card = mk('div', 'qcard');
@@ -508,6 +598,7 @@
       });
       card.appendChild(save);
       card.appendChild(msg);
+      loginBlock(card, p);
       box.appendChild(card);
     });
   }
