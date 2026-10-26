@@ -9,7 +9,7 @@ const browser = await chromium.launch({ headless:true, args:['--no-sandbox','--d
 const errors=[];
 const page = await browser.newPage({viewport:{width:393,height:852}});
 page.on('pageerror',error=>errors.push(error.message));
-let checks=0;
+let checks=0,generated=0;
 const sample={id:'lead-sample',businessName:'Example Barber',category:'Barber',location:'Example City',phone:'515-555-0100',siteStatus:'none',pitch:{opener:'Sample opener',weaknesses:[],discoveryQuestions:[],objections:[],demoLine:'Sample',upsell:'Sample',nextStep:'Sample'}};
 const root=resolve('public');
 const server=createServer(async(req,res)=>{
@@ -35,7 +35,7 @@ try {
     if(path==='/api/forge-clients')json={clients:[],owedCents:0,paidCents:0};
     if(path==='/api/forge-site'){
       const body=route.request().postDataJSON();
-      if(body.action==='templates'){sample.siteVariants=generateServiceVariants(sample);sample.siteTemplateId='editorial';sample.siteHtml=sample.siteVariants[0].html;sample.siteStatus='ready';}
+      if(body.action==='templates'){generated++;sample.siteVariants=generateServiceVariants(sample);sample.siteTemplateId='editorial';sample.siteHtml=sample.siteVariants[0].html;sample.siteStatus='ready';}
       else if(body.action==='select_template'){const variant=sample.siteVariants.find(v=>v.id===body.templateId);assert(variant);sample.siteHtml=variant.html;sample.siteTemplateId=variant.id;}
       else throw new Error('Unexpected action: '+body.action);
       json={lead:sample};
@@ -48,10 +48,13 @@ try {
   await page.locator('[data-template="bold"]').click();
   await page.waitForFunction(()=>document.querySelector('[data-template="bold"]')?.getAttribute('aria-pressed')==='true');
   assert.equal(sample.siteVariants.length,3);assert.equal(sample.siteTemplateId,'bold');checks++;
+  await page.getByRole('button',{name:'They answered — show the previews',exact:true}).click();
+  assert.equal(generated,1);assert.equal(sample.siteTemplateId,'bold');checks++;
   await page.getByRole('button',{name:'Full screen ↗',exact:true}).click();
   const full=page.frameLocator('dialog iframe');await full.getByRole('button',{name:'Book a visit',exact:true}).click();
   assert.equal(await full.locator('#booking').evaluate(el=>el.open),true);checks++;
   await full.getByRole('button',{name:'Close',exact:true}).click();await page.getByRole('button',{name:'← Back to call',exact:true}).click();
+  await page.locator('dialog').waitFor({state:'detached'});
   assert.equal(await page.locator('dialog').count(),0);checks++;
   await page.goto(base+'/forge-templates.html');await page.locator('#business-kind').selectOption('nails');
   await page.locator('#business-name').fill('My Nail Studio');await page.locator('[data-template="fresh"]').click();
