@@ -335,7 +335,7 @@
     var status = postStatus, caption = $('post-caption').value.trim(), date = $('post-date').value, url = $('post-url').value.trim();
     if (status !== 'idea' && !caption) { postMsg('Add a caption first.', true); return; }
     if (status === 'scheduled' && !date) { postMsg('Pick a post date.', true); return; }
-    if (status === 'posted' && !/^https?:\/\/\S+$/.test(url)) { postMsg('Paste the live TikTok link.', true); return; }
+    if (status === 'posted' && !/^https?:\/\/\S+$/.test(url)) { postMsg('Paste the live post link.', true); return; }
     var platform = postPlatform;
     var old = plans[planKey(ad.campaign_id, platform)];
     var btn = $('post-save');
@@ -354,12 +354,13 @@
         ad_campaign_id: ad.campaign_id || ''
       };
       if (old) {
-        ['hook', 'script', 'hashtags', 'sound', 'video_ref', 'notes', 'scope'].forEach(function (k) { if (old[k] !== undefined) video[k] = old[k]; });
+        ['hook', 'script', 'hashtags', 'sound', 'video_ref', 'notes', 'scope', 'claimed_by'].forEach(function (k) { if (old[k] !== undefined) video[k] = old[k]; });
       }
       var id = old ? old.id : ('ad-' + String(ad.campaign_id || '').replace(/[^a-zA-Z0-9_-]/g, '-')).slice(0, 88) + '-' + platform;
       return planApi('save_video', { id: id, baseline: old ? old.baseline : undefined, video: video }, true);
     }).then(function (rec) {
       plans[planKey(ad.campaign_id, platform)] = rec;
+      allVideos = allVideos.filter(function (x) { return x.id !== rec.id; }).concat([rec]);
       postMsg('Saved.');
       render();
     }).catch(function (err) {
