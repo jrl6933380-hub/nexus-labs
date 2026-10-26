@@ -69,5 +69,24 @@ a{color:inherit}
 .tile-post.posted{background:var(--ok);color:#06210f}
 .tile.pending{cursor:default;background:var(--panel);outline:2px dashed var(--line);outline-offset:-6px;justify-content:center;align-items:center;text-align:center}
 .tile.pending::after{display:none}
+.tabs{overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
+.tabs button{flex:1 0 auto;padding:0 14px}
+.panelview{padding:12px 16px}
+.qcard{margin:0 0 12px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.qhead{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.qtag{padding:2px 9px;border-radius:99px;border:1px solid var(--line);font-size:12px;color:var(--mute)}
+.qtag.posted{background:var(--ok);color:#06210f;border-color:transparent}
+.qmeta{margin:6px 0;color:var(--mute);font-size:13px}
+.qcap{margin:6px 0 10px;white-space:pre-wrap;overflow-wrap:anywhere}
+.qrow{display:flex;gap:8px;margin:8px 0}
+.qrow .btn{flex:1}
+.qcard label{display:grid;gap:4px;margin-top:8px;font-size:13px;color:var(--mute)}
+.qcard input,.qurl{width:100%;min-height:44px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);font:inherit;font-size:16px;margin:4px 0 8px}
+.qcard label input{margin:0}
+.qcard .btn.primary{width:100%}
+.media-pick{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 12px;max-height:200px;overflow:auto}
+.mpick{position:relative;width:84px;height:84px;padding:0;border:1px solid var(--line);border-radius:10px;background:var(--bg) center/cover no-repeat;overflow:hidden;color:var(--text);cursor:pointer}
+.mpick .mname{position:absolute;left:0;right:0;bottom:0;padding:2px 4px;background:rgba(0,0,0,.6);color:#fff;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mpick[aria-pressed=true]{outline:3px solid var(--acc);outline-offset:-1px}
 .tile.pending .tile-name{color:var(--text);text-shadow:none}
 .tile.pending .tile-meta{color:var(--mute)}
