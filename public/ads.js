@@ -19,6 +19,10 @@
   var hasReqCampaign = false;
   var newFormat = 'portrait';
   var newLength = '15';
+  var allVideos = [];
+  var accounts = {};
+  var mediaCache = null;
+  var pickedMedia = [];
 
   function setStatus(text) { $('status').textContent = text || ''; }
 
@@ -95,6 +99,16 @@
     $('stat-ads').textContent = String(ads.length);
     $('stat-cine').textContent = String(ads.filter(function (ad) { return !!renders[ad.campaign_id]; }).length);
     $('stat-studio').textContent = String(ads.filter(isPosted).length);
+    var panelMode = filter === 'queue' || filter === 'accounts';
+    $('grid').style.display = panelMode ? 'none' : '';
+    $('queue').style.display = filter === 'queue' ? '' : 'none';
+    $('accounts').style.display = filter === 'accounts' ? '' : 'none';
+    if (panelMode) {
+      clearMessage();
+      setStatus('');
+      if (filter === 'queue') renderQueue(); else renderAccounts();
+      return;
+    }
     var shown = ads.filter(function (ad) {
       if (filter === 'posted') return isPosted(ad);
       if (filter === 'todo') return !isPosted(ad);
@@ -264,6 +278,9 @@
     planApi('overview').then(function (data) {
       plans = {};
       requests = (data.videos || []).filter(function (v) { return v.campaign_id === REQ_CAMPAIGN; });
+      allVideos = (data.videos || []).filter(function (v) { return v.campaign_id !== REQ_CAMPAIGN; });
+      accounts = {};
+      (data.accounts || []).forEach(function (a) { accounts[a.platform] = a; });
       hasReqCampaign = (data.campaigns || []).some(function (c) { return c.id === REQ_CAMPAIGN; });
       (data.videos || []).forEach(function (v) { if (v.ad_campaign_id && v.campaign_id !== REQ_CAMPAIGN) plans[planKey(v.ad_campaign_id, v.platform || 'tiktok')] = v; });
       planCampaign = (data.campaigns || []).filter(function (c) { return c.id === CAMPAIGN_ID; })[0] || null;
@@ -354,6 +371,184 @@
     });
   }
 
+  function mk(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+
+  function copyText(text, btn) {
+    var label = btn.textContent;
+    var done = function () { btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = label; }, 1200); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, function () { btn.textContent = 'Press and hold to copy'; });
+    else btn.textContent = 'Press and hold to copy';
+  }
+
+  function adById(id) { return ads.filter(function (a) { return a.campaign_id === id; })[0] || null; }
+
+  function patchVideo(v, patch) {
+    var video = {};
+    ['campaign_id', 'title', 'status', 'platform', 'date', 'hook', 'script', 'caption', 'hashtags', 'sound', 'video_ref', 'post_url', 'notes', 'claimed_by', 'ad_campaign_id', 'scope'].forEach(function (k) { if (v[k] !== undefined) video[k] = v[k]; });
+    Object.keys(patch).forEach(function (k) { video[k] = patch[k]; });
+    return planApi('save_video', { id: v.id, baseline: v.baseline, video: video }, true).then(function (rec) {
+      allVideos = allVideos.map(function (x) { return x.id === rec.id ? rec : x; });
+      if (rec.ad_campaign_id) plans[planKey(rec.ad_campaign_id, rec.platform || 'tiktok')] = rec;
+      return rec;
+    });
+  }
+
+  // Everything marked Ready, Scheduled or Posted, with what the poster needs: caption, ad, and a place to paste the live link.
+  function renderQueue() {
+    var box = $('queue');
+    box.textContent = '';
+    var rank = { ready: 0, scheduled: 1, posted: 2 };
+    var rows = allVideos.filter(function (v) { return rank[v.status] !== undefined; }).sort(function (a, b) {
+      return (rank[a.status] - rank[b.status]) || String(a.date || '9').localeCompare(String(b.date || '9'));
+    });
+    if (!rows.length) { box.appendChild(mk('p', 'status', 'Nothing in the queue. Open an ad and set its Posting to Ready.')); return; }
+    rows.forEach(function (v) {
+      var card = mk('div', 'qcard');
+      var head = mk('div', 'qhead');
+      head.appendChild(mk('b', '', v.title || 'Untitled'));
+      head.appendChild(mk('span', 'qtag ' + v.status, v.status));
+      card.appendChild(head);
+      var meta = [v.platform || 'tiktok', v.date || 'no date'];
+      if (v.claimed_by) meta.push(v.claimed_by + ' is posting');
+      card.appendChild(mk('p', 'qmeta', meta.join(' · ')));
+      if (v.caption) card.appendChild(mk('p', 'qcap', v.caption));
+      var row = mk('div', 'qrow');
+      var copyBtn = mk('button', 'btn', 'Copy caption');
+      copyBtn.type = 'button';
+      copyBtn.addEventListener('click', function () { copyText((v.caption || '') + (v.hashtags ? '\n\n' + v.hashtags : ''), copyBtn); });
+      row.appendChild(copyBtn);
+      var ad = adById(v.ad_campaign_id);
+      if (ad) {
+        var openBtn = mk('button', 'btn', 'Open ad');
+        openBtn.type = 'button';
+        openBtn.addEventListener('click', function () { openSheet(ad, null); });
+        row.appendChild(openBtn);
+      }
+      if (v.status === 'posted' && /^https?:\/\/\S+$/.test(v.post_url || '')) {
+        var view = mk('a', 'btn', 'View post');
+        view.href = v.post_url;
+        view.target = '_blank';
+        view.rel = 'noopener';
+        row.appendChild(view);
+      }
+      card.appendChild(row);
+      if (v.status !== 'posted') {
+        var url = document.createElement('input');
+        url.type = 'url';
+        url.placeholder = 'Paste the live post link';
+        url.className = 'qurl';
+        var done = mk('button', 'btn primary', 'Mark posted');
+        done.type = 'button';
+        var msg = mk('p', 'post-msg', '');
+        done.addEventListener('click', function () {
+          var link = url.value.trim();
+          if (!/^https?:\/\/\S+$/.test(link)) { msg.textContent = 'Paste the live post link first.'; msg.className = 'post-msg err'; return; }
+          done.disabled = true;
+          msg.textContent = '';
+          patchVideo(v, { status: 'posted', post_url: link, claimed_by: '' }).then(function () { render(); }).catch(function (err) {
+            msg.textContent = (err && err.message) || 'Could not save.';
+            msg.className = 'post-msg err';
+            done.disabled = false;
+            if (err && err.status === 409) loadPlans();
+          });
+        });
+        card.appendChild(url);
+        card.appendChild(done);
+        card.appendChild(msg);
+      }
+      box.appendChild(card);
+    });
+  }
+
+  // Handle and link only. No passwords are stored anywhere in Nexus.
+  function renderAccounts() {
+    var box = $('accounts');
+    box.textContent = '';
+    box.appendChild(mk('p', 'qmeta', 'Handle and link only. Passwords are never stored in Nexus. ChatGPT signs in with its own browser.'));
+    PLATFORMS.forEach(function (p) {
+      var cur = accounts[p] || null;
+      var card = mk('div', 'qcard');
+      card.appendChild(mk('b', '', p.charAt(0).toUpperCase() + p.slice(1)));
+      function field(label, value, type, ph) {
+        var l = document.createElement('label');
+        l.appendChild(document.createTextNode(label));
+        var i = document.createElement('input');
+        i.type = type;
+        i.value = value || '';
+        i.placeholder = ph;
+        l.appendChild(i);
+        card.appendChild(l);
+        return i;
+      }
+      var h = field('Handle', cur && cur.handle, 'text', '@yourname');
+      var u = field('Profile link', cur && cur.profile_url, 'url', 'https://...');
+      var n = field('Notes', cur && cur.notes, 'text', 'Anything the poster should know');
+      var save = mk('button', 'btn primary', 'Save');
+      save.type = 'button';
+      var msg = mk('p', 'post-msg', '');
+      save.addEventListener('click', function () {
+        var now = accounts[p] || null;
+        save.disabled = true;
+        msg.textContent = '';
+        msg.className = 'post-msg';
+        planApi('save_account', { baseline: now ? now.baseline : undefined, account: { platform: p, handle: h.value.trim(), profile_url: u.value.trim(), notes: n.value.trim() } }, true)
+          .then(function (rec) { accounts[p] = rec; msg.textContent = 'Saved.'; })
+          .catch(function (err) {
+            msg.textContent = (err && err.message) || 'Could not save.';
+            msg.className = 'post-msg err';
+            if (err && err.status === 409) loadPlans();
+          })
+          .then(function () { save.disabled = false; });
+      });
+      card.appendChild(save);
+      card.appendChild(msg);
+      box.appendChild(card);
+    });
+  }
+
+  function loadMediaPicker() {
+    var box = $('newad-media');
+    pickedMedia = [];
+    function paint() {
+      box.textContent = '';
+      if (!mediaCache || !mediaCache.length) { box.appendChild(mk('p', 'qmeta', mediaCache ? 'No files in your media library yet.' : 'Loading your media...')); return; }
+      mediaCache.forEach(function (m) {
+        var b = mk('button', 'mpick');
+        b.type = 'button';
+        b.title = m.name || '';
+        b.setAttribute('aria-pressed', pickedMedia.indexOf(m.media_id) >= 0 ? 'true' : 'false');
+        if (m.preview && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+\/=]+$/.test(m.preview)) {
+          b.style.backgroundImage = 'url("' + m.preview + '")';
+        }
+        b.appendChild(mk('span', 'mname', m.name || m.media_id));
+        b.addEventListener('click', function () {
+          var i = pickedMedia.indexOf(m.media_id);
+          if (i >= 0) pickedMedia.splice(i, 1); else if (pickedMedia.length < 5) pickedMedia.push(m.media_id);
+          paint();
+        });
+        box.appendChild(b);
+      });
+    }
+    paint();
+    if (mediaCache) return;
+    api('media_list').then(function (d) { mediaCache = (d && d.media) || []; paint(); }).catch(function () { mediaCache = []; paint(); });
+  }
+
+  function buildNotes(text) {
+    var head = 'New ad request. Shape: ' + newFormat + '. Length: ' + newLength + 's.\n';
+    var attach = pickedMedia.map(function (id) {
+      var m = (mediaCache || []).filter(function (x) { return x.media_id === id; })[0];
+      return (m && m.name ? m.name : 'file') + ' (' + id + ')';
+    });
+    var tail = attach.length ? '\nAttach from media library: ' + attach.join(', ') : '';
+    return head + text.slice(0, Math.max(0, 1000 - head.length - tail.length)) + tail;
+  }
+
   function newMsg(text, bad) {
     var el = $('newad-msg');
     el.textContent = text || '';
@@ -366,6 +561,7 @@
     $('newad-send').disabled = false;
     $('newad-send').textContent = 'Send request';
     $('newad').hidden = false;
+    loadMediaPicker();
     $('newad-text').focus();
   }
 
@@ -399,7 +595,7 @@
         title: title,
         status: 'idea',
         platform: 'tiktok',
-        notes: 'New ad request. Shape: ' + newFormat + '. Length: ' + newLength + 's.\n' + text
+        notes: buildNotes(text)
       };
       return planApi('save_video', { id: id, video: video }, true);
     }).then(function (rec) {
