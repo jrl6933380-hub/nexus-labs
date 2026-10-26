@@ -32,6 +32,10 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-o
 .banner{border:1px solid var(--gold);border-radius:10px;padding:10px 12px;background:light-dark(#fbf3d8,#2a2616)}
 .note{font-size:13px;color:var(--muted)}
 #status{min-height:1.4em;font-size:14px}#status.err{color:var(--error)}
+body.watch .row,body.watch #signins,body.watch #pending,body.watch .note{display:none!important}
+#kb,#kbBtn{display:none}
+body.watch #kbBtn{display:flex;position:fixed;right:14px;bottom:max(14px,env(safe-area-inset-bottom));width:48px;height:48px;min-height:0;padding:0;align-items:center;justify-content:center;border-radius:50%;opacity:.75;font-size:22px;z-index:5}
+body.watch #kb{display:block;position:fixed;left:0;bottom:0;width:1px;height:1px;min-height:0;padding:0;border:0;opacity:0;font-size:16px}
 [hidden]{display:none!important}
 </style>
 </head>
@@ -48,6 +52,8 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-o
     <div class="msg" id="empty">The browser is off. Type an address below and tap Go to start it. The first start takes about 15 seconds.</div>
   </div>
   <p id="status" role="status" aria-live="polite"></p>
+  <input id="kb" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Keyboard input">
+  <button id="kbBtn" type="button" aria-label="Open keyboard">&#9000;</button>
   <form class="row" id="goForm"><input id="url" type="url" inputmode="url" placeholder="https://" autocomplete="off" aria-label="Web address"><button class="primary" type="submit">Go</button></form>
   <form class="row" id="typeForm"><input id="text" type="text" autocomplete="off" autocapitalize="off" placeholder="Type into the selected box" aria-label="Text to type"><button type="submit">Type</button></form>
   <div class="row" aria-label="Keys and scrolling">
@@ -64,6 +70,9 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-o
 </main>
 <script>
 const $=id=>document.getElementById(id);
+const WATCH=new URLSearchParams(location.search).get('watch')==='1';
+let swipedUntil=0;
+if(WATCH){document.body.classList.add('watch');$('empty').textContent='Nothing to watch yet. The browser is off. It will show here when Claude opens a page.';}
 const SIGN_IN={tiktok:'https://www.tiktok.com/login',instagram:'https://www.instagram.com/accounts/login/',facebook:'https://www.facebook.com/login/'};
 const NAMES={tiktok:'TikTok',instagram:'Instagram',facebook:'Facebook'};
 let busy=false,timer=null,lastShot='';
@@ -105,6 +114,7 @@ async function doing(fn,label){
   finally{busy=false;try{draw(await api('frame'));}catch{}}
 }
 $('view').addEventListener('click',e=>{
+  if(Date.now()<swipedUntil)return;
   const r=$('view').getBoundingClientRect(),x=Math.round((e.clientX-r.left)/r.width*1280),y=Math.round((e.clientY-r.top)/r.height*720);
   const dot=document.createElement('div');dot.className='tap';dot.style.left=(e.clientX-r.left)+'px';dot.style.top=(e.clientY-r.top)+'px';$('stage').append(dot);setTimeout(()=>dot.remove(),700);
   doing(()=>api('click',{x,y}),'Tapping…');
@@ -115,6 +125,16 @@ document.querySelectorAll('[data-key]').forEach(b=>b.addEventListener('click',()
 document.querySelectorAll('[data-scroll]').forEach(b=>b.addEventListener('click',()=>doing(()=>api('scroll',{dy:Number(b.dataset.scroll)}))));
 $('close').addEventListener('click',()=>doing(async()=>{await api('close');lastShot='';return null;},'Turning it off…'));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});
+if(WATCH){
+  const kb=$('kb');let q=Promise.resolve();
+  const send=(action,input)=>{q=q.then(()=>api(action,input)).then(()=>{try{return api('frame').then(draw);}catch{}}).catch(e=>say(e.message,true));};
+  $('kbBtn').addEventListener('click',()=>kb.focus());
+  kb.addEventListener('input',()=>{const t=kb.value;kb.value='';if(t)send('type',{text:t});});
+  kb.addEventListener('keydown',e=>{const k=({Enter:'Enter',Backspace:'Backspace',Tab:'Tab',Escape:'Escape'})[e.key];if(k){e.preventDefault();send('press',{key:k});}});
+  let y0=null;
+  $('view').addEventListener('touchstart',e=>{y0=e.touches[0].clientY;},{passive:true});
+  $('view').addEventListener('touchend',e=>{if(y0===null)return;const dy=y0-e.changedTouches[0].clientY;y0=null;if(Math.abs(dy)>40){swipedUntil=Date.now()+500;send('scroll',{dy:Math.round(dy*2)});}},{passive:true});
+}
 refresh();start();
 </script>
 </body>
