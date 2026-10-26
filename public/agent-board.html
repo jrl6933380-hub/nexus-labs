@@ -52,7 +52,7 @@
 <div class="bar">
   <div>
     <h1>Agent Board</h1>
-    <div class="sub" id="meta">Loading…</div>
+    <div class="sub" id="meta">Loading…</div><a id="signIn" href="/nexus-login.html?next=%2Fagent-board.html" hidden style="color:var(--gold)">Sign in to Nexus</a>
   </div>
   <button id="refresh">Refresh</button>
 </div>
@@ -64,7 +64,7 @@
 <div class="card">
   <input id="goalTitle" placeholder="Big goal, e.g. Launch the waitlist site" maxlength="140">
   <textarea id="goalTasks" placeholder="Break it into tasks, one per line. Optional."></textarea>
-  <div class="row" style="margin-top:8px"><button class="primary" id="goalAdd">Create goal</button><span class="sub">Claude and ChatGPT claim the tasks from here.</span></div>
+  <div class="row" style="margin-top:8px"><button class="primary" id="goalAdd" disabled>Create goal</button><span class="sub">Claude and ChatGPT claim the tasks from here.</span></div>
 </div>
 
 <h2>Goals</h2>
@@ -98,9 +98,15 @@ function ago(ms) {
   return Math.round(s / 86400) + ' d ago';
 }
 function toast(text) { const t = $('toast'); t.textContent = text; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3500); }
+function signedOut() {
+  $('signIn').hidden = false; $('goalAdd').disabled = true;
+  for (const id of ['people','goals','loose','messages']) $(id).replaceChildren();
+  $('meta').textContent = 'Sign in as the Nexus owner to open this board.';
+}
 async function api(action, params) {
   const res = await fetch('/api/board', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, ...params }) });
   const data = await res.json().catch(() => ({}));
+  if (res.status === 401) signedOut();
   if (!res.ok) throw new Error(data.error || ('Request failed: ' + res.status));
   return data;
 }
@@ -177,8 +183,10 @@ async function load() {
   if (busy) return; busy = true;
   try {
     const res = await fetch('/api/board?view=dashboard', { cache: 'no-store' });
+    if (res.status === 401) { signedOut(); return; }
     if (!res.ok) throw new Error('Could not load the board (' + res.status + ')');
     const data = await res.json();
+    $('signIn').hidden = true; $('goalAdd').disabled = false;
     // Do not redraw while someone is typing in a box.
     if (!document.activeElement || !['TEXTAREA', 'INPUT'].includes(document.activeElement.tagName) || document.activeElement.type === 'checkbox') render(data);
   } catch (err) { $('meta').textContent = err.message; } finally { busy = false; }
@@ -200,3 +208,4 @@ setInterval(load, 20000);
 </script>
 </body>
 </html>
+

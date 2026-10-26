@@ -42,6 +42,7 @@ import {
   addTaskNote,
   toggleTaskStep,
 } from '../lib/board.js';
+import { createBoardAccessGuard } from '../lib/boardAccess.js';
 import { buildDashboard } from '../lib/boardGoals.js';
 import { listAgents } from '../lib/agents.js';
 import { getNexRoleLease, acquireNexRole, renewNexRole, releaseNexRole } from '../lib/roleLease.js';
@@ -424,7 +425,10 @@ async function handleNexAction(req, res) {
   }
 }
 
+const authorizeBoard = createBoardAccessGuard({getOwner:getNexusOwner, agentAuthorized:internalAgentAuthorized});
 async function handleBoard(req, res) {
+  const access = await authorizeBoard(req, res);
+  if (!access) return;
   if (req.method === 'GET') {
     // task_id is a lightweight single-task lookup that bypasses the
     // full board assembly below entirely — added so a caller whose
@@ -494,7 +498,7 @@ async function handleBoard(req, res) {
         throw err;
       }
     }
-    if (action === 'add_note') return res.status(200).json({ task: await addTaskNote(params) });
+    if (action === 'add_note') return res.status(200).json({ task: await addTaskNote({...params, from:access.owner.id}) });
     if (action === 'toggle_step') return res.status(200).json({ task: await toggleTaskStep(params) });
     if (action === 'update_progress') return res.status(200).json({ task: await updateProgress(params) });
     if (action === 'mark_blocked') return res.status(200).json({ task: await markBlocked(params) });
@@ -863,6 +867,7 @@ export default async function handler(req, res) {
     return await handleBoard(req, res);
   } catch (err) {
     console.error('board/hyperfocus/agentlog/vault/planner/pinned-visuals/tenants/oauth handler crashed:', err.message);
-    return res.status(500).json({ error: err.message });
+    return res.status(Number.isInteger(err.status) && err.status >= 400 && err.status < 600 ? err.status : 500).json({ error: err.message });
   }
 }
+
