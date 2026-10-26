@@ -32,6 +32,23 @@ function memory() {
     throw new Error('unexpected ' + cmd);
   };
 }
+test('customer can request the ad behind a "beat them" item, once, for one run', async () => {
+  const s = setup();
+  const { token } = await s.createLink({ label: 'Ads', runs: 2 });
+  const { job_id } = await s.submit(token, { competitor: 'Pizza Ranch' });
+  await s.claim({ job_id });
+  await s.complete({ job_id, result: { summary: 'x', opportunities: ['Open later', { text: 'Push delivery', ad_idea: '15s delivery timer video' }] } });
+  await assert.rejects(s.requestAd(token, { job_id, index: 0 }), { code: 'NO_AD_IDEA' });
+  const r = await s.requestAd(token, { job_id, index: 1 });
+  assert.equal(r.runs_left, 0);
+  await assert.rejects(s.requestAd(token, { job_id, index: 1 }), { code: 'AD_ALREADY_REQUESTED' });
+  assert.equal((await s.status(token, { job_id })).ad_requests[0].status, 'queued');
+  const c = await s.claimAd({});
+  assert.equal(c.ad_idea, '15s delivery timer video');
+  await s.completeAd({ ad_request_id: c.ad_request_id, result: { ad_id: 'ad-1', preview_url: 'https://example.com/ad', note: 'Ready' } });
+  const st = await s.status(token, { job_id });
+  assert.deepEqual(st.ad_requests[0], { index: 1, status: 'done', preview_url: 'https://example.com/ad', note: 'Ready' });
+});
 const setup = () => { let t = 1000; return createResearchStore({ command: memory(), now: () => (t += 10) }); };
 const good = { summary: 'They post daily.', hooks: ['Wait for it'], content_ideas: [{ title: 'T', hook: 'H' }], sources: [{ title: 's', url: 'https://example.com/x' }] };
 
