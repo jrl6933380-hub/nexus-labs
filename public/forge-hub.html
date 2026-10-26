@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#14100b">
+  <title>Nexus Forge — Workspace</title>
+  <style>
+    :root{color-scheme:dark;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#14100b;color:#f2e9dd}
+    *{box-sizing:border-box}body{margin:0;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+    header{flex-shrink:0;padding:10px 14px;background:#1c150d;border-bottom:1px solid #3a2c1c;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+    h1{font-size:15px;margin:0;flex:1}nav{display:flex;gap:6px}
+    button,a{font:inherit}button{min-height:44px;padding:9px 14px;border:1px solid #3a2c1c;border-radius:9px;background:#241a10;color:#d9cdb8;cursor:pointer;font-size:14px}
+    button[aria-selected="true"]{background:#d97b2f;color:#14100b;border-color:#d97b2f;font-weight:650}
+    button:focus-visible,a:focus-visible{outline:2px solid #f2e9dd;outline-offset:3px}
+    #content{flex:1;min-height:0}section[role="tabpanel"]{height:100%}iframe{display:block;width:100%;height:100%;border:0;background:#14100b}
+    [hidden]{display:none!important}#state{padding:24px 16px;line-height:1.6}#state a{color:#f2b47f}
+    @media(max-width:450px){header{gap:6px}h1{flex-basis:100%;padding:2px 0}nav{width:100%}nav button{flex:1}}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Nexus Forge</h1>
+    <nav role="tablist" aria-label="Forge workspace" hidden id="tabs">
+      <button id="ops-tab" type="button" role="tab" aria-selected="true" aria-controls="ops-panel">Owner · Ops</button>
+      <button id="field-tab" type="button" role="tab" aria-selected="false" aria-controls="field-panel" tabindex="-1">Caller · Field</button>
+    </nav>
+  </header>
+  <div id="state" role="status">Opening your Forge workspace…</div>
+  <main id="content" hidden>
+    <section id="ops-panel" role="tabpanel" aria-labelledby="ops-tab"><iframe id="ops-frame" title="Forge Ops — owner control center"></iframe></section>
+    <section id="field-panel" role="tabpanel" aria-labelledby="field-tab" hidden><iframe id="field-frame" title="Forge Field — caller workspace"></iframe></section>
+  </main>
+  <script>
+  (function () {
+    const state = document.getElementById('state');
+    const tabs = Array.from(document.querySelectorAll('[role="tab"]'));
+    const destinations = { 'ops-tab': '/forge-dashboard.html', 'field-tab': '/forge-caller.html' };
+    function select(tab) {
+      tabs.forEach(function (item) {
+        const active = item === tab;
+        item.setAttribute('aria-selected', String(active));
+        item.tabIndex = active ? 0 : -1;
+        document.getElementById(item.getAttribute('aria-controls')).hidden = !active;
+      });
+      const frame = document.getElementById(tab.id === 'ops-tab' ? 'ops-frame' : 'field-frame');
+      if (!frame.getAttribute('src')) frame.setAttribute('src', destinations[tab.id]);
+    }
+    function message(text, link) {
+      state.textContent = text;
+      if (link) {
+        const a = document.createElement('a');
+        a.href = '/room-login.html?next=%2Fforge-hub.html';
+        a.textContent = ' Sign in';
+        state.append(a);
+      }
+    }
+    fetch('/api/room-history', { credentials: 'include' }).then(async function (res) {
+      if (res.status === 401) { message('Sign in with your owner account to open Forge.', true); return; }
+      if (!res.ok) throw new Error('Access check failed');
+      const data = await res.json();
+      if (!data.workbench || !data.workbench.operator) {
+        message('This workspace is for the Nexus owner. Callers should use Forge Field.');
+        const a = document.createElement('a');
+        a.href = '/forge-caller.html'; a.textContent = ' Open Forge Field'; state.append(a);
+        return;
+      }
+      state.hidden = true;
+      document.getElementById('tabs').hidden = false;
+      document.getElementById('content').hidden = false;
+      tabs.forEach(function (tab, index) {
+        tab.addEventListener('click', function () { select(tab); });
+        tab.addEventListener('keydown', function (event) {
+          let next;
+          if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') next = tabs[(index + 1) % tabs.length];
+          if (event.key === 'Home') next = tabs[0];
+          if (event.key === 'End') next = tabs[tabs.length - 1];
+          if (!next) return;
+          event.preventDefault(); select(next); next.focus();
+        });
+      });
+      select(tabs[0]);
+    }).catch(function () { message('Could not open Forge. Refresh to try again.'); });
+  })();
+  </script>
+</body>
+</html>
