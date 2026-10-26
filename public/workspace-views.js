@@ -432,66 +432,16 @@ export const VIEWS = {
     icon: '◈',
     say: ['command deck', 'deck', 'mission control', 'command center', 'board'],
     async render(ctx) {
-      const nodes = [];
-      let board = null;
-      let status = null;
-      try { board = await getJSON('/api/board'); } catch {}
-      try { status = await getJSON('/api/status'); } catch {}
-
-      const tasks = pick(board, 'tasks', 'items');
-      const open = tasks.filter((t) => !['complete', 'completed', 'done'].includes(String(field(t, 'status')).toLowerCase()));
-      const blocked = open.filter((t) => String(field(t, 'status')).toLowerCase() === 'blocked');
-
-      nodes.push(say(
-        tasks.length
-          ? `${open.length} open on the board${blocked.length ? `, ${blocked.length} blocked` : ''}. Here's what's actually moving.`
-          : `The board is clear.`
-      ));
-
-      if (open.length) {
-        nodes.push(group('Open', open.slice(0, 12).map((task) => {
-          const title = String(field(task, 'title', 'name', 'id'));
-          return row({
-            title,
-            meta: [field(task, 'owner'), relative(field(task, 'updated_at', 'created_at'))].filter(Boolean).join(' · '),
-            tone: (() => {
-              const state = String(field(task, 'status')).toLowerCase();
-              if (state === 'blocked') return { label: 'blocked', kind: 'g' };
-              if (state === 'in_progress' || state === 'working') return { label: 'working', kind: 'f' };
-              return null;
-            })(),
-            onClick: () => ctx.openTask(field(task, 'id')),
-            action: deleteTaskButton({
-              id: field(task, 'id'),
-              title,
-              post: postJSON,
-              onDeleted: () => ctx.go('deck'),
-            }),
-          });
-        })));
-      } else if (tasks.length === 0) {
-        nodes.push(empty('Nothing on the board.'));
-      }
-
-      if (status) {
-        const lines = Object.entries(status).filter(([, v]) => typeof v === 'string' || typeof v === 'number').slice(0, 6);
-        if (lines.length) {
-          nodes.push(group('System', lines.map(([key, value]) => row({
-            title: key.replace(/_/g, ' '),
-            meta: String(value),
-          }))));
-        }
-      }
-
-      nodes.push(chips([
-        { label: 'New task', run: () => ctx.newTask() },
-        { label: 'Refresh', run: () => ctx.go('deck') },
+      // Command Deck is the Agent Board dashboard: goals, who is working on what, checkpoints, notes.
+      const frame = document.createElement('iframe');
+      frame.src = '/agent-board.html?embed=1';
+      frame.title = 'Agent Board';
+      frame.style.cssText = 'display:block;width:100%;height:calc(100dvh - 190px);min-height:520px;border:0;border-radius:14px;background:transparent';
+      return [frame, chips([
+        { label: 'Open full screen', run: () => { location.href = '/agent-board.html'; } },
         { label: 'Approvals', run: () => ctx.go('approvals') },
         { label: 'What needs me', run: () => ctx.ask('What on the board actually needs me right now, and what can wait?') },
-        { label: 'Deployments', run: () => ctx.ask('Show the latest production deployment state and anything failing.') },
-        { label: 'What broke today', run: () => ctx.ask('Any crashes, failing checks, or collisions today?') },
-      ]));
-      return nodes;
+      ])];
     },
   },
 
