@@ -41,6 +41,11 @@ import {
   postMessage,
   addTaskNote,
   toggleTaskStep,
+  listPlays,
+  readPlay,
+  savePlay,
+  usePlay,
+  deletePlay,
 } from '../lib/board.js';
 import { createBoardAccessGuard } from '../lib/boardAccess.js';
 import { buildDashboard } from '../lib/boardGoals.js';
@@ -426,6 +431,16 @@ async function handleNexAction(req, res) {
 }
 
 const authorizeBoard = createBoardAccessGuard({getOwner:getNexusOwner, agentAuthorized:internalAgentAuthorized});
+// Plays throw errors that carry their own HTTP status (400 bad input, 404, 409 stale version, 429 full).
+async function playReply(res, run) {
+  try {
+    return res.status(200).json(await run());
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+}
+
 async function handleBoard(req, res) {
   const access = await authorizeBoard(req, res);
   if (!access) return;
@@ -449,11 +464,18 @@ async function handleBoard(req, res) {
     // know canvases are now plural keeps working unchanged.
     // ?view=dashboard returns the grouped view the Agent Board dashboard page
     // renders: goals with their tasks, who is working on what, recent messages.
+    // Plays: ?play_id= reads one, ?view=plays lists them (optional &query= words).
+    if (req.query?.play_id) return playReply(res, async () => ({ play: await readPlay({ id: req.query.play_id }) }));
+    if (req.query?.view === 'plays') {
+      res.setHeader('Cache-Control', 'no-store');
+      return playReply(res, async () => ({ plays: await listPlays({ query: req.query.query }), observed_at: Date.now() }));
+    }
     if (req.query?.view === 'dashboard') {
       res.setHeader('Cache-Control', 'no-store');
-      const [boardData, agentList] = await Promise.all([readBoard(), listAgents()]);
+      const [boardData, agentList, playBook] = await Promise.all([readBoard(), listAgents(), listPlays().catch(() => [])]);
       return res.status(200).json({
         dashboard: buildDashboard(boardData.tasks || [], agentList),
+        plays: playBook.slice(0, 60),
         messages: (boardData.messages || []).slice(0, 25),
         observed_at: Date.now(),
       });
@@ -505,6 +527,9 @@ async function handleBoard(req, res) {
     if (action === 'attach_result') return res.status(200).json({ task: await attachResult(params) });
     if (action === 'complete_task') return res.status(200).json({ task: await completeTask(params) });
     if (action === 'delete_task') return res.status(200).json({ deleted: await deleteTask(params) });
+    if (action === 'save_play') return playReply(res, async () => ({ play: await savePlay(params) }));
+    if (action === 'use_play') return playReply(res, () => usePlay(params));
+    if (action === 'delete_play') return playReply(res, () => deletePlay(params));
     if (action === 'post_message') return res.status(200).json({ message: await postMessage(params) });
     if (action === 'acquire_nex_role') return res.status(200).json({ lease: await acquireNexRole(params) });
     if (action === 'renew_nex_role') return res.status(200).json({ lease: await renewNexRole(params) });

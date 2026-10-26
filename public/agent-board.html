@@ -84,6 +84,11 @@
 <h2>Other tasks</h2>
 <div id="loose"></div>
 
+<h2>Plays</h2>
+<div class="sub" style="margin:-4px 0 10px">How-tos Claude and ChatGPT saved after something worked. Tap one to open it.</div>
+<input id="playSearch" placeholder="Search plays" style="margin-bottom:10px">
+<div id="plays"></div>
+
 <h2>Latest messages</h2>
 <div id="messages"></div>
 
@@ -111,7 +116,7 @@ function ago(ms) {
 function toast(text) { const t = $('toast'); t.textContent = text; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3500); }
 function signedOut() {
   $('signIn').hidden = false; $('goalAdd').disabled = true;
-  for (const id of ['people','goals','loose','messages']) $(id).replaceChildren();
+  for (const id of ['people','goals','loose','plays','messages']) $(id).replaceChildren();
   $('meta').textContent = 'Sign in as the Nexus owner to open this board.';
 }
 async function api(action, params) {
@@ -180,8 +185,56 @@ function goalCard(goal) {
       (() => { const t = h('textarea', { placeholder: 'Leave a note for the agents' }); return [t, h('div', { class: 'row', style: 'margin:8px 0' }, h('button', { class: 'small primary', onclick: () => { if (t.value.trim()) act(() => api('add_note', { id: goal.id, text: t.value, from: 'justin' }), 'Note saved'); } }, 'Save note'))]; })()));
 }
 
+let playData = [];
+function playText(p) {
+  const lines = [p.title];
+  if (p.when) lines.push('When: ' + p.when);
+  lines.push('', 'Steps:', ...p.steps.map((s, i) => (i + 1) + '. ' + s));
+  if ((p.gotchas || []).length) lines.push('', 'Watch out for:', ...p.gotchas.map((g) => '- ' + g));
+  if ((p.tools || []).length) lines.push('', 'Tools: ' + p.tools.join(', '));
+  return lines.join('\n');
+}
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); toast('Copied. Paste it into ChatGPT or Claude.'); }
+  catch {
+    const t = h('textarea'); t.value = text; document.body.append(t); t.select();
+    try { document.execCommand('copy'); toast('Copied. Paste it into ChatGPT or Claude.'); } catch { toast('Could not copy. Press and hold the text instead.'); }
+    t.remove();
+  }
+}
+function deleteButton(p) {
+  let armed = false;
+  const b = h('button', { class: 'small', onclick: () => {
+    if (!armed) { armed = true; b.textContent = 'Tap again to delete'; setTimeout(() => { armed = false; b.textContent = 'Delete'; }, 4000); return; }
+    act(() => api('delete_play', { id: p.id }), 'Play deleted');
+  } }, 'Delete');
+  return b;
+}
+function playCard(p) {
+  return h('div', { class: 'card' },
+    h('div', { class: 'title' }, p.title),
+    p.when ? h('div', { class: 'note' }, p.when) : null,
+    h('div', { class: 'row', style: 'margin-top:6px' }, (p.tags || []).map((t) => h('span', { class: 'chip' }, t)), h('span', { class: 'sub' }, p.author + ' · used ' + (p.uses || 0) + 'x · v' + p.version + ' · ' + ago(Date.now() - p.updated_at))),
+    h('details', { open: keep.has('p' + p.id) ? 'open' : false, ontoggle: (e) => e.target.open ? keep.add('p' + p.id) : keep.delete('p' + p.id) },
+      h('summary', {}, p.steps.length + ' steps'),
+      h('ol', { class: 'trail', style: 'color:var(--text);margin-top:6px' }, p.steps.map((s) => h('li', { style: 'margin-bottom:6px' }, s))),
+      (p.gotchas || []).length ? [h('div', { class: 'sub', style: 'margin-top:8px' }, 'Watch out for'), h('ul', { class: 'trail' }, p.gotchas.map((g) => h('li', {}, g)))] : null,
+      (p.tools || []).length ? h('div', { class: 'row', style: 'margin-top:8px' }, p.tools.map((t) => h('span', { class: 'chip' }, t))) : null,
+      h('div', { class: 'row', style: 'margin:10px 0 2px' }, h('button', { class: 'small primary', onclick: () => copyText(playText(p)) }, 'Copy play'), deleteButton(p))));
+}
+function renderPlays() {
+  const words = $('playSearch').value.toLowerCase().split(/\s+/).filter(Boolean);
+  const shown = playData.filter((p) => {
+    const hay = [p.title, p.when, ...(p.tags || []), ...(p.tools || []), ...p.steps, ...(p.gotchas || [])].join(' ').toLowerCase();
+    return words.every((w) => hay.includes(w));
+  });
+  $('plays').replaceChildren(...(shown.length ? shown.map(playCard) : [h('div', { class: 'empty' }, playData.length ? 'No plays match.' : 'No plays yet. Ask Claude or ChatGPT to save one after a job that worked.')]));
+}
+
 function render(data) {
   const d = data.dashboard;
+  playData = data.plays || [];
+  renderPlays();
   $('meta').textContent = d.counts.goals + ' goals · ' + d.counts.tasks + ' tasks · ' + d.counts.unclaimed + ' unclaimed · updated ' + new Date(data.observed_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const L = d.counts.lights || {};
   $('tally').replaceChildren(h('span', { class: 'light green' }, (L.green || 0) + ' moving'), h('span', { class: 'light yellow' }, (L.yellow || 0) + ' waiting'), h('span', { class: 'light red' }, (L.red || 0) + ' in trouble'));
@@ -210,6 +263,7 @@ async function load() {
 }
 
 $('refresh').addEventListener('click', load);
+$('playSearch').addEventListener('input', renderPlays);
 $('goalAdd').addEventListener('click', () => act(async () => {
   const title = $('goalTitle').value.trim();
   if (!title) throw new Error('Give the goal a name first');
