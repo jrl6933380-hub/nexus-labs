@@ -2,8 +2,9 @@ import '../lib/store/installFetch.js';
 import {resolveWorkspaceAccount} from '../lib/workspaceConnector.js';
 import {tiktokPlanStore} from '../lib/tiktokPlans.js';
 import {workspaceRequests} from '../lib/workspaceRequests.js';
+import {accountLoginStore} from '../lib/accountLogins.js';
 // Browser endpoint for the TikTok planner page. Owner only; same cookies and origin rules as /api/ad-campaigns.
-export function createTikTokPlansHandler({resolveAccount=resolveWorkspaceAccount,store=tiktokPlanStore,once=workspaceRequests}={}){
+export function createTikTokPlansHandler({resolveAccount=resolveWorkspaceAccount,store=tiktokPlanStore,once=workspaceRequests,logins=accountLoginStore}={}){
  return async(req,res)=>{
   res.setHeader('Cache-Control','private, no-store');res.setHeader('X-Content-Type-Options','nosniff');
   if(req.method!=='POST')return res.status(405).json({error:'Use POST.'});
@@ -19,7 +20,12 @@ export function createTikTokPlansHandler({resolveAccount=resolveWorkspaceAccount
    const {action,input={},request_id}=body;
    const writes={save_campaign:'saveCampaign',save_video:'saveVideo',save_account:'saveAccount',delete_video:'deleteVideo',delete_campaign:'deleteCampaign',build_ad:'buildAd'};
    let data;
-   if(action==='overview')data=await store.overview(account.id);
+   // Login vault actions skip `once` on purpose: its cache would keep the submitted password.
+   if(action==='login_status')data=await logins.status(account.id);
+   else if(action==='save_login')data=await logins.save(account.id,input);
+   else if(action==='reveal_login')data=await logins.reveal(account.id,input);
+   else if(action==='delete_login')data=await logins.remove(account.id,input);
+   else if(action==='overview')data=await store.overview(account.id);
    else if(action==='scope')data=await store.scope(account.id,input);
    else if(writes[action])data=await once(account.id,request_id,'tiktok_'+action,input,()=>store[writes[action]](account.id,input));
    else return res.status(400).json({error:'Unknown planner action.'});
