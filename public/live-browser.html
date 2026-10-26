@@ -32,6 +32,8 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-o
 .banner{border:1px solid var(--gold);border-radius:10px;padding:10px 12px;background:light-dark(#fbf3d8,#2a2616)}
 .note{font-size:13px;color:var(--muted)}
 #status{min-height:1.4em;font-size:14px}#status.err{color:var(--error)}
+body.watch .row,body.watch #signins,body.watch #pending,body.watch .note{display:none!important}
+body.watch .stage img{cursor:default;pointer-events:none}
 [hidden]{display:none!important}
 </style>
 </head>
@@ -64,6 +66,8 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-o
 </main>
 <script>
 const $=id=>document.getElementById(id);
+const WATCH=new URLSearchParams(location.search).get('watch')==='1';
+if(WATCH){document.body.classList.add('watch');$('empty').textContent='Nothing to watch yet. The browser is off. It will show here when Claude opens a page.';}
 const SIGN_IN={tiktok:'https://www.tiktok.com/login',instagram:'https://www.instagram.com/accounts/login/',facebook:'https://www.facebook.com/login/'};
 const NAMES={tiktok:'TikTok',instagram:'Instagram',facebook:'Facebook'};
 let busy=false,timer=null,lastShot='';
@@ -105,6 +109,7 @@ async function doing(fn,label){
   finally{busy=false;try{draw(await api('frame'));}catch{}}
 }
 $('view').addEventListener('click',e=>{
+  if(WATCH)return;
   const r=$('view').getBoundingClientRect(),x=Math.round((e.clientX-r.left)/r.width*1280),y=Math.round((e.clientY-r.top)/r.height*720);
   const dot=document.createElement('div');dot.className='tap';dot.style.left=(e.clientX-r.left)+'px';dot.style.top=(e.clientY-r.top)+'px';$('stage').append(dot);setTimeout(()=>dot.remove(),700);
   doing(()=>api('click',{x,y}),'Tapping…');
