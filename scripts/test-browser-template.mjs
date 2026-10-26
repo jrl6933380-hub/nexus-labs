@@ -7,10 +7,18 @@ import {randomBytes} from 'node:crypto';
 const TOKEN = randomBytes(16).toString('hex');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const results = [];
-const check = (name, ok, detail = '') => { results.push({name, ok}); console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ' - ' + detail : ''}`); };
+// Also written as GitHub annotations, which can be read through the API without downloading the log.
+const clean = s => String(s).replace(/[\r\n%]+/g, ' ').slice(0, 400);
+const check = (name, ok, detail = '') => {
+  results.push({name, ok});
+  console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ' - ' + detail : ''}`);
+  console.log(`::${ok ? 'notice' : 'error'} title=${clean(name).replace(/[:,]/g, ' ')}::${clean(detail) || (ok ? 'ok' : 'failed')}`);
+};
 
-const sandbox = await Sandbox.create('nexus-browser', {timeoutMs: 5 * 60_000});
+let sandbox;
 try {
+  sandbox = await Sandbox.create('nexus-browser', {timeoutMs: 5 * 60_000});
+  check('starts a sandbox from the nexus-browser template', true);
   await sandbox.commands.run('cd /opt/nexus-browser && node live-browser-agent.mjs', {background: true, envs: {LB_TOKEN: TOKEN}, timeoutMs: 0});
   const base = 'https://' + sandbox.getHost(9333);
   let healthy = false;
@@ -33,7 +41,7 @@ try {
 } catch (error) {
   check('no unexpected error', false, String(error.message || error));
 } finally {
-  await sandbox.kill();
+  await sandbox?.kill().catch(() => {});
 }
 const failed = results.filter(r => !r.ok).length;
 console.log(failed ? `\n${failed} check(s) failed.` : '\nAll checks passed.');
