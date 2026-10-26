@@ -76,3 +76,17 @@ test('buildDashboard groups children under goals and lists who is working on wha
   assert.equal(view.people.find((p) => p.id === 'nex').name, 'Nex');
   assert.equal(view.counts.unclaimed, 1);
 });
+
+test('traffic lights: green moving, yellow waiting, red blocked or stalled; goal takes the worst', async () => {
+  const { taskLight, goalLight } = await import('../lib/boardGoals.js');
+  const now = 100 * 3600e3, H = 3600e3;
+  assert.equal(taskLight({ owner: 'claude', status: 'building', updated_at: now - H }, now).color, 'green');
+  assert.equal(taskLight({ owner: 'claude', status: 'building', updated_at: now - 8 * H }, now).color, 'yellow');
+  assert.equal(taskLight({ owner: 'claude', status: 'building', updated_at: now - 30 * H }, now).color, 'red');
+  assert.equal(taskLight({ owner: null, status: 'idle', updated_at: now - H }, now).why, 'Ready to claim');
+  assert.equal(taskLight({ owner: 'x', status: 'waiting_for_justin', updated_at: now }, now).why, 'Needs you');
+  assert.equal(taskLight({ owner: 'x', status: 'blocked', updated_at: now }, now).color, 'red');
+  assert.equal(goalLight({ status: 'idle' }, [], now).why, 'Waiting to be broken into tasks');
+  assert.equal(goalLight({}, [{ owner: 'a', status: 'building', updated_at: now }, { owner: 'b', status: 'blocked', updated_at: now }], now).color, 'red');
+  assert.equal(goalLight({}, [{ status: 'complete' }], now).why, 'All tasks done');
+});
