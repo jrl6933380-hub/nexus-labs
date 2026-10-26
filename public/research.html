@@ -38,6 +38,9 @@ a{color:var(--acc)}
 .pulse{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--acc);margin-right:8px;animation:p 1.2s ease-in-out infinite}
 @keyframes p{0%,100%{opacity:.25;transform:scale(.8)}50%{opacity:1;transform:scale(1.1)}}
 @media(prefers-reduced-motion:reduce){.pulse{animation:none}}
+.tbl{width:100%;border-collapse:collapse;font-size:14px;margin-top:4px}.tbl td{border-top:1px solid var(--line);padding:8px 6px;vertical-align:top}.tbl td.p{text-align:right;font-weight:700;color:var(--acc);white-space:nowrap}.tbl .mute{font-size:12.5px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:480px){.two{grid-template-columns:1fr}}
+details{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}summary{cursor:pointer;font-weight:700}
 .credit{margin-top:26px;font-size:12px;color:var(--mute);text-align:center}
 .credit a{color:var(--mute)}
 </style>
@@ -48,14 +51,14 @@ a{color:var(--acc)}
   <div class="hero-in">
     <span class="eyebrow">Nexus Intelligence</span>
     <h1><span>Competitor</span> research</h1>
-    <p class="sub">Type a competitor. See what they post, the hooks that work for them, and a week of content ideas for you.</p>
+    <p class="sub">Type a competitor. See what they charge, their subscriptions and deals, where they're weak, and how to beat them.</p>
   </div>
 </div>
 <main>
 <div class="steps" aria-label="How it works">
   <div class="step"><b>1</b><span>Type a competitor</span></div>
   <div class="step"><b>2</b><span>We research them</span></div>
-  <div class="step"><b>3</b><span>Get your plan</span></div>
+  <div class="step"><b>3</b><span>See their prices</span></div>
 </div>
 <div class="panel" id="form">
   <label for="c">Competitor (name or handle)</label><input id="c" maxlength="120" autocomplete="off" placeholder="e.g. @theirbusiness">
@@ -88,10 +91,22 @@ function show(d){
   if(d.status==='working'){out.append(working('Researching '+d.competitor+'...'),el('p','This usually takes a few minutes. You can leave this page open.','mute'));return;}
   if(d.status==='failed'){out.append(el('b','Could not finish'),el('p',d.error,'err'));return;}
   const r=d.result;out.append(el('b','Results for '+d.competitor),el('p',r.summary));
-  for(const s of [list('What they post',r.what_they_post),list('Hooks they use',r.hooks)])if(s)out.append(s);
-  if(r.content_ideas.length){out.append(el('h2','Content ideas for you'));for(const i of r.content_ideas){const b=el('div',null,'idea');b.append(el('b',i.title),el('div','Hook: '+i.hook,'mute'));if(i.format)b.append(el('div','Format: '+i.format,'mute'));out.append(b);}}
-  const a=list('Ad angles',r.ad_angles);if(a)out.append(a);
-  if(r.sources.length){out.append(el('h2','Sources'));const u=el('ul');for(const s of r.sources){const li=el('li'),l=el('a',s.title||s.url);l.href=s.url;l.target='_blank';l.rel='noopener noreferrer';li.append(l);u.append(li);}out.append(u);}
+  if(r.website){const p=el('p',null,'mute'),l=el('a',r.website);l.href=r.website;l.target='_blank';l.rel='noopener noreferrer';p.append('Website: ',l);out.append(p);}
+  const linkTo=(cell,url)=>{if(!url)return;const l=el('a',' source');l.href=url;l.target='_blank';l.rel='noopener noreferrer';cell.append(l);};
+  const table=(title,rows,mk)=>{if(!rows||!rows.length)return;out.append(el('h2',title));const t=el('table',null,'tbl');for(const x of rows){const tr=el('tr'),[name,sub,price,url]=mk(x),a=el('td');a.append(el('div',name));if(sub)a.append(el('div',sub,'mute'));linkTo(a,url);tr.append(a,el('td',price,'p'));t.append(tr);}out.append(t);};
+  table('Products and prices',r.products,x=>[x.name,x.notes,x.price,x.url]);
+  table('Subscriptions and memberships',r.subscriptions,x=>[x.name,[x.billing,x.includes].filter(Boolean).join(' · '),x.price,x.url]);
+  table('Deals and promos',r.deals,x=>[x.title,x.details,x.ends?'Ends '+x.ends:'',x.url]);
+  const f=list('Fees and policies',r.fees_and_policies);if(f)out.append(f);
+  if(r.positioning)out.append(el('h2','How they position themselves'),el('p',r.positioning));
+  const sw=el('div',null,'two');for(const s of [list('Strengths',r.strengths),list('Weaknesses',r.weaknesses)])if(s)sw.append(s);if(sw.children.length)out.append(sw);
+  const o=list('How you can beat them',r.opportunities);if(o)out.append(o);
+  const m=el('details');m.append(el('summary','Their marketing'));
+  for(const s of [list('What they post',r.what_they_post),list('Hooks they use',r.hooks)])if(s)m.append(s);
+  if(r.content_ideas&&r.content_ideas.length){m.append(el('h2','Content ideas for you'));for(const i of r.content_ideas){const b=el('div',null,'idea');b.append(el('b',i.title),el('div','Hook: '+i.hook,'mute'));if(i.format)b.append(el('div','Format: '+i.format,'mute'));m.append(b);}}
+  const ad=list('Ad angles',r.ad_angles);if(ad)m.append(ad);
+  if(m.children.length>1){const hasPricing=[r.products,r.subscriptions,r.deals].some(x=>x&&x.length);if(!hasPricing)m.open=true;out.append(m);}
+  if(r.sources&&r.sources.length){out.append(el('h2','Sources'));const u=el('ul');for(const s of r.sources){const li=el('li'),l=el('a',s.title||s.url);l.href=s.url;l.target='_blank';l.rel='noopener noreferrer';li.append(l);u.append(li);}out.append(u);}
   if(r.notes)out.append(el('p',r.notes,'mute'));
 }
 async function poll(id){
