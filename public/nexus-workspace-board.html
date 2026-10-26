@@ -482,6 +482,8 @@ function reminderForm(item,container){
  {key:'repeat',label:'Repeat',value:item?.repeat || 'none',options:[['none','Does not repeat'],['daily','Daily'],['weekly','Weekly']],wide:true},
  {key:'notes',label:'Notes',multiline:true,value:item?.notes,maxLength:4000}],async(input,request_id)=>{if(input.due_time && !input.due_date)throw new Error('Choose a date for this alert.');await tool(item?'update_nexus_reminder':'create_nexus_reminder',{title:input.title,notes:input.notes,repeat:input.repeat,due_date:input.due_date || null,due_at:input.due_time?input.due_date+'T'+input.due_time:null,timezone:zone(),...(item?{id:item.id}:{}),request_id});},{container:container || by('reminders'),note:'Alerts use '+zone()+'. Leave the date empty for an anytime task.',help:item?'Help me with my private Nexus reminder ID '+JSON.stringify(item.id)+'. Read it first. My timezone is '+zone()+'.':undefined});
 }
+// Sandboxed widget frames block target=_blank links; ask the host to open them instead.
+root.addEventListener('click',e=>{const a=e.target.closest?.('a[target=_blank]');if(!a || !/^https:/.test(a.href))return;if(window.openai?.openExternal){e.preventDefault();try{window.openai.openExternal({href:a.href});}catch{}return;}if(hostReady){e.preventDefault();request('ui/open-link',{url:a.href}).catch(()=>status('Could not open the link from here. Open it from your browser instead.',true));}});
 by('refresh').onclick=()=>run(async()=>{await refresh();if(selectedProject)await openProject(selectedProject.project_id);if(selectedKit){const focused=focusBoard;await openKit(selectedKit.board_id);setBoardFocus(focused);}});
 by('add-event').onclick=()=>eventForm();by('add-reminder').onclick=()=>reminderForm();
 by('new-project').onclick=startProject;
