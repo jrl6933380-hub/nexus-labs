@@ -5,22 +5,58 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Competitor Research | Nexus</title>
 <style>
-:root{--bg:#0e1013;--panel:#171a1f;--line:#2a2f37;--text:#eceef1;--mute:#8d96a3;--acc:#25f4ee;--acc2:#fe2c55;--ok:#46d37f}
-@media(prefers-color-scheme:light){:root{--bg:#f5f6f8;--panel:#fff;--line:#dde1e7;--text:#16191d;--mute:#5d6673;--acc:#008f8a;--acc2:#d4163c;--ok:#1d9a56}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:16px}
-main{max-width:680px;margin:0 auto}h1{font-size:22px;margin:8px 0}h1 span{color:var(--acc)}h2{font-size:15px;margin:18px 0 6px}
-.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:14px}
+:root{--bg:#0a0b10;--panel:#14161d;--panel2:#1a1d26;--line:#2a2f3a;--text:#eef0f4;--mute:#97a0af;--acc:#25f4ee;--acc2:#fe2c55;--ok:#46d37f}
+@media(prefers-color-scheme:light){:root{--bg:#f4f5f8;--panel:#fff;--panel2:#f0f2f6;--line:#dde1e7;--text:#16191d;--mute:#5d6673;--acc:#008f8a;--acc2:#d4163c;--ok:#1d9a56}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;-webkit-text-size-adjust:100%}
+main{max-width:680px;margin:0 auto;padding:0 16px 40px}
+.hero{position:relative;margin:0 -16px;min-height:300px;display:flex;align-items:flex-end;overflow:hidden;background:radial-gradient(120% 90% at 20% 0%,#3b1a6e 0%,#0a0b10 70%)}
+.hero img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.78}
+.hero::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,11,16,.15) 0%,rgba(10,11,16,.55) 55%,var(--bg) 100%)}
+.hero-in{position:relative;z-index:1;padding:90px 20px 22px;width:100%}
+.eyebrow{display:inline-block;font-size:12px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:#fff;background:rgba(254,44,85,.85);padding:4px 10px;border-radius:999px}
+h1{font-size:32px;line-height:1.1;margin:12px 0 8px;color:#fff;text-shadow:0 2px 18px rgba(0,0,0,.5)}
+h1 span{color:var(--acc)}
+.sub{margin:0;color:#e3e6ee;font-size:15px;max-width:520px;text-shadow:0 1px 10px rgba(0,0,0,.6)}
+h2{font-size:15px;margin:18px 0 6px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;margin-top:16px;box-shadow:0 10px 40px rgba(0,0,0,.25)}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:16px}
+.step{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 10px;text-align:center}
+.step b{display:block;font-size:20px;color:var(--acc)}
+.step span{font-size:12.5px;color:var(--mute);line-height:1.3;display:block;margin-top:2px}
 label{display:block;font-size:13px;color:var(--mute);margin:12px 0 4px}
-input,textarea,button{font:inherit;color:inherit;width:100%}input,textarea{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
-button{background:var(--acc2);border:0;border-radius:8px;padding:12px;font-weight:600;color:#fff;margin-top:14px;cursor:pointer}button:disabled{opacity:.5}
-.mute{color:var(--mute);font-size:14px}.err{color:var(--acc2)}ul{padding-left:20px;margin:4px 0}li{margin:3px 0}
-.idea{border-top:1px solid var(--line);padding:8px 0}a{color:var(--acc)}
+input,textarea,button{font:inherit;color:inherit;width:100%}
+input,textarea{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px 14px;outline:none;transition:border-color .15s,box-shadow .15s}
+input:focus,textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(37,244,238,.18)}
+button{background:linear-gradient(90deg,var(--acc2),#ff5d7d);border:0;border-radius:10px;padding:14px;font-weight:700;font-size:16px;color:#fff;margin-top:16px;cursor:pointer;box-shadow:0 8px 24px rgba(254,44,85,.35)}
+button:disabled{opacity:.5;box-shadow:none}
+.mute{color:var(--mute);font-size:14px}.err{color:var(--acc2)}
+ul{padding-left:20px;margin:4px 0}li{margin:3px 0}
+.idea{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:8px 0}
+.idea b{color:var(--acc)}
+a{color:var(--acc)}
+.pulse{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--acc);margin-right:8px;animation:p 1.2s ease-in-out infinite}
+@keyframes p{0%,100%{opacity:.25;transform:scale(.8)}50%{opacity:1;transform:scale(1.1)}}
+@media(prefers-reduced-motion:reduce){.pulse{animation:none}}
+.credit{margin-top:26px;font-size:12px;color:var(--mute);text-align:center}
+.credit a{color:var(--mute)}
 </style>
 </head>
 <body>
+<div class="hero">
+  <img src="https://cdn.pixabay.com/photo/2016/12/10/06/17/singapore-1896765_1280.jpg" alt="" loading="eager" onerror="this.remove()">
+  <div class="hero-in">
+    <span class="eyebrow">Nexus Intelligence</span>
+    <h1><span>Competitor</span> research</h1>
+    <p class="sub">Type a competitor. See what they post, the hooks that work for them, and a week of content ideas for you.</p>
+  </div>
+</div>
 <main>
-<h1><span>Competitor</span> research</h1>
-<p class="mute">Type a competitor. You get what they post, the hooks that work for them, and a week of content ideas for you. Results take a few minutes.</p>
+<div class="steps" aria-label="How it works">
+  <div class="step"><b>1</b><span>Type a competitor</span></div>
+  <div class="step"><b>2</b><span>We research them</span></div>
+  <div class="step"><b>3</b><span>Get your plan</span></div>
+</div>
 <div class="panel" id="form">
   <label for="c">Competitor (name or handle)</label><input id="c" maxlength="120" autocomplete="off" placeholder="e.g. @theirbusiness">
   <label for="g">What are you promoting? (optional)</label><textarea id="g" maxlength="300" rows="2" placeholder="e.g. my plumbing company in Des Moines"></textarea>
@@ -29,6 +65,7 @@ button{background:var(--acc2);border:0;border-radius:8px;padding:12px;font-weigh
   <p class="err" id="err" role="alert"></p>
 </div>
 <div class="panel" id="out" hidden></div>
+<p class="credit">Photo by calvision-style stock: <a href="https://pixabay.com/photos/singapore-gardens-by-the-bay-1896765/" target="_blank" rel="noopener noreferrer">suyashdixit on Pixabay</a></p>
 </main>
 <script>
 const $=id=>document.getElementById(id);
@@ -44,10 +81,11 @@ async function api(action,input){
 }
 function el(t,txt,cls){const e=document.createElement(t);if(txt!=null)e.textContent=txt;if(cls)e.className=cls;return e;}
 function list(title,items){if(!items||!items.length)return null;const d=el('div');d.append(el('h2',title));const u=el('ul');for(const i of items)u.append(el('li',i));d.append(u);return d;}
+function working(text){const b=el('b');b.append(el('span',null,'pulse'),document.createTextNode(text));return b;}
 function show(d){
   const out=$('out');out.hidden=false;out.replaceChildren();
-  if(d.status==='queued'){out.append(el('b','In line'),el('p','Position '+d.position+'. This page updates by itself.','mute'));return;}
-  if(d.status==='working'){out.append(el('b','Researching '+d.competitor+'...'),el('p','This usually takes a few minutes. You can leave this page open.','mute'));return;}
+  if(d.status==='queued'){out.append(working('In line'),el('p','Position '+d.position+'. This page updates by itself.','mute'));return;}
+  if(d.status==='working'){out.append(working('Researching '+d.competitor+'...'),el('p','This usually takes a few minutes. You can leave this page open.','mute'));return;}
   if(d.status==='failed'){out.append(el('b','Could not finish'),el('p',d.error,'err'));return;}
   const r=d.result;out.append(el('b','Results for '+d.competitor),el('p',r.summary));
   for(const s of [list('What they post',r.what_they_post),list('Hooks they use',r.hooks)])if(s)out.append(s);
