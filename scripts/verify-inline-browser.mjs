@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {chromium} from 'playwright';
 const html=await readFile(new URL('../public/nexus-workspace-board.html',import.meta.url),'utf8');
-const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
+const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--disable-gpu','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
 try{
 for(const bridge of ['openai','mcp']){
  const page=await browser.newPage({viewport:{width:390,height:844}}),errors=[],calls=[];
