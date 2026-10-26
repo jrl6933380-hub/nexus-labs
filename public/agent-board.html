@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Agent Board</title>
+<style>
+  :root {
+    --bg: #05070c; --panel: #0d1420; --line: #1c2a3f; --text: #e6ebf3; --dim: #8b95a7;
+    --green: #4de8a0; --amber: #e8a94d; --red: #e85d5d; --blue: #5aa0ff; --gold: #ecd07f;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.4 -apple-system, "Inter", system-ui, sans-serif; }
+  body { padding: 14px 14px 80px; max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 4px 0 2px; }
+  h2 { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin: 26px 0 10px; }
+  .sub { color: var(--dim); font-size: 14px; }
+  .bar { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+  button { font: inherit; color: var(--text); background: #14202f; border: 1px solid var(--line); border-radius: 10px; padding: 9px 13px; min-height: 40px; }
+  button.primary { background: var(--gold); color: #1a1405; border-color: var(--gold); font-weight: 600; }
+  button.small { padding: 5px 10px; min-height: 32px; font-size: 14px; }
+  input, textarea { width: 100%; font: inherit; color: var(--text); background: #0a111b; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  textarea { min-height: 84px; resize: vertical; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .people { display: grid; grid-template-columns: 1fr; gap: 10px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--dim); display: inline-block; }
+  .dot.online, .dot.busy { background: var(--green); }
+  .chip { font-size: 12px; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--dim); white-space: nowrap; }
+  .chip.building, .chip.testing { color: var(--blue); border-color: #28507f; }
+  .chip.planning { color: var(--gold); border-color: #6b5a24; }
+  .chip.blocked { color: var(--red); border-color: #7a2d2d; }
+  .chip.waiting_for_justin { color: var(--amber); border-color: #7a5a24; }
+  .chip.complete { color: var(--green); border-color: #1f6a4a; }
+  .title { font-weight: 600; }
+  .progress { height: 7px; background: #0a111b; border-radius: 99px; overflow: hidden; margin: 9px 0 4px; border: 1px solid var(--line); }
+  .progress > i { display: block; height: 100%; background: var(--green); }
+  .task { border-top: 1px solid var(--line); padding: 11px 0 4px; }
+  .task:first-of-type { border-top: 0; }
+  .note { font-size: 14px; color: var(--dim); margin: 4px 0; }
+  .mine { border-left: 3px solid var(--gold); padding-left: 9px; color: var(--text); }
+  details summary { cursor: pointer; color: var(--dim); font-size: 14px; padding: 6px 0; }
+  .trail { margin: 0; padding-left: 16px; font-size: 14px; color: var(--dim); }
+  .step { display: flex; gap: 8px; align-items: center; font-size: 15px; padding: 3px 0; }
+  .step input { width: 20px; height: 20px; padding: 0; }
+  .empty { color: var(--dim); font-size: 14px; padding: 6px 0; }
+  .toast { position: fixed; left: 14px; right: 14px; bottom: 16px; background: #14202f; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: none; }
+  .toast.show { display: block; }
+</style>
+</head>
+<body>
+<div class="bar">
+  <div>
+    <h1>Agent Board</h1>
+    <div class="sub" id="meta">Loading…</div><a id="signIn" href="/nexus-login.html?next=%2Fagent-board.html" hidden style="color:var(--gold)">Sign in to Nexus</a>
+  </div>
+  <button id="refresh">Refresh</button>
+</div>
+
+<h2>Who is working on what</h2>
+<div class="people" id="people"></div>
+
+<h2>New goal</h2>
+<div class="card">
+  <input id="goalTitle" placeholder="Big goal, e.g. Launch the waitlist site" maxlength="140">
+  <textarea id="goalTasks" placeholder="Break it into tasks, one per line. Optional."></textarea>
+  <div class="row" style="margin-top:8px"><button class="primary" id="goalAdd" disabled>Create goal</button><span class="sub">Claude and ChatGPT claim the tasks from here.</span></div>
+</div>
+
+<h2>Goals</h2>
+<div id="goals"></div>
+
+<h2>Other tasks</h2>
+<div id="loose"></div>
+
+<h2>Latest messages</h2>
+<div id="messages"></div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === 'class') el.className = v;
+    else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else if (v !== false && v != null) el.setAttribute(k, v);
+  }
+  for (const kid of kids.flat()) if (kid != null && kid !== false) el.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+  return el;
+}
+function ago(ms) {
+  const s = Math.max(0, Math.round(ms / 1000));
+  if (s < 60) return 'just now';
+  if (s < 3600) return Math.round(s / 60) + ' min ago';
+  if (s < 86400) return Math.round(s / 3600) + ' hr ago';
+  return Math.round(s / 86400) + ' d ago';
+}
+function toast(text) { const t = $('toast'); t.textContent = text; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3500); }
+function signedOut() {
+  $('signIn').hidden = false; $('goalAdd').disabled = true;
+  for (const id of ['people','goals','loose','messages']) $(id).replaceChildren();
+  $('meta').textContent = 'Sign in as the Nexus owner to open this board.';
+}
+async function api(action, params) {
+  const res = await fetch('/api/board', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, ...params }) });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401) signedOut();
+  if (!res.ok) throw new Error(data.error || ('Request failed: ' + res.status));
+  return data;
+}
+async function act(fn, done) {
+  try { await fn(); if (done) toast(done); await load(); } catch (err) { toast(err.message); }
+}
+const label = (s) => String(s || '').replace(/_/g, ' ');
+const keep = new Set(); // ids of open <details> so a refresh does not collapse them
+
+function progressBar(p) {
+  return [h('div', { class: 'progress' }, h('i', { style: 'width:' + p.percent + '%' })), h('div', { class: 'sub' }, p.done + ' of ' + p.total + ' done')];
+}
+
+function taskCard(task, opts = {}) {
+  const note = h('textarea', { placeholder: 'Leave a note for the agents', maxlength: '1000' });
+  const notes = task.owner_notes || [];
+  const trail = (task.checkpoints || []).slice().reverse();
+  const steps = task.steps || [];
+  return h('div', { class: 'task' },
+    h('div', { class: 'row' },
+      h('span', { class: 'chip ' + task.status }, label(task.status)),
+      h('span', { class: 'chip' }, task.owner ? task.owner : 'unclaimed'),
+      h('span', { class: 'sub' }, ago(task.age_ms))),
+    h('div', { class: 'title', style: 'margin-top:6px' }, task.title),
+    task.last_note ? h('div', { class: 'note' }, task.last_note) : null,
+    task.blocked_reason && task.status === 'blocked' ? h('div', { class: 'note', style: 'color:var(--red)' }, 'Blocked: ' + task.blocked_reason) : null,
+    steps.length ? h('div', {}, steps.map((s, i) => h('label', { class: 'step' },
+      h('input', { type: 'checkbox', checked: s.done ? 'checked' : false, onchange: () => act(() => api('toggle_step', { id: task.id, index: i })) }), s.text))) : null,
+    steps.length ? progressBar(task.progress) : null,
+    notes.map((n) => h('div', { class: 'note mine' }, n.from + ': ' + n.text)),
+    task.result && task.status === 'complete' ? h('div', { class: 'note' }, 'Result: ' + task.result) : null,
+    trail.length ? h('details', { open: keep.has('t' + task.id) ? 'open' : false, ontoggle: (e) => e.target.open ? keep.add('t' + task.id) : keep.delete('t' + task.id) },
+      h('summary', {}, 'Checkpoints (' + trail.length + ')'),
+      h('ul', { class: 'trail' }, trail.slice(0, 12).map((c) => h('li', {}, ago(Date.now() - c.at) + ' · ' + (c.by || 'someone') + ' · ' + label(c.status) + (c.note ? ': ' + c.note : ''))))) : null,
+    h('details', { open: keep.has('n' + task.id) ? 'open' : false, ontoggle: (e) => e.target.open ? keep.add('n' + task.id) : keep.delete('n' + task.id) },
+      h('summary', {}, 'Add a note'),
+      note,
+      h('div', { class: 'row', style: 'margin:8px 0' },
+        h('button', { class: 'small primary', onclick: () => { if (note.value.trim()) act(() => api('add_note', { id: task.id, text: note.value, from: 'justin' }), 'Note saved'); } }, 'Save note'),
+        task.status !== 'complete' ? h('button', { class: 'small', onclick: () => act(() => api('complete_task', { id: task.id, result: 'Marked done by Justin' }), 'Marked done') }, 'Mark done') : null,
+        task.status !== 'complete' && task.status !== 'waiting_for_justin' ? h('button', { class: 'small', onclick: () => act(() => api('update_progress', { id: task.id, status: 'waiting_for_justin', note: 'Waiting on Justin' })) }, 'Needs me') : null)));
+}
+
+function goalCard(goal) {
+  const kid = h('input', { placeholder: 'Add a task to this goal', maxlength: '140' });
+  return h('div', { class: 'card' },
+    h('div', { class: 'row' }, h('span', { class: 'chip ' + goal.status }, label(goal.status)), h('span', { class: 'sub' }, goal.tasks.length + ' tasks')),
+    h('div', { class: 'title', style: 'margin-top:6px;font-size:18px' }, goal.title),
+    goal.description && !/^goal:/i.test(goal.description) ? h('div', { class: 'note' }, goal.description) : null,
+    progressBar(goal.progress),
+    (goal.owner_notes || []).map((n) => h('div', { class: 'note mine' }, n.from + ': ' + n.text)),
+    goal.tasks.length ? goal.tasks.map((t) => taskCard(t)) : h('div', { class: 'empty' }, 'No tasks yet. Add one below.'),
+    h('div', { class: 'row', style: 'margin-top:10px' },
+      kid,
+      h('button', { class: 'small', onclick: () => { if (kid.value.trim()) act(() => api('create_task', { title: kid.value.trim(), description: 'goal: ' + goal.id }), 'Task added'); } }, 'Add')),
+    h('details', { open: keep.has('n' + goal.id) ? 'open' : false, ontoggle: (e) => e.target.open ? keep.add('n' + goal.id) : keep.delete('n' + goal.id) },
+      h('summary', {}, 'Note on this goal'),
+      (() => { const t = h('textarea', { placeholder: 'Leave a note for the agents' }); return [t, h('div', { class: 'row', style: 'margin:8px 0' }, h('button', { class: 'small primary', onclick: () => { if (t.value.trim()) act(() => api('add_note', { id: goal.id, text: t.value, from: 'justin' }), 'Note saved'); } }, 'Save note'))]; })()));
+}
+
+function render(data) {
+  const d = data.dashboard;
+  $('meta').textContent = d.counts.goals + ' goals · ' + d.counts.tasks + ' tasks · ' + d.counts.unclaimed + ' unclaimed · updated ' + new Date(data.observed_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  $('people').replaceChildren(...d.people.map((p) => h('div', { class: 'card', style: 'margin:0' },
+    h('div', { class: 'row' }, h('span', { class: 'dot ' + p.status }), h('span', { class: 'title' }, p.name), h('span', { class: 'sub' }, p.status)),
+    p.working_on.length ? p.working_on.map((w) => h('div', { class: 'note' }, label(w.status) + ': ' + w.title)) : h('div', { class: 'empty' }, 'Nothing active'))));
+  $('goals').replaceChildren(...(d.goals.length ? d.goals.map(goalCard) : [h('div', { class: 'empty' }, 'No goals yet. Make one above.')]));
+  $('loose').replaceChildren(...(d.loose.length ? [h('div', { class: 'card' }, d.loose.map((t) => taskCard(t)))] : [h('div', { class: 'empty' }, 'Nothing here.')]));
+  $('messages').replaceChildren(...(data.messages.length ? data.messages.map((m) => h('div', { class: 'note' }, h('b', {}, m.from + ' '), '· ' + ago(Date.now() - m.at) + ' · ' + String(m.message).slice(0, 280))) : [h('div', { class: 'empty' }, 'No messages.')]));
+}
+
+let busy = false;
+async function load() {
+  if (busy) return; busy = true;
+  try {
+    const res = await fetch('/api/board?view=dashboard', { cache: 'no-store' });
+    if (res.status === 401) { signedOut(); return; }
+    if (!res.ok) throw new Error('Could not load the board (' + res.status + ')');
+    const data = await res.json();
+    $('signIn').hidden = true; $('goalAdd').disabled = false;
+    // Do not redraw while someone is typing in a box.
+    if (!document.activeElement || !['TEXTAREA', 'INPUT'].includes(document.activeElement.tagName) || document.activeElement.type === 'checkbox') render(data);
+  } catch (err) { $('meta').textContent = err.message; } finally { busy = false; }
+}
+
+$('refresh').addEventListener('click', load);
+$('goalAdd').addEventListener('click', () => act(async () => {
+  const title = $('goalTitle').value.trim();
+  if (!title) throw new Error('Give the goal a name first');
+  const { task: goal } = await api('create_task', { title, description: 'Big goal. Break it into tasks below.', kind: 'goal' });
+  for (const line of $('goalTasks').value.split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 25)) {
+    await api('create_task', { title: line.slice(0, 140), description: 'goal: ' + goal.id });
+  }
+  $('goalTitle').value = ''; $('goalTasks').value = '';
+}, 'Goal created'));
+
+load();
+setInterval(load, 20000);
+</script>
+</body>
+</html>
+

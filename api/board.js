@@ -39,7 +39,11 @@ import {
   completeTask,
   deleteTask,
   postMessage,
+  addTaskNote,
+  toggleTaskStep,
 } from '../lib/board.js';
+import { createBoardAccessGuard } from '../lib/boardAccess.js';
+import { buildDashboard } from '../lib/boardGoals.js';
 import { listAgents } from '../lib/agents.js';
 import { getNexRoleLease, acquireNexRole, renewNexRole, releaseNexRole } from '../lib/roleLease.js';
 import {
@@ -421,7 +425,10 @@ async function handleNexAction(req, res) {
   }
 }
 
+const authorizeBoard = createBoardAccessGuard({getOwner:getNexusOwner, agentAuthorized:internalAgentAuthorized});
 async function handleBoard(req, res) {
+  const access = await authorizeBoard(req, res);
+  if (!access) return;
   if (req.method === 'GET') {
     // task_id is a lightweight single-task lookup that bypasses the
     // full board assembly below entirely — added so a caller whose
@@ -440,6 +447,17 @@ async function handleBoard(req, res) {
     // canvas_id is optional — omitted defaults to the 'dashboard'
     // canvas (the homepage), so every existing caller that doesn't
     // know canvases are now plural keeps working unchanged.
+    // ?view=dashboard returns the grouped view the Agent Board dashboard page
+    // renders: goals with their tasks, who is working on what, recent messages.
+    if (req.query?.view === 'dashboard') {
+      res.setHeader('Cache-Control', 'no-store');
+      const [boardData, agentList] = await Promise.all([readBoard(), listAgents()]);
+      return res.status(200).json({
+        dashboard: buildDashboard(boardData.tasks || [], agentList),
+        messages: (boardData.messages || []).slice(0, 25),
+        observed_at: Date.now(),
+      });
+    }
     const canvasId = req.query?.canvas_id;
     const [board, agents, nex_role, crashes, canvas] = await Promise.all([readBoard(), listAgents(), getNexRoleLease(), listCrashes({ limit: 200 }), getCanvasState(canvasId)]);
     const tasks = board.tasks || [];
@@ -471,7 +489,17 @@ async function handleBoard(req, res) {
     if (!action) return res.status(400).json({ error: 'Missing action' });
 
     if (action === 'create_task') return res.status(200).json({ task: await createTask(params) });
-    if (action === 'claim_task') return res.status(200).json({ task: await claimTask(params) });
+    if (action === 'claim_task') {
+      try {
+        return res.status(200).json({ task: await claimTask(params) });
+      } catch (err) {
+        // Someone else already owns it: tell the caller plainly, not a server error.
+        if (/already claimed by/u.test(err.message)) return res.status(409).json({ error: err.message });
+        throw err;
+      }
+    }
+    if (action === 'add_note') return res.status(200).json({ task: await addTaskNote({...params, from:access.owner.id}) });
+    if (action === 'toggle_step') return res.status(200).json({ task: await toggleTaskStep(params) });
     if (action === 'update_progress') return res.status(200).json({ task: await updateProgress(params) });
     if (action === 'mark_blocked') return res.status(200).json({ task: await markBlocked(params) });
     if (action === 'attach_result') return res.status(200).json({ task: await attachResult(params) });
@@ -839,6 +867,7 @@ export default async function handler(req, res) {
     return await handleBoard(req, res);
   } catch (err) {
     console.error('board/hyperfocus/agentlog/vault/planner/pinned-visuals/tenants/oauth handler crashed:', err.message);
-    return res.status(500).json({ error: err.message });
+    return res.status(Number.isInteger(err.status) && err.status >= 400 && err.status < 600 ? err.status : 500).json({ error: err.message });
   }
 }
+
