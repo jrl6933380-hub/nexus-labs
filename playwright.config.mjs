@@ -6,6 +6,8 @@
 import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
+  // In CI, failed tests show up as annotations on the check, so the failure is readable without job-log access.
+  reporter: process.env.CI ? [['github'], ['list']] : 'list',
   testDir: './e2e',
   testMatch: /.*\.spec\.mjs/,
   webServer: {
