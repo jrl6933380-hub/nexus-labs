@@ -116,7 +116,7 @@ for (const file of pages) {
           null, 2,
         ));
       }
-      expect(seriousOrWorse, `${file} has serious/critical accessibility violations: ${seriousOrWorse.map((v) => `${v.id} (${v.nodes.length})`).join(', ')}`).toHaveLength(0);
+      expect(seriousOrWorse, `${file} has serious/critical accessibility violations: ${seriousOrWorse.map((v) => `${v.id} (${v.nodes.length}): ${v.nodes.slice(0, 40).map((n) => { const d = n.any?.[0]?.data || {}; return `${(n.target || []).join(' ')} ${d.fgColor || ''}/${d.bgColor || ''} ${d.contrastRatio || ''} ${d.fontSize || ''}`; }).join(' | ')}`).join('; ')}`).toHaveLength(0);
     });
 
     test(`${file} declares a mobile viewport`, async ({ page }) => {
