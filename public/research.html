@@ -90,6 +90,7 @@ function show(d){
   if(d.status==='queued'){out.append(working('In line'),el('p','Position '+d.position+'. This page updates by itself.','mute'));return;}
   if(d.status==='working'){out.append(working('Researching '+d.competitor+'...'),el('p','This usually takes a few minutes. You can leave this page open.','mute'));return;}
   if(d.status==='failed'){out.append(el('b','Could not finish'),el('p',d.error,'err'));return;}
+  if(d.archived||!d.result){const rc=d.receipt||{};out.append(el('b','Receipt for '+d.competitor),el('p','This report is more than a week old, so the full results were cleared. Run a new search to get fresh prices.','mute'));if(rc.summary)out.append(el('p',rc.summary));return;}
   const r=d.result;out.append(el('b','Results for '+d.competitor),el('p',r.summary));
   if(r.website){const p=el('p',null,'mute'),l=el('a',r.website);l.href=r.website;l.target='_blank';l.rel='noopener noreferrer';p.append('Website: ',l);out.append(p);}
   const linkTo=(cell,url)=>{if(!url)return;const l=el('a',' source');l.href=url;l.target='_blank';l.rel='noopener noreferrer';cell.append(l);};
