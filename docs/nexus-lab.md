@@ -24,7 +24,7 @@ The POST boundary requires same-origin JSON, bounds input sizes, validates capab
 | Cutout | Segmentation worker; original/mask asset storage; edge correction and export editor. |
 | Video | Select provider; durable queue, progress/polling/cancellation, result storage, and Ads Studio handoff. Existing deterministic composition is available through the Ads Studio link. |
 
-Those four workspaces show **Needs connection** and cannot manufacture a model result. This phase does not add image/video uploads or claim an existing image generation pod is a segmentation/video backend.
+Those four workspaces show **Needs connection** and cannot manufacture a model result. Shared media uploads are now supported in Lab. An existing image generation pod is not treated as a segmentation/video backend.
 
 Next shared-harness steps: durable queued/running states and cancellation; idempotent external jobs; persistent repository/asset indexes; learned reranker; MCP tools exposing the same service after owner/tenant and request-id guards. This phase exposes an owner API, not a new MCP tool catalog.
 
@@ -39,3 +39,18 @@ The browser tests use the real Lab handler/service with injected owner authentic
 The lockfile refresh adds the already-declared `pg` dependency and its missing transitive entries so clean installs can proceed.
 
 Agent verification: 19 focused Node checks passed (Lab, owner capabilities, navigation, and navigation scope); a clean `npm ci --ignore-scripts` and the same 19 checks passed after syncing the latest main branch. Browser execution was blocked before a page could be created: default Chromium crashed; a single-process launch timed out during the Playwright page fixture. No rendered/mobile verification or live database/provider test is claimed. The focused GitHub workflow runs the browser checks on Ubuntu.
+
+
+## Shared media assets
+
+Open **Owner Home → Nexus Lab → Assets**, or use **Manage run assets** on a saved run. Every capability keeps access to the same library, including the media workspaces whose models are not connected yet.
+
+`lib/nexusLabAssets.js` wraps `adMediaStore`; original bytes remain in the existing account-scoped chunk store and are immediately reusable by existing Ads Studio tools. No second binary store or copy is introduced. Existing library files are listed with unrecorded provenance until the owner records it. Lab metadata records role (original/mask/cutout/clip/output), source type, optional HTTPS source URL, attribution, rights notes, parent IDs, and recording time. These are owner-supplied statements, not verified licenses or evidence of model generation. Recorded provenance is immutable; derived files get new IDs and ready parent links. Parent ownership/readiness and ancestry are checked.
+
+The UI uploads PNG/JPEG/WebP, supported audio and video formats in existing 384 KiB chunks, verifies SHA-256, and preserves available image dimensions and browser-reported media duration/dimensions. Existing store limits remain 60 files, 64 MiB per file, and 256 MiB per account. Image previews are small derivatives; previews do not replace originals. Downloads reassemble bounded chunks and verify both file size and checksum before saving. Original playback is available for files up to 20 MiB; larger files remain downloadable.
+
+Pause/resume retains the same upload in the open view. After navigation or reload, choose an unfinished upload and reselect the exact original file to resume: size and checksum must match, and chunks can safely be resent. An unfinished upload can be explicitly discarded; finished originals cannot be removed through that action. A failed transfer remains visible rather than reporting a false save.
+
+The owner API adds `asset_list`, `asset_read`, `asset_begin` (stable request ID through the existing workspace idempotency guard), `asset_chunk`, `asset_finish`, `asset_download`, `asset_adopt`, `asset_discard`, and `asset_attach`. All POST actions retain owner authentication and same-origin JSON checks. Chunk request bodies have a separate 540,000-byte bound; ordinary requests retain 130,000 bytes. No client-supplied account ID selects storage.
+
+Saved runs can receive input/output **references**. Run existence and owner scope are verified before attachments; all media must be ready. The run history and JSON export include metadata/provenance snapshots. Links append by run/direction/media ID in a single hash write, so concurrent additions do not replace one another. Attaching a reference does not claim a model consumed or generated its bytes. Future media workers should use these contracts with the durable jobs task.
