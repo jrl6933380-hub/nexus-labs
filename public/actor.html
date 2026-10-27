@@ -159,6 +159,7 @@ async function init(){
   try{list=(await call('/api/actor-credits',{action:'catalog'})).actors;}catch{}
   actor=list.find(a=>a.id===aid&&a.id!=='research');
   if(aid==='research'){location.replace('/research.html'+(key?'?k='+encodeURIComponent(key):''));return;}
+  if(!actor&&list.some(a=>a.id===aid&&a.instant)){location.replace(list.find(a=>a.id===aid).page+(key?'?k='+encodeURIComponent(key):''));return;}
   if(!actor){$('title').textContent='Actor not found';$('blurb').textContent='Pick one from the marketplace.';return;}
   document.title=actor.name+' | Nexus';$('title').textContent=actor.name;$('blurb').textContent=actor.blurb;
   $('price').textContent=actor.cost+' credits per run'+(actor.beta?' · beta':'');
