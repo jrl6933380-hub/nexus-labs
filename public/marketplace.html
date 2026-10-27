@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Nexus Actors</title>
+<style>
+:root{--bg:#0a0b10;--panel:#14161d;--panel2:#1a1d26;--line:#2a2f3a;--text:#eef0f4;--mute:#97a0af;--acc:#25f4ee;--acc2:#fe2c55}
+@media(prefers-color-scheme:light){:root{--bg:#f4f5f8;--panel:#fff;--panel2:#f0f2f6;--line:#dde1e7;--text:#16191d;--mute:#5d6673;--acc:#008f8a;--acc2:#d4163c}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;-webkit-text-size-adjust:100%}
+main{max-width:720px;margin:0 auto;padding:28px 16px 48px}
+.eyebrow{display:inline-block;font-size:12px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:#fff;background:rgba(254,44,85,.85);padding:4px 10px;border-radius:999px}
+h1{font-size:32px;line-height:1.1;margin:12px 0 8px}h1 span{color:var(--acc)}
+.sub{margin:0;color:var(--mute);max-width:520px}
+h2{font-size:15px;margin:26px 0 8px;letter-spacing:.04em;text-transform:uppercase;color:var(--mute)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;margin-top:18px}
+.bal{font-size:28px;font-weight:800;color:var(--acc);margin:2px 0}
+.mute{color:var(--mute);font-size:14px}.err{color:var(--acc2)}
+button,.btn{font:inherit;border:0;border-radius:10px;padding:12px;font-weight:700;color:#fff;background:linear-gradient(90deg,var(--acc2),#ff5d7d);cursor:pointer;text-align:center;text-decoration:none;display:block;width:100%}
+button:disabled{opacity:.5}
+.packs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.packs button{padding:12px 6px;line-height:1.25}.packs small{display:block;font-weight:400;font-size:12px;opacity:.9}
+@media(max-width:420px){.packs{grid-template-columns:1fr}}
+.grid{display:grid;grid-template-columns:1fr;gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:8px}
+.card h3{margin:0;font-size:19px}.card p{margin:0;color:var(--mute);font-size:14.5px}
+.price{font-weight:700;color:var(--acc);font-size:14px}
+.card .btn{margin-top:6px}
+.card.soon{border-style:dashed;background:transparent}
+.tag{font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:var(--acc)}
+.tag.s{color:var(--mute)}
+</style>
+</head>
+<body>
+<main>
+  <span class="eyebrow">Nexus</span>
+  <h1>Nexus <span>actors</span></h1>
+  <p class="sub">Small AI tools that each do one job well. One credit wallet works on all of them.</p>
+
+  <div class="panel" id="wallet">
+    <div class="mute" id="wlabel">Your credits</div>
+    <div class="bal" id="bal">&mdash;</div>
+    <p class="mute" id="wnote">Buy credits to get your private wallet link. No signup.</p>
+    <div class="packs">
+      <button data-pack="p5">$5<small>50 credits</small></button>
+      <button data-pack="p10">$10<small>110 credits</small></button>
+      <button data-pack="p25">$25<small>300 credits</small></button>
+    </div>
+    <p class="mute">Credits never expire. Purchases are non-refundable, but a run that fails puts its credits back automatically.</p>
+    <p class="mute err" id="msg" role="alert"></p>
+  </div>
+
+  <h2>Actors</h2>
+  <div class="grid" id="grid"></div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+// Add the next actor here. cost is credits per run.
+const ACTORS=[
+  {name:'Competitor Research',blurb:'Type a competitor. See what they charge, their subscriptions and deals, where they are weak, and how to beat them.',cost:'8 credits per search',path:'/research.html'},
+  {name:'More actors coming',blurb:'New tools will appear here and run on the same credits.',soon:true},
+];
+function store(k,v){try{localStorage.setItem(k,v);}catch{}}
+function load(k){try{return localStorage.getItem(k);}catch{return null;}}
+let key=new URLSearchParams(location.search).get('k')||'';
+if(!key){const w=load('wallet');if(w){try{key=new URL(w,location.origin).searchParams.get('k')||'';}catch{}}}
+function el(t,txt,cls){const e=document.createElement(t);if(txt!=null)e.textContent=txt;if(cls)e.className=cls;return e;}
+function drawCards(){
+  const g=$('grid');g.replaceChildren();
+  for(const a of ACTORS){
+    const c=el('div',null,'card'+(a.soon?' soon':''));
+    c.append(el('span',a.soon?'Soon':'Live','tag'+(a.soon?' s':'')),el('h3',a.name),el('p',a.blurb));
+    if(!a.soon){
+      c.append(el('span',a.cost,'price'));
+      const b=el('a','Open','btn');b.href=a.path+(key?'?k='+encodeURIComponent(key):'');c.append(b);
+    }
+    g.append(c);
+  }
+}
+async function api(action,extra){
+  const r=await fetch('/api/actor-credits',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...extra})});
+  let d=null;try{d=await r.json();}catch{}
+  if(!r.ok){const e=new Error((d&&d.error)||'Could not reach the server.');e.status=r.status;throw e;}
+  return d.data;
+}
+function showBalance(n){
+  $('bal').textContent=n+' credit'+(n===1?'':'s');
+  $('wnote').textContent='Add more any time. The same wallet works on every actor.';
+}
+document.querySelectorAll('#wallet [data-pack]').forEach(b=>b.addEventListener('click',async()=>{
+  b.disabled=true;$('msg').textContent='Opening checkout...';
+  try{const d=await api('checkout',{pack:b.dataset.pack,from:'market',...(key?{key}:{})});location.href=d.url;}
+  catch(e){$('msg').textContent=e.message;b.disabled=false;}
+}));
+async function init(){
+  drawCards();
+  const sid=new URLSearchParams(location.search).get('session_id');
+  if(sid){
+    $('msg').textContent='Confirming your payment...';
+    try{
+      const d=await api('claim',{session_id:sid});
+      if(d.path){key=new URL(d.path,location.origin).searchParams.get('k')||'';store('wallet',d.path);}
+      else if(key)store('wallet','/research.html?k='+key);
+      showBalance(d.credits);$('msg').textContent='';
+      history.replaceState(null,'',location.pathname+(key?'?k='+encodeURIComponent(key):''));
+      drawCards();return;
+    }catch(e){$('msg').textContent=e.message;}
+  }
+  if(key){
+    try{const d=await api('balance',{key});store('wallet','/research.html?k='+key);showBalance(d.credits);}
+    catch{key='';$('bal').textContent='—';}
+    drawCards();
+  }
+}
+init();
+</script>
+</body>
+</html>
