@@ -4,21 +4,33 @@ on:
     paths:
       - 'api/nexus-lab.js'
       - 'lib/nexusLab.js'
+      - 'lib/nexusLabJobs.js'
+      - 'lib/nexusLabRuntime.js'
+      - 'lib/nexusLabWorker.js'
+      - 'lib/jobStates.js'
+      - 'api/nexus-lab-sweep.js'
+      - 'test-support/labJobMemory.mjs'
       - 'lib/nexusLabAssets.js'
       - 'lib/adMedia.js'
       - 'public/nexus-lab.js'
+      - 'public/nexus-lab-jobs.js'
       - 'public/nexus-lab-assets.js'
       - 'public/nexus-messages.js'
       - 'public/workspace-views.js'
       - 'public/workspace.html'
       - 'test/nexus-lab.test.mjs'
+      - 'test/nexus-lab-jobs.test.mjs'
       - 'test/nexus-lab-assets.test.mjs'
       - 'e2e/nexus-lab.spec.mjs'
+      - 'e2e/nexus-lab-jobs.spec.mjs'
       - 'e2e/nexus-lab-assets.spec.mjs'
       - '.github/workflows/nexus-lab.yml'
 jobs:
   lab:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      NEXUS_TEST_BROWSER_PATH: /usr/bin/google-chrome
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -26,9 +38,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: node --test test/nexus-lab.test.mjs test/nexus-lab-assets.test.mjs test/ad-media.test.mjs test/owner-capabilities.test.mjs test/nexus-navigation.test.mjs test/nex-navigation-scope.test.mjs
-      - run: npx playwright install --with-deps chromium
-      - run: npx playwright test e2e/nexus-lab.spec.mjs e2e/nexus-lab-assets.spec.mjs
+      - run: node --test test/nexus-lab.test.mjs test/nexus-lab-jobs.test.mjs test/ad-render-jobs.test.mjs test/nexus-lab-assets.test.mjs test/ad-media.test.mjs test/owner-capabilities.test.mjs test/nexus-navigation.test.mjs test/nex-navigation-scope.test.mjs
+      - run: test -x "$NEXUS_TEST_BROWSER_PATH"
+      - run: npx playwright test e2e/nexus-lab.spec.mjs e2e/nexus-lab-assets.spec.mjs e2e/nexus-lab-jobs.spec.mjs
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

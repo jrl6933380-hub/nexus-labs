@@ -1,14 +1,11 @@
+import {waitUntil} from '@vercel/functions';
+import {nexusLabJobs} from '../lib/nexusLabJobs.js';
+import {workLabJobOnce} from '../lib/nexusLabWorker.js';
+import {nexusLabService} from '../lib/nexusLabRuntime.js';
 import {nexusLabAssets} from '../lib/nexusLabAssets.js';
 import {workspaceRequests} from '../lib/workspaceRequests.js';
 import {getNexusOwner} from '../lib/nexusOwnerAuth.js';
-import {createNexusLab} from '../lib/nexusLab.js';
-import {ownerCapabilityCatalog} from './owner-capabilities.js';
-import {listVaultItems} from '../lib/codeVault.js';
-async function catalog(owner){
-  const [installed,vault]=await Promise.all([ownerCapabilityCatalog({owner:owner.id}),listVaultItems()]);
-  return [...installed.tools.map(t=>({id:`tool:${t.name}`,name:t.name,text:t.description||'',source:'Installed tool'})),...installed.skills.map(s=>({id:`skill:${s.name}`,name:s.name,text:s.description||'',source:s.source||'Installed skill'})),...(Array.isArray(vault)?vault:[]).map(v=>({id:`vault:${v.id||v.name}`,name:v.name,text:[v.purpose,v.when_to_use,...(v.tags||[])].filter(Boolean).join(' '),source:v.source||'Vault reference'}))];
-}
-export function createNexusLabHandler({authenticate=getNexusOwner,assets=nexusLabAssets,once=workspaceRequests,service=createNexusLab({catalog,assets})}={}){return async(req,res)=>{
+export function createNexusLabHandler({authenticate=getNexusOwner,assets=nexusLabAssets,once=workspaceRequests,service=nexusLabService,jobs=nexusLabJobs,kick=(owner,id)=>waitUntil(workLabJobOnce({owner,id,store:jobs,service}).catch(()=>console.error('lab_worker_wake_failed')))}={}){return async(req,res)=>{
   res.setHeader('Cache-Control','private, no-store');res.setHeader('X-Content-Type-Options','nosniff');
   if(!['GET','POST'].includes(req.method)){res.setHeader('Allow','GET, POST');return res.status(405).json({error:'Method not allowed.'});}
   try{
@@ -31,6 +28,11 @@ export function createNexusLabHandler({authenticate=getNexusOwner,assets=nexusLa
       if(action==='asset_attach'){await service.readRun(owner,input.run_id);await assets.attach(owner,input);return res.status(200).json({run:await service.readRun(owner,input.run_id)});}
       return res.status(400).json({error:'Choose a supported asset action.'});
     }
+    if(action==='job_list')return res.status(200).json({jobs:await jobs.list(owner)});
+    if(action==='job_read')return res.status(200).json({job:await jobs.get(owner,input.id)});
+    if(action==='job_enqueue'){const job=await jobs.enqueue(owner,{kind:input.kind,input:input.input,request_id:req.body.request_id});kick(owner,job.id);return res.status(202).json({job});}
+    if(action==='job_cancel')return res.status(200).json({job:await jobs.cancel(owner,input.id)});
+    if(action==='job_retry'){const job=await jobs.retry(owner,input.id);kick(owner,job.id);return res.status(202).json({job});}
     if(req.body?.action!=='run')return res.status(400).json({error:'Choose a supported Lab action.'});
     return res.status(200).json({run:await service.run(owner,req.body)});
   }catch(error){return res.status(error.status||503).json({error:error.status?error.message:'Nexus Lab is unavailable. Try again shortly.'});}

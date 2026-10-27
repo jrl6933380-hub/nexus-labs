@@ -1,0 +1,19 @@
+const el=(tag,text,cls)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;if(cls)node.className=cls;return node;};
+const button=(label,run)=>{const node=el('button',label);node.type='button';node.onclick=run;return node;};
+export async function renderLabJobs({request,openRun}){
+ const root=el('section',undefined,'labjobs'),status=el('p'),list=el('div');status.setAttribute('role','status');let timer,busy=false;
+ const style=el('style');style.textContent='.labjobs article{padding:18px 0;border-top:1px solid #52664e;overflow-wrap:anywhere}.labjobs h3{margin:0 0 8px}.labjobs progress{width:100%;accent-color:#edc46d}.labjobs ol{padding-left:20px;color:#b8c7bc;font-size:13px}.labjobs small{color:#b8c7bc}.labjobs .labjobstatus{font-weight:700;color:#edc46d}';root.append(style,el('h2','Background jobs'),el('p','Jobs keep their saved state when you leave or reload. Progress comes from the worker’s checkpoints.'),status);
+ const controls=el('div',undefined,'labactions');controls.append(button('Refresh jobs',()=>load().catch(showError)),button('Run background check',()=>mutate({action:'job_enqueue',request_id:crypto.randomUUID(),input:{kind:'diagnostic',input:{steps:15,delay_ms:1000}}})));root.append(controls,list);
+ function showError(error){status.className='laberror';status.textContent=error.message||'Jobs could not load.';}
+ async function mutate(input){if(busy)return;busy=true;try{await request(input);await load();}catch(error){showError(error);}finally{busy=false;}}
+ async function load(){clearTimeout(timer);const data=await request({action:'job_list'});list.replaceChildren();status.className='';status.textContent=data.jobs.length?`${data.jobs.filter(j=>j.active).length} active · ${data.jobs.length} recent jobs`:'No background jobs yet.';
+  for(const job of data.jobs){const item=el('article');item.setAttribute('aria-label',`${job.label} job`);item.dataset.jobId=job.id;item.append(el('h3',job.label),el('p',job.status,'labjobstatus'),el('small',`${new Date(job.created_at).toLocaleString()} · Attempt ${job.attempts} · ${job.id}`));const progress=el('progress');progress.max=100;progress.value=job.progress.pct;progress.setAttribute('aria-label',`${job.label} progress`);item.append(progress,el('p',`${job.progress.stage} · ${Math.round(job.progress.pct)}%`));
+   if(job.provider||job.model)item.append(el('p',`${job.provider||'Provider unrecorded'} · ${job.model||'Model unrecorded'} · ${job.costUsd===null?'Cost unavailable':`$${job.costUsd.toFixed(4)}`}`));
+   if(job.error)item.append(el('p',`${job.error.code}: ${job.error.message}`,'laberror'));if(job.cancel_scope==='local_only')item.append(el('p','Canceled in Nexus. External provider cancellation is unconfirmed.'));
+   const actions=el('div',undefined,'labactions');if(job.active)actions.append(button('Cancel job',()=>mutate({action:'job_cancel',input:{id:job.id}})));if(job.retry_allowed)actions.append(button('Retry job',()=>mutate({action:'job_retry',input:{id:job.id}})));if(job.result?.run_id)actions.append(button('Open result',()=>openRun(job.result.run_id)));if(job.result?.message)item.append(el('p',job.result.message));item.append(actions);
+   if(job.events?.length){const details=el('details'),events=el('ol');details.append(el('summary','Saved checkpoints'));for(const event of job.events)events.append(el('li',`${new Date(event.at).toLocaleTimeString()} · ${event.stage}`));details.append(events);item.append(details);}list.append(item);
+  }
+  if(data.jobs.some(j=>j.active))timer=setTimeout(()=>{if(!root.isConnected)return;if(document.hidden){timer=setTimeout(()=>{if(root.isConnected)load().catch(showError);},10000);return;}load().catch(error=>{showError(error);timer=setTimeout(()=>{if(root.isConnected)load().catch(showError);},3000);});},1500);
+ }
+ try{await load();}catch(error){showError(error);}return root;
+}

@@ -26,7 +26,7 @@ The POST boundary requires same-origin JSON, bounds input sizes, validates capab
 
 Those four workspaces show **Needs connection** and cannot manufacture a model result. Shared media uploads are now supported in Lab. An existing image generation pod is not treated as a segmentation/video backend.
 
-Next shared-harness steps: durable queued/running states and cancellation; idempotent external jobs; persistent repository/asset indexes; learned reranker; MCP tools exposing the same service after owner/tenant and request-id guards. This phase exposes an owner API, not a new MCP tool catalog.
+Next shared-harness steps: verified media-provider adapters with remote polling/cancellation; persistent repository/asset indexes; learned reranker; MCP tools exposing the same service after owner/tenant and request-id guards. This phase exposes an owner API, not a new MCP tool catalog.
 
 ## Validation
 
@@ -56,3 +56,24 @@ The owner API adds `asset_list`, `asset_read`, `asset_begin` (stable request ID 
 Saved runs can receive input/output **references**. Run existence and owner scope are verified before attachments; all media must be ready. The run history and JSON export include metadata/provenance snapshots. Links append by run/direction/media ID in a single hash write, so concurrent additions do not replace one another. Attaching a reference does not claim a model consumed or generated its bytes. Future media workers should use these contracts with the durable jobs task.
 
 Shared-assets verification: 39 focused Node checks passed, including byte-for-byte multi-chunk exports, checksum failures, account isolation, immutable provenance, serialized concurrent adoption/ancestry checks, retained run links, and unfinished-upload cleanup. The first PR #787 GitHub Lab check also passed the upload/derivative/download/reopen/attachment browser flows at 320/393/1000px. Final revision browser checks are tracked on the PR; production persistence still requires verification after merge.
+
+
+## Durable background jobs
+
+Open **Owner Home → Nexus Lab → Jobs**. The existing Search/Rank/Predict forms also offer **Run in background**. **Run background check** creates a clearly labeled 15-checkpoint diagnostic; it does not invoke an AI model. The Jobs/Assets surface and unfinished form inputs are restored within the browser session.
+
+The Lab queue uses the existing Neon command transport, the shared lifecycle vocabulary in `lib/jobStates.js`, and the render worker's claim/progress/result pattern. It adds per-record atomic compare-and-set updates and worker lease tokens. Job states are queued, running, succeeded, failed, and canceled. Leases last 15 seconds, heartbeats run every 3 seconds, safe work can resume at most three attempts, and jobs have a 10-minute deadline. Enqueue/retry share an account lock and a three-active-job cap. At most 60 full records are retained; older terminal records compact while retaining request identity and result references, so replaying an old request does not submit it again.
+
+Enqueue returns HTTP 202 after saving the job. The owner route registers a worker promise with `waitUntil`; client disconnects do not drive execution. A scheduled `/api/nexus-lab-sweep` uses the existing `CRON_SECRET` every two minutes and processes at most two jobs per invocation as the recovery path. Both functions have a 300-second execution budget. Work is checkpointed in the database; `waitUntil` alone is not the durability mechanism. An operator may also invoke `node scripts/lab-worker.mjs` with the existing database credentials. No new model/GPU resources are provisioned by these changes.
+
+The public owner API adds `job_enqueue`, `job_list`, `job_read`, `job_cancel`, and `job_retry`, retaining authentication, same-origin JSON, and payload bounds. A stable request ID binds to normalized input and owner; a conflicting payload is rejected. The browser retains an unacknowledged background request ID so a transport retry reuses it. Fenced leases reject late progress/results from a canceled or superseded worker. Completed capability jobs link to the same saved Lab run, preserving media attachments and normal run exports.
+
+Before a provider request, workers persist a submission intent. Provider/model, a stable idempotency key, and an optional returned remote job ID are stored separately from credentials. If a worker disappears after intent and no remote ID is known, the job fails with `SUBMISSION_UNCERTAIN`; neither automatic recovery nor the Retry control resubmits it. A remote ID can be retained for a future provider resume adapter; current adapters will not pretend to poll an unsupported provider. This is conservative duplicate-submission protection, not a claim of universal exactly-once billing. Check the provider/saved result to reconcile an uncertain outcome.
+
+The included worker supports the diagnostic and existing Search/Rank/Predict capabilities. Semantic search records its Voyage submission before calling the embedding-backed service; a configured credential is required before recording intent. No other media model is enabled. Canceling a job fences Nexus updates and aborts the local request when observed; if a provider request was already submitted, the UI explicitly says external cancellation is unconfirmed. No refund or remote cancellation is implied.
+
+Progress and up to 30 checkpoint/status events are visible in Jobs. Provider/model versions and cost are recorded only when known; cost remains unavailable otherwise. Raw upstream errors, lease tokens, credentials, and internal job input are not returned in public job views. Recovery runs independently of the Jobs page, which only polls for display.
+
+Verification commands now include `test/nexus-lab-jobs.test.mjs`, `test/ad-render-jobs.test.mjs`, and `e2e/nexus-lab-jobs.spec.mjs`. The browser scenarios use the real job API/service/worker with an isolated command transport and controlled diagnostic sleeps: reload while running, cancel, reject late completion, retry from a checkpoint, and open a background capability result at 320/393/1000px. Production cron timing, real database contention, and provider reconciliation remain live-deployment checks after merge.
+
+The focused Lab browser workflow uses the Ubuntu runner's preinstalled Google Chrome through the existing NEXUS_TEST_BROWSER_PATH setting, avoiding a second browser/apt download. The workflow fails visibly if the expected browser is unavailable.
