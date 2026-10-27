@@ -19,7 +19,7 @@ export function createResearchHandler({store=researchStore}={}){
    return res.status(400).json({error:'Unknown action.'});
   }catch(e){
    const status=e.status||(e.name==='ZodError'?400:500);
-   const message=e.name==='ZodError'?'Enter a competitor name or handle (2-120 characters).':status>=500?'Temporarily unavailable. Try again shortly.':e.message;
+   const message=e.name==='ZodError'?((e.issues||[]).some(i=>i.path?.[0]==='competitor')?'Enter a competitor name or handle (2-120 characters).':'Check the form: '+[...new Set((e.issues||[]).map(i=>i.path?.[0]).filter(Boolean))].join(', ')+' needs a valid value.'):status>=500?'Temporarily unavailable. Try again shortly.':e.message;
    return res.status(status).json({error:message,code:e.code});
   }
  };

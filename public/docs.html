@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Documents to Spreadsheet | Nexus</title>
+<style>
+:root{--bg:#0a0b10;--panel:#14161d;--panel2:#1a1d26;--line:#2a2f3a;--text:#eef0f4;--mute:#97a0af;--acc:#25f4ee;--acc2:#fe2c55;--warn:#ffb020}
+@media(prefers-color-scheme:light){:root{--bg:#f4f5f8;--panel:#fff;--panel2:#f0f2f6;--line:#dde1e7;--text:#16191d;--mute:#5d6673;--acc:#008f8a;--acc2:#d4163c;--warn:#b26a00}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;-webkit-text-size-adjust:100%}
+main{max-width:760px;margin:0 auto;padding:24px 16px 48px}
+.back{font-size:14px;color:var(--mute);text-decoration:none}
+.eyebrow{display:inline-block;font-size:12px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:#fff;background:rgba(254,44,85,.85);padding:4px 10px;border-radius:999px;margin-top:14px}
+h1{font-size:32px;line-height:1.1;margin:12px 0 8px}h1 span{color:var(--acc)}
+.sub{margin:0;color:var(--mute)}
+h2{font-size:16px;margin:20px 0 6px;color:var(--acc)}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:16px}
+.step{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 8px;text-align:center;font-size:13px;color:var(--mute)}.step b{display:block;font-size:20px;color:var(--acc)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;margin-top:16px}
+label{display:block;font-size:13px;color:var(--mute);margin:12px 0 4px}
+input[type=text]{font:inherit;color:inherit;width:100%;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px 14px;outline:none}
+input[type=file]{display:none}
+.drop{display:block;border:2px dashed var(--line);border-radius:14px;padding:22px 12px;text-align:center;cursor:pointer;color:var(--mute);margin:0}
+.drop b{display:block;color:var(--text);font-size:17px}
+button,.btn{font:inherit;border:0;border-radius:10px;padding:13px;font-weight:700;color:#fff;background:linear-gradient(90deg,var(--acc2),#ff5d7d);cursor:pointer;width:100%;margin-top:14px;text-align:center;text-decoration:none;display:block}
+button.ghost{background:var(--panel2);color:var(--text);border:1px solid var(--line);font-size:14px;padding:9px;margin-top:8px}
+button:disabled{opacity:.5}
+.mute{color:var(--mute);font-size:14px}.err{color:var(--acc2)}
+.price{font-weight:700;color:var(--acc)}
+.files{list-style:none;padding:0;margin:10px 0 0}.files li{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:8px 10px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;margin:6px 0;font-size:14px;word-break:break-all}
+.files button{width:auto;margin:0;padding:6px 10px;font-size:13px}
+.tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;margin-top:8px}
+table{border-collapse:collapse;font-size:13px;width:max-content;min-width:100%}
+th,td{border-bottom:1px solid var(--line);padding:7px 10px;text-align:left;white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis}
+th{background:var(--panel2);position:sticky;top:0}
+td.flag{color:var(--warn);white-space:normal;min-width:180px}
+.sec{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:10px 0}.sec h3{margin:0 0 6px;font-size:15px}.sec ul{margin:6px 0;padding-left:20px}.sec li{margin:5px 0}
+.pulse{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--acc);margin-right:8px;animation:p 1.2s ease-in-out infinite}
+@keyframes p{0%,100%{opacity:.25}50%{opacity:1}}
+@media(prefers-reduced-motion:reduce){.pulse{animation:none}}
+.packs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.packs button{margin-top:10px;padding:12px 6px;line-height:1.25}.packs small{display:block;font-weight:400;font-size:12px}
+@media(max-width:420px){.packs{grid-template-columns:1fr}}
+#wallet-access input{width:100%;font:inherit;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px}#wallet-access button{font-size:14px;padding:10px;margin-top:8px}
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="/marketplace.html">&larr; All Nexus actors</a><br>
+  <span class="eyebrow">Nexus actor</span>
+  <h1>Documents to <span>Spreadsheet</span></h1>
+  <p class="sub">Photos or PDFs of invoices, receipts and bills in. A clean spreadsheet out, with the math checked and anything unclear flagged. Nothing is guessed.</p>
+  <p class="price">12 credits per run &middot; up to 10 pages</p>
+  <div class="steps"><div class="step"><b>1</b>Add your files</div><div class="step"><b>2</b>We read and check them</div><div class="step"><b>3</b>Download the sheet</div></div>
+
+  <div class="panel">
+    <label class="drop" for="pick"><b>Tap to add photos or PDFs</b>Invoices, receipts, bills. JPG, PNG, WebP or PDF.</label>
+    <input id="pick" type="file" accept="image/*,application/pdf" multiple>
+    <ul class="files" id="files"></ul>
+    <label for="fields">Extra columns you want (optional)</label>
+    <input id="fields" type="text" maxlength="300" placeholder="e.g. PO number, due date, payment terms" autocomplete="off">
+    <button id="go">Make my spreadsheet</button>
+    <p class="mute" id="left"></p>
+    <p class="mute err" id="err" role="alert"></p>
+    <p class="mute">Your files are sent to Google&rsquo;s Gemini to be read for this one run. We do not save the files. The results stay here for 7 days so you can come back, then they are deleted. If we cannot read your files, your credits are put back automatically.</p>
+  </div>
+
+  <div class="panel" id="out" hidden></div>
+
+  <div class="panel" id="wallet">
+    <b>Your credits</b>
+    <p class="mute" id="wnote">Buy credits to get your private wallet link. No signup. The same credits work on every Nexus actor.</p>
+    <div id="wallet-access"></div>
+    <div class="packs">
+      <button data-pack="p5">$5<small>50 credits</small></button>
+      <button data-pack="p10">$10<small>110 credits</small></button>
+      <button data-pack="p25">$25<small>300 credits</small></button>
+    </div>
+    <p class="mute">Credits never expire. Purchases are non-refundable, but a run that fails puts its credits back automatically.</p>
+    <p class="mute err" id="msg" role="alert"></p>
+  </div>
+</main>
+<script src="/actor-wallet.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const COST=12,MAX_FILES=10,MAX_BYTES=3000000;
+let key=NexusWallet.current(),items=[],timer=null;
+NexusWallet.controls(key);
+function el(t,txt,cls){const e=document.createElement(t);if(txt!=null)e.textContent=txt;if(cls)e.className=cls;return e;}
+async function call(path,body){
+  const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  let d=null;try{d=await r.json();}catch{}
+  if(!r.ok){const e=new Error((d&&d.error)||'Could not reach the server. Check your connection and try again.');e.status=r.status;e.code=d&&d.code;throw e;}
+  return d.data;
+}
+const credits=n=>n+' credit'+(n===1?'':'s');
+const leftText=n=>credits(n)+' left · this run costs '+COST;
+const bytesOf=b64=>Math.floor(b64.length*0.75);
+function readB64(blob){return new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(',')[1]||'');r.onerror=()=>no(new Error('Could not read that file.'));r.readAsDataURL(blob);});}
+async function prepare(file){
+  const isPdf=file.type==='application/pdf'||/\.pdf$/i.test(file.name);
+  if(isPdf){if(file.size>MAX_BYTES)throw new Error(file.name+' is bigger than 3 MB. Try a smaller PDF or photos of the pages.');return {name:file.name,data:await readB64(file)};}
+  let bmp;
+  try{bmp=await createImageBitmap(file);}catch{throw new Error('Could not open '+file.name+'. Try a JPG or PNG photo.');}
+  const scale=Math.min(1,1800/Math.max(bmp.width,bmp.height));
+  const c=document.createElement('canvas');c.width=Math.max(1,Math.round(bmp.width*scale));c.height=Math.max(1,Math.round(bmp.height*scale));
+  c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);
+  const blob=await new Promise(ok=>c.toBlob(ok,'image/jpeg',0.82));
+  if(!blob)throw new Error('Could not process '+file.name+'.');
+  return {name:file.name.replace(/\.[^.]+$/,'')+'.jpg',data:await readB64(blob)};
+}
+function drawList(){
+  const ul=$('files');ul.replaceChildren();
+  items.forEach((f,i)=>{const li=el('li');li.append(el('span',f.name+' ('+Math.max(1,Math.round(bytesOf(f.data)/1024))+' KB)'));const b=el('button','Remove','ghost');b.addEventListener('click',()=>{items.splice(i,1);drawList();});li.append(b);ul.append(li);});
+}
+$('pick').addEventListener('change',async e=>{
+  $('err').textContent='';
+  const chosen=[...e.target.files];e.target.value='';
+  for(const f of chosen){
+    if(items.length>=MAX_FILES){$('err').textContent='Up to '+MAX_FILES+' files at a time.';break;}
+    try{const p=await prepare(f);items.push(p);}catch(x){$('err').textContent=x.message;}
+  }
+  drawList();
+});
+function csvCell(v){let s=String(v==null?'':v);if(/^[=@\t\r]|^[+-](?![\d.])/.test(s))s="'"+s;return /[",\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}
+const toCsv=t=>[t.columns,...t.rows].map(r=>r.map(csvCell).join(',')).join('\r\n');
+const toTsv=t=>[t.columns,...t.rows].map(r=>r.map(v=>String(v==null?'':v).replace(/[\t\r\n]+/g,' ')).join('\t')).join('\n');
+function download(name,body,type){const url=URL.createObjectURL(new Blob([body],{type:type||'text/plain'}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+function show(r,left){
+  const out=$('out');out.hidden=false;out.replaceChildren();
+  out.append(el('b','Your spreadsheet'),el('p',r.summary));
+  for(const t of r.tables||[]){
+    out.append(el('h2',t.name+' ('+t.rows.length+' row'+(t.rows.length===1?'':'s')+')'));
+    const wrap=el('div',null,'tblwrap'),tb=el('table'),hd=el('tr');
+    t.columns.forEach(c=>hd.append(el('th',c)));tb.append(hd);
+    for(const row of t.rows){const tr=el('tr');row.forEach((v,i)=>{const td=el('td',v);if(i===row.length-1&&v&&v!=='OK')td.className='flag';td.title=v;tr.append(td);});tb.append(tr);}
+    wrap.append(tb);out.append(wrap);
+    const dl=el('button','Download '+t.name+' (.csv)','ghost');dl.addEventListener('click',()=>download('nexus-'+t.name.toLowerCase().replace(/\W+/g,'-')+'.csv','﻿'+toCsv(t),'text/csv'));out.append(dl);
+    const cp=el('button','Copy to paste into Sheets or Excel','ghost');cp.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(toTsv(t));cp.textContent='Copied';}catch{cp.textContent='Copy failed. Use the download instead.';}});out.append(cp);
+  }
+  for(const s of r.sections||[]){const box=el('div',null,'sec');box.append(el('h3',s.title));if(s.items&&s.items.length){const u=el('ul');s.items.forEach(i=>u.append(el('li',i)));box.append(u);}out.append(box);}
+  out.scrollIntoView({behavior:'smooth'});
+}
+$('go').addEventListener('click',async()=>{
+  $('err').textContent='';
+  if(!key){$('err').textContent='Buy credits below first. You get a private wallet link, no signup.';$('wallet').scrollIntoView({behavior:'smooth'});return;}
+  if(!items.length){$('err').textContent='Add at least one photo or PDF.';return;}
+  if(items.reduce((a,f)=>a+bytesOf(f.data),0)>MAX_BYTES){$('err').textContent='Those files are too big together (about 3 MB limit). Remove one or use smaller photos.';return;}
+  $('go').disabled=true;$('go').textContent='Reading your documents...';
+  const out=$('out');out.hidden=false;out.replaceChildren();const w=el('b');w.append(el('span',null,'pulse'),document.createTextNode('Reading and checking your documents. This takes about a minute.'));out.append(w);
+  try{
+    const fields=$('fields').value.trim();
+    const d=await call('/api/doc-extract',{key,files:items.map(({name,data})=>({name,data})),...(fields?{fields}:{})});
+    $('left').textContent=leftText(d.credits_left);show(d.result);
+  }catch(e){
+    out.hidden=true;$('err').textContent=e.message+(e.refunded?' Your credits were put back.':'');
+    if(e.code==='NO_CREDITS'){$('wallet').scrollIntoView({behavior:'smooth'});}
+  }finally{$('go').disabled=false;$('go').textContent='Make my spreadsheet';}
+});
+document.querySelectorAll('#wallet [data-pack]').forEach(b=>b.addEventListener('click',async()=>{
+  b.disabled=true;$('msg').textContent='Opening checkout...';
+  try{const d=await call('/api/actor-credits',{action:'checkout',pack:b.dataset.pack,from:'actor-docs',...(key?{key}:{})});location.href=d.url;}
+  catch(e){$('msg').textContent=e.message;b.disabled=false;}
+}));
+async function init(){
+  const sid=new URLSearchParams(location.search).get('session_id');
+  if(sid){
+    $('msg').textContent='Confirming your payment...';
+    try{
+      const d=await call('/api/actor-credits',{action:'claim',session_id:sid});
+      if(d.path){key=new URL(d.path,location.origin).searchParams.get('k')||'';}
+      NexusWallet.remember(key);NexusWallet.controls(key);
+      history.replaceState(null,'',location.pathname+'?k='+encodeURIComponent(key));
+      $('msg').textContent='Payment received. You have '+credits(d.credits)+'.';$('left').textContent=leftText(d.credits);
+    }catch(e){$('msg').textContent=e.message;}
+    return;
+  }
+  if(!key)return;
+  try{const d=await call('/api/actor-credits',{action:'balance',key});NexusWallet.remember(key);NexusWallet.controls(key);$('left').textContent=leftText(d.credits);$('wnote').textContent='You have '+credits(d.credits)+'. Add more any time.';}
+  catch(e){$('msg').textContent=e.message+' Your saved wallet link has been kept. Please retry.';}
+}
+init();
+</script>
+</body>
+</html>
