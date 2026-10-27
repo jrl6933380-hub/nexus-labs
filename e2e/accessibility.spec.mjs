@@ -116,7 +116,7 @@ for (const file of pages) {
           null, 2,
         ));
       }
-      expect(seriousOrWorse, `${file} has serious/critical accessibility violations — see log above`).toHaveLength(0);
+      expect(seriousOrWorse, `${file} has serious/critical accessibility violations: ${seriousOrWorse.map((v) => `${v.id} (${v.nodes.length})`).join(', ')}`).toHaveLength(0);
     });
 
     test(`${file} declares a mobile viewport`, async ({ page }) => {
