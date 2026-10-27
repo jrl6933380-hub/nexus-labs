@@ -77,7 +77,7 @@ test('catalog entry: in the price range, public view hides instructions',()=>{
   const a=ACTORS.price;
   assert.ok(a&&a.cost>=8&&a.cost<=12);
   assert.ok(!('instructions' in publicCatalog().find(x=>x.id==='price')));
-  for(const s of ['never guess a price','blocked','never calculate','saved_baselines','exact quote'])assert.ok(a.instructions.includes(s),s);
+  for(const s of ['never guess a price','blocked','calculate a change','saved_baselines','exact quote'])assert.ok(a.instructions.includes(s),s);
 });
 
 test('end to end on the queue: baseline saved, then compared on the next run; failure refunds and saves nothing',async()=>{
