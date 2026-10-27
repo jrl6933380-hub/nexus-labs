@@ -109,14 +109,18 @@ function show(d){
   if(r.sources&&r.sources.length){out.append(el('h2','Sources'));const u=el('ul');for(const s of r.sources){const li=el('li'),l=el('a',s.title||s.url);l.href=s.url;l.target='_blank';l.rel='noopener noreferrer';li.append(l);u.append(li);}out.append(u);}
   if(r.notes)out.append(el('p',r.notes,'mute'));
 }
+function leftText(d){
+  if(d.wallet)return d.credits_left+' credit'+(d.credits_left===1?'':'s')+' left · a search costs '+d.search_cost;
+  const n=d.runs_left;return n+' run'+(n===1?'':'s')+' left on this link';
+}
 async function askAd(job,index,btn){
   btn.disabled=true;$('err').textContent='';
-  try{const d=await api('request_ad',{job_id:job,index});$('left').textContent=d.runs_left+' run'+(d.runs_left===1?'':'s')+' left on this link';poll(job);}
+  try{const d=await api('request_ad',{job_id:job,index});$('left').textContent=leftText(d);poll(job);}
   catch(e){$('err').textContent=e.message;btn.disabled=false;}
 }
 async function poll(id){
   clearTimeout(timer);
-  try{const d=await api('status',{job_id:id});$('left').textContent=d.runs_left+' run'+(d.runs_left===1?'':'s')+' left on this link';show(d);
+  try{const d=await api('status',{job_id:id});$('left').textContent=leftText(d);show(d);
     const adBusy=(d.ad_requests||[]).some(a=>a.status==='queued'||a.status==='working');
     if(d.status==='queued'||d.status==='working'||adBusy)timer=setTimeout(()=>poll(id),6000);
     if(d.status!=='queued'&&d.status!=='working')$('go').disabled=false;
@@ -126,7 +130,7 @@ async function poll(id){
 $('go').addEventListener('click',async()=>{
   $('err').textContent='';const c=$('c').value.trim();if(c.length<2){$('c').focus();return;}
   $('go').disabled=true;
-  try{const d=await api('submit',{competitor:c,goal:$('g').value.trim()||undefined});store('job:'+key,d.job_id);$('left').textContent=d.runs_left+' runs left on this link';poll(d.job_id);}
+  try{const d=await api('submit',{competitor:c,goal:$('g').value.trim()||undefined});store('job:'+key,d.job_id);$('left').textContent=leftText(d);poll(d.job_id);}
   catch(e){$('err').textContent=e.message;$('go').disabled=false;}
 });
 if(!key){$('err').textContent='This page needs the link you were given.';$('go').disabled=true;}
