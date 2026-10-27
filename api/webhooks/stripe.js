@@ -16,6 +16,8 @@ import { readInvoice, getInvoiceChargeId } from '../../lib/forgeStripe.js';
 import { recordPaidInvoice, getClient, requestCancel } from '../../lib/forgeDb.js';
 import { payCommissionEvents } from '../../lib/forgePayouts.js';
 import { markWaitlistPaid } from '../../lib/waitlistPayments.js';
+import { grantFromSession } from '../../lib/actorCredits.js';
+import { researchStore } from '../../lib/researchJobs.js';
 
 const FORGE_REVOKING = new Set(['past_due', 'unpaid', 'incomplete_expired', 'paused', 'canceled']);
 
@@ -116,6 +118,17 @@ export default async function handler(req, res) {
     } catch (err) {
       console.error('stripe webhook: waitlist payment failed, asking Stripe to retry:', err.message);
       return res.status(500).json({ error: 'waitlist payment processing failed' });
+    }
+  }
+  // ---- Actor credit packs (research tool). Separate from Forge credits. Failures return 500 so Stripe retries; grants are idempotent by session id. ----
+  if (['checkout.session.completed', 'checkout.session.async_payment_succeeded'].includes(event.type) && forgeObj.metadata?.kind === 'actor_credits') {
+    try {
+      const g = await grantFromSession(forgeObj, { store: researchStore });
+      if (!g.handled) console.error('stripe webhook: actor credits not granted:', g.reason, forgeObj.id);
+      return res.status(200).json({ received: true, actorCredits: g.handled });
+    } catch (err) {
+      console.error('stripe webhook: actor credits failed, asking Stripe to retry:', err.message);
+      return res.status(500).json({ error: 'actor credits processing failed' });
     }
   }
   if (forgeObj.metadata?.kind === 'forge_client') {
