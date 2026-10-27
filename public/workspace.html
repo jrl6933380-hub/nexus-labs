@@ -348,6 +348,7 @@ const deliveredScheduleReminders = new Set();
 const ctx = {
   ask: (text,options) => askFromView(text,options),
   go: (id) => showView(id),
+  openOwnerHome: () => {messagesDestination='home';return showView('messages');},
   openChatSettings: async () => {messagesDestination='settings';await showView('messages');},
   openChatDirectory: async () => {messagesDestination='chats';await showView('messages');},
   simpleChatEnabled:()=>Boolean(simpleChat?.enabled),
@@ -1009,7 +1010,7 @@ async function showView(id){
     thread.innerHTML = '';
     const help=['life','workbench','planner','reminders'].includes(id) ? null : renderFeatureHelp(id,ctx);if(help)thread.appendChild(help);
     for (const node of nodes) thread.appendChild(node);
-    if(!['messages','approvals','guide','life','workbench','planner','reminders'].includes(id)){if(!threadId)threadId='nex-main';teamChat.open(activeConversation,threadId);}
+    if(!['messages','approvals','guide','life','workbench','planner','reminders','lab'].includes(id)){if(!threadId)threadId='nex-main';teamChat.open(activeConversation,threadId);}
   } catch (error) {
     if(renderId!==viewRenderId)return;
     thread.innerHTML = '';

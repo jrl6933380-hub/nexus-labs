@@ -17,6 +17,9 @@
     },
     "api/doc-extract.js": {
       "maxDuration": 60
+    },
+    "api/nexus-lab.js": {
+      "maxDuration": 60
     }
   },
   "redirects": [

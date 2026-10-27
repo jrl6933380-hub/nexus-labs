@@ -1,3 +1,4 @@
+import {renderNexusLab} from './nexus-lab.js';
 import {renderBuildOptions} from './build-options.js';
 import {NEXUS_INTRO,QUICK_STARTS,renderExampleButtons,renderNexusGuide} from './nexus-guide.js';
 // /public/workspace-views.js
@@ -359,6 +360,7 @@ export function scheduleBalance(summary = {}, items = [], ctx) {
 
 export const VIEWS = {
   guide: {label:'Explore Nexus',icon:'?',say:['explore nexus','nexus guide','what is nexus','practical uses','help','how to use nexus'],async render(ctx){return [renderNexusGuide(ctx)];}},
+  lab: {label:'Nexus Lab',icon:'L',say:['nexus lab','capability lab'],async render(ctx){return [await renderNexusLab(ctx)];}},
   messages: {
     label:'Messages', icon:'✦', say:['messages','inbox','conversations'],
     async render(ctx){return [await renderMessages(ctx)];},
