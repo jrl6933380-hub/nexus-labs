@@ -27,7 +27,9 @@ export function createActorCreditsHandler({store=researchStore,post=(p,b)=>strip
    const b=req.body;
    if(!b||typeof b!=='object'||Array.isArray(b)||Object.keys(b).some(k=>!['action','key','pack','session_id','from'].includes(k)))return res.status(400).json({error:'Unknown fields.'});
    const {action,key,pack,session_id,from}=b;
-   const page=from==='market'?'/marketplace.html':'/research.html';
+   const am=/^actor-([a-z]{2,12})$/u.exec(typeof from==='string'?from:'');
+   const page=from==='market'?'/marketplace.html':am?'/actor.html?a='+am[1]:'/research.html';
+   const sep=page.includes('?')?'&':'?';
    if(action==='packs')return res.status(200).json({ok:true,data:{packs:Object.values(PACKS).map(({id,cents,credits})=>({id,cents,credits}))}});
    if(action==='catalog')return res.status(200).json({ok:true,data:{actors:publicCatalog()}});
    if(action==='balance'){const w=await store.walletByToken(key);return res.status(200).json({ok:true,data:{credits:w.credits,search_cost:w.search_cost}});}
@@ -42,8 +44,8 @@ export function createActorCreditsHandler({store=researchStore,post=(p,b)=>strip
      'line_items[0][price_data][currency]':'usd','line_items[0][price_data][unit_amount]':p.cents,
      'line_items[0][price_data][product_data][name]':p.credits+' Nexus actor credits','line_items[0][quantity]':1,
      'metadata[kind]':'actor_credits','metadata[pack]':p.id,...(linkId?{'metadata[link_id]':linkId}:{}),
-     success_url:site+page+'?'+(key?'k='+encodeURIComponent(key)+'&':'')+'paid=1&session_id={CHECKOUT_SESSION_ID}',
-     cancel_url:site+page+(key?'?k='+encodeURIComponent(key):''),
+     success_url:site+page+sep+(key?'k='+encodeURIComponent(key)+'&':'')+'paid=1&session_id={CHECKOUT_SESSION_ID}',
+     cancel_url:site+page+(key?sep+'k='+encodeURIComponent(key):''),
     });
     return res.status(200).json({ok:true,data:{url:session.url}});
    }
