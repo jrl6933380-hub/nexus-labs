@@ -33,6 +33,8 @@ export function createNexusLabHandler({authenticate=getNexusOwner,assets=nexusLa
     if(action==='job_enqueue'){const job=await jobs.enqueue(owner,{kind:input.kind,input:input.input,request_id:req.body.request_id});kick(owner,job.id);return res.status(202).json({job});}
     if(action==='job_cancel')return res.status(200).json({job:await jobs.cancel(owner,input.id)});
     if(action==='job_retry'){const job=await jobs.retry(owner,input.id);kick(owner,job.id);return res.status(202).json({job});}
+    if(action==='index_status')return res.status(200).json(await service.indexStatus(owner));
+    if(action==='index_build')return res.status(200).json(await service.indexBuild(owner));
     if(req.body?.action!=='run')return res.status(400).json({error:'Choose a supported Lab action.'});
     return res.status(200).json({run:await service.run(owner,req.body)});
   }catch(error){return res.status(error.status||503).json({error:error.status?error.message:'Nexus Lab is unavailable. Try again shortly.'});}
