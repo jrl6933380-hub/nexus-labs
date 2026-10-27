@@ -63,7 +63,7 @@ td.flag{color:var(--warn);white-space:normal;min-width:180px}
     <button id="go">Make my spreadsheet</button>
     <p class="mute" id="left"></p>
     <p class="mute err" id="err" role="alert"></p>
-    <p class="mute">Your files are sent to Google&rsquo;s Gemini to be read for this one run. We do not save the files. The results stay here for 7 days so you can come back, then they are deleted. If we cannot read your files, your credits are put back automatically.</p>
+    <p class="mute">Your photos are held only while Claude reads them and are deleted as soon as your run finishes. We do not keep them. The results stay here for 7 days so you can come back, then they are deleted. If we cannot read your files, your credits are put back automatically.</p>
   </div>
 
   <div class="panel" id="out" hidden></div>
@@ -98,9 +98,9 @@ const credits=n=>n+' credit'+(n===1?'':'s');
 const leftText=n=>credits(n)+' left · this run costs '+COST;
 const bytesOf=b64=>Math.floor(b64.length*0.75);
 function readB64(blob){return new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(',')[1]||'');r.onerror=()=>no(new Error('Could not read that file.'));r.readAsDataURL(blob);});}
-async function prepare(file){
+async function prepare(file,room){
   const isPdf=file.type==='application/pdf'||/\.pdf$/i.test(file.name);
-  if(isPdf){if(file.size>MAX_BYTES)throw new Error(file.name+' is bigger than 3 MB. Try a smaller PDF or photos of the pages.');return {name:file.name,data:await readB64(file)};}
+  if(isPdf)return pdfPages(file,room);
   let bmp;
   try{bmp=await createImageBitmap(file);}catch{throw new Error('Could not open '+file.name+'. Try a JPG or PNG photo.');}
   const scale=Math.min(1,1800/Math.max(bmp.width,bmp.height));
@@ -108,7 +108,59 @@ async function prepare(file){
   c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);
   const blob=await new Promise(ok=>c.toBlob(ok,'image/jpeg',0.82));
   if(!blob)throw new Error('Could not process '+file.name+'.');
-  return {name:file.name.replace(/\.[^.]+$/,'')+'.jpg',data:await readB64(blob)};
+  return [{name:file.name.replace(/\.[^.]+$/,'')+'.jpg',data:await readB64(blob)}];
+}
+const PDFJS='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+let pdfLib=null;
+async function loadPdf(){
+  if(pdfLib)return pdfLib;
+  try{
+    await new Promise((ok,no)=>{const s=document.createElement('script');s.src=PDFJS+'pdf.min.js';s.onload=ok;s.onerror=no;document.head.append(s);});
+    const w=await (await fetch(PDFJS+'pdf.worker.min.js')).text();
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc=URL.createObjectURL(new Blob([w],{type:'text/javascript'}));
+  }catch{throw new Error('Could not open PDFs here. Please add photos or screenshots of the pages instead.');}
+  return pdfLib=window.pdfjsLib;
+}
+// A PDF page becomes a photo, because the reader works from images.
+async function pdfPages(file,room){
+  const lib=await loadPdf();
+  let doc;
+  try{doc=await lib.getDocument({data:await file.arrayBuffer()}).promise;}catch{throw new Error('Could not open '+file.name+'. Try photos of the pages.');}
+  if(doc.numPages>room)throw new Error(file.name+' has '+doc.numPages+' pages but there is room for '+Math.max(room,0)+' more (limit '+MAX_FILES+' pages). Split it into smaller batches.');
+  const out=[],base=file.name.replace(/\.[^.]+$/,'');
+  for(let n=1;n<=doc.numPages;n++){
+    const page=await doc.getPage(n),v1=page.getViewport({scale:1}),scale=Math.min(3,1800/Math.max(v1.width,v1.height)),vp=page.getViewport({scale});
+    const c=document.createElement('canvas');c.width=Math.round(vp.width);c.height=Math.round(vp.height);
+    await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
+    const blob=await new Promise(ok=>c.toBlob(ok,'image/jpeg',0.82));
+    if(!blob)throw new Error('Could not process '+file.name+'.');
+    out.push({name:base+' p'+n+'.jpg',data:await readB64(blob)});
+  }
+  return out;
+}
+async function waitFor(id){
+  const t0=Date.now();
+  for(;;){
+    await new Promise(r=>setTimeout(r,5000));
+    const d=await call('/api/research-jobs',{action:'status',key,input:{job_id:id}});
+    if(d.status==='done')return d;
+    if(d.status==='failed')throw new Error(d.error||'We could not finish that. Your credits were put back.');
+    if(Date.now()-t0>20*60*1000)throw new Error('This is taking longer than usual. Come back to this page in a few minutes. Your credits are put back automatically if it fails.');
+  }
+}
+function waiting(){
+  const out=$('out');out.hidden=false;out.replaceChildren();
+  const w=el('b');w.append(el('span',null,'pulse'),document.createTextNode('Claude is reading and checking your documents. This usually takes 1 to 3 minutes. You can leave this page open.'));out.append(w);
+}
+async function resume(){
+  let id=null;try{id=localStorage.getItem('docjob:'+key);}catch{}
+  if(!key||!id)return;
+  try{
+    const d=await call('/api/research-jobs',{action:'status',key,input:{job_id:id}});
+    if(d.status==='done'){show(d.result);return;}
+    if(d.status==='queued'||d.status==='working'){$('go').disabled=true;waiting();const r=await waitFor(id);show(r.result);}
+  }catch(e){$('out').hidden=true;$('err').textContent=e.message;}
+  finally{$('go').disabled=false;}
 }
 function drawList(){
   const ul=$('files');ul.replaceChildren();
@@ -119,7 +171,7 @@ $('pick').addEventListener('change',async e=>{
   const chosen=[...e.target.files];e.target.value='';
   for(const f of chosen){
     if(items.length>=MAX_FILES){$('err').textContent='Up to '+MAX_FILES+' files at a time.';break;}
-    try{const p=await prepare(f);items.push(p);}catch(x){$('err').textContent=x.message;}
+    try{items.push(...await prepare(f,MAX_FILES-items.length));}catch(x){$('err').textContent=x.message;}
   }
   drawList();
 });
@@ -148,11 +200,14 @@ $('go').addEventListener('click',async()=>{
   if(!items.length){$('err').textContent='Add at least one photo or PDF.';return;}
   if(items.reduce((a,f)=>a+bytesOf(f.data),0)>MAX_BYTES){$('err').textContent='Those files are too big together (about 3 MB limit). Remove one or use smaller photos.';return;}
   $('go').disabled=true;$('go').textContent='Reading your documents...';
-  const out=$('out');out.hidden=false;out.replaceChildren();const w=el('b');w.append(el('span',null,'pulse'),document.createTextNode('Reading and checking your documents. This takes about a minute.'));out.append(w);
+  waiting();const out=$('out');
   try{
     const fields=$('fields').value.trim();
-    const d=await call('/api/doc-extract',{key,files:items.map(({name,data})=>({name,data})),...(fields?{fields}:{})});
-    $('left').textContent=leftText(d.credits_left);show(d.result);
+    const q=await call('/api/doc-extract',{key,files:items.map(({name,data})=>({name,data})),...(fields?{fields}:{})});
+    try{localStorage.setItem('docjob:'+key,q.job_id);}catch{}
+    $('left').textContent=leftText(q.credits_left);
+    const d=await waitFor(q.job_id);
+    show(d.result);items=[];drawList();
   }catch(e){
     out.hidden=true;$('err').textContent=e.message+(e.refunded?' Your credits were put back.':'');
     if(e.code==='NO_CREDITS'){$('wallet').scrollIntoView({behavior:'smooth'});}
@@ -180,7 +235,7 @@ async function init(){
   try{const d=await call('/api/actor-credits',{action:'balance',key});NexusWallet.remember(key);NexusWallet.controls(key);$('left').textContent=leftText(d.credits);$('wnote').textContent='You have '+credits(d.credits)+'. Add more any time.';}
   catch(e){$('msg').textContent=e.message+' Your saved wallet link has been kept. Please retry.';}
 }
-init();
+init();resume();
 </script>
 </body>
 </html>

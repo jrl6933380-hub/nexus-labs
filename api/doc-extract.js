@@ -1,8 +1,9 @@
 import '../lib/store/installFetch.js';
 import {researchStore} from '../lib/researchJobs.js';
-import {validateFiles,extractDocuments} from '../lib/docExtract.js';
-// Public endpoint for Documents to Spreadsheet. Access is the wallet link key. Files are read in memory for this one request.
-export function createDocExtractHandler({store=researchStore,extract=extractDocuments}={}){
+import {validateFiles} from '../lib/docExtract.js';
+// Public endpoint for Documents to Spreadsheet. Access is the wallet link key. The photos wait in a private store only until the job ends,
+// the Claude agent reads them, and the page polls /api/research-jobs for the result.
+export function createDocExtractHandler({store=researchStore}={}){
  return async(req,res)=>{
   res.setHeader('Cache-Control','private, no-store');res.setHeader('X-Content-Type-Options','nosniff');
   if(req.method!=='POST')return res.status(405).json({error:'Use POST.'});
@@ -14,12 +15,12 @@ export function createDocExtractHandler({store=researchStore,extract=extractDocu
    if(!b||typeof b!=='object'||Array.isArray(b)||Object.keys(b).some(k=>!['key','fields','files'].includes(k)))return res.status(400).json({error:'Provide key, files and optional fields only.'});
    const files=validateFiles(b.files);
    const fields=typeof b.fields==='string'?b.fields.replace(/[\u0000-\u001f\u007f]/gu,' ').replace(/\s+/gu,' ').trim().slice(0,300):'';
-   const out=await store.runNow(b.key,'docs',fields?{fields}:{},()=>extract({files,fields}));
+   const out=await store.submitDocs(b.key,{fields,files});
    return res.status(200).json({ok:true,data:out});
   }catch(e){
    const status=e.status||(e.name==='ZodError'?400:500);
    if(status>=500)console.error('doc-extract error:',e.message);
-   return res.status(status).json({error:status>=500?'Temporarily unavailable. Try again shortly.':e.message,code:e.code,...(e.refunded?{refunded:true}:{})});
+   return res.status(status).json({error:status>=500?'Temporarily unavailable. Try again shortly.':e.message,code:e.code});
   }
  };
 }

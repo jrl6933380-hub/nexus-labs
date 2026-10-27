@@ -1,14 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createResearchStore } from '../lib/researchJobs.js';
-import { sniff, validateFiles, analyze, toResult, extractDocuments, MAX_TOTAL_BYTES } from '../lib/docExtract.js';
+import { createResearchStore, genericResultSchema } from '../lib/researchJobs.js';
+import { sniff, validateFiles, analyze, toResult, MAX_TOTAL_BYTES } from '../lib/docExtract.js';
 import { createDocExtractHandler } from '../api/doc-extract.js';
 import { compactionAction, RECEIPT_AFTER_MS } from '../lib/jobReceipts.js';
+import { ACTORS, publicActor } from '../lib/actorCatalog.js';
 
+const FILES = 'nexus:research:files:v1';
 function memory() {
-  const h = new Map();
-  return async (parts) => {
-    const [cmd, , ...rest] = parts;
+  const h = new Map(), f = new Map();
+  const fn = async (parts) => {
+    const [cmd, key, ...rest] = parts;
+    if (key === FILES) {
+      if (cmd === 'HSET') { f.set(rest[0], rest[1]); return 1; }
+      if (cmd === 'HGET') return f.get(rest[0]) ?? null;
+      if (cmd === 'HDEL') { f.delete(rest[0]); return 1; }
+      throw new Error('unexpected files ' + cmd);
+    }
     if (cmd === 'HGET') return h.get(rest[0]) ?? null;
     if (cmd === 'HVALS') return [...h.values()];
     if (cmd === 'HDEL') { h.delete(rest[0]); return 1; }
@@ -21,15 +29,18 @@ function memory() {
     }
     throw new Error('unexpected ' + cmd);
   };
+  fn.files = f;
+  return fn;
 }
-const store = () => createResearchStore({ command: memory(), wake: async () => ({ woke: false }) });
+const store = () => { const command = memory(); const s = createResearchStore({ command, wake: async () => ({ woke: false }) }); s.command = command; return s; };
 const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(40, 1)]);
-const pdf = Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.from('<< /Type /Page >> << /Type /Pages >> << /Type /Page >>'), Buffer.alloc(40, 32)]);
+const pdf = Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.alloc(40, 32)]);
 const file = (buf, name = 'a.jpg') => ({ name, data: buf.toString('base64') });
 const res = () => { const r = { code: 0, body: null, setHeader() {}, status(c) { r.code = c; return r; }, json(b) { r.body = b; return r; } }; return r; };
 const req = (body) => ({ method: 'POST', headers: { 'content-type': 'application/json' }, body });
 
 const inv = (over = {}) => ({ file: 'inv1.jpg', page: 1, supplier: 'Acme Supply', date: '2026-10-01', invoice_number: 'A-100', currency: 'USD', subtotal: 100, tax: 8, total: 108, readable: true, notes: null, extra: {}, line_items: [{ description: 'Widget', quantity: 2, unit_price: 25, amount: 50 }, { description: 'Gadget', quantity: 1, unit_price: 50, amount: 50 }], ...over });
+const agentResult = (documents) => ({ summary: 'Read documents', sections: [{ title: 'Checks', items: [] }], documents });
 
 test('file type comes from the bytes, not what the browser says', () => {
   assert.equal(sniff(jpeg), 'image/jpeg');
@@ -37,15 +48,14 @@ test('file type comes from the bytes, not what the browser says', () => {
   assert.equal(sniff(Buffer.from('<html>not a pdf at all, sorry</html>')), null);
 });
 
-test('upload checks: count, type, size, page limits', () => {
+test('upload checks: photos only, count and size limits', () => {
   assert.throws(() => validateFiles([]), /at least one/);
-  assert.throws(() => validateFiles([{ name: 'x', data: Buffer.from('hello world, this is text').toString('base64') }]), /not a PDF or a photo/);
-  assert.throws(() => validateFiles(Array.from({ length: 11 }, () => file(jpeg))), /up to 10 files/);
+  assert.throws(() => validateFiles([{ name: 'x', data: Buffer.from('hello world, this is text').toString('base64') }]), /not a photo/);
+  assert.throws(() => validateFiles([file(pdf, 'inv.pdf')]), /turned into photos/);
+  assert.throws(() => validateFiles(Array.from({ length: 11 }, () => file(jpeg))), /up to 10 pages/);
   assert.throws(() => validateFiles([file(Buffer.concat([jpeg, Buffer.alloc(MAX_TOTAL_BYTES)]))]), (e) => e.code === 'DOC_TOO_BIG');
-  const many = Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.from('<< /Type /Page >>'.repeat(11))]);
-  assert.throws(() => validateFiles([file(many, 'big.pdf')]), /up to 10 pages/);
-  const ok = validateFiles([file(jpeg, 'receipt\n1.jpg'), file(pdf, 'inv.pdf')]);
-  assert.deepEqual(ok.map((f) => f.mime), ['image/jpeg', 'application/pdf']);
+  const ok = validateFiles([file(jpeg, 'receipt\n1.jpg')]);
+  assert.equal(ok[0].mime, 'image/jpeg');
   assert.equal(ok[0].name, 'receipt 1.jpg');
 });
 
@@ -85,49 +95,80 @@ test('requested extra columns become table columns', () => {
   assert.equal(a.tables[0].rows[0][9], 'PO-77');
 });
 
-test('extractDocuments reads through Gemini JSON, and refuses when nothing is readable', async () => {
-  const reply = (obj) => async () => ({ ok: true, status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text: '```json\n' + JSON.stringify(obj) + '\n```' }] } }] }) });
-  const files = validateFiles([file(jpeg)]);
-  const ok = await extractDocuments({ files, fields: '' }, { fetchImpl: reply({ documents: [inv()] }), env: { GEMINI_API_KEY: 'k' } });
-  assert.equal(ok.tables.length, 2);
-  await assert.rejects(() => extractDocuments({ files }, { fetchImpl: reply({ documents: [inv({ readable: false })] }), env: { GEMINI_API_KEY: 'k' } }), (e) => e.code === 'UNREADABLE');
-  await assert.rejects(() => extractDocuments({ files }, { fetchImpl: reply({ documents: [] }), env: { GEMINI_API_KEY: 'k' } }), (e) => e.code === 'UNREADABLE');
-  await assert.rejects(() => extractDocuments({ files }, { fetchImpl: async () => ({ ok: true, json: async () => ({}) }), env: { GEMINI_API_KEY: 'k' } }), (e) => e.code === 'UNREADABLE');
-  await assert.rejects(() => extractDocuments({ files }, { fetchImpl: reply({}), env: {} }), (e) => e.code === 'UNAVAILABLE');
-});
-
-test('the wallet pays 12 credits for a good run and gets them back when reading fails', async () => {
+test('the upload goes through the queue: 12 credits, files held, agent reads them, math checked, files deleted', async () => {
   const s = store();
   const { token, link_id } = await s.createLink({ label: 'W', credits: 30 });
-  const good = await s.runNow(token, 'docs', {}, async () => toResult(analyze({ documents: [inv()] })));
-  assert.equal(good.credits_left, 18);
-  assert.equal(good.result.tables.length, 2);
-  const err = await s.runNow(token, 'docs', {}, async () => { throw Object.assign(new Error('Could not read.'), { status: 422 }); }).catch((e) => e);
-  assert.equal(err.refunded, true);
-  assert.equal((await s.walletInfo({ link_id })).credits, 18);
-  const crash = await s.runNow(token, 'docs', {}, async () => { throw new Error('boom internal detail'); }).catch((e) => e);
-  assert.doesNotMatch(crash.message, /boom/);
-  assert.equal((await s.walletInfo({ link_id })).credits, 18);
-  const st = await s.status(token, { job_id: good.job_id });
-  assert.equal(st.actor, 'docs');
+  const q = await s.submitDocs(token, { fields: 'PO number', files: validateFiles([file(jpeg, 'a.jpg'), file(jpeg, 'b.jpg')]) });
+  assert.equal(q.status, 'queued');
+  assert.equal(q.credits_left, 18);
+  assert.equal(s.command.files.size, 1);
+  const c = await s.claim({ job_id: q.job_id });
+  assert.equal(c.claimed, true);
+  assert.equal(c.actor, 'docs');
+  assert.equal(c.inline_images.length, 2);
+  assert.equal(c.inline_images[0].mime, 'image/jpeg');
+  assert.match(c.inline_images[1].label, /File 2: b\.jpg/);
+  assert.match(c.instructions, /NEVER guess/);
+  assert.match(c.instructions, /PO number/);
+  const done = await s.complete({ job_id: q.job_id, result: agentResult([inv({ file: 'a.jpg', total: 120 }), inv({ file: 'b.jpg' })]) });
+  assert.equal(done.status, 'done');
+  assert.equal(s.command.files.size, 0);
+  const st = await s.status(token, { job_id: q.job_id });
+  assert.equal(st.status, 'done');
   assert.equal(st.result.tables[0].name, 'Documents');
+  assert.equal(st.result.documents, undefined);
+  assert.match(st.result.sections[0].items.join(' '), /a\.jpg: Subtotal \+ tax is 108 but the total is 120/);
+  assert.equal((await s.walletInfo({ link_id })).credits, 18);
 });
 
-test('too few credits, run-only links and the agent queue are all refused for documents', async () => {
+test('nothing readable fails the job, deletes the files and puts the credits back', async () => {
+  const s = store();
+  const { token, link_id } = await s.createLink({ label: 'W', credits: 30 });
+  const q = await s.submitDocs(token, { files: validateFiles([file(jpeg)]) });
+  await s.claim({ job_id: q.job_id });
+  const out = await s.complete({ job_id: q.job_id, result: agentResult([inv({ readable: false, notes: 'blurry' })]) });
+  assert.equal(out.status, 'failed');
+  assert.equal(out.refunded, true);
+  assert.equal(s.command.files.size, 0);
+  assert.equal((await s.walletInfo({ link_id })).credits, 30);
+  const q2 = await s.submitDocs(token, { files: validateFiles([file(jpeg)]) });
+  await s.claim({ job_id: q2.job_id });
+  const err = await s.complete({ job_id: q2.job_id, error: 'cannot read' });
+  assert.equal(err.status, 'failed');
+  assert.equal(s.command.files.size, 0);
+  assert.equal((await s.walletInfo({ link_id })).credits, 30);
+});
+
+test('a job whose files are gone is failed and refunded instead of claimed', async () => {
+  const s = store();
+  const { token, link_id } = await s.createLink({ label: 'W', credits: 30 });
+  const q = await s.submitDocs(token, { files: validateFiles([file(jpeg)]) });
+  s.command.files.clear();
+  const c = await s.claim({ job_id: q.job_id });
+  assert.equal(c.claimed, false);
+  assert.equal((await s.walletInfo({ link_id })).credits, 30);
+});
+
+test('too few credits and run-only links are refused, and the normal submit path points to the upload page', async () => {
   const s = store();
   const poor = await s.createLink({ label: 'P', credits: 5 });
-  await assert.rejects(() => s.runNow(poor.token, 'docs', {}, async () => ({})), (e) => e.code === 'NO_CREDITS');
+  await assert.rejects(() => s.submitDocs(poor.token, { files: validateFiles([file(jpeg)]) }), (e) => e.code === 'NO_CREDITS');
   const runs = await s.createLink({ label: 'R', runs: 3 });
-  await assert.rejects(() => s.runNow(runs.token, 'docs', {}, async () => ({})), (e) => e.code === 'NO_CREDITS');
+  await assert.rejects(() => s.submitDocs(runs.token, { files: validateFiles([file(jpeg)]) }), (e) => e.code === 'NO_CREDITS');
   const rich = await s.createLink({ label: 'W', credits: 30 });
   await assert.rejects(() => s.submit(rich.token, { actor: 'docs' }), (e) => e.code === 'USE_UPLOAD');
-  await assert.rejects(() => s.runNow(rich.token, 'reviews', { reviews: 'Great place, loved it' }, async () => ({})), (e) => e.code === 'NOT_INSTANT');
+  assert.equal(publicActor(ACTORS.docs).upload, true);
+  assert.equal(s.command.files.size, 0);
 });
 
-test('upload endpoint validates before spending and returns the spreadsheet', async () => {
+test('the stored result never keeps the raw documents field', () => {
+  assert.ok(genericResultSchema.parse({ summary: 's', sections: [{ title: 't' }], documents: [{ file: 'x' }] }).documents);
+});
+
+test('upload endpoint validates before spending and queues the job', async () => {
   const s = store();
   const { token, link_id } = await s.createLink({ label: 'W', credits: 30 });
-  const h = createDocExtractHandler({ store: s, extract: async () => toResult(analyze({ documents: [inv()] })) });
+  const h = createDocExtractHandler({ store: s });
   const bad = res(); await h(req({ key: token, files: [{ name: 'x', data: Buffer.from('plain text file here').toString('base64') }] }), bad);
   assert.equal(bad.code, 400);
   assert.equal((await s.walletInfo({ link_id })).credits, 30);
@@ -135,8 +176,8 @@ test('upload endpoint validates before spending and returns the spreadsheet', as
   assert.equal(nokey.code, 404);
   const ok = res(); await h(req({ key: token, files: [file(jpeg)], fields: 'PO number' }), ok);
   assert.equal(ok.code, 200);
+  assert.equal(ok.body.data.status, 'queued');
   assert.equal(ok.body.data.credits_left, 18);
-  assert.equal(ok.body.data.result.tables[0].name, 'Documents');
   const extra = res(); await h(req({ key: token, files: [file(jpeg)], hack: 1 }), extra);
   assert.equal(extra.code, 400);
 });
