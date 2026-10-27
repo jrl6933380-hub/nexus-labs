@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Nexus Actor</title>
+<style>
+:root{--bg:#0a0b10;--panel:#14161d;--panel2:#1a1d26;--line:#2a2f3a;--text:#eef0f4;--mute:#97a0af;--acc:#25f4ee;--acc2:#fe2c55}
+@media(prefers-color-scheme:light){:root{--bg:#f4f5f8;--panel:#fff;--panel2:#f0f2f6;--line:#dde1e7;--text:#16191d;--mute:#5d6673;--acc:#008f8a;--acc2:#d4163c}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;-webkit-text-size-adjust:100%}
+main{max-width:680px;margin:0 auto;padding:24px 16px 48px}
+.back{font-size:14px;color:var(--mute);text-decoration:none}
+.eyebrow{display:inline-block;font-size:12px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:#fff;background:rgba(254,44,85,.85);padding:4px 10px;border-radius:999px;margin-top:14px}
+h1{font-size:30px;line-height:1.1;margin:12px 0 8px}
+.sub{margin:0;color:var(--mute)}
+h2{font-size:16px;margin:20px 0 6px;color:var(--acc)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;margin-top:16px}
+label{display:block;font-size:13px;color:var(--mute);margin:12px 0 4px}
+input,textarea{font:inherit;color:inherit;width:100%;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px 14px;outline:none}
+input:focus,textarea:focus{border-color:var(--acc)}
+textarea{min-height:110px;resize:vertical}
+button,.btn{font:inherit;border:0;border-radius:10px;padding:13px;font-weight:700;color:#fff;background:linear-gradient(90deg,var(--acc2),#ff5d7d);cursor:pointer;width:100%;margin-top:14px;text-align:center;text-decoration:none;display:block}
+button.ghost{background:var(--panel2);color:var(--text);border:1px solid var(--line);font-size:14px;padding:9px;margin-top:8px}
+button:disabled{opacity:.5}
+.mute{color:var(--mute);font-size:14px}.err{color:var(--acc2)}
+.price{font-weight:700;color:var(--acc)}
+.sec{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:10px 0}
+.sec h3{margin:0 0 6px;font-size:15px}
+.sec p{margin:6px 0;white-space:pre-wrap}
+.sec ul{margin:6px 0;padding-left:20px}.sec li{margin:5px 0;white-space:pre-wrap}
+iframe{width:100%;height:520px;border:1px solid var(--line);border-radius:12px;background:#fff;margin-top:8px}
+.pulse{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--acc);margin-right:8px;animation:p 1.2s ease-in-out infinite}
+@keyframes p{0%,100%{opacity:.25}50%{opacity:1}}
+@media(prefers-reduced-motion:reduce){.pulse{animation:none}}
+.packs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.packs button{margin-top:10px;padding:12px 6px;line-height:1.25}.packs small{display:block;font-weight:400;font-size:12px}
+@media(max-width:420px){.packs{grid-template-columns:1fr}}
+#wallet-access input{font-size:14px}#wallet-access button{font-size:14px;padding:10px;margin-top:8px}
+a{color:var(--acc)}
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="/marketplace.html" id="back">&larr; All Nexus actors</a><br>
+  <span class="eyebrow" id="eyebrow">Nexus actor</span>
+  <h1 id="title">Loading...</h1>
+  <p class="sub" id="blurb"></p>
+  <p class="price" id="price"></p>
+
+  <div class="panel" id="form" hidden>
+    <div id="fields"></div>
+    <button id="go">Run it</button>
+    <p class="mute" id="left"></p>
+    <p class="mute err" id="err" role="alert"></p>
+  </div>
+
+  <div class="panel" id="out" hidden></div>
+
+  <div class="panel" id="wallet">
+    <b>Your credits</b>
+    <p class="mute" id="wnote">Buy credits to get your private wallet link. No signup. The same credits work on every Nexus actor.</p>
+    <div id="wallet-access"></div>
+    <div class="packs">
+      <button data-pack="p5">$5<small>50 credits</small></button>
+      <button data-pack="p10">$10<small>110 credits</small></button>
+      <button data-pack="p25">$25<small>300 credits</small></button>
+    </div>
+    <p class="mute">Credits never expire. Purchases are non-refundable, but a run that fails puts its credits back automatically.</p>
+    <p class="mute err" id="msg" role="alert"></p>
+  </div>
+</main>
+<script src="/actor-wallet.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const aid=(new URLSearchParams(location.search).get('a')||'').slice(0,20);
+let key=NexusWallet.current(),actor=null,timer=null,lastResult=null;
+NexusWallet.controls(key);
+function store(k,v){try{if(v==null)localStorage.removeItem(k);else localStorage.setItem(k,v);}catch{}}
+function load(k){try{return localStorage.getItem(k);}catch{return null;}}
+function el(t,txt,cls){const e=document.createElement(t);if(txt!=null)e.textContent=txt;if(cls)e.className=cls;return e;}
+async function call(path,body){
+  const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  let d=null;try{d=await r.json();}catch{}
+  if(!r.ok){const e=new Error((d&&d.error)||'Could not reach the server.');e.status=r.status;e.code=d&&d.code;throw e;}
+  return d.data;
+}
+const credits=(a,b)=>a+' credit'+(a===1?'':'s')+(b?' left':'');
+function leftText(n){return credits(n,true)+' · this run costs '+actor.cost;}
+function safeUrl(u){try{const x=new URL(u);return x.protocol==='https:'||x.protocol==='http:'?x.href:null;}catch{return null;}}
+function download(name,body,type){const url=URL.createObjectURL(new Blob([body],{type:type||'text/plain'}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+function sectionText(s){return [s.title,s.body,...(s.items||[]).map(i=>'- '+i)].filter(Boolean).join('\n');}
+function working(text){const b=el('b');b.append(el('span',null,'pulse'),document.createTextNode(text));return b;}
+function show(d){
+  const out=$('out');out.hidden=false;out.replaceChildren();
+  if(d.status==='queued'){out.append(working('In line'),el('p','Position '+d.position+'. This page updates by itself.','mute'));return;}
+  if(d.status==='working'){out.append(working('Working on it...'),el('p','This usually takes a few minutes. You can leave this page open.','mute'));return;}
+  if(d.status==='failed'){out.append(el('b','Could not finish'),el('p',d.error,'err'));return;}
+  if(d.archived||!d.result){out.append(el('b','Older result'),el('p','This result has been cleared. Run it again for a fresh one.','mute'));return;}
+  const r=d.result;lastResult=r;
+  out.append(el('b','Your result'),el('p',r.summary));
+  for(const s of r.sections||[]){
+    const box=el('div',null,'sec');box.append(el('h3',s.title));
+    if(s.body)box.append(el('p',s.body));
+    if(s.items&&s.items.length){const u=el('ul');s.items.forEach(i=>u.append(el('li',i)));box.append(u);}
+    const c=el('button','Copy','ghost');c.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(sectionText(s));c.textContent='Copied';}catch{c.textContent='Select and copy the text above';}});box.append(c);
+    out.append(box);
+  }
+  if(r.preview_html){
+    out.append(el('h2','Draft page preview'));
+    const f=document.createElement('iframe');f.setAttribute('sandbox','');f.setAttribute('referrerpolicy','no-referrer');f.setAttribute('title','Draft page preview');f.srcdoc=r.preview_html;out.append(f);
+    const dl=el('button','Download the HTML','ghost');dl.addEventListener('click',()=>download('draft-page.html',r.preview_html,'text/html'));out.append(dl);
+  }
+  if(r.sources&&r.sources.length){out.append(el('h2','Sources'));const u=el('ul');for(const s of r.sources){const href=safeUrl(s.url);if(!href)continue;const li=el('li'),l=el('a',s.title||href);l.href=href;l.target='_blank';l.rel='noopener noreferrer';li.append(l);u.append(li);}out.append(u);}
+  if(r.notes)out.append(el('p',r.notes,'mute'));
+  const all=el('button','Download everything (.txt)','ghost');all.addEventListener('click',()=>download('nexus-'+actor.id+'.txt',[r.summary,...(r.sections||[]).map(sectionText),r.notes||''].join('\n\n')));out.append(all);
+}
+async function poll(id){
+  clearTimeout(timer);
+  try{
+    const d=await call('/api/research-jobs',{action:'status',key,input:{job_id:id}});
+    if(d.wallet)$('left').textContent=leftText(d.credits_left);
+    show(d);
+    if(d.status==='queued'||d.status==='working')timer=setTimeout(()=>poll(id),6000);
+    else $('go').disabled=false;
+    if(d.status==='failed')store('job:'+aid+':'+key,null);
+  }catch(e){$('err').textContent=e.message;store('job:'+aid+':'+key,null);$('go').disabled=false;}
+}
+function buildForm(){
+  const f=$('fields');f.replaceChildren();
+  for(const x of actor.inputs){
+    const id='f_'+x.name;f.append(Object.assign(el('label',x.label),{htmlFor:id}));
+    const i=x.type==='textarea'?document.createElement('textarea'):document.createElement('input');
+    i.id=id;i.maxLength=x.max||200;i.placeholder=x.placeholder||'';i.autocomplete='off';f.append(i);
+  }
+}
+$('go').addEventListener('click',async()=>{
+  $('err').textContent='';
+  if(!key){$('err').textContent='Buy credits below first. You get a private wallet link, no signup.';$('wallet').scrollIntoView({behavior:'smooth'});return;}
+  const input={actor:actor.id};
+  for(const x of actor.inputs){const v=$('f_'+x.name).value.trim();if(x.required&&v.length<(x.min||2)){$('f_'+x.name).focus();$('err').textContent='Please fill in: '+x.label;return;}if(v)input[x.name]=v;}
+  $('go').disabled=true;
+  try{const d=await call('/api/research-jobs',{action:'submit',key,input});store('job:'+aid+':'+key,d.job_id);if(d.credits_left!=null)$('left').textContent=leftText(d.credits_left);poll(d.job_id);}
+  catch(e){$('err').textContent=e.message+(e.code==='NO_CREDITS'?' Buy credits below.':'');$('go').disabled=false;}
+});
+document.querySelectorAll('#wallet [data-pack]').forEach(b=>b.addEventListener('click',async()=>{
+  b.disabled=true;$('msg').textContent='Opening checkout...';
+  try{const d=await call('/api/actor-credits',{action:'checkout',pack:b.dataset.pack,from:'actor-'+aid,...(key?{key}:{})});location.href=d.url;}
+  catch(e){$('msg').textContent=e.message;b.disabled=false;}
+}));
+async function refreshBalance(){
+  if(!key)return;
+  try{const d=await call('/api/actor-credits',{action:'balance',key});NexusWallet.remember(key);NexusWallet.controls(key);$('left').textContent=leftText(d.credits);$('wnote').textContent='You have '+credits(d.credits)+'. Add more any time.';}
+  catch(e){$('msg').textContent=e.message+' Your saved wallet link has been kept. Please retry.';}
+}
+async function init(){
+  let list=[];
+  try{list=(await call('/api/actor-credits',{action:'catalog'})).actors;}catch{}
+  actor=list.find(a=>a.id===aid&&a.id!=='research');
+  if(aid==='research'){location.replace('/research.html'+(key?'?k='+encodeURIComponent(key):''));return;}
+  if(!actor){$('title').textContent='Actor not found';$('blurb').textContent='Pick one from the marketplace.';return;}
+  document.title=actor.name+' | Nexus';$('title').textContent=actor.name;$('blurb').textContent=actor.blurb;
+  $('price').textContent=actor.cost+' credits per run'+(actor.beta?' · beta':'');
+  if(actor.beta)$('eyebrow').textContent='Beta';
+  buildForm();$('form').hidden=false;
+  const sid=new URLSearchParams(location.search).get('session_id');
+  if(sid){
+    $('msg').textContent='Confirming your payment...';
+    try{
+      const d=await call('/api/actor-credits',{action:'claim',session_id:sid});
+      if(d.path){key=new URL(d.path,location.origin).searchParams.get('k')||'';}
+      NexusWallet.remember(key);NexusWallet.controls(key);
+      history.replaceState(null,'',location.pathname+'?a='+encodeURIComponent(aid)+'&k='+encodeURIComponent(key));
+      $('msg').textContent='Payment received. You have '+credits(d.credits)+'.';$('left').textContent=leftText(d.credits);
+    }catch(e){$('msg').textContent=e.message;}
+  }else await refreshBalance();
+  const j=key&&load('job:'+aid+':'+key);if(j){$('go').disabled=true;poll(j);}
+}
+init();
+</script>
+</body>
+</html>
