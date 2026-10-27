@@ -1,6 +1,7 @@
 import '../lib/store/installFetch.js';
 import {researchStore} from '../lib/researchJobs.js';
 import {PACKS,grantFromSession,walletSecret} from '../lib/actorCredits.js';
+import {publicCatalog} from '../lib/actorCatalog.js';
 // Public endpoint to buy actor credits. No accounts: a buyer either tops up the wallet link they already have
 // or gets a new wallet link after paying. Credits are only ever added after Stripe says the session is paid.
 const SITE_URL=()=>process.env.SITE_URL||'https://nexus-labs-sigma.vercel.app';
@@ -28,6 +29,7 @@ export function createActorCreditsHandler({store=researchStore,post=(p,b)=>strip
    const {action,key,pack,session_id,from}=b;
    const page=from==='market'?'/marketplace.html':'/research.html';
    if(action==='packs')return res.status(200).json({ok:true,data:{packs:Object.values(PACKS).map(({id,cents,credits})=>({id,cents,credits}))}});
+   if(action==='catalog')return res.status(200).json({ok:true,data:{actors:publicCatalog()}});
    if(action==='balance'){const w=await store.walletByToken(key);return res.status(200).json({ok:true,data:{credits:w.credits,search_cost:w.search_cost}});}
    if(!configured())throw fail('Buying credits is not set up yet.',503,'NOT_CONFIGURED');
    if(action==='checkout'){
