@@ -12,6 +12,7 @@ export function createResearchHandler({store=researchStore}={}){
    const b=req.body;
    if(!b||typeof b!=='object'||Array.isArray(b)||Object.keys(b).some(k=>!['action','key','input'].includes(k)))return res.status(400).json({error:'Provide action, key and input only.'});
    const {action,key,input={}}=b;
+   if(action==='history')return res.status(200).json({ok:true,data:await store.history(key)});
    if(action==='submit')return res.status(200).json({ok:true,data:await store.submit(key,input)});
    if(action==='request_ad')return res.status(200).json({ok:true,data:await store.requestAd(key,input)});
    if(action==='status')return res.status(200).json({ok:true,data:await store.status(key,input)});
