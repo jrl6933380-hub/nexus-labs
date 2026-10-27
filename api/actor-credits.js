@@ -24,8 +24,9 @@ export function createActorCreditsHandler({store=researchStore,post=(p,b)=>strip
    if(origin&&new URL(origin).host!==host)return res.status(403).json({error:'Open the page on this Nexus site.'});
    if(!String(req.headers?.['content-type']||'').startsWith('application/json'))return res.status(415).json({error:'Use application/json.'});
    const b=req.body;
-   if(!b||typeof b!=='object'||Array.isArray(b)||Object.keys(b).some(k=>!['action','key','pack','session_id'].includes(k)))return res.status(400).json({error:'Unknown fields.'});
-   const {action,key,pack,session_id}=b;
+   if(!b||typeof b!=='object'||Array.isArray(b)||Object.keys(b).some(k=>!['action','key','pack','session_id','from'].includes(k)))return res.status(400).json({error:'Unknown fields.'});
+   const {action,key,pack,session_id,from}=b;
+   const page=from==='market'?'/marketplace.html':'/research.html';
    if(action==='packs')return res.status(200).json({ok:true,data:{packs:Object.values(PACKS).map(({id,cents,credits})=>({id,cents,credits}))}});
    if(action==='balance'){const w=await store.walletByToken(key);return res.status(200).json({ok:true,data:{credits:w.credits,search_cost:w.search_cost}});}
    if(!configured())throw fail('Buying credits is not set up yet.',503,'NOT_CONFIGURED');
@@ -39,8 +40,8 @@ export function createActorCreditsHandler({store=researchStore,post=(p,b)=>strip
      'line_items[0][price_data][currency]':'usd','line_items[0][price_data][unit_amount]':p.cents,
      'line_items[0][price_data][product_data][name]':p.credits+' Nexus actor credits','line_items[0][quantity]':1,
      'metadata[kind]':'actor_credits','metadata[pack]':p.id,...(linkId?{'metadata[link_id]':linkId}:{}),
-     success_url:site+'/research.html?'+(key?'k='+encodeURIComponent(key)+'&':'')+'paid=1&session_id={CHECKOUT_SESSION_ID}',
-     cancel_url:site+'/research.html'+(key?'?k='+encodeURIComponent(key):''),
+     success_url:site+page+'?'+(key?'k='+encodeURIComponent(key)+'&':'')+'paid=1&session_id={CHECKOUT_SESSION_ID}',
+     cancel_url:site+page+(key?'?k='+encodeURIComponent(key):''),
     });
     return res.status(200).json({ok:true,data:{url:session.url}});
    }
