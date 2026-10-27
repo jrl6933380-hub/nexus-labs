@@ -86,6 +86,16 @@ test('checkout with an existing wallet key tags the session with that wallet', a
   assert.equal(bal.body.data.credits, 8);
 });
 
+test('checkout from the marketplace returns to the marketplace', async () => {
+  const posts = [];
+  const h = createActorCreditsHandler({ store: store(), configured: () => true, secret: () => 'sec', post: async (p, b) => { posts.push(b); return { url: 'u' }; }, get: async () => ({}) });
+  const r = res(); await h(req({ action: 'checkout', pack: 'p5', from: 'market' }), r);
+  assert.match(posts[0].success_url, /\/marketplace\.html\?paid=1&session_id=/);
+  assert.match(posts[0].cancel_url, /\/marketplace\.html$/);
+  const r2 = res(); await h(req({ action: 'checkout', pack: 'p5' }), r2);
+  assert.match(posts[1].success_url, /\/research\.html\?paid=1/);
+});
+
 test('claim refuses an unpaid payment', async () => {
   const h = createActorCreditsHandler({ store: store(), configured: () => true, secret: () => 'sec', get: async () => paid({ payment_status: 'unpaid' }) });
   const r = res(); await h(req({ action: 'claim', session_id: 'cs_test_abcdefghij123456' }), r);
