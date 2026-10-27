@@ -24,18 +24,20 @@
     <nav role="tablist" aria-label="Forge workspace" hidden id="tabs">
       <button id="ops-tab" type="button" role="tab" aria-selected="true" aria-controls="ops-panel">Owner · Ops</button>
       <button id="field-tab" type="button" role="tab" aria-selected="false" aria-controls="field-panel" tabindex="-1">Caller · Field</button>
+      <button id="templates-tab" type="button" role="tab" aria-selected="false" aria-controls="templates-panel" tabindex="-1">Templates</button>
     </nav>
   </header>
   <div id="state" role="status">Opening your Forge workspace…</div>
   <main id="content" hidden>
     <section id="ops-panel" role="tabpanel" aria-labelledby="ops-tab"><iframe id="ops-frame" title="Forge Ops — owner control center"></iframe></section>
     <section id="field-panel" role="tabpanel" aria-labelledby="field-tab" hidden><iframe id="field-frame" title="Forge Field — caller workspace"></iframe></section>
+    <section id="templates-panel" role="tabpanel" aria-labelledby="templates-tab" hidden><iframe id="templates-frame" title="Forge Templates — reusable service starters"></iframe></section>
   </main>
   <script>
   (function () {
     const state = document.getElementById('state');
     const tabs = Array.from(document.querySelectorAll('[role="tab"]'));
-    const destinations = { 'ops-tab': '/forge-dashboard.html', 'field-tab': '/forge-caller.html' };
+    const destinations = { 'ops-tab': '/forge-dashboard.html', 'field-tab': '/forge-caller.html', 'templates-tab': '/forge-templates.html' };
     function select(tab) {
       tabs.forEach(function (item) {
         const active = item === tab;
@@ -43,9 +45,15 @@
         item.tabIndex = active ? 0 : -1;
         document.getElementById(item.getAttribute('aria-controls')).hidden = !active;
       });
-      const frame = document.getElementById(tab.id === 'ops-tab' ? 'ops-frame' : 'field-frame');
+      const frame = document.getElementById(tab.getAttribute('aria-controls')).querySelector('iframe');
       if (!frame.getAttribute('src')) frame.setAttribute('src', destinations[tab.id]);
+      history.replaceState(null, '', '#' + tab.id.replace('-tab', ''));
     }
+    window.addEventListener('hashchange', function () {
+      if (document.getElementById('content').hidden) return;
+      const tab = tabs.find(function (item) { return '#' + item.id.replace('-tab', '') === location.hash; });
+      if (tab) select(tab);
+    });
     function message(text, link) {
       state.textContent = text;
       if (link) {
@@ -72,14 +80,15 @@
         tab.addEventListener('click', function () { select(tab); });
         tab.addEventListener('keydown', function (event) {
           let next;
-          if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') next = tabs[(index + 1) % tabs.length];
+          if (event.key === 'ArrowRight') next = tabs[(index + 1) % tabs.length];
+          if (event.key === 'ArrowLeft') next = tabs[(index - 1 + tabs.length) % tabs.length];
           if (event.key === 'Home') next = tabs[0];
           if (event.key === 'End') next = tabs[tabs.length - 1];
           if (!next) return;
           event.preventDefault(); select(next); next.focus();
         });
       });
-      select(tabs[0]);
+      select(tabs.find(function (tab) { return '#' + tab.id.replace('-tab', '') === location.hash; }) || tabs[0]);
     }).catch(function () { message('Could not open Forge. Refresh to try again.'); });
   })();
   </script>
