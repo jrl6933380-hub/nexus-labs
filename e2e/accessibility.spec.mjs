@@ -116,7 +116,7 @@ for (const file of pages) {
           null, 2,
         ));
       }
-      expect(seriousOrWorse, `${file} has serious/critical accessibility violations — see log above`).toHaveLength(0);
+      expect(seriousOrWorse, `${file} has serious/critical accessibility violations: ${seriousOrWorse.map((v) => `${v.id} (${v.nodes.length}): ${v.nodes.slice(0, 40).map((n) => { const d = n.any?.[0]?.data || {}; return `${(n.target || []).join(' ')} ${d.fgColor || ''}/${d.bgColor || ''} ${d.contrastRatio || ''} ${d.fontSize || ''}`; }).join(' | ')}`).join('; ')}`).toHaveLength(0);
     });
 
     test(`${file} declares a mobile viewport`, async ({ page }) => {
@@ -222,9 +222,9 @@ test.describe('mobile canvas room interactions', () => {
     await page.goto('/workspace.html');
     await expect(page.locator('body')).toHaveAttribute('data-view', 'messages');
     await expect(page.getByRole('heading', { name: /Good (morning|afternoon|evening)/ })).toBeVisible();
-    await expect(page.getByRole('navigation', { name: 'Your Nexus spaces' }).getByRole('button')).toHaveCount(6);
+    await expect(page.getByRole('navigation', { name: 'Your Nexus spaces' }).getByRole('button')).toHaveCount(7);
     const spaces = page.getByRole('navigation', { name: 'Your Nexus spaces' });
-    for (const name of [/Nex 0 agents connected/, /Projects Make something real/, /Life Your rhythm and schedule/, /Calendar Your day and upcoming activities/, /Reminders 0 things to remember/, /More Explore and customize/]) {
+    for (const name of [/Nex 0 agents connected/, /Projects Make something real/, /Life Your rhythm and schedule/, /Calendar Your day and upcoming activities/, /Reminders 0 things to remember/, /More Explore and customize/, /Nexus Lab Seven capability workspaces/]) {
       await expect(spaces.getByRole('button', { name })).toBeVisible();
     }
     await expect(page.getByRole('region', { name: 'Upcoming events and updates' })).toBeVisible();
