@@ -28,7 +28,7 @@ export function createActorCreditsHandler({store=researchStore,post=(p,b)=>strip
    if(!b||typeof b!=='object'||Array.isArray(b)||Object.keys(b).some(k=>!['action','key','pack','session_id','from'].includes(k)))return res.status(400).json({error:'Unknown fields.'});
    const {action,key,pack,session_id,from}=b;
    const am=/^actor-([a-z]{2,12})$/u.exec(typeof from==='string'?from:'');
-   const page=from==='market'?'/marketplace.html':am?'/actor.html?a='+am[1]:'/research.html';
+   const page=from==='market'?'/marketplace.html':am?(am[1]==='docs'?'/docs.html':'/actor.html?a='+am[1]):'/research.html';
    const sep=page.includes('?')?'&':'?';
    if(action==='packs')return res.status(200).json({ok:true,data:{packs:Object.values(PACKS).map(({id,cents,credits})=>({id,cents,credits}))}});
    if(action==='catalog')return res.status(200).json({ok:true,data:{actors:publicCatalog()}});
