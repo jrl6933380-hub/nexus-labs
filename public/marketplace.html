@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Nexus Actors</title>
 <style>
@@ -30,6 +31,7 @@ button:disabled{opacity:.5}
 .card.soon{border-style:dashed;background:transparent}
 .tag{font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:var(--acc)}
 .tag.s{color:var(--mute)}
+#wallet-access input{width:100%;min-width:0;font:inherit;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text)}#wallet-access button{margin-top:8px;font-size:14px;padding:10px}button:focus-visible,a:focus-visible,select:focus-visible{outline:2px solid var(--acc);outline-offset:3px}
 </style>
 </head>
 <body>
@@ -38,22 +40,26 @@ button:disabled{opacity:.5}
   <h1>Nexus <span>actors</span></h1>
   <p class="sub">Small AI tools that each do one job well. One credit wallet works on all of them.</p>
 
+  <h2>Actors</h2>
+  <div class="grid" id="grid"></div>
+
   <div class="panel" id="wallet">
     <div class="mute" id="wlabel">Your credits</div>
     <div class="bal" id="bal">&mdash;</div>
     <p class="mute" id="wnote">Buy credits to get your private wallet link. No signup.</p>
+    <div id="wallet-access"></div>
     <div class="packs">
-      <button data-pack="p5">$5<small>50 credits</small></button>
-      <button data-pack="p10">$10<small>110 credits</small></button>
-      <button data-pack="p25">$25<small>300 credits</small></button>
+      <button data-pack="p5">$5<small>50 credits · 6 searches</small></button>
+      <button data-pack="p10">$10<small>110 credits · 13 searches</small></button>
+      <button data-pack="p25">$25<small>300 credits · 37 searches</small></button>
     </div>
     <p class="mute">Credits never expire. Purchases are non-refundable, but a run that fails puts its credits back automatically.</p>
     <p class="mute err" id="msg" role="alert"></p>
   </div>
 
-  <h2>Actors</h2>
-  <div class="grid" id="grid"></div>
+
 </main>
+<script src="/actor-wallet.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 // Add the next actor here. cost is credits per run.
@@ -63,8 +69,8 @@ const ACTORS=[
 ];
 function store(k,v){try{localStorage.setItem(k,v);}catch{}}
 function load(k){try{return localStorage.getItem(k);}catch{return null;}}
-let key=new URLSearchParams(location.search).get('k')||'';
-if(!key){const w=load('wallet');if(w){try{key=new URL(w,location.origin).searchParams.get('k')||'';}catch{}}}
+let key=NexusWallet.current();
+NexusWallet.controls(key);
 function el(t,txt,cls){const e=document.createElement(t);if(txt!=null)e.textContent=txt;if(cls)e.className=cls;return e;}
 function drawCards(){
   const g=$('grid');g.replaceChildren();
@@ -73,6 +79,7 @@ function drawCards(){
     c.append(el('span',a.soon?'Soon':'Live','tag'+(a.soon?' s':'')),el('h3',a.name),el('p',a.blurb));
     if(!a.soon){
       c.append(el('span',a.cost,'price'));
+      const sample=el('a','See a sample report');sample.href='/research.html?sample=1';c.append(sample);
       const b=el('a','Open','btn');b.href=a.path+(key?'?k='+encodeURIComponent(key):'');c.append(b);
     }
     g.append(c);
@@ -85,6 +92,7 @@ async function api(action,extra){
   return d.data;
 }
 function showBalance(n){
+  NexusWallet.remember(key);NexusWallet.controls(key);
   $('bal').textContent=n+' credit'+(n===1?'':'s');
   $('wnote').textContent='Add more any time. The same wallet works on every actor.';
 }
@@ -109,7 +117,7 @@ async function init(){
   }
   if(key){
     try{const d=await api('balance',{key});store('wallet','/research.html?k='+key);showBalance(d.credits);}
-    catch{key='';$('bal').textContent='—';}
+    catch(e){$('msg').textContent=e.message+' Your saved wallet link has been kept. Please retry.';}
     drawCards();
   }
 }
