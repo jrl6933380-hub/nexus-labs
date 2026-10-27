@@ -1,0 +1,13 @@
+# Understand backend contract
+
+Provider-neutral backend groundwork for the existing Owner Home → Nexus Lab → Understand workspace. The production runtime supplies no provider, so the owner workspace remains **Needs connection**. No model, endpoint, credentials or paid resource was selected. This PR does not implement a provider-specific adapter or enable the customer-facing media input/result UI.
+
+`createNexusLabUnderstand({assets, provider})` accepts a server-owned provider with `verified: true`, stable `id`/`model`, explicit image/audio/video `modalities`, and `analyze({prompt, media, idempotencyKey, signal})`. Verification is an assertion made by the deployment owner after separate real checks; fixture verification proves no live provider health. Media contains bounded buffers and asset metadata, never arbitrary URLs. Providers must honor the abort signal and pass the stable job identity upstream.
+
+Run through a durable `run` job with `{capability:'understand',prompt,asset_ids}`: 1–4 distinct saved IDs, prompt up to 2,000 chars, each asset up to 20 MiB and total up to 32 MiB. Audio/video requires recorded duration up to 120 seconds. Owner scope, ready state, type, chunk count, byte count and SHA-256 are checked before submission. Durations/dimensions are stored metadata, not independently probed by a decoder here.
+
+Output has a short summary plus source-linked observations/transcript entries. Optional timestamps must lie within the referenced non-image asset. Unknown source IDs, invalid times, unbounded output and invalid costs are rejected. Provider-specific raw fields are discarded. Shared run history stores structured output and input asset links; buffers are not saved in runs.
+
+The adapter records durable submission intent before the model call. A stopped worker or lost response is treated as uncertain and never automatically resubmitted; no provider-specific reconciliation exists yet. Lease checks fence cancellation before result persistence. The shared job finish remains fenced; run-list persistence and job completion are separate writes, as in the existing harness. Remote cancellation is not promised for this synchronous analysis adapter.
+
+Validation: `node --test test/nexus-lab-understand.test.mjs test/nexus-lab.test.mjs test/nexus-lab-jobs.test.mjs test/nexus-lab-assets.test.mjs` — 39 checks passed using real services and in-memory storage/provider fixtures. No browser changes, live model requests, production database test, paid calls or deployment were performed. Provider selection, verified real modality tests, UI activation and operational acceptance remain follow-up work.
