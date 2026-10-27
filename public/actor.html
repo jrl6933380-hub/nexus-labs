@@ -72,7 +72,8 @@ a{color:var(--acc)}
   </div>
 </main>
 <script src="/actor-wallet.js"></script>
-<script>
+<script type="module">
+import {renderLocalOpportunities} from '/local-opportunities.js';
 const $=id=>document.getElementById(id);
 const aid=(new URLSearchParams(location.search).get('a')||'').slice(0,20);
 let key=NexusWallet.current(),actor=null,timer=null,lastResult=null;
@@ -107,6 +108,7 @@ function show(d){
     const c=el('button','Copy','ghost');c.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(sectionText(s));c.textContent='Copied';}catch{c.textContent='Select and copy the text above';}});box.append(c);
     out.append(box);
   }
+  if(actor.id==='localfinder')renderLocalOpportunities(out,r,download);
   if(r.preview_html){
     out.append(el('h2','Draft page preview'));
     const f=document.createElement('iframe');f.setAttribute('sandbox','');f.setAttribute('referrerpolicy','no-referrer');f.setAttribute('title','Draft page preview');f.srcdoc=r.preview_html;out.append(f);
