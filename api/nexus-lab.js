@@ -31,7 +31,7 @@ export function createNexusLabHandler({authenticate=getNexusOwner,assets=nexusLa
     if(action==='job_list')return res.status(200).json({jobs:await jobs.list(owner)});
     if(action==='job_read')return res.status(200).json({job:await jobs.get(owner,input.id)});
     if(action==='job_enqueue'){const job=await jobs.enqueue(owner,{kind:input.kind,input:input.input,request_id:req.body.request_id});kick(owner,job.id);return res.status(202).json({job});}
-    if(action==='job_cancel')return res.status(200).json({job:await jobs.cancel(owner,input.id)});
+    if(action==='job_cancel'){let job=await jobs.cancel(owner,input.id);const outcome=await service.cancelMediaJob?.(owner,job);if(outcome&&jobs.recordCancellation)job=await jobs.recordCancellation(owner,job.id,outcome.scope);return res.status(200).json({job});}
     if(action==='job_retry'){const job=await jobs.retry(owner,input.id);kick(owner,job.id);return res.status(202).json({job});}
     if(req.body?.action!=='run')return res.status(400).json({error:'Choose a supported Lab action.'});
     return res.status(200).json({run:await service.run(owner,req.body)});
