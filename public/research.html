@@ -95,7 +95,7 @@ NexusWallet.controls(key);
 let timer=null;
 async function loadHistory(selected){
   if(!key)return;
-  try{const rows=await api('history');const select=$('past-reports');select.replaceChildren();
+  try{const rows=(await api('history')).filter(r=>(r.actor||'research')==='research');const select=$('past-reports');select.replaceChildren();
     for(const r of rows){const o=el('option',r.competitor+' · '+r.status);o.value=r.job_id;select.append(o);}
     $('report-history').hidden=!rows.length;if(selected)select.value=selected;
   }catch(e){$('err').textContent=e.message;}
