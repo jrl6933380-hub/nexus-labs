@@ -62,11 +62,8 @@ button:disabled{opacity:.5}
 <script src="/actor-wallet.js"></script>
 <script>
 const $=id=>document.getElementById(id);
-// Add the next actor here. cost is credits per run.
-const ACTORS=[
-  {name:'Competitor Research',blurb:'Type a competitor. See what they charge, their subscriptions and deals, where they are weak, and how to beat them.',cost:'8 credits per search',path:'/research.html'},
-  {name:'More actors coming',blurb:'New tools will appear here and run on the same credits.',soon:true},
-];
+// The actors come from the server catalog (lib/actorCatalog.js).
+let ACTORS=[];
 function store(k,v){try{localStorage.setItem(k,v);}catch{}}
 function load(k){try{return localStorage.getItem(k);}catch{return null;}}
 let key=NexusWallet.current();
@@ -76,11 +73,11 @@ function drawCards(){
   const g=$('grid');g.replaceChildren();
   for(const a of ACTORS){
     const c=el('div',null,'card'+(a.soon?' soon':''));
-    c.append(el('span',a.soon?'Soon':'Live','tag'+(a.soon?' s':'')),el('h3',a.name),el('p',a.blurb));
+    c.append(el('span',a.soon?'Soon':(a.beta?'Beta':'Live'),'tag'+(a.soon?' s':'')),el('h3',a.name),el('p',a.blurb));
     if(!a.soon){
-      c.append(el('span',a.cost,'price'));
-      const sample=el('a','See a sample report');sample.href='/research.html?sample=1';c.append(sample);
-      const b=el('a','Open','btn');b.href=a.path+(key?'?k='+encodeURIComponent(key):'');c.append(b);
+      c.append(el('span',a.cost+' credits per run','price'));
+      if(a.id==='research'){const sample=el('a','See a sample report');sample.href='/research.html?sample=1';c.append(sample);}
+      const b=el('a','Open','btn');const p=a.page||'/actor.html?a='+a.id;b.href=p+(key?(p.includes('?')?'&':'?')+'k='+encodeURIComponent(key):'');c.append(b);
     }
     g.append(c);
   }
@@ -102,6 +99,9 @@ document.querySelectorAll('#wallet [data-pack]').forEach(b=>b.addEventListener('
   catch(e){$('msg').textContent=e.message;b.disabled=false;}
 }));
 async function init(){
+  const soon={name:'More actors coming',blurb:'New tools will appear here and run on the same credits.',soon:true};
+  try{ACTORS=[...(await api('catalog')).actors,soon];}
+  catch{ACTORS=[{id:'research',name:'Competitor Research',blurb:'Type a competitor. See what they charge and how to beat them.',cost:8,page:'/research.html'},soon];}
   drawCards();
   const sid=new URLSearchParams(location.search).get('session_id');
   if(sid){
