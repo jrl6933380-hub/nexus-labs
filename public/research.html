@@ -41,6 +41,7 @@ a{color:var(--acc)}
 .tbl{width:100%;border-collapse:collapse;font-size:14px;margin-top:4px}.tbl td{border-top:1px solid var(--line);padding:8px 6px;vertical-align:top}.tbl td.p{text-align:right;font-weight:700;color:var(--acc);white-space:nowrap}.tbl .mute{font-size:12.5px}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:480px){.two{grid-template-columns:1fr}}
 .adx{margin:6px 0 4px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 10px}.adx summary{cursor:pointer;font-weight:700;color:var(--acc);font-size:14px}.adx button{margin-top:8px;padding:10px;font-size:14px}.adx a{display:inline-block;margin-top:6px}
+.packs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}.packs button{margin-top:0;padding:12px 6px;font-size:15px;line-height:1.25}.packs small{display:block;font-weight:400;font-size:12px;opacity:.9}@media(max-width:420px){.packs{grid-template-columns:1fr}}
 .credit{margin-top:26px;font-size:12px;color:var(--mute);text-align:center}
 .credit a{color:var(--mute)}
 </style>
@@ -68,6 +69,16 @@ a{color:var(--acc)}
   <p class="err" id="err" role="alert"></p>
 </div>
 <div class="panel" id="out" hidden></div>
+<div class="panel" id="buy">
+  <b>Buy credits</b>
+  <p class="mute">A search costs 8 credits. Credits never expire. Purchases are non-refundable, but a search that fails puts its credits back automatically.</p>
+  <div class="packs">
+    <button data-pack="p5">$5<small>50 credits</small></button>
+    <button data-pack="p10">$10<small>110 credits</small></button>
+    <button data-pack="p25">$25<small>300 credits</small></button>
+  </div>
+  <p class="mute" id="buymsg"></p>
+</div>
 <p class="credit">Photo: <a href="https://pixabay.com/photos/singapore-gardens-by-the-bay-1896765/" target="_blank" rel="noopener noreferrer">suyashdixit on Pixabay</a></p>
 </main>
 <script>
@@ -133,8 +144,35 @@ $('go').addEventListener('click',async()=>{
   try{const d=await api('submit',{competitor:c,goal:$('g').value.trim()||undefined});store('job:'+key,d.job_id);$('left').textContent=leftText(d);poll(d.job_id);}
   catch(e){$('err').textContent=e.message;$('go').disabled=false;}
 });
-if(!key){$('err').textContent='This page needs the link you were given.';$('go').disabled=true;}
-else{const j=load('job:'+key);if(j){$('go').disabled=true;poll(j);}}
+async function api2(action,extra){
+  const r=await fetch('/api/actor-credits',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...extra})});
+  let d=null;try{d=await r.json();}catch{}
+  if(!r.ok){const e=new Error((d&&d.error)||'Could not reach the server.');e.status=r.status;throw e;}
+  return d.data;
+}
+document.querySelectorAll('#buy [data-pack]').forEach(b=>b.addEventListener('click',async()=>{
+  b.disabled=true;$('buymsg').textContent='Opening checkout...';
+  try{const d=await api2('checkout',{pack:b.dataset.pack,...(key?{key}:{})});location.href=d.url;}
+  catch(e){$('buymsg').textContent=e.message;b.disabled=false;}
+}));
+async function afterPayment(sid){
+  $('buymsg').textContent='Confirming your payment...';
+  try{
+    const d=await api2('claim',{session_id:sid});
+    if(d.path){store('wallet',d.path);location.replace(d.path);return;}
+    $('buymsg').textContent='Payment received. '+d.credits+' credits in your wallet.';$('left').textContent=d.credits+' credits left · a search costs 8';
+  }catch(e){$('buymsg').textContent=e.message;}
+}
+const paidSid=new URLSearchParams(location.search).get('session_id');
+if(!key){
+  $('go').disabled=true;
+  if(paidSid)afterPayment(paidSid);
+  else $('left').textContent='Buy credits below to start your first search.';
+}else{
+  if(paidSid)afterPayment(paidSid);
+  else api2('balance',{key}).then(d=>{$('left').textContent=d.credits+' credits left · a search costs '+d.search_cost;}).catch(()=>{});
+  const j=load('job:'+key);if(j){$('go').disabled=true;poll(j);}
+}
 </script>
 </body>
 </html>
