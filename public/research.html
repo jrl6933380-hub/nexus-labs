@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Competitor Research | Nexus</title>
 <style>
@@ -10,7 +11,7 @@
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;-webkit-text-size-adjust:100%}
 main{max-width:680px;margin:0 auto;padding:0 16px 40px}
-.hero{position:relative;margin:0 -16px;min-height:300px;display:flex;align-items:flex-end;overflow:hidden;background:radial-gradient(120% 90% at 20% 0%,#3b1a6e 0%,#0a0b10 70%)}
+.hero{position:relative;margin:0;min-height:300px;display:flex;align-items:flex-end;overflow:hidden;background:radial-gradient(120% 90% at 20% 0%,#3b1a6e 0%,#0a0b10 70%)}
 .hero img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.78}
 .hero::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,11,16,.15) 0%,rgba(10,11,16,.55) 55%,var(--bg) 100%)}
 .hero-in{position:relative;z-index:1;padding:90px 20px 22px;width:100%}
@@ -44,6 +45,7 @@ a{color:var(--acc)}
 .packs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}.packs button{margin-top:0;padding:12px 6px;font-size:15px;line-height:1.25}.packs small{display:block;font-weight:400;font-size:12px;opacity:.9}@media(max-width:420px){.packs{grid-template-columns:1fr}}
 .credit{margin-top:26px;font-size:12px;color:var(--mute);text-align:center}
 .credit a{color:var(--mute)}
+#wallet-access input{width:100%;min-width:0;font:inherit;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text)}#wallet-access button{margin-top:8px;font-size:14px;padding:10px}button:focus-visible,a:focus-visible,select:focus-visible{outline:2px solid var(--acc);outline-offset:3px}
 </style>
 </head>
 <body>
@@ -68,24 +70,37 @@ a{color:var(--acc)}
   <p class="mute" id="left"></p>
   <p class="err" id="err" role="alert"></p>
 </div>
+<p class="mute">Paid reports stay available for 90 days. Download a copy to keep it longer. If research cannot start or finish within its time limit, its credits are restored automatically.</p>
+<div class="panel" id="report-history" hidden><label for="past-reports">Your recent research</label><select id="past-reports" style="width:100%;font:inherit;padding:10px"></select></div>
 <div class="panel" id="out" hidden></div>
 <div class="panel" id="buy">
   <b>Buy credits</b>
   <p class="mute">A search costs 8 credits. Credits never expire. Purchases are non-refundable, but a search that fails puts its credits back automatically.</p>
-  <div class="packs">
-    <button data-pack="p5">$5<small>50 credits</small></button>
-    <button data-pack="p10">$10<small>110 credits</small></button>
-    <button data-pack="p25">$25<small>300 credits</small></button>
+  <div id="wallet-access"></div>
+    <div class="packs">
+    <button data-pack="p5">$5<small>50 credits · 6 searches</small></button>
+    <button data-pack="p10">$10<small>110 credits · 13 searches</small></button>
+    <button data-pack="p25">$25<small>300 credits · 37 searches</small></button>
   </div>
   <p class="mute" id="buymsg"></p>
 </div>
 <p class="credit"><a href="/marketplace.html">All Nexus actors</a></p>
 <p class="credit">Photo: <a href="https://pixabay.com/photos/singapore-gardens-by-the-bay-1896765/" target="_blank" rel="noopener noreferrer">suyashdixit on Pixabay</a></p>
 </main>
+<script src="/actor-wallet.js"></script>
 <script>
 const $=id=>document.getElementById(id);
-const key=new URLSearchParams(location.search).get('k')||'';
+let key=NexusWallet.current();
+NexusWallet.controls(key);
 let timer=null;
+async function loadHistory(selected){
+  if(!key)return;
+  try{const rows=await api('history');const select=$('past-reports');select.replaceChildren();
+    for(const r of rows){const o=el('option',r.competitor+' · '+r.status);o.value=r.job_id;select.append(o);}
+    $('report-history').hidden=!rows.length;if(selected)select.value=selected;
+  }catch(e){$('err').textContent=e.message;}
+}
+$('past-reports').addEventListener('change',()=>{store('job:'+key,$('past-reports').value);poll($('past-reports').value);});
 function store(k,v){try{if(v==null)localStorage.removeItem(k);else localStorage.setItem(k,v);}catch{}}
 function load(k){try{return localStorage.getItem(k);}catch{return null;}}
 async function api(action,input){
@@ -102,7 +117,7 @@ function show(d){
   if(d.status==='queued'){out.append(working('In line'),el('p','Position '+d.position+'. This page updates by itself.','mute'));return;}
   if(d.status==='working'){out.append(working('Researching '+d.competitor+'...'),el('p','This usually takes a few minutes. You can leave this page open.','mute'));return;}
   if(d.status==='failed'){out.append(el('b','Could not finish'),el('p',d.error,'err'));return;}
-  if(d.archived||!d.result){const rc=d.receipt||{};out.append(el('b','Receipt for '+d.competitor),el('p','This report is more than a week old, so the full results were cleared. Run a new search to get fresh prices.','mute'));if(rc.summary)out.append(el('p',rc.summary));return;}
+  if(d.archived||!d.result){const rc=d.receipt||{};out.append(el('b','Receipt for '+d.competitor),el('p','This report has passed its storage period and only a receipt remains. Paid full reports are kept for 90 days. Run a new search for fresh prices.','mute'));if(rc.summary)out.append(el('p',rc.summary));return;}
   const r=d.result;out.append(el('b','Results for '+d.competitor),el('p',r.summary));
   if(r.website){const p=el('p',null,'mute'),l=el('a',r.website);l.href=r.website;l.target='_blank';l.rel='noopener noreferrer';p.append('Website: ',l);out.append(p);}
   const linkTo=(cell,url)=>{if(!url)return;const l=el('a',' source');l.href=url;l.target='_blank';l.rel='noopener noreferrer';cell.append(l);};
@@ -120,6 +135,7 @@ function show(d){
   }
   if(r.sources&&r.sources.length){out.append(el('h2','Sources'));const u=el('ul');for(const s of r.sources){const li=el('li'),l=el('a',s.title||s.url);l.href=s.url;l.target='_blank';l.rel='noopener noreferrer';li.append(l);u.append(li);}out.append(u);}
   if(r.notes)out.append(el('p',r.notes,'mute'));
+  const download=el('button','Download report');download.type='button';download.addEventListener('click',()=>NexusWallet.download('nexus-research-report.json',JSON.stringify({competitor:d.competitor,completed_at:d.completed_at||null,result:r},null,2),'application/json'));out.append(download);
 }
 function leftText(d){
   if(d.wallet)return d.credits_left+' credit'+(d.credits_left===1?'':'s')+' left · a search costs '+d.search_cost;
@@ -137,6 +153,7 @@ async function poll(id){
     if(d.status==='queued'||d.status==='working'||adBusy)timer=setTimeout(()=>poll(id),6000);
     if(d.status!=='queued'&&d.status!=='working')$('go').disabled=false;
     if(d.status==='failed')store('job:'+key,null);
+    if(d.status==='done'||d.status==='failed')loadHistory(id);
   }catch(e){$('err').textContent=e.message;store('job:'+key,null);$('go').disabled=false;}
 }
 $('go').addEventListener('click',async()=>{
@@ -161,8 +178,13 @@ async function afterPayment(sid){
   try{
     const d=await api2('claim',{session_id:sid});
     if(d.path){store('wallet',d.path);location.replace(d.path);return;}
+    NexusWallet.remember(key);NexusWallet.controls(key);
+    history.replaceState(null,'',location.pathname+'?k='+encodeURIComponent(key));
     $('buymsg').textContent='Payment received. '+d.credits+' credits in your wallet.';$('left').textContent=d.credits+' credits left · a search costs 8';
   }catch(e){$('buymsg').textContent=e.message;}
+}
+if(new URLSearchParams(location.search).get('sample')==='1'){
+  show({status:'done',competitor:'Example Service Co. (fictional sample)',result:{summary:'Illustrative output only. These are sample findings, not live research or verified business facts.',products:[{name:'Example service',price:'$80 (sample)',notes:'A real report links observed pricing to its source.'}],strengths:['Example: clear service descriptions'],weaknesses:['Example: booking details are difficult to find'],opportunities:['Example: make your own booking process easier to understand.'],notes:'Actual reports vary with the public information available. Missing prices are reported as unavailable.'}});
 }
 const paidSid=new URLSearchParams(location.search).get('session_id');
 if(!key){
@@ -171,7 +193,8 @@ if(!key){
   else $('left').textContent='Buy credits below to start your first search.';
 }else{
   if(paidSid)afterPayment(paidSid);
-  else api2('balance',{key}).then(d=>{store('wallet','/research.html?k='+key);$('left').textContent=d.credits+' credits left · a search costs '+d.search_cost;}).catch(()=>{});
+  else api2('balance',{key}).then(d=>{store('wallet','/research.html?k='+key);$('left').textContent=d.credits+' credits left · a search costs '+d.search_cost;}).catch(e=>{$('err').textContent=e.message+' Your saved wallet link has been kept. Please retry.';});
+  loadHistory();
   const j=load('job:'+key);if(j){$('go').disabled=true;poll(j);}
 }
 </script>

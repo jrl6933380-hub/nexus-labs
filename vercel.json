@@ -11,6 +11,9 @@
     },
     "api/room-chat.js": {
       "maxDuration": 300
+    },
+    "api/research-sweep.js": {
+      "maxDuration": 60
     }
   },
   "redirects": [
@@ -208,6 +211,10 @@
     {
       "path": "/api/team-sweep",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/research-sweep",
+      "schedule": "*/5 * * * *"
     }
   ]
 }
