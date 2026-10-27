@@ -53,6 +53,7 @@
   body.embed .bar h1 { display: none; }
   .toast { position: fixed; left: 14px; right: 14px; bottom: 16px; background: #14202f; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: none; }
   .toast.show { display: block; }
+  .collabcard{overflow-wrap:anywhere}.collabcard button{min-height:44px}.collabcard p{white-space:pre-wrap}
 </style>
 </head>
 <body>
@@ -64,6 +65,10 @@
   </div>
   <button id="refresh">Refresh</button>
 </div>
+
+<h2>Working together</h2>
+<p class="sub">First agent to join leads. Both chats must join the same work key; waiting does not wake a closed app.</p>
+<section id="collaborations" aria-label="Shared collaboration sessions"></section>
 
 <div class="card goalbox" style="margin-top:14px">
   <div class="title" style="margin-bottom:8px">What's the goal?</div>
@@ -94,6 +99,7 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="/board-collaboration.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
 function h(tag, attrs, ...kids) {
@@ -116,7 +122,7 @@ function ago(ms) {
 function toast(text) { const t = $('toast'); t.textContent = text; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3500); }
 function signedOut() {
   $('signIn').hidden = false; $('goalAdd').disabled = true;
-  for (const id of ['people','goals','loose','plays','messages']) $(id).replaceChildren();
+  for (const id of ['people','goals','loose','plays','messages','collaborations']) $(id).replaceChildren();
   $('meta').textContent = 'Sign in as the Nexus owner to open this board.';
 }
 async function api(action, params) {
@@ -232,6 +238,7 @@ function renderPlays() {
 }
 
 function render(data) {
+  window.renderBoardCollaborations($('collaborations'),data.collaborations||[],{onCopy:text=>copyText(text),onStop:id=>act(()=>api('collaboration_owner_stop',{session_id:id,reason:'Stopped from the owner board.'}),'Session stopped.')});
   const d = data.dashboard;
   playData = data.plays || [];
   renderPlays();

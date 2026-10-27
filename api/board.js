@@ -1,3 +1,5 @@
+import {boardCollaboration} from '../lib/boardCollaboration.js';
+import {routeCollaboration} from '../lib/boardCollaborationApi.js';
 import {podAvailability} from '../lib/podAvailability.js';
 import {calendarWithReminders} from '../lib/calendarReminders.js';
 import { lifeStore } from '../lib/life.js';
@@ -444,6 +446,7 @@ async function playReply(res, run) {
 async function handleBoard(req, res) {
   const access = await authorizeBoard(req, res);
   if (!access) return;
+  if(await routeCollaboration(req,res,access))return;
   if (req.method === 'GET') {
     // task_id is a lightweight single-task lookup that bypasses the
     // full board assembly below entirely — added so a caller whose
@@ -472,9 +475,10 @@ async function handleBoard(req, res) {
     }
     if (req.query?.view === 'dashboard') {
       res.setHeader('Cache-Control', 'no-store');
-      const [boardData, agentList, playBook] = await Promise.all([readBoard(), listAgents(), listPlays().catch(() => [])]);
+      const [boardData, agentList, playBook, collaborations] = await Promise.all([readBoard(), listAgents(), listPlays().catch(() => []),boardCollaboration.list()]);
       return res.status(200).json({
         dashboard: buildDashboard(boardData.tasks || [], agentList),
+        collaborations,
         plays: playBook.slice(0, 60),
         messages: (boardData.messages || []).slice(0, 25),
         observed_at: Date.now(),

@@ -1,0 +1,28 @@
+name: Board collaboration checks
+on:
+  pull_request:
+    paths:
+      - 'lib/boardCollaboration*.js'
+      - 'api/board.js'
+      - 'public/agent-board.html'
+      - 'public/board-collaboration.js'
+      - 'test/board-collaboration.test.mjs'
+      - 'test-support/collaborationFixture.mjs'
+      - 'e2e/board-collaboration.spec.mjs'
+      - '.github/workflows/board-collaboration.yml'
+jobs:
+  collaboration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      NEXUS_TEST_BROWSER_PATH: /usr/bin/google-chrome
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node --test test/board-collaboration.test.mjs test/board-atomic.test.mjs test/board-goals.test.mjs test/board-access.test.mjs
+      - run: test -x "$NEXUS_TEST_BROWSER_PATH"
+      - run: npx playwright test e2e/board-collaboration.spec.mjs
