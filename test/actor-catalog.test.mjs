@@ -24,10 +24,10 @@ function memory() {
 const store = () => createResearchStore({ command: memory(), wake: async () => ({ woke: false }) });
 const okResult = { summary: 'Done.', sections: [{ title: 'Replies', items: ['a', 'b'] }], preview_html: '<p>draft</p>' };
 
-test('catalog has the six new actors and hides agent instructions from the public list', () => {
-  assert.deepEqual(Object.keys(ACTORS), ['research', 'gbp', 'reviews', 'website', 'offer', 'missed', 'adspy']);
+test('catalog has the seven new actors and hides agent instructions from the public list', () => {
+  assert.deepEqual(Object.keys(ACTORS), ['research', 'docs', 'gbp', 'reviews', 'website', 'offer', 'missed', 'adspy']);
   const pub = publicCatalog();
-  assert.equal(pub.length, 7);
+  assert.equal(pub.length, 8);
   assert.ok(pub.every((a) => a.instructions === undefined && a.cost > 0));
   assert.equal(ACTORS.adspy.beta, true);
 });
@@ -100,7 +100,7 @@ test('catalog endpoint is public and checkout can return to an actor page', asyn
   const res = () => { const r = { code: 0, body: null, setHeader() {}, status(c) { r.code = c; return r; }, json(b) { r.body = b; return r; } }; return r; };
   const req = (body) => ({ method: 'POST', headers: { 'content-type': 'application/json' }, body });
   const r1 = res(); await h(req({ action: 'catalog' }), r1);
-  assert.equal(r1.body.data.actors.length, 7);
+  assert.equal(r1.body.data.actors.length, 8);
   const r2 = res(); await h(req({ action: 'checkout', pack: 'p5', from: 'actor-gbp' }), r2);
   assert.match(posts[0].success_url, /\/actor\.html\?a=gbp&paid=1&session_id=/);
   assert.match(posts[0].cancel_url, /\/actor\.html\?a=gbp$/);
