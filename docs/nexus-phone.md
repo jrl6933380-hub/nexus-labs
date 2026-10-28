@@ -38,3 +38,13 @@ Deploy the PR using Nexus's existing review process. This change adds one API en
 - JavaScript/shell syntax and `git diff --check` passed.
 - Browser fixture `scripts/verify-phone-bridge.mjs` was prepared but did not complete: Chromium crashed or stalled in a 473 MB sandbox, including a bounded low-memory retry. No browser layout/accessibility success is claimed.
 - No physical TCL install, native UI run, gesture/screenshot round-trip, live owner pairing or production deployment has been performed. Those are the next acceptance steps after approved deployment.
+
+## v0.2 — main-app access and visible pairing field
+
+The owner now opens **Nexus Home → Phone** (also listed in More) for status, install/update, single-use pairing-code creation/copy, the Android app-opening shortcut and Disconnect. `/workspace.html?view=phone` opens the same in-shell view. Customers do not receive the tile or controls; the existing owner-only API still enforces access. The standalone setup page links back to this main-app view and shows an owner sign-in link through the integrated view.
+
+The v0.2 APK moves a visibly labeled, shaded Pairing code field near the top. It accepts the `nexusphone://connect` browsable intent only to open its activity; it does not accept pairing tokens or start a session from a URL. The Chrome intent link names the exact package and has a setup-page fallback. Download/update v0.2 before using Open phone app. There is a return shortcut to the main Nexus Phone view inside the native app.
+
+Build output is now `android/phone/build/nexus-phone-0.2.apk`, published at `/downloads/nexus-phone-0.2.apk`. Version code 2/version name 0.2.0. The v0.1 APK remains available. Its development signing key was reused, and both APK certificate SHA-256 digests match: `554a80eebe5fbccb345ac90ba6e185c43e5f0c916ba2161853dd75b8cc8c1ae2`. APK v0.2 SHA-256: `4385ba3bdf8eee3e6222236ec483e08235a6ce75be890e1e30da55c5da45f795`.
+
+Validation: 18 focused Node checks passed across phone navigation, phone bridge and existing navigation scope. DOM checks exercise owner code creation/copy, app link, sign-in recovery and customer exclusion. Java/DEX/resource compilation, APK signature verification, JS/shell syntax and diff checks passed. Actual TCL update installation, app-opening intent and native field visibility still require device acceptance; no device test is claimed.
