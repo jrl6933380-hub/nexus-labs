@@ -28,14 +28,17 @@ try{
  await context.route('https://cdn.pixabay.com/**',route=>route.abort());
  const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto('https://nexus.test/marketplace.html');
- assert((await page.locator('#grid').boundingBox()).y<(await page.locator('#wallet').boundingBox()).y);
+ assert((await page.locator('#wallet').boundingBox()).y<(await page.locator('#grid').boundingBox()).y);
+ assert((await page.locator('#examples').boundingBox()).y>(await page.locator('#grid').boundingBox()).y);
  await page.getByRole('link',{name:'See a sample report'}).click();
  await page.getByText('Illustrative output only.',{exact:false}).waitFor();
  const sampleDownload=page.waitForEvent('download');await page.getByRole('button',{name:'Download report',exact:true}).click();assert.equal((await sampleDownload).suggestedFilename(),'nexus-research-report.json');
  // Restore a backup on an empty browser, then open research without a key in the URL.
  await page.goto('https://nexus.test/marketplace.html');
+ await page.locator('#wallet-details summary').click();
  await page.getByRole('textbox',{name:'Saved private wallet link'}).fill('https://nexus.test/marketplace.html?k='+wallet.token);
  await page.getByRole('button',{name:'Restore wallet',exact:true}).click();await page.getByText('8 credits',{exact:true}).waitFor();
+ await page.locator('#wallet-details summary').click();
  const backup=page.waitForEvent('download');await page.getByRole('button',{name:'Download wallet backup'}).click();assert.equal((await backup).suggestedFilename(),'nexus-wallet-backup.txt');
  await page.goto('https://nexus.test/research.html');await page.getByText('8 credits left',{exact:false}).waitFor();
  await page.locator('#past-reports option').waitFor({state:'attached'});await page.locator('#past-reports').selectOption(job.job_id);
@@ -48,5 +51,5 @@ try{
  assert((await page.locator('.card').filter({has:page.getByRole('heading',{name:'Competitor Research',exact:true})}).getByRole('link',{name:'Open',exact:true}).getAttribute('href')).includes(wallet.token));
  assert.equal(errors.length,0,errors.join('\n'));
  await page.setViewportSize({width:1280,height:800});await page.emulateMedia({colorScheme:'light'});failBalance=false;await page.reload();await page.getByText('8 credits',{exact:true}).waitFor();assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
- console.log('PASS: discovery first; sample; wallet restore/backup; direct Research saved access; history; JSON download; transient error preserves wallet; 393px dark + 1280px light; no page errors.');
+ console.log('PASS: credits before catalog; examples after catalog; sample; wallet restore/backup; direct Research saved access; history; JSON download; transient error preserves wallet; 393px dark + 1280px light; no page errors.');
 }finally{await browser.close();}
