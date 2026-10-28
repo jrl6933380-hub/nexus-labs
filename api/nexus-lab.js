@@ -3,9 +3,10 @@ import {nexusLabJobs} from '../lib/nexusLabJobs.js';
 import {workLabJobOnce} from '../lib/nexusLabWorker.js';
 import {nexusLabService} from '../lib/nexusLabRuntime.js';
 import {nexusLabAssets} from '../lib/nexusLabAssets.js';
+import {nexusLabAgentTasks} from '../lib/nexusLabAgentRuntime.js';
 import {workspaceRequests} from '../lib/workspaceRequests.js';
 import {getNexusOwner} from '../lib/nexusOwnerAuth.js';
-export function createNexusLabHandler({authenticate=getNexusOwner,assets=nexusLabAssets,once=workspaceRequests,service=nexusLabService,jobs=nexusLabJobs,kick=(owner,id)=>waitUntil(workLabJobOnce({owner,id,store:jobs,service}).catch(()=>console.error('lab_worker_wake_failed')))}={}){return async(req,res)=>{
+export function createNexusLabHandler({authenticate=getNexusOwner,assets=nexusLabAssets,once=workspaceRequests,service=nexusLabService,jobs=nexusLabJobs,agent=nexusLabAgentTasks,kick=(owner,id)=>waitUntil(workLabJobOnce({owner,id,store:jobs,service}).catch(()=>console.error('lab_worker_wake_failed')))}={}){return async(req,res)=>{
   res.setHeader('Cache-Control','private, no-store');res.setHeader('X-Content-Type-Options','nosniff');
   if(!['GET','POST'].includes(req.method)){res.setHeader('Allow','GET, POST');return res.status(405).json({error:'Method not allowed.'});}
   try{
@@ -28,11 +29,16 @@ export function createNexusLabHandler({authenticate=getNexusOwner,assets=nexusLa
       if(action==='asset_attach'){await service.readRun(owner,input.run_id);await assets.attach(owner,input);return res.status(200).json({run:await service.readRun(owner,input.run_id)});}
       return res.status(400).json({error:'Choose a supported asset action.'});
     }
+    if(action==='agent_tasks')return res.status(200).json({tasks:await agent.list(owner),readiness:await agent.readiness(owner)});
+    if(action==='agent_task_create'){if(!input||typeof input!=='object'||Array.isArray(input))return res.status(400).json({error:'Supply task input.'});return res.status(200).json({task:await once(owner.id,req.body.request_id,'lab_agent_task',input,()=>agent.createFromAssets(owner,input))});}
+    if(action==='agent_selftest')return res.status(200).json({task:await once(owner.id,req.body.request_id,'lab_agent_selftest',input,()=>agent.createSelfTest(owner,input.capability))});
     if(action==='job_list')return res.status(200).json({jobs:await jobs.list(owner)});
     if(action==='job_read')return res.status(200).json({job:await jobs.get(owner,input.id)});
     if(action==='job_enqueue'){const job=await jobs.enqueue(owner,{kind:input.kind,input:input.input,request_id:req.body.request_id});kick(owner,job.id);return res.status(202).json({job});}
     if(action==='job_cancel'){let job=await jobs.cancel(owner,input.id);const outcome=await service.cancelMediaJob?.(owner,job);if(outcome&&jobs.recordCancellation)job=await jobs.recordCancellation(owner,job.id,outcome.scope);return res.status(200).json({job});}
     if(action==='job_retry'){const job=await jobs.retry(owner,input.id);kick(owner,job.id);return res.status(202).json({job});}
+    if(action==='index_status')return res.status(200).json(await service.indexStatus(owner));
+    if(action==='index_build')return res.status(200).json(await service.indexBuild(owner));
     if(req.body?.action!=='run')return res.status(400).json({error:'Choose a supported Lab action.'});
     return res.status(200).json({run:await service.run(owner,req.body)});
   }catch(error){return res.status(error.status||503).json({error:error.status?error.message:'Nexus Lab is unavailable. Try again shortly.'});}
