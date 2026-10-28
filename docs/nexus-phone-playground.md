@@ -4,6 +4,7 @@ Justin's TCL ION V T607DL (Android 13 UHBB, 3 GB RAM) is the intended dedicated 
 
 ## What is implemented
 
+- Owner web Home now includes Phone with pairing, status, app deep link and setup access; this supersedes the overlapping phone changes in PR #812. Do not merge #812 separately.
 - Native black/gold Nexus Home: live connection state, Connect/Disconnect, Nexus, Ad Studio, Agent Board, launchable apps, pairing, capability setup and recovery.
 - Android Home role for an ordinary installation; device-owner persistent preferred Home after provisioning.
 - Device-admin receiver, Android 12+ provisioning-mode and policy-compliance activities, public APK with a checksum-pinned QR payload.

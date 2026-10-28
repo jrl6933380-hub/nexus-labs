@@ -27,6 +27,14 @@ let browser;try{browser=await chromium.launch({headless:true,...(process.env.PHO
   await page.getByText('APK SHA-256:',{exact:false}).waitFor();
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   await page.locator('#dedicated summary').click();
-  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);assert.deepEqual(errors,[]);await mkdir(new URL('../test-results/phone/',import.meta.url),{recursive:true});await page.screenshot({path:new URL('../test-results/phone/setup-'+width+'.png',import.meta.url).pathname,fullPage:true});await context.close();console.log('PASS setup → pair → connect → screenshot result → stop → revoke; '+width+'px');
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);assert.deepEqual(errors,[]);await mkdir(new URL('../test-results/phone/',import.meta.url),{recursive:true});await page.screenshot({path:new URL('../test-results/phone/setup-'+width+'.png',import.meta.url).pathname,fullPage:true});await page.evaluate(async()=>{const {renderNexusPhone}=await import('/nexus-phone.js');document.querySelector('main').replaceChildren(await renderNexusPhone({customer:false,go(view){window.phoneDestination=view;}}));});
+  await page.getByRole('heading',{name:'Phone',exact:true}).waitFor();
+  await page.getByRole('button',{name:'Create pairing code'}).click();
+  assert.match(await page.locator('code').textContent(),/^[A-F0-9]{6}-[A-F0-9]{6}-[A-F0-9]{6}$/);
+  await page.getByRole('button',{name:'← Nexus Home'}).click();assert.equal(await page.evaluate(()=>window.phoneDestination),'messages');
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  assert.deepEqual(errors,[]);
+  await page.screenshot({path:new URL('../test-results/phone/workspace-'+width+'.png',import.meta.url).pathname,fullPage:true});
+  await context.close();console.log('PASS setup → pair → connect → screenshot result → stop → revoke; '+width+'px');
  }
 }finally{if(browser)await browser.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
