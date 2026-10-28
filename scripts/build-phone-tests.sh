@@ -17,3 +17,10 @@ cp "$OUT/test-base.apk" "$OUT/test-unsigned.apk"
 (cd "$OUT/test-dex" && jar uf "$OUT/test-unsigned.apk" classes.dex)
 "$BT/zipalign" -f 4 "$OUT/test-unsigned.apk" "$OUT/test-aligned.apk"
 "$BT/apksigner" sign --ks "${NEXUS_PHONE_KEYSTORE:-$OUT/playground.keystore}" --ks-key-alias nexus-phone --ks-pass env:NEXUS_PHONE_KEY_PASSWORD --key-pass env:NEXUS_PHONE_KEY_PASSWORD --out "$OUT/nexus-phone-tests.apk" "$OUT/test-aligned.apk"
+
+cat > "$OUT/disposable-manifest.xml" <<'XML'
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.example.nexusplaygroundtest"><uses-sdk android:minSdkVersion="30"/><application android:label="Disposable Nexus test app"/></manifest>
+XML
+"$BT/aapt2" link -o "$OUT/disposable-base.apk" --manifest "$OUT/disposable-manifest.xml" -I "$JAR"
+"$BT/zipalign" -f 4 "$OUT/disposable-base.apk" "$OUT/disposable-aligned.apk"
+"$BT/apksigner" sign --ks "${NEXUS_PHONE_KEYSTORE:-$OUT/playground.keystore}" --ks-key-alias nexus-phone --ks-pass env:NEXUS_PHONE_KEY_PASSWORD --key-pass env:NEXUS_PHONE_KEY_PASSWORD --out "$OUT/disposable-test.apk" "$OUT/disposable-aligned.apk"

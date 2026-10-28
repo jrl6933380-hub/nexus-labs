@@ -5,11 +5,13 @@ import android.os.*;
 import org.json.*;
 /** Instrumentation-only test APK; never included in the phone release. */
 public final class PhoneTestRunner extends Instrumentation {
- @Override public void onCreate(Bundle args){super.onCreate(args);start();}
+ private boolean shizukuTest;
+ @Override public void onCreate(Bundle args){super.onCreate(args);shizukuTest=args!=null&&"true".equals(args.getString("shizuku"));start();}
  void check(boolean value,String message){if(!value)throw new AssertionError(message);}
  JSONObject command(String action) throws Exception {return new JSONObject().put("id",java.util.UUID.randomUUID().toString()).put("expires_at",System.currentTimeMillis()+45000).put("input",new JSONObject().put("action",action));}
  @Override public void onStart(){Bundle out=new Bundle();try{
   android.content.Context c=getTargetContext();Activity activity=startActivitySync(new Intent(c,MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));waitForIdleSync();
+  if(shizukuTest){testShizuku(c);return;}
   check(NexusAdmin.owner(c),"device owner provisioned");NexusAdmin.makeHome(c);
   android.content.pm.ResolveInfo home=c.getPackageManager().resolveActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME),android.content.pm.PackageManager.MATCH_DEFAULT_ONLY);
   check(home!=null&&c.getPackageName().equals(home.activityInfo.packageName),"Nexus is preferred Home");
@@ -31,4 +33,32 @@ public final class PhoneTestRunner extends Instrumentation {
   NexusAdmin.releaseHome(c);c.getSystemService(android.app.admin.DevicePolicyManager.class).clearDeviceOwnerApp(c.getPackageName());check(!NexusAdmin.owner(c),"local management recovery");
   out.putString("stream","PASS native device-owner, Home, capabilities, app list, deeper-tools gate, stay-awake, Shizuku absence, action screenshot, stale frame, disconnect and management recovery\n");finish(Activity.RESULT_OK,out);
  }catch(Throwable e){out.putString("stream","FAIL "+e.toString()+"\n"+android.util.Log.getStackTraceString(e));finish(Activity.RESULT_CANCELED,out);}}
+ void testShizuku(android.content.Context c) throws Exception {
+  long until=System.currentTimeMillis()+15000;while(!rikka.shizuku.Shizuku.pingBinder()&&System.currentTimeMillis()<until)Thread.sleep(100);
+  check(rikka.shizuku.Shizuku.pingBinder(),"Shizuku binder received");
+  if(!ShizukuAccess.ready()){
+   android.app.UiAutomation automation=getUiAutomation(android.app.UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES);
+   runOnMainSync(()->ShizukuAccess.request());
+   until=System.currentTimeMillis()+10000;boolean clicked=false;
+   while(!clicked&&System.currentTimeMillis()<until){
+    android.view.accessibility.AccessibilityNodeInfo root=automation.getRootInActiveWindow();
+    if(root!=null){for(android.view.accessibility.AccessibilityNodeInfo n:root.findAccessibilityNodeInfosByText("Allow all the time")){
+     for(int depth=0;n!=null&&depth<4;depth++,n=n.getParent()){if(n.isClickable()&&n.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)){clicked=true;break;}}if(clicked)break;
+    }}Thread.sleep(200);
+   }
+   check(clicked,"Shizuku authorization button found");
+   until=System.currentTimeMillis()+5000;while(!ShizukuAccess.ready()&&System.currentTimeMillis()<until)Thread.sleep(100);
+  }
+  check(ShizukuAccess.ready(),"Shizuku authorized");check(rikka.shizuku.Shizuku.getUid()==2000,"ADB shell backend");
+  c.getSharedPreferences(PhoneApi.PREFS,0).edit().putBoolean("deeper_tools",true).commit();
+  int before=android.provider.Settings.System.getInt(c.getContentResolver(),android.provider.Settings.System.SCREEN_BRIGHTNESS,128);
+  try{ShizukuAccess.run(c,"brightness","173",()->true);check(android.provider.Settings.System.getInt(c.getContentResolver(),android.provider.Settings.System.SCREEN_BRIGHTNESS)==173,"privileged brightness applied");}
+  finally{ShizukuAccess.run(c,"brightness",Integer.toString(Math.max(5,Math.min(255,before))),()->true);}
+  getTargetContext().getPackageManager().getPackageInfo("com.example.nexusplaygroundtest",0);
+  ShizukuAccess.run(c,"force_stop","com.example.nexusplaygroundtest",()->true);
+  // The service itself must reject a forbidden target, independent of client validation.
+  boolean blocked=false;try{ShizukuAccess.run(c,"force_stop","com.android.settings",()->true);}catch(Exception expected){blocked=true;}check(blocked,"privileged service rejects core app");
+  boolean stopped=false;try{ShizukuAccess.run(c,"brightness","175",()->false);}catch(Exception expected){stopped=true;}check(stopped,"session stop fences privileged operation");
+  Bundle result=new Bundle();result.putString("stream","PASS actual Shizuku shell backend, authorization, brightness, force-stop, service allowlist and session fence\n");finish(Activity.RESULT_OK,result);
+ }
 }
