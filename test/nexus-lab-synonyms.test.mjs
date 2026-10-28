@@ -54,12 +54,12 @@ test('without the option, ranking is the old exact-word behavior (Search is unch
   assert.equal(plain[0].score,0);assert.equal(plain[0].synonyms,undefined);
 });
 
-test('the Lab Rank run uses synonyms, labels its engine, and Search keeps keyword matching',async()=>{
+test('the Lab Rank run uses synonyms, labels its engine, and Search uses the dictionary too',async()=>{
   const lab=createNexusLab({command:memory(),env:{},catalog:async()=>[{id:'1',name:'Peaceful tool',text:'peaceful scheduler'}]});
   const rank=await lab.run(owner,{capability:'rank',query:'calm',candidates:['peaceful morning','loud drop']});
   assert.equal(rank.engine,'token-coverage-dictionary-v1');
   assert.equal(rank.output.results[0].text,'peaceful morning');assert.equal(rank.output.results[0].score,.8);
   assert.match(rank.output.note,/synonym/);
   const search=await lab.run(owner,{capability:'search',query:'calm'});
-  assert.equal(search.engine,'token-coverage-v1');assert.equal(search.output.results.length,0);
+  assert.equal(search.engine,'token-coverage-dictionary-v1');assert.equal(search.output.results.length,1);
 });
