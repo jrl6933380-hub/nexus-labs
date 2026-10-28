@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { createAdMediaStore, MEDIA_LIMITS } from '../lib/adMedia.js';
-import { searchMedia, useMedia, validateSearch, fetchBytes, BROKER_LIMITS } from '../lib/mediaBroker.js';
+import { searchMedia, useMedia, validateSearch, fetchBytes, imageSize, BROKER_LIMITS } from '../lib/mediaBroker.js';
 import { createWorkspaceService, WORKSPACE_WRITES, WORKSPACE_ACTIONS } from '../lib/workspaceConnector.js';
 import { WORKSPACE_TOOLS } from '../lib/workspaceBoard.js';
 
@@ -285,4 +285,25 @@ test('a video poster may be up to 100 KB, a photo preview only 40 KB', async () 
   const tooBig = await useMedia({ user: 'owner', candidate_id: 'pixabay:video:557' }, { media, env, fetchImpl: net({ 'pixabay.com/api/videos/': json({ hits: [hit] }), 't.jpg': body(jpeg(BROKER_LIMITS.posterBytes + 10)) }).fetchImpl });
   assert.equal(tooBig.preview, '');
   assert.match(tooBig.preview_note, /larger than 100 KB/);
+});
+
+test('imageSize reads the real pixel size from PNG, JPEG and WebP headers', () => {
+  const png = Buffer.alloc(40); Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(png); png.writeUInt32BE(640, 16); png.writeUInt32BE(480, 20);
+  assert.deepEqual(imageSize(png), { width: 640, height: 480 });
+  const sof = Buffer.from([0xff, 0xc0, 0, 17, 8, 0x03, 0x52, 0x05, 0x00, 3, 1, 0x22, 0, 2, 0x11, 1, 3, 0x11, 1]); // 850 x 1280
+  const jpg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 4, 0, 0]), sof, Buffer.alloc(8)]);
+  assert.deepEqual(imageSize(jpg), { width: 1280, height: 850 });
+  const webp = Buffer.alloc(40); webp.write('RIFF', 0); webp.write('WEBP', 8); webp.write('VP8X', 12); webp.writeUIntLE(799, 24, 3); webp.writeUIntLE(599, 27, 3);
+  assert.deepEqual(imageSize(webp), { width: 800, height: 600 });
+  assert.equal(imageSize(JPEG), null);
+  assert.equal(imageSize(Buffer.from('nope')), null);
+});
+
+test('use_media records the saved file\'s real size, not the provider\'s original-photo size', async () => {
+  const sof = Buffer.from([0xff, 0xc0, 0, 17, 8, 0x03, 0x52, 0x05, 0x00, 3, 1, 0x22, 0, 2, 0x11, 1, 3, 0x11, 1]);
+  const real = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 4, 0, 0]), sof, Buffer.alloc(200)]);
+  const media = freshMedia();
+  const out = await useMedia({ user: 'owner', candidate_id: 'pexels:photo:111' }, { media, env, fetchImpl: net({ 'large2x.jpg': body(real) }).fetchImpl });
+  assert.equal(out.width, 1280);
+  assert.equal(out.height, 850);
 });
