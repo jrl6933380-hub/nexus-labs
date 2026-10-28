@@ -13,4 +13,10 @@ jobs:
           node-version: 20
       - run: npm install
       - run: npx playwright install --with-deps chromium
-      - run: npx playwright test e2e/accessibility.spec.mjs
+      - run: npx playwright test e2e/accessibility.spec.mjs e2e/marketplace-storefront.spec.mjs
+      - run: node scripts/verify-actor-wallet.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: marketplace-storefront-preview
+          path: test-results/marketplace/

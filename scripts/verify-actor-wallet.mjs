@@ -22,7 +22,7 @@ try{
    const res={code:200,headers:{},setHeader(k,v){this.headers[k]=v;},status(c){this.code=c;return this;},json(b){this.body=b;return this;}};
    await handlers[path](req,res);return route.fulfill({status:res.code,headers:res.headers,json:res.body});
   }
-  try{const body=await readFile(new URL('../public'+path,import.meta.url));return route.fulfill({contentType:path.endsWith('.js')?'text/javascript':'text/html',body});}catch{return route.fulfill({status:404,body:'Not found'});}
+  try{const body=await readFile(new URL('../public'+path,import.meta.url));return route.fulfill({contentType:path.endsWith('.js')?'text/javascript':path.endsWith('.css')?'text/css':'text/html',body});}catch{return route.fulfill({status:404,body:'Not found'});}
  });
  // No external image/network calls in this fixture.
  await context.route('https://cdn.pixabay.com/**',route=>route.abort());
@@ -45,7 +45,7 @@ try{
  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
  if(process.env.ACTOR_QA_SCREENSHOT)await page.screenshot({path:process.env.ACTOR_QA_SCREENSHOT,fullPage:true});
  failBalance=true;await page.goto('https://nexus.test/marketplace.html');await page.getByText('Your saved wallet link has been kept.',{exact:false}).waitFor();
- assert((await page.getByRole('link',{name:'Open',exact:true}).getAttribute('href')).includes(wallet.token));
+ assert((await page.locator('.card').filter({has:page.getByRole('heading',{name:'Competitor Research',exact:true})}).getByRole('link',{name:'Open',exact:true}).getAttribute('href')).includes(wallet.token));
  assert.equal(errors.length,0,errors.join('\n'));
  await page.setViewportSize({width:1280,height:800});await page.emulateMedia({colorScheme:'light'});failBalance=false;await page.reload();await page.getByText('8 credits',{exact:true}).waitFor();assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
  console.log('PASS: discovery first; sample; wallet restore/backup; direct Research saved access; history; JSON download; transient error preserves wallet; 393px dark + 1280px light; no page errors.');
