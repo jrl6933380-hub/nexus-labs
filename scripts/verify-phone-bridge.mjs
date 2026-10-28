@@ -21,6 +21,12 @@ let browser;try{browser=await chromium.launch({headless:true,...(process.env.PHO
   const screen=await bridge.enqueue('justin',{action:'screen'}),polled=await call({action:'poll',session_id,accessibility:true},paired.token);assert.equal(polled.command.id,screen.command_id);const bytes=await page.screenshot({type:'jpeg',quality:40});await call({action:'complete',session_id,command_id:screen.command_id,result:{ok:true,image_base64:bytes.toString('base64'),width,height:850}},paired.token);assert.equal((await bridge.result('justin',screen.command_id)).inline_images.length,1);
   await page.getByRole('button',{name:'Stop session',exact:true}).click();await page.getByText('TCL fixture '+width+' · Disconnected',{exact:false}).waitFor();assert.equal((await call({action:'poll',session_id,accessibility:true},paired.token)).active,false);
   page.once('dialog',d=>d.accept());await page.getByRole('button',{name:'Revoke phone pairing'}).click();await page.getByText('No phone paired.',{exact:false}).waitFor();
+  await page.locator('#dedicated summary').click();
+  await page.locator('img.qr').evaluate(img=>img.decode());
+  assert.ok(await page.locator('img.qr').evaluate(img=>img.naturalWidth>100));
+  await page.getByText('APK SHA-256:',{exact:false}).waitFor();
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  await page.locator('#dedicated summary').click();
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);assert.deepEqual(errors,[]);await mkdir(new URL('../test-results/phone/',import.meta.url),{recursive:true});await page.screenshot({path:new URL('../test-results/phone/setup-'+width+'.png',import.meta.url).pathname,fullPage:true});await context.close();console.log('PASS setup → pair → connect → screenshot result → stop → revoke; '+width+'px');
  }
 }finally{if(browser)await browser.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}

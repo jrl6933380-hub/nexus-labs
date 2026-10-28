@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+mkdir -p test-results/phone
+trap 'adb logcat -d -t 1000 > test-results/phone/native-logcat.txt || true' EXIT
 adb install -r android/phone/build/nexus-phone-0.2.apk
 adb install -r android/phone/build/nexus-phone-tests.apk
 adb install -r android/phone/build/disposable-test.apk
@@ -7,7 +9,7 @@ adb shell dpm set-device-owner app.nexus.phone/.NexusAdmin
 adb shell settings put secure enabled_accessibility_services app.nexus.phone/.PhoneAccessibility
 adb shell settings put secure accessibility_enabled 1
 adb shell pm grant app.nexus.phone android.permission.POST_NOTIFICATIONS
-adb shell am instrument -w app.nexus.phone.test/app.nexus.phone.PhoneTestRunner > /tmp/nexus-phone-instrumentation.txt
+timeout 120s adb shell am instrument -w app.nexus.phone.test/app.nexus.phone.PhoneTestRunner > /tmp/nexus-phone-instrumentation.txt
 cat /tmp/nexus-phone-instrumentation.txt
 grep -q 'PASS native device-owner' /tmp/nexus-phone-instrumentation.txt
 ! grep -q 'FAIL\|INSTRUMENTATION_FAILED\|Process crashed' /tmp/nexus-phone-instrumentation.txt
@@ -24,7 +26,7 @@ shizuku_apk="$(adb shell pm path moe.shizuku.privileged.api | tr -d '\r' | sed '
 adb shell /data/local/tmp/nexus-shizuku-starter "--apk=$shizuku_apk"
 # A disposable downloaded app provides a harmless force-stop target.
 adb shell am start -n com.example.nexusplaygroundtest/android.app.Activity
-adb shell am instrument -w -e shizuku true app.nexus.phone.test/app.nexus.phone.PhoneTestRunner > /tmp/nexus-shizuku-instrumentation.txt
+timeout 120s adb shell am instrument -w -e shizuku true app.nexus.phone.test/app.nexus.phone.PhoneTestRunner > /tmp/nexus-shizuku-instrumentation.txt
 cat /tmp/nexus-shizuku-instrumentation.txt
 grep -q 'PASS actual Shizuku' /tmp/nexus-shizuku-instrumentation.txt
 ! grep -q 'FAIL\|INSTRUMENTATION_FAILED\|Process crashed' /tmp/nexus-shizuku-instrumentation.txt
