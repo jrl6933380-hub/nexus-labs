@@ -23,6 +23,7 @@ adb shell chmod 755 /data/local/tmp/nexus-shizuku-starter
 shizuku_apk="$(adb shell pm path moe.shizuku.privileged.api | tr -d '\r' | sed 's/^package://')"
 adb shell /data/local/tmp/nexus-shizuku-starter "--apk=$shizuku_apk"
 # A disposable downloaded app provides a harmless force-stop target.
+adb shell am start -n com.example.nexusplaygroundtest/android.app.Activity
 adb shell am instrument -w -e shizuku true app.nexus.phone.test/app.nexus.phone.PhoneTestRunner > /tmp/nexus-shizuku-instrumentation.txt
 cat /tmp/nexus-shizuku-instrumentation.txt
 grep -q 'PASS actual Shizuku' /tmp/nexus-shizuku-instrumentation.txt
