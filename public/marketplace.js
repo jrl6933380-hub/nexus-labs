@@ -6,7 +6,7 @@ function store(k,v){try{localStorage.setItem(k,v);}catch{}}
 function load(k){try{return localStorage.getItem(k);}catch{return null;}}
 let key=NexusWallet.current();
 NexusWallet.controls(key);
-$('wallet-details').open=true;
+$('wallet-details').open=false;
 function el(t,txt,cls){const e=document.createElement(t);if(txt!=null)e.textContent=txt;if(cls)e.className=cls;return e;}
 const categories={research:'Research',price:'Research',adspy:'Research',docs:'Operations',gbp:'Growth',localfinder:'Growth',reviews:'Customers',reviews_intel:'Customers',missed:'Customers',website:'Marketing',offer:'Marketing'};
 const categoryOrder=['Research','Marketing','Customers','Operations','Growth','More'];

@@ -13,25 +13,24 @@
 <a class="skip-link" href="#catalog">Skip to actors</a>
 <header class="site-header shell">
  <a class="brand" href="#top" aria-label="Nexus Labs actor marketplace"><span class="brand-mark" aria-hidden="true">N</span><span>NEXUS LABS<small>THE ACTOR MARKETPLACE</small></span></a>
- <nav aria-label="Main navigation"><a href="#catalog">Explore actors</a><a href="#how-it-works">How it works</a><a class="wallet-link" href="#wallet">Your credits <span aria-hidden="true">↗</span></a></nav>
+ <nav aria-label="Main navigation"><a href="#catalog">Explore actors</a><a href="#how-it-works">How it works</a><a class="wallet-link" href="#wallet">Buy credits <span aria-hidden="true">↗</span></a></nav>
 </header>
 <main>
  <section class="hero shell" aria-labelledby="page-title">
   <div class="hero-copy"><p class="eyebrow"><span class="signal" aria-hidden="true"></span> AI tools. Built around your business.</p>
    <h1 id="page-title">Small tools.<br><em>Useful work.</em></h1>
    <p class="hero-description">The research you keep putting off. The spreadsheet you need tomorrow. The words you can’t quite get right. There’s an actor for that.</p>
-   <div class="hero-actions"><a class="button primary" href="#catalog">Find your actor <span aria-hidden="true">↓</span></a><a class="text-link" id="sample-link" href="/research.html?sample=1">See a sample report <span aria-hidden="true">↗</span></a></div>
+   <div class="hero-actions"><a class="button primary" href="#catalog">Find your actor <span aria-hidden="true">↓</span></a><a class="button secondary" href="#examples">View examples <span aria-hidden="true">↓</span></a></div>
    <p class="hero-note">Choose a task. Pay per run. One wallet for every actor.</p>
   </div>
-  <aside class="featured-report" aria-labelledby="sample-title">
-   <div class="report-top"><span class="eyebrow">A LOOK AT THE OUTPUT</span><span class="document-symbol" aria-hidden="true">↗</span></div>
-   <p class="report-type">COMPETITOR RESEARCH / SAMPLE</p><h2 id="sample-title">From “what are they doing?”<br>to your next move.</h2>
-   <div class="report-sheet"><div class="sheet-heading"><span>Example Service Co.</span><span class="sample-stamp">FICTIONAL SAMPLE</span></div>
-    <div class="finding"><span class="finding-number">01</span><div><strong>What they charge</strong><p>Example service · $80 <span class="sample-word">(sample)</span></p></div></div>
-    <div class="finding"><span class="finding-number">02</span><div><strong>Where there’s room</strong><p>Example: booking details are difficult to find.</p></div></div>
-    <div class="finding"><span class="finding-number">03</span><div><strong>Your next move</strong><p>Example: make your booking process easier to understand.</p></div></div>
-   </div>
-   <p class="report-caption">Illustrative output, not live research. Real reports depend on the public information available.</p>
+  <aside class="wallet-panel hero-wallet" id="wallet" aria-labelledby="wallet-title">
+   <div class="wallet-title-row"><div><p class="eyebrow">ONE WALLET. EVERY ACTOR.</p><h2 id="wallet-title">Ready when you are.</h2></div><span class="wallet-emblem" aria-hidden="true">N</span></div>
+   <div class="wallet-balance"><span class="mute" id="wlabel">Your credits</span><div class="bal" id="bal">—</div></div>
+   <p class="mute" id="wnote">Buy credits to get your private wallet link. No signup.</p>
+   <div class="wallet-panel-heading"><h3>Choose your credit pack</h3><p>One-time purchases</p></div>
+   <div class="packs"><button type="button" data-pack="p5"><span class="pack-price">$5</span><strong>50 credits</strong><span class="pack-action">Choose pack <span aria-hidden="true">↗</span></span></button><button type="button" data-pack="p10"><span class="pack-price">$10</span><strong>110 credits</strong><span class="pack-action">Choose pack <span aria-hidden="true">↗</span></span></button><button type="button" data-pack="p25"><span class="pack-price">$25</span><strong>300 credits</strong><span class="pack-action">Choose pack <span aria-hidden="true">↗</span></span></button></div>
+   <p class="wallet-terms">Credits never expire. Purchases are non-refundable; a failed run returns its credits automatically.</p>
+   <details class="wallet-access-details" id="wallet-details"><summary>Already have a wallet?</summary><div id="wallet-access"></div></details><p class="mute err" id="msg" role="alert"></p>
   </aside>
  </section>
  <div class="promise-strip"><div class="shell"><p><span aria-hidden="true">01 /</span> Focused on one job</p><p><span aria-hidden="true">02 /</span> Priced before you run</p><p><span aria-hidden="true">03 /</span> Credits shared across tools</p></div></div>
@@ -45,9 +44,18 @@
   <p class="catalog-footer"><span class="small-mark" aria-hidden="true">N</span> More actors will join the toolkit. The same credits will work on all of them.</p>
  </section>
  <section class="how-section" id="how-it-works" aria-labelledby="how-title"><div class="shell how-layout"><div><p class="eyebrow">A SMALLER WAY TO GET IT DONE</p><h2 id="how-title">One task.<br>One useful result.</h2></div><ol class="steps"><li><span>01</span><div><h3>Pick your actor</h3><p>Choose a focused tool and check its credit cost.</p></div></li><li><span>02</span><div><h3>Bring the details</h3><p>Add the business, documents or text the actor needs.</p></div></li><li><span>03</span><div><h3>Put the output to work</h3><p>Review your report, spreadsheet or draft before using it.</p></div></li></ol></div></section>
- <section class="wallet-section shell" id="wallet" aria-labelledby="wallet-title">
-  <div class="wallet-intro"><p class="eyebrow">ONE WALLET. EVERY ACTOR.</p><h2 id="wallet-title">A little credit.<br>A lot to get done.</h2><p>Buy a pack when you need it. Each actor shows its cost before you start.</p><div class="balance-box"><span class="mute" id="wlabel">Your credits</span><div class="bal" id="bal">—</div><p class="mute" id="wnote">Buy credits to get your private wallet link. No signup.</p></div></div>
-  <div class="wallet-panel"><div class="wallet-panel-heading"><h3>Choose your credit pack</h3><p>One-time purchases</p></div><div class="packs"><button type="button" data-pack="p5"><span class="pack-price">$5</span><strong>50 credits</strong><span class="pack-action">Choose pack <span aria-hidden="true">↗</span></span></button><button type="button" data-pack="p10"><span class="pack-price">$10</span><strong>110 credits</strong><span class="pack-action">Choose pack <span aria-hidden="true">↗</span></span></button><button type="button" data-pack="p25"><span class="pack-price">$25</span><strong>300 credits</strong><span class="pack-action">Choose pack <span aria-hidden="true">↗</span></span></button></div><p class="wallet-terms">Credits never expire. Purchases are non-refundable; a failed run returns its credits automatically.</p><details class="wallet-access-details" id="wallet-details"><summary>Already have a wallet?</summary><div id="wallet-access"></div></details><p class="mute err" id="msg" role="alert"></p></div>
+ <section class="examples-section shell" id="examples" aria-labelledby="examples-title">
+  <div class="examples-intro"><p class="eyebrow">EXAMPLES, BEFORE YOU SPEND</p><h2 id="examples-title">See what you get.</h2><p>Take a closer look at a fictional Competitor Research report. The sample is free to explore.</p><a class="button secondary" id="sample-link" href="/research.html?sample=1">See a sample report <span aria-hidden="true">↗</span></a></div>
+  <aside class="featured-report" aria-labelledby="sample-title">
+   <div class="report-top"><span class="eyebrow">A LOOK AT THE OUTPUT</span><span class="document-symbol" aria-hidden="true">↗</span></div>
+   <p class="report-type">COMPETITOR RESEARCH / SAMPLE</p><h3 id="sample-title">From “what are they doing?”<br>to your next move.</h3>
+   <div class="report-sheet"><div class="sheet-heading"><span>Example Service Co.</span><span class="sample-stamp">FICTIONAL SAMPLE</span></div>
+    <div class="finding"><span class="finding-number">01</span><div><strong>What they charge</strong><p>Example service · $80 <span class="sample-word">(sample)</span></p></div></div>
+    <div class="finding"><span class="finding-number">02</span><div><strong>Where there’s room</strong><p>Example: booking details are difficult to find.</p></div></div>
+    <div class="finding"><span class="finding-number">03</span><div><strong>Your next move</strong><p>Example: make your booking process easier to understand.</p></div></div>
+   </div>
+   <p class="report-caption">Illustrative output, not live research. Real reports depend on the public information available.</p>
+  </aside>
  </section>
 </main>
 <footer class="site-footer shell"><a class="brand footer-brand" href="#top"><span class="brand-mark" aria-hidden="true">N</span><span>NEXUS LABS<small>Small tools. Useful work.</small></span></a><a href="#catalog">Back to the toolkit <span aria-hidden="true">↑</span></a></footer>
