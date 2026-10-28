@@ -67,3 +67,33 @@ test('a hair-thin sliver degrades gracefully instead of crashing', () => {
   const r=segmentSubject(img,[[.2,.50],[.8,.50],[.8,.54],[.2,.54]]);
   assert.ok(r.alpha.length===160*120);
 });
+
+// A decoy: a patch the same color as the subject that is really background (think: a reflection under a lit building).
+function sceneWithDecoy(){
+  const {img,truth}=scene();const {data,width:w,height:h}=img;const decoy=new Uint8Array(w*h);
+  for(let y=92;y<112;y++)for(let x=50;x<110;x++){const i=y*w+x;decoy[i]=1;for(let k=0;k<3;k++)data[i*4+k]=[235,190,80][k]+((x*7+y*13+k*5)%11-5);truth[i]=0;}
+  return {img,truth,decoy};
+}
+const roughWithDecoy=[[.30,.50],[.42,.22],[.62,.20],[.76,.46],[.72,.95],[.40,.95]];
+
+test('keep and remove strokes fix a mistake the colors alone cannot', () => {
+  const {img,truth,decoy}=sceneWithDecoy(),w=160,h=120;
+  const plain=segmentSubject(img,roughWithDecoy);
+  const decoyIn=m=>{let n=0,t=0;for(let i=0;i<m.length;i++)if(decoy[i]){t++;if(m[i]>=128)n++;}return n/t;};
+  assert.ok(decoyIn(plain.alpha)>0.5,`setup: decoy should fool the plain refiner, got ${decoyIn(plain.alpha).toFixed(2)}`);
+  const hints=new Int8Array(w*h).fill(-1);
+  for(let y=96;y<108;y++)for(let x=56;x<104;x+=1)hints[y*w+x]=0;       // paint "remove" over part of the decoy
+  for(let y=56;y<64;y++)for(let x=70;x<90;x++)hints[y*w+x]=1;          // and "keep" on the subject
+  const fixed=segmentSubject(img,roughWithDecoy,{hints});
+  assert.ok(decoyIn(fixed.alpha)<0.15,`decoy still in mask: ${decoyIn(fixed.alpha).toFixed(2)}`);
+  const iouFixed=iou(fixed.alpha.map(a=>a>=128?1:0),truth),iouPlain=iou(plain.alpha.map(a=>a>=128?1:0),truth);
+  assert.ok(iouFixed>iouPlain+0.1,`strokes should improve overlap (${iouPlain.toFixed(3)} to ${iouFixed.toFixed(3)})`);
+});
+
+test('hints are validated and leave results unchanged when empty', () => {
+  const {img}=scene();
+  assert.throws(()=>segmentSubject(img,rough,{hints:new Int8Array(5)}),/hints must be/);
+  assert.throws(()=>segmentSubject(img,rough,{hints:[1,0]}),/hints must be/);
+  const none=new Int8Array(160*120).fill(-1);
+  assert.deepEqual(segmentSubject(img,rough,{hints:none}).alpha,segmentSubject(img,rough).alpha);
+});
