@@ -1,7 +1,7 @@
 // Owner phone setup lives in the main Nexus shell. No device secret is kept here.
 const node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
 const button=(label,run)=>{const b=node('button',label);b.type='button';b.onclick=run;return b;};
-export const PHONE_COMPANION_VERSION='0.2';
+export const PHONE_COMPANION_VERSION='0.3';
 export const PHONE_APP_INTENT='intent://connect#Intent;scheme=nexusphone;package=app.nexus.phone;S.browser_fallback_url=https%3A%2F%2Fnexus-labs-sigma.vercel.app%2Fphone.html%3Finstall%3D1;end';
 export async function renderNexusPhone(ctx){
  let expiryTimer;const root=node('section');root.className='nexusphone';
@@ -14,8 +14,8 @@ export async function renderNexusPhone(ctx){
  const signIn=node('a','Sign in to Nexus as owner');signIn.href='/nexus-login.html?next=%2Fworkspace.html%3Fview%3Dphone';signIn.hidden=true;root.append(signIn);
  async function api(action){const r=await fetch('/api/phone',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',cache:'no-store',body:JSON.stringify({action})});const d=await r.json();if(!r.ok)throw Error(d.error||'Phone connection unavailable.');return d;}
  const first=node('section');first.className='phonestep';first.append(node('h2','1. Install or update Nexus Phone'));
- first.append(node('p','Version 0.2 adds Nexus Home, dedicated-device setup and deeper tools. It uses a new retained signing identity: reset or uninstall v0.1 before installing, then pair again.'));
- const download=node('a','Download / update Android app · v0.2');download.className='phonebutton';download.href='/downloads/nexus-phone-0.2.apk';download.download='nexus-phone-0.2.apk';first.append(download);root.append(first);
+ first.append(node('p','Version 0.3 adds Home swipes: left for Claude, right for ChatGPT. Update directly from v0.3 without resetting or pairing again. Install both official assistant apps; sign in on the phone. From v0.1, uninstall the old app first and pair again.'));
+ const download=node('a','Download / update Android app · v0.3');download.className='phonebutton';download.href='/downloads/nexus-phone-0.3.apk';download.download='nexus-phone-0.3.apk';first.append(download);root.append(first);
  const second=node('section');second.className='phonestep';second.append(node('h2','2. Create and copy your pairing code'));
  const codeBox=node('div'),code=node('code'),expires=node('p');codeBox.hidden=true;codeBox.append(code,expires);
  const copy=button('Copy code',async()=>{try{await navigator.clipboard.writeText(code.textContent);feedback.textContent='Code copied. Tap Open phone app and paste it into the field labeled Pairing code.';}catch{feedback.textContent='Press and hold the code to copy it.';}});codeBox.append(copy);

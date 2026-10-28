@@ -84,7 +84,7 @@ jobs:
           name: nexus-phone-native
           path: |
             test-results/phone/
-            android/phone/build/nexus-phone-0.2.apk
+            android/phone/build/nexus-phone-0.3.apk
       - name: Remove signing material
         if: always()
         run: rm -f android/phone/build/playground.keystore

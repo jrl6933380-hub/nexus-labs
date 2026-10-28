@@ -12,13 +12,18 @@ import android.widget.*;
 import org.json.*;
 public final class MainActivity extends Activity {
  private static final int BG=0xff0d1110,FG=0xfff5f2e8,GOLD=0xffe7c77b,MUTED=0xffb2bcb6;
- TextView state;EditText code;Button pair;LinearLayout layout;ScrollView scroll;final Handler ui=new Handler(Looper.getMainLooper());
+ TextView state;EditText code;Button pair;LinearLayout layout;ScrollView scroll;HomeSwipeView assistantHome;final Handler ui=new Handler(Looper.getMainLooper());
  final Runnable refresh=new Runnable(){public void run(){if(state!=null)state.setText((BridgeService.active?"● CONNECTED":"○ DISCONNECTED")+"\n"+BridgeService.message+"\nControl: "+(PhoneAccessibility.instance!=null?"ready":"enable accessibility")+" · Management: "+(NexusAdmin.owner(MainActivity.this)?"device owner":"standard app")+"\nShizuku: "+ShizukuAccess.status());ui.postDelayed(this,1500);}};
  @Override public void onCreate(Bundle b){super.onCreate(b);getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(BG);render();routeIntent(getIntent());}
  void render(){
   scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setFitsSystemWindows(true);scroll.setBackgroundColor(BG);layout=new LinearLayout(this);layout.setOrientation(1);int p=dp(22);layout.setPadding(p,dp(20),p,dp(36));scroll.addView(layout);setContentView(scroll);
+  LinearLayout root=layout;assistantHome=new HomeSwipeView(this,direction->AssistantApps.open(this,direction));root.addView(assistantHome,new LinearLayout.LayoutParams(-1,-2));layout=assistantHome;
   TextView eyebrow=text("N E X U S   /   P H O N E   L A B");eyebrow.setTextColor(GOLD);eyebrow.setTextSize(12);
   TextView title=text("Your Nexus.\nYour playground.");title.setTextSize(32);title.setTypeface(null,1);
+  text("Swipe left for Claude · Swipe right for ChatGPT").setTextColor(GOLD);
+  button("← Claude",()->AssistantApps.open(this,-1));button("ChatGPT →",()->AssistantApps.open(this,1));
+  text("Nexus is your center. Press Android Home to return here.").setTextColor(MUTED);
+  layout=root;
   state=text("");state.setTextColor(MUTED);state.setTextSize(14);
   button("Connect phone",()->connect());button("Disconnect",()->stop());
   section("WORKSPACE");button("Open Nexus",()->openNexus("home"));button("Ad Studio",()->openNexus("ads"));button("Agent Board",()->openNexus("board"));button("Apps",()->showApps());
@@ -38,7 +43,7 @@ public final class MainActivity extends Activity {
   button("Release Nexus Home",()->{try{NexusAdmin.releaseHome(this);startActivity(new Intent(Settings.ACTION_HOME_SETTINGS));}catch(Exception e){notice(e.getMessage());}});
   button("Forget phone pairing",()->new AlertDialog.Builder(this).setTitle("Forget pairing?").setMessage("Stops this session and removes the phone credential. You can pair again from Nexus.").setNegativeButton("Cancel",null).setPositiveButton("Forget",(d,w)->{stop();getSharedPreferences(PhoneApi.PREFS,0).edit().remove("credential").putBoolean("deeper_tools",false).apply();BridgeService.message="Pairing removed. Revoke it on the owner page too.";}).show());
   button("Release device management",()->new AlertDialog.Builder(this).setTitle("Release management?").setMessage("Stops remote control and releases Nexus device-owner management without wiping your files. You will need provisioning again to restore device-owner mode.").setNegativeButton("Cancel",null).setPositiveButton("Release",(d,w)->{try{stop();getSharedPreferences(PhoneApi.PREFS,0).edit().putBoolean("deeper_tools",false).apply();NexusAdmin.releaseHome(this);if(NexusAdmin.owner(this))getSystemService(android.app.admin.DevicePolicyManager.class).clearDeviceOwnerApp(getPackageName());notice("Management released. You can choose another Home in Settings.");}catch(Exception e){notice("Could not release management: "+e.getMessage());}}).show());
-  text("Nexus Phone 0.2.0 · Android stays underneath. No remote factory reset, password entry or unrestricted shell. Disconnect remains available in the notification and here. No remote session restarts automatically after reboot.").setTextColor(MUTED);
+  text("Nexus Phone 0.3.0 · Android stays underneath. No remote factory reset, password entry or unrestricted shell. Disconnect remains available in the notification and here. No remote session restarts automatically after reboot.").setTextColor(MUTED);
  }
  @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);routeIntent(intent);}
  void routeIntent(Intent intent){

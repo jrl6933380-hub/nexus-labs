@@ -2,7 +2,7 @@
 set -euo pipefail
 mkdir -p test-results/phone
 trap 'adb logcat -d > test-results/phone/native-logcat.txt || true' EXIT
-adb install -r android/phone/build/nexus-phone-0.2.apk
+adb install -r android/phone/build/nexus-phone-0.3.apk
 adb install -r android/phone/build/nexus-phone-tests.apk
 adb install -r android/phone/build/disposable-test.apk
 adb shell dpm set-device-owner app.nexus.phone/.NexusAdmin
@@ -31,3 +31,12 @@ cat /tmp/nexus-shizuku-instrumentation.txt
 grep -q 'PASS actual Shizuku' /tmp/nexus-shizuku-instrumentation.txt
 ! grep -q 'FAIL\|INSTRUMENTATION_FAILED\|Process crashed' /tmp/nexus-shizuku-instrumentation.txt
 adb shell dumpsys package com.example.nexusplaygroundtest | grep -q 'stopped=true'
+
+adb shell dpm set-device-owner app.nexus.phone/.NexusAdmin
+# Disposable package-name fixtures exercise native launch routing, never real assistant accounts.
+adb install android/phone/build/com.anthropic.claude.apk
+adb install android/phone/build/com.openai.chatgpt.apk
+timeout 120s adb shell am instrument -w -e assistants true app.nexus.phone.test/app.nexus.phone.PhoneTestRunner > /tmp/nexus-assistants.txt
+cat /tmp/nexus-assistants.txt
+grep -q 'PASS assistant installed-package' /tmp/nexus-assistants.txt
+! grep -q 'FAIL\|INSTRUMENTATION_FAILED\|Process crashed' /tmp/nexus-assistants.txt

@@ -24,3 +24,12 @@ XML
 "$BT/aapt2" link -o "$OUT/disposable-base.apk" --manifest "$OUT/disposable-manifest.xml" -I "$JAR"
 "$BT/zipalign" -f 4 "$OUT/disposable-base.apk" "$OUT/disposable-aligned.apk"
 "$BT/apksigner" sign --ks "${NEXUS_PHONE_KEYSTORE:-$OUT/playground.keystore}" --ks-key-alias nexus-phone --ks-pass env:NEXUS_PHONE_KEY_PASSWORD --key-pass env:NEXUS_PHONE_KEY_PASSWORD --out "$OUT/disposable-test.apk" "$OUT/disposable-aligned.apk"
+
+for pkg in com.anthropic.claude com.openai.chatgpt; do
+ cat > "$OUT/assistant-manifest.xml" <<XML
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="$pkg"><uses-sdk android:minSdkVersion="30"/><application android:label="Disposable assistant fixture" android:hasCode="false"><activity android:name="android.app.Activity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity></application></manifest>
+XML
+ "$BT/aapt2" link -o "$OUT/assistant-base.apk" --manifest "$OUT/assistant-manifest.xml" -I "$JAR"
+ "$BT/zipalign" -f 4 "$OUT/assistant-base.apk" "$OUT/assistant-aligned.apk"
+ "$BT/apksigner" sign --ks "${NEXUS_PHONE_KEYSTORE:-$OUT/playground.keystore}" --ks-key-alias nexus-phone --ks-pass env:NEXUS_PHONE_KEY_PASSWORD --key-pass env:NEXUS_PHONE_KEY_PASSWORD --out "$OUT/$pkg.apk" "$OUT/assistant-aligned.apk"
+done

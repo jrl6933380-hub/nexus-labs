@@ -5,13 +5,15 @@ import android.os.*;
 import org.json.*;
 /** Instrumentation-only test APK; never included in the phone release. */
 public final class PhoneTestRunner extends Instrumentation {
- private boolean shizukuTest;
- @Override public void onCreate(Bundle args){super.onCreate(args);shizukuTest=args!=null&&"true".equals(args.getString("shizuku"));start();}
+ private boolean shizukuTest,assistantFixtures;
+ @Override public void onCreate(Bundle args){super.onCreate(args);shizukuTest=args!=null&&"true".equals(args.getString("shizuku"));assistantFixtures=args!=null&&"true".equals(args.getString("assistants"));start();}
  void check(boolean value,String message){if(!value)throw new AssertionError(message);}
  JSONObject command(String action) throws Exception {return new JSONObject().put("id",java.util.UUID.randomUUID().toString()).put("expires_at",System.currentTimeMillis()+45000).put("input",new JSONObject().put("action",action));}
  @Override public void onStart(){Bundle out=new Bundle();try{
   android.content.Context c=getTargetContext();Activity activity=startActivitySync(new Intent(c,MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));waitForIdleSync();
   if(shizukuTest){testShizuku(c);return;}
+  if(assistantFixtures){testAssistantLaunches((MainActivity)activity);return;}
+  testAssistantGestures((MainActivity)activity);
   runOnMainSync(()->((MainActivity)activity).onNewIntent(new Intent(Intent.ACTION_VIEW,android.net.Uri.parse("nexusphone://connect"))));waitForIdleSync();
   check(((MainActivity)activity).code.hasFocus(),"native app link focuses pairing without starting control");
   check(!BridgeService.active,"deep link does not start remote control");
@@ -41,6 +43,26 @@ public final class PhoneTestRunner extends Instrumentation {
   NexusAdmin.releaseHome(c);c.getSystemService(android.app.admin.DevicePolicyManager.class).clearDeviceOwnerApp(c.getPackageName());check(!NexusAdmin.owner(c),"local management recovery");
   out.putString("stream","PASS native device-owner, Home, capabilities, app list, deeper-tools gate, stay-awake, Shizuku absence, action screenshot, stale frame, disconnect and management recovery\n");finish(Activity.RESULT_OK,out);
  }catch(Throwable e){out.putString("stream","FAIL "+e.toString()+"\n"+android.util.Log.getStackTraceString(e));finish(Activity.RESULT_CANCELED,out);}}
+ void testAssistantGestures(MainActivity activity) throws Exception {
+  final int[] calls={0},direction={0};final HomeSwipeView[] view={null};final android.widget.Button[] child={null};final int[] clicks={0};
+  runOnMainSync(()->{view[0]=new HomeSwipeView(activity,d->{calls[0]++;direction[0]=d;});child[0]=new android.widget.Button(activity);child[0].setText("Fixture button");child[0].setOnClickListener(v->clicks[0]++);view[0].addView(child[0],new android.widget.LinearLayout.LayoutParams(-1,activity.dp(60)));activity.layout.addView(view[0],0);});waitForIdleSync();
+  gesture(view[0],activity,240,30,40,30,false);check(calls[0]==1&&direction[0]==-1,"left swipe selects Claude");check(clicks[0]==0,"swipe cancels child click");
+  gesture(view[0],activity,40,30,240,30,false);check(calls[0]==2&&direction[0]==1,"right swipe selects ChatGPT");
+  gesture(view[0],activity,40,30,70,30,false);check(calls[0]==2,"short drag does not launch");
+  gesture(view[0],activity,40,10,50,160,false);check(calls[0]==2,"vertical scroll does not launch");
+  gesture(view[0],activity,40,10,240,180,false);check(calls[0]==2,"diagonal does not launch");
+  gesture(view[0],activity,240,30,40,30,true);check(calls[0]==2,"canceled gesture does not launch");
+  runOnMainSync(()->{long t=android.os.SystemClock.uptimeMillis();touch(view[0],t,t,0,40,30,activity);touch(view[0],t,t+10,1,40,30,activity);});check(clicks[0]==1,"ordinary child tap stays usable");
+  runOnMainSync(()->activity.layout.removeView(view[0]));
+  check(AssistantApps.launchIntent(activity,AssistantApps.CLAUDE)==null&&AssistantApps.launchIntent(activity,AssistantApps.CHATGPT)==null,"missing assistants reported");
+  for(int d:new int[]{-1,1}){runOnMainSync(()->AssistantApps.open(activity,d));waitForIdleSync();android.view.accessibility.AccessibilityNodeInfo root=getUiAutomation(android.app.UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES).getRootInActiveWindow();check(root!=null&&!root.findAccessibilityNodeInfosByText("Get app").isEmpty(),"missing assistant offers install instead of crashing");sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK);waitForIdleSync();}
+ }
+ void gesture(HomeSwipeView v,MainActivity a,int x,int y,int ex,int ey,boolean cancel){runOnMainSync(()->{long t=android.os.SystemClock.uptimeMillis();touch(v,t,t,0,x,y,a);touch(v,t,t+30,2,(x+ex)/2,(y+ey)/2,a);touch(v,t,t+60,2,ex,ey,a);touch(v,t,t+90,cancel?3:1,ex,ey,a);});}
+ void touch(HomeSwipeView v,long down,long time,int action,int x,int y,MainActivity a){android.view.MotionEvent e=android.view.MotionEvent.obtain(down,time,action,a.dp(x),a.dp(y),0);try{v.dispatchTouchEvent(e);}finally{e.recycle();}}
+ void testAssistantLaunches(MainActivity activity) throws Exception {
+  for(int d:new int[]{-1,1}){String pkg=d<0?AssistantApps.CLAUDE:AssistantApps.CHATGPT;Intent launch=AssistantApps.launchIntent(activity,pkg);check(launch!=null&&pkg.equals(launch.getComponent().getPackageName()),"correct assistant package");runOnMainSync(()->AssistantApps.open(activity,d));waitForIdleSync();boolean found=false;long until=System.currentTimeMillis()+5000;while(System.currentTimeMillis()<until){android.view.accessibility.AccessibilityNodeInfo root=getUiAutomation(android.app.UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES).getRootInActiveWindow();if(root!=null&&pkg.contentEquals(root.getPackageName())){found=true;break;}Thread.sleep(100);}check(found,"assistant fixture opened");NexusAdmin.makeHome(activity);shell("am start -a android.intent.action.MAIN -c android.intent.category.HOME");waitForIdleSync();android.view.accessibility.AccessibilityNodeInfo returned=getUiAutomation(android.app.UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES).getRootInActiveWindow();check(returned!=null&&activity.getPackageName().contentEquals(returned.getPackageName()),"Home returns to Nexus");}
+  Bundle out=new Bundle();out.putString("stream","PASS assistant installed-package launch and Home return (disposable fixtures, not real accounts)\n");finish(Activity.RESULT_OK,out);
+ }
  void shell(String command) throws Exception {try(java.io.InputStream in=new android.os.ParcelFileDescriptor.AutoCloseInputStream(getUiAutomation(android.app.UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES).executeShellCommand(command))){byte[] buf=new byte[1024];while(in.read(buf)!=-1){}}}
  void testShizuku(android.content.Context c) throws Exception {
   long until=System.currentTimeMillis()+15000;while(!rikka.shizuku.Shizuku.pingBinder()&&System.currentTimeMillis()<until)Thread.sleep(100);

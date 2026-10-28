@@ -23,7 +23,7 @@ for module in api provider aidl shared; do
 done
 CP="$JAR:$OUT/deps/api.jar:$OUT/deps/provider.jar:$OUT/deps/aidl.jar:$OUT/deps/shared.jar"
 "$BT/aapt2" compile --dir "$SRC/res" -o "$OUT/resources.zip"
-"$BT/aapt2" link -o "$OUT/base.apk" --manifest "$SRC/AndroidManifest.xml" -I "$JAR" --java "$OUT/generated" --version-code 2 --version-name 0.2.0 "$OUT/resources.zip"
+"$BT/aapt2" link -o "$OUT/base.apk" --manifest "$SRC/AndroidManifest.xml" -I "$JAR" --java "$OUT/generated" --version-code 3 --version-name 0.3.0 "$OUT/resources.zip"
 find "$SRC/java" "$OUT/generated" -name '*.java' > "$OUT/sources.txt"
 javac -source 8 -target 8 -encoding UTF-8 -classpath "$CP" -d "$OUT/classes" @"$OUT/sources.txt"
 jar cf "$OUT/classes.jar" -C "$OUT/classes" .
@@ -49,6 +49,6 @@ if [ ! -f "$SIGNING_KEY" ] || [ -z "${NEXUS_PHONE_KEY_PASSWORD:-}" ]; then
  echo "Set NEXUS_PHONE_KEYSTORE and NEXUS_PHONE_KEY_PASSWORD using the retained signing identity." >&2
  exit 1
 fi
-"$BT/apksigner" sign --ks "$SIGNING_KEY" --ks-key-alias nexus-phone --ks-pass env:NEXUS_PHONE_KEY_PASSWORD --key-pass env:NEXUS_PHONE_KEY_PASSWORD --out "$OUT/nexus-phone-0.2.apk" "$OUT/aligned.apk"
-"$BT/apksigner" verify --verbose "$OUT/nexus-phone-0.2.apk"
-sha256sum "$OUT/nexus-phone-0.2.apk"
+"$BT/apksigner" sign --ks "$SIGNING_KEY" --ks-key-alias nexus-phone --ks-pass env:NEXUS_PHONE_KEY_PASSWORD --key-pass env:NEXUS_PHONE_KEY_PASSWORD --out "$OUT/nexus-phone-0.3.apk" "$OUT/aligned.apk"
+"$BT/apksigner" verify --verbose "$OUT/nexus-phone-0.3.apk"
+sha256sum "$OUT/nexus-phone-0.3.apk"
