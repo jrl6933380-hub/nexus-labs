@@ -222,9 +222,9 @@ test.describe('mobile canvas room interactions', () => {
     await page.goto('/workspace.html');
     await expect(page.locator('body')).toHaveAttribute('data-view', 'messages');
     await expect(page.getByRole('heading', { name: /Good (morning|afternoon|evening)/ })).toBeVisible();
-    await expect(page.getByRole('navigation', { name: 'Your Nexus spaces' }).getByRole('button')).toHaveCount(7);
+    await expect(page.getByRole('navigation', { name: 'Your Nexus spaces' }).getByRole('button')).toHaveCount(8);
     const spaces = page.getByRole('navigation', { name: 'Your Nexus spaces' });
-    for (const name of [/Nex 0 agents connected/, /Projects Make something real/, /Life Your rhythm and schedule/, /Calendar Your day and upcoming activities/, /Reminders 0 things to remember/, /More Explore and customize/, /Nexus Lab Seven capability workspaces/]) {
+    for (const name of [/Nex 0 agents connected/, /Projects Make something real/, /Life Your rhythm and schedule/, /Calendar Your day and upcoming activities/, /Reminders 0 things to remember/, /More Explore and customize/, /Nexus Lab Seven capability workspaces/, /Phone Pair and open your TCL companion/]) {
       await expect(spaces.getByRole('button', { name })).toBeVisible();
     }
     await expect(page.getByRole('region', { name: 'Upcoming events and updates' })).toBeVisible();

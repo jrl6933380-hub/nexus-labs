@@ -7,6 +7,7 @@ import {disableNotifications,enableNotifications,notificationState,notificationE
 const node=(tag,text,cls='')=>{const el=document.createElement(tag);if(text!==undefined)el.textContent=text;el.className=cls;return el;};
 const button=(text,run,cls='')=>{const el=node('button',text,cls);el.type='button';el.onclick=run;return el;};
 const SYSTEMS=[
+  {id:'phone',name:'Phone',icon:'P',tone:'more',section:'Founder operations',description:'Pair your TCL, open the phone app, and manage its connection'},
   {id:'lab',name:'Nexus Lab',icon:'L',tone:'more',section:'Founder operations',description:'Search, rank, predict, and connect media capabilities'},
   {id:'planner',name:'Calendar',icon:'◷',tone:'schedule',section:'Your Nexus',description:'Plan time and adjust your day'},
   {id:'reminders',name:'Reminders',icon:'✓',tone:'reminders',section:'Your Nexus',description:'Remember things and reserve time'},
@@ -146,7 +147,7 @@ export async function renderMessages(ctx){
       {name:'Life',copy:'Your rhythm and schedule',icon:'✦',tone:'life',run:()=>ctx.go('life')},
       {name:'Calendar',copy:'Your day and upcoming activities',icon:'◷',tone:'schedule',run:()=>ctx.go('planner')},
       {name:'Reminders',copy:`${reminderItems.filter(item=>item.status!=='done').length} things to remember`,icon:'✓',tone:'reminders',run:()=>ctx.go('reminders')},
-      ...(!ctx.customer?[{name:'Nexus Lab',copy:'Seven capability workspaces',icon:'L',tone:'more',run:()=>ctx.go('lab')}]:[]),
+      ...(!ctx.customer?[{name:'Phone',copy:'Pair and open your TCL companion',icon:'P',tone:'more',run:()=>ctx.go('phone')},{name:'Nexus Lab',copy:'Seven capability workspaces',icon:'L',tone:'more',run:()=>ctx.go('lab')}]:[]),
       {name:'More',copy:'Explore and customize',icon:'…',tone:'more',run:moreView},
     ]){const item=button('',space.run,`homespace tone-${space.tone}`);item.append(avatar(space.icon,space.tone));const copy=node('span');copy.append(node('strong',space.name),node('small',space.copy));item.append(copy,node('i','›'));spaces.append(item);}root.append(spaces);
 

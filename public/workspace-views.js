@@ -1,3 +1,4 @@
+import {renderNexusPhone} from './nexus-phone.js';
 import {renderNexusLab} from './nexus-lab.js';
 import {renderBuildOptions} from './build-options.js';
 import {NEXUS_INTRO,QUICK_STARTS,renderExampleButtons,renderNexusGuide} from './nexus-guide.js';
@@ -360,6 +361,7 @@ export function scheduleBalance(summary = {}, items = [], ctx) {
 
 export const VIEWS = {
   guide: {label:'Explore Nexus',icon:'?',say:['explore nexus','nexus guide','what is nexus','practical uses','help','how to use nexus'],async render(ctx){return [renderNexusGuide(ctx)];}},
+  phone: {label:'Phone',icon:'P',say:['nexus phone','phone setup','connect my phone'],async render(ctx){return [await renderNexusPhone(ctx)];}},
   lab: {label:'Nexus Lab',icon:'L',say:['nexus lab','capability lab'],async render(ctx){return [await renderNexusLab(ctx)];}},
   messages: {
     label:'Messages', icon:'✦', say:['messages','inbox','conversations'],

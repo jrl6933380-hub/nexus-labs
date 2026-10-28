@@ -14,13 +14,29 @@ const server=await new Promise(resolve=>{const s=app.listen(0,'127.0.0.1',()=>re
 let browser;try{browser=await chromium.launch({headless:true,...(process.env.PHONE_BROWSER_LOW_MEMORY==='1'?{args:['--single-process','--no-zygote','--disable-dev-shm-usage','--js-flags=--max-old-space-size=128']}:{}),...(process.env.NEXUS_TEST_BROWSER_PATH?{executablePath:process.env.NEXUS_TEST_BROWSER_PATH}:{})});
  for(const width of [393,1280]){
   const context=await browser.newContext({viewport:{width,height:850},colorScheme:width===393?'dark':'light'});const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
-  await page.goto(origin+'/phone.html');await page.getByText('Nexus owner access required.',{exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'Create pairing code'}).isDisabled(),true);
+  await page.goto(origin+'/phone.html');
+  assert.equal(await page.locator('#open-companion').isVisible(),false);await page.getByText('Nexus owner access required.',{exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'Create pairing code'}).isDisabled(),true);
   await context.addCookies([{name:'phone-fixture-owner',value:'1',url:origin}]);await page.reload();await page.getByText('No phone paired.',{exact:false}).waitFor();await page.getByRole('button',{name:'Create pairing code'}).click();await page.locator('#pair:visible').waitFor();const code=(await page.locator('#code').textContent()).replaceAll('-','');assert.match(code,/^[A-F0-9]{18}$/);
   const call=async(body,token)=>{const r=await fetch(origin+'/api/phone',{method:'POST',headers:{'Content-Type':'application/json',...(token?{authorization:'Bearer '+token}:{})},body:JSON.stringify(body)});const d=await r.json();assert.equal(r.status,200,JSON.stringify(d));return d;};
   const paired=await call({action:'pair',code,label:'TCL fixture '+width});const session_id=randomUUID();await call({action:'start',session_id},paired.token);await call({action:'poll',session_id,accessibility:true},paired.token);await page.evaluate(()=>refresh());await page.getByText('TCL fixture '+width+' · Connected',{exact:false}).waitFor();
   const screen=await bridge.enqueue('justin',{action:'screen'}),polled=await call({action:'poll',session_id,accessibility:true},paired.token);assert.equal(polled.command.id,screen.command_id);const bytes=await page.screenshot({type:'jpeg',quality:40});await call({action:'complete',session_id,command_id:screen.command_id,result:{ok:true,image_base64:bytes.toString('base64'),width,height:850}},paired.token);assert.equal((await bridge.result('justin',screen.command_id)).inline_images.length,1);
   await page.getByRole('button',{name:'Stop session',exact:true}).click();await page.getByText('TCL fixture '+width+' · Disconnected',{exact:false}).waitFor();assert.equal((await call({action:'poll',session_id,accessibility:true},paired.token)).active,false);
   page.once('dialog',d=>d.accept());await page.getByRole('button',{name:'Revoke phone pairing'}).click();await page.getByText('No phone paired.',{exact:false}).waitFor();
-  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);assert.deepEqual(errors,[]);await mkdir(new URL('../test-results/phone/',import.meta.url),{recursive:true});await page.screenshot({path:new URL('../test-results/phone/setup-'+width+'.png',import.meta.url).pathname,fullPage:true});await context.close();console.log('PASS setup → pair → connect → screenshot result → stop → revoke; '+width+'px');
+  await page.locator('#dedicated summary').click();
+  await page.locator('img.qr').evaluate(img=>img.decode());
+  assert.ok(await page.locator('img.qr').evaluate(img=>img.naturalWidth>100));
+  await page.getByText('APK SHA-256:',{exact:false}).waitFor();
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  await page.locator('#dedicated summary').click();
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);assert.deepEqual(errors,[]);await mkdir(new URL('../test-results/phone/',import.meta.url),{recursive:true});await page.screenshot({path:new URL('../test-results/phone/setup-'+width+'.png',import.meta.url).pathname,fullPage:true});await page.evaluate(async()=>{const {renderNexusPhone}=await import('/nexus-phone.js');document.querySelector('main').replaceChildren(await renderNexusPhone({customer:false,go(view){window.phoneDestination=view;}}));});
+  await page.getByRole('heading',{name:'Phone',exact:true}).waitFor();
+  await page.getByRole('button',{name:'Create pairing code'}).click();
+  await page.waitForFunction(()=>/^[A-F0-9]{6}-[A-F0-9]{6}-[A-F0-9]{6}$/.test(document.querySelector('code').textContent));
+  assert.match(await page.locator('code').textContent(),/^[A-F0-9]{6}-[A-F0-9]{6}-[A-F0-9]{6}$/);
+  await page.getByRole('button',{name:'← Nexus Home'}).click();assert.equal(await page.evaluate(()=>window.phoneDestination),'messages');
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  assert.deepEqual(errors,[]);
+  await page.screenshot({path:new URL('../test-results/phone/workspace-'+width+'.png',import.meta.url).pathname,fullPage:true});
+  await context.close();console.log('PASS setup → pair → connect → screenshot result → stop → revoke; '+width+'px');
  }
 }finally{if(browser)await browser.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}

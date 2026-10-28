@@ -1,0 +1,8 @@
+{
+  "version": "0.2.0",
+  "package_name": "app.nexus.phone",
+  "bytes": 57960,
+  "sha256": "99fbc862a0bfe8f33896ace513623eb7b4ab1196c8637800907ceed1c28e9c6f",
+  "provisioning": "nexus-phone-provisioning.json",
+  "remote_reset": false
+}
