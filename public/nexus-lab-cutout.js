@@ -1,10 +1,11 @@
 // Refine a connected AI's rough Cutout outline into a pixel-accurate mask, in the browser.
 // Nothing leaves the device except the saved result, and nothing is saved until you press Save.
-import {segmentSubject,applyMask} from './nexus-lab-segment.js';
+import {segmentSubject,applyMask,resizeAlpha,featherAlpha} from './nexus-lab-segment.js';
 const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
 const sha=async bytes=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),b=>b.toString(16).padStart(2,'0')).join('');
 const decode=value=>Uint8Array.from(atob(value),c=>c.charCodeAt(0));
 const encode=bytes=>{let text='';for(let i=0;i<bytes.length;i+=8192)text+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(text);};
+const EXPORT_MAX_PIXELS=12000000; // saving at the original size is capped at 12 megapixels so a phone does not run out of memory
 const MAX_PIXELS=1200000; // refine at up to 1.2 megapixels so touch-ups stay quick on a phone; bigger pictures are scaled down first
 const CONFIDENCE={high:'The subject and background colors are clearly different, so the edge should be reliable.',
   medium:'The colors overlap a little, so check the edge before you rely on it.',
@@ -24,7 +25,20 @@ export async function loadOriginal(request,mediaId){
   const width=Math.max(1,Math.round(bitmap.width*scale)),height=Math.max(1,Math.round(bitmap.height*scale));
   const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
   const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.drawImage(bitmap,0,0,width,height);
-  return {asset,width,height,pixels:ctx.getImageData(0,0,width,height)};
+  return {asset,width,height,bitmap,fullWidth:bitmap.width,fullHeight:bitmap.height,pixels:ctx.getImageData(0,0,width,height)};
+}
+// The size a saved file can have: the picture's own size, or the largest size under the memory cap.
+export function exportSize(fullWidth,fullHeight,maxPixels=EXPORT_MAX_PIXELS){
+  if(fullWidth*fullHeight<=maxPixels)return {width:fullWidth,height:fullHeight};
+  const scale=Math.sqrt(maxPixels/(fullWidth*fullHeight)); // round down so the cap is never exceeded
+  return {width:Math.max(1,Math.floor(fullWidth*scale)),height:Math.max(1,Math.floor(fullHeight*scale))};
+}
+// Re-reads the picture at export size from the decoded bitmap.
+function pixelsAt(original,width,height){
+  if(width===original.width&&height===original.height)return original.pixels;
+  const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.drawImage(original.bitmap,0,0,width,height);
+  return ctx.getImageData(0,0,width,height);
 }
 export function cutoutCanvas(pixels,alpha){
   const canvas=document.createElement('canvas');canvas.width=pixels.width;canvas.height=pixels.height;
@@ -80,8 +94,9 @@ export function renderCutoutRefiner({request,task}){
     const go=el('button','Refine with the real pixels');go.type='button';
     let original=null,result=null,strokes=[],tool='keep',overlay=null,previewHost=null;
     const stats=()=>{const s=result.stats;return `Confidence: ${s.confidence}. ${CONFIDENCE[s.confidence]} The refined shape overlaps the AI outline by ${Math.round(s.agreementWithOutline*100)}%.`;};
+    const softAlpha=()=>featherAlpha(result.alpha,original.width,original.height,Number(feather.value));
     function show(){
-      const canvas=cutoutCanvas(original.pixels,result.alpha);
+      const canvas=cutoutCanvas(original.pixels,softAlpha());
       canvas.style.cssText='display:block;width:100%;height:auto;background:repeating-conic-gradient(#8884 0% 25%,#0000 0% 50%) 0 0/16px 16px';
       canvas.setAttribute('role','img');canvas.setAttribute('aria-label',`Refined cutout of ${cut.label||'the subject'} on a checkerboard`);
       previewHost.replaceChildren(canvas);previewHost.append(overlay);
@@ -98,11 +113,14 @@ export function renderCutoutRefiner({request,task}){
     const keepBtn=el('button','Keep'),removeBtn=el('button','Remove'),undo=el('button','Undo'),clear=el('button','Clear'),redo=el('button','Re-refine','labprimary');
     for(const b of [keepBtn,removeBtn,undo,clear,redo])b.type='button';
     const size=document.createElement('input');size.type='range';size.min='2';size.max='40';size.value='12';size.setAttribute('aria-label','Brush size');
+    const feather=document.createElement('input');feather.type='range';feather.min='0';feather.max='8';feather.value='0';feather.setAttribute('aria-label','Soft edge');
+    const sizeNote=el('label'),bigBox=document.createElement('input');bigBox.type='checkbox';bigBox.checked=true;
+    feather.oninput=()=>{if(result&&previewHost)show();};
     const setTool=t=>{tool=t;keepBtn.setAttribute('aria-pressed',String(t==='keep'));removeBtn.setAttribute('aria-pressed',String(t==='remove'));};
     keepBtn.onclick=()=>setTool('keep');removeBtn.onclick=()=>setTool('remove');
     undo.onclick=()=>{strokes.pop();drawStrokes(overlay,strokes);};clear.onclick=()=>{strokes=[];drawStrokes(overlay,strokes);};
     redo.onclick=()=>{redo.disabled=true;refine(strokes.length?`Re-refined with ${strokeWords(strokes.length).replace('hand ','')}.`:'Re-refined.');};
-    tools.append(keepBtn,removeBtn,el('span','Brush'),size,undo,clear,redo);
+    tools.append(keepBtn,removeBtn,el('span','Brush'),size,undo,clear,redo,el('span','Soft edge'),feather);
     tools.setAttribute('role','group');tools.setAttribute('aria-label','Touch-up tools');
     function startEditor(){
       previewHost=el('div');previewHost.style.cssText='position:relative;touch-action:none';
@@ -125,13 +143,17 @@ export function renderCutoutRefiner({request,task}){
         result=segmentSubject(original.pixels,cut.polygon);
         startEditor();redo.disabled=false;status.textContent=`Done. ${stats()} Nothing is saved yet.`;
         const savePng=el('button','Save transparent cutout'),saveMask=el('button','Save mask');savePng.type=saveMask.type='button';
+        const big=exportSize(original.fullWidth,original.fullHeight),canBig=big.width>original.width||big.height>original.height;
+        const target=()=>canBig&&bigBox.checked?big:{width:original.width,height:original.height};
+        sizeNote.replaceChildren(bigBox,document.createTextNode(` Save at ${big.width}×${big.height} (the picture's own size${big.width<original.fullWidth?', capped for memory':''}); otherwise ${original.width}×${original.height}`));
         const save=(btn,role,make,label)=>async()=>{btn.disabled=true;status.textContent='Saving…';
-          try{const blob=await toPng(make());const s=result.stats;const asset=await saveDerived({request,parentId:cut.asset_id,blob,name:`${cut.label||'subject'} ${label}`,role,width:original.width,height:original.height,notes:`Refined from an AI outline by pixel color analysis (${s.confidence} confidence${strokes.length?`, ${strokeWords(strokes.length)}`:''}).`});
+          try{const t=target(),alpha=t.width===original.width&&t.height===original.height?softAlpha():resizeAlpha(softAlpha(),original.width,original.height,t.width,t.height);
+            const blob=await toPng(make(t,alpha));const s=result.stats;const asset=await saveDerived({request,parentId:cut.asset_id,blob,name:`${cut.label||'subject'} ${label}`,role,width:t.width,height:t.height,notes:`Refined from an AI outline by pixel color analysis (${s.confidence} confidence${strokes.length?`, ${strokeWords(strokes.length)}`:''}${Number(feather.value)?`, soft edge ${feather.value}`:''}).`});
             status.textContent=`Saved ${asset.name} to your library, linked to the original.`;}
           catch(e){status.textContent=e.message||'Could not save.';}finally{btn.disabled=false;}};
-        savePng.onclick=save(savePng,'cutout',()=>cutoutCanvas(original.pixels,result.alpha),'cutout');
-        saveMask.onclick=save(saveMask,'mask',()=>maskCanvas(result.alpha,original.width,original.height),'mask');
-        actions.append(savePng,saveMask);
+        savePng.onclick=save(savePng,'cutout',(t,alpha)=>cutoutCanvas(pixelsAt(original,t.width,t.height),alpha),'cutout');
+        saveMask.onclick=save(saveMask,'mask',(t,alpha)=>maskCanvas(alpha,t.width,t.height),'mask');
+        actions.append(...(canBig?[sizeNote]:[]),savePng,saveMask);
       }catch(e){status.textContent=e.message||'Could not refine this outline.';}
       finally{go.disabled=false;}
     };
