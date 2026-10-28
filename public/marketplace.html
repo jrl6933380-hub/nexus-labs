@@ -4,124 +4,54 @@
 <meta charset="utf-8">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Nexus Actors</title>
-<style>
-:root{--bg:#0a0b10;--panel:#14161d;--panel2:#1a1d26;--line:#2a2f3a;--text:#eef0f4;--mute:#97a0af;--acc:#25f4ee;--acc2:#fe2c55}
-@media(prefers-color-scheme:light){:root{--bg:#f4f5f8;--panel:#fff;--panel2:#f0f2f6;--line:#dde1e7;--text:#16191d;--mute:#5d6673;--acc:#006b67;--acc2:#c8102e}}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;-webkit-text-size-adjust:100%}
-main{max-width:720px;margin:0 auto;padding:28px 16px 48px}
-.eyebrow{display:inline-block;font-size:12px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:#fff;background:#c8102e;padding:4px 10px;border-radius:999px}
-h1{font-size:32px;line-height:1.1;margin:12px 0 8px}h1 span{color:var(--acc)}
-.sub{margin:0;color:var(--mute);max-width:520px}
-h2{font-size:15px;margin:26px 0 8px;letter-spacing:.04em;text-transform:uppercase;color:var(--mute)}
-.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;margin-top:18px}
-.bal{font-size:28px;font-weight:800;color:var(--acc);margin:2px 0}
-.mute{color:var(--mute);font-size:14px}.err{color:var(--acc2)}
-button,.btn{font:inherit;border:0;border-radius:10px;padding:12px;font-weight:700;color:#fff;background:linear-gradient(90deg,#c8102e,#d4163c);cursor:pointer;text-align:center;text-decoration:none;display:block;width:100%}
-button:disabled{opacity:.5}
-.packs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
-.packs button{padding:12px 6px;line-height:1.25}.packs small{display:block;font-weight:400;font-size:12px;opacity:.9}
-@media(max-width:420px){.packs{grid-template-columns:1fr}}
-.grid{display:grid;grid-template-columns:1fr;gap:12px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:8px}
-.card h3{margin:0;font-size:19px}.card p{margin:0;color:var(--mute);font-size:14.5px}
-.price{font-weight:700;color:var(--acc);font-size:14px}
-.card .btn{margin-top:6px}
-.card.soon{border-style:dashed;background:transparent}
-.tag{font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:var(--acc)}
-.tag.s{color:var(--mute)}
-#wallet-access input{width:100%;min-width:0;font:inherit;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text)}#wallet-access button{margin-top:8px;font-size:14px;padding:10px}button:focus-visible,a:focus-visible,select:focus-visible{outline:2px solid var(--acc);outline-offset:3px}
-</style>
+<meta name="description" content="Practical AI tools for small businesses. Research competitors, organize documents and create useful copy. Choose a tool and pay per run with one shared credit wallet.">
+<meta name="theme-color" content="#f5f2e9">
+<title>Nexus Actors — Small tools. Useful work.</title>
+<link rel="stylesheet" href="/marketplace.css">
 </head>
-<body>
+<body id="top">
+<a class="skip-link" href="#catalog">Skip to actors</a>
+<header class="site-header shell">
+ <a class="brand" href="#top" aria-label="Nexus Labs actor marketplace"><span class="brand-mark" aria-hidden="true">N</span><span>NEXUS LABS<small>THE ACTOR MARKETPLACE</small></span></a>
+ <nav aria-label="Main navigation"><a href="#catalog">Explore actors</a><a href="#how-it-works">How it works</a><a class="wallet-link" href="#wallet">Your credits <span aria-hidden="true">↗</span></a></nav>
+</header>
 <main>
-  <span class="eyebrow">Nexus</span>
-  <h1>Nexus <span>actors</span></h1>
-  <p class="sub">Small AI tools that each do one job well. One credit wallet works on all of them.</p>
-
-  <h2>Actors</h2>
-  <div class="grid" id="grid"></div>
-
-  <div class="panel" id="wallet">
-    <div class="mute" id="wlabel">Your credits</div>
-    <div class="bal" id="bal">&mdash;</div>
-    <p class="mute" id="wnote">Buy credits to get your private wallet link. No signup.</p>
-    <div id="wallet-access"></div>
-    <div class="packs">
-      <button data-pack="p5">$5<small>50 credits · 6 searches</small></button>
-      <button data-pack="p10">$10<small>110 credits · 13 searches</small></button>
-      <button data-pack="p25">$25<small>300 credits · 37 searches</small></button>
-    </div>
-    <p class="mute">Credits never expire. Purchases are non-refundable, but a run that fails puts its credits back automatically.</p>
-    <p class="mute err" id="msg" role="alert"></p>
+ <section class="hero shell" aria-labelledby="page-title">
+  <div class="hero-copy"><p class="eyebrow"><span class="signal" aria-hidden="true"></span> AI tools. Built around your business.</p>
+   <h1 id="page-title">Small tools.<br><em>Useful work.</em></h1>
+   <p class="hero-description">The research you keep putting off. The spreadsheet you need tomorrow. The words you can’t quite get right. There’s an actor for that.</p>
+   <div class="hero-actions"><a class="button primary" href="#catalog">Find your actor <span aria-hidden="true">↓</span></a><a class="text-link" id="sample-link" href="/research.html?sample=1">See a sample report <span aria-hidden="true">↗</span></a></div>
+   <p class="hero-note">Choose a task. Pay per run. One wallet for every actor.</p>
   </div>
-
-
+  <aside class="featured-report" aria-labelledby="sample-title">
+   <div class="report-top"><span class="eyebrow">A LOOK AT THE OUTPUT</span><span class="document-symbol" aria-hidden="true">↗</span></div>
+   <p class="report-type">COMPETITOR RESEARCH / SAMPLE</p><h2 id="sample-title">From “what are they doing?”<br>to your next move.</h2>
+   <div class="report-sheet"><div class="sheet-heading"><span>Example Service Co.</span><span class="sample-stamp">FICTIONAL SAMPLE</span></div>
+    <div class="finding"><span class="finding-number">01</span><div><strong>What they charge</strong><p>Example service · $80 <span class="sample-word">(sample)</span></p></div></div>
+    <div class="finding"><span class="finding-number">02</span><div><strong>Where there’s room</strong><p>Example: booking details are difficult to find.</p></div></div>
+    <div class="finding"><span class="finding-number">03</span><div><strong>Your next move</strong><p>Example: make your booking process easier to understand.</p></div></div>
+   </div>
+   <p class="report-caption">Illustrative output, not live research. Real reports depend on the public information available.</p>
+  </aside>
+ </section>
+ <div class="promise-strip"><div class="shell"><p><span aria-hidden="true">01 /</span> Focused on one job</p><p><span aria-hidden="true">02 /</span> Priced before you run</p><p><span aria-hidden="true">03 /</span> Credits shared across tools</p></div></div>
+ <section class="catalog shell" id="catalog" aria-labelledby="catalog-title">
+  <div class="section-heading"><div><p class="eyebrow">THE TOOLKIT</p><h2 id="catalog-title">What’s on your list?</h2></div><p>Start with the job.<br>We’ll help with the work.</p></div>
+  <div class="catalog-controls"><div class="filters" id="filters" role="group" aria-label="Filter actors by category"><button type="button" class="filter active" data-category="all" aria-pressed="true">All actors</button></div><label class="search"><span class="search-symbol" aria-hidden="true"></span><input id="actor-search" type="search" placeholder="Search actors…" aria-label="Search actors" autocomplete="off"></label></div>
+  <div class="catalog-meta"><p id="result-count" role="status" aria-live="polite">Loading actors…</p><p>Prices shown in credits per run</p></div>
+  <div id="catalog-error" class="catalog-error" hidden><h3>We couldn’t load the actors.</h3><p>Please try again. Your wallet has not been changed.</p><button class="button secondary" id="retry-catalog" type="button">Try again</button></div>
+  <div class="grid" id="grid" aria-busy="true"><div class="loading-placeholder" aria-hidden="true"></div><div class="loading-placeholder" aria-hidden="true"></div><div class="loading-placeholder" aria-hidden="true"></div></div>
+  <div class="empty-state" id="empty-state" hidden><h3>No actors match that search.</h3><p>Try another task, or return to the full toolkit.</p><button type="button" class="button secondary" id="reset-filters">Show all actors</button></div>
+  <p class="catalog-footer"><span class="small-mark" aria-hidden="true">N</span> More actors will join the toolkit. The same credits will work on all of them.</p>
+ </section>
+ <section class="how-section" id="how-it-works" aria-labelledby="how-title"><div class="shell how-layout"><div><p class="eyebrow">A SMALLER WAY TO GET IT DONE</p><h2 id="how-title">One task.<br>One useful result.</h2></div><ol class="steps"><li><span>01</span><div><h3>Pick your actor</h3><p>Choose a focused tool and check its credit cost.</p></div></li><li><span>02</span><div><h3>Bring the details</h3><p>Add the business, documents or text the actor needs.</p></div></li><li><span>03</span><div><h3>Put the output to work</h3><p>Review your report, spreadsheet or draft before using it.</p></div></li></ol></div></section>
+ <section class="wallet-section shell" id="wallet" aria-labelledby="wallet-title">
+  <div class="wallet-intro"><p class="eyebrow">ONE WALLET. EVERY ACTOR.</p><h2 id="wallet-title">A little credit.<br>A lot to get done.</h2><p>Buy a pack when you need it. Each actor shows its cost before you start.</p><div class="balance-box"><span class="mute" id="wlabel">Your credits</span><div class="bal" id="bal">—</div><p class="mute" id="wnote">Buy credits to get your private wallet link. No signup.</p></div></div>
+  <div class="wallet-panel"><div class="wallet-panel-heading"><h3>Choose your credit pack</h3><p>One-time purchases</p></div><div class="packs"><button type="button" data-pack="p5"><span class="pack-price">$5</span><strong>50 credits</strong><span class="pack-action">Choose pack <span aria-hidden="true">↗</span></span></button><button type="button" data-pack="p10"><span class="pack-price">$10</span><strong>110 credits</strong><span class="pack-action">Choose pack <span aria-hidden="true">↗</span></span></button><button type="button" data-pack="p25"><span class="pack-price">$25</span><strong>300 credits</strong><span class="pack-action">Choose pack <span aria-hidden="true">↗</span></span></button></div><p class="wallet-terms">Credits never expire. Purchases are non-refundable; a failed run returns its credits automatically.</p><details class="wallet-access-details" id="wallet-details"><summary>Already have a wallet?</summary><div id="wallet-access"></div></details><p class="mute err" id="msg" role="alert"></p></div>
+ </section>
 </main>
+<footer class="site-footer shell"><a class="brand footer-brand" href="#top"><span class="brand-mark" aria-hidden="true">N</span><span>NEXUS LABS<small>Small tools. Useful work.</small></span></a><a href="#catalog">Back to the toolkit <span aria-hidden="true">↑</span></a></footer>
 <script src="/actor-wallet.js"></script>
-<script>
-const $=id=>document.getElementById(id);
-// The actors come from the server catalog (lib/actorCatalog.js).
-let ACTORS=[];
-function store(k,v){try{localStorage.setItem(k,v);}catch{}}
-function load(k){try{return localStorage.getItem(k);}catch{return null;}}
-let key=NexusWallet.current();
-NexusWallet.controls(key);
-function el(t,txt,cls){const e=document.createElement(t);if(txt!=null)e.textContent=txt;if(cls)e.className=cls;return e;}
-function drawCards(){
-  const g=$('grid');g.replaceChildren();
-  for(const a of ACTORS){
-    const c=el('div',null,'card'+(a.soon?' soon':''));
-    c.append(el('span',a.soon?'Soon':(a.beta?'Beta':'Live'),'tag'+(a.soon?' s':'')),el('h3',a.name),el('p',a.blurb));
-    if(!a.soon){
-      c.append(el('span',a.cost+' credits per run','price'));
-      if(a.id==='research'){const sample=el('a','See a sample report');sample.href='/research.html?sample=1';c.append(sample);}
-      const b=el('a','Open','btn');const p=a.page||'/actor.html?a='+a.id;b.href=p+(key?(p.includes('?')?'&':'?')+'k='+encodeURIComponent(key):'');c.append(b);
-    }
-    g.append(c);
-  }
-}
-async function api(action,extra){
-  const r=await fetch('/api/actor-credits',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...extra})});
-  let d=null;try{d=await r.json();}catch{}
-  if(!r.ok){const e=new Error((d&&d.error)||'Could not reach the server.');e.status=r.status;throw e;}
-  return d.data;
-}
-function showBalance(n){
-  NexusWallet.remember(key);NexusWallet.controls(key);
-  $('bal').textContent=n+' credit'+(n===1?'':'s');
-  $('wnote').textContent='Add more any time. The same wallet works on every actor.';
-}
-document.querySelectorAll('#wallet [data-pack]').forEach(b=>b.addEventListener('click',async()=>{
-  b.disabled=true;$('msg').textContent='Opening checkout...';
-  try{const d=await api('checkout',{pack:b.dataset.pack,from:'market',...(key?{key}:{})});location.href=d.url;}
-  catch(e){$('msg').textContent=e.message;b.disabled=false;}
-}));
-async function init(){
-  const soon={name:'More actors coming',blurb:'New tools will appear here and run on the same credits.',soon:true};
-  try{ACTORS=[...(await api('catalog')).actors,soon];}
-  catch{ACTORS=[{id:'research',name:'Competitor Research',blurb:'Type a competitor. See what they charge and how to beat them.',cost:8,page:'/research.html'},soon];}
-  drawCards();
-  const sid=new URLSearchParams(location.search).get('session_id');
-  if(sid){
-    $('msg').textContent='Confirming your payment...';
-    try{
-      const d=await api('claim',{session_id:sid});
-      if(d.path){key=new URL(d.path,location.origin).searchParams.get('k')||'';store('wallet',d.path);}
-      else if(key)store('wallet','/research.html?k='+key);
-      showBalance(d.credits);$('msg').textContent='';
-      history.replaceState(null,'',location.pathname+(key?'?k='+encodeURIComponent(key):''));
-      drawCards();return;
-    }catch(e){$('msg').textContent=e.message;}
-  }
-  if(key){
-    try{const d=await api('balance',{key});store('wallet','/research.html?k='+key);showBalance(d.credits);}
-    catch(e){$('msg').textContent=e.message+' Your saved wallet link has been kept. Please retry.';}
-    drawCards();
-  }
-}
-init();
-</script>
+<script src="/marketplace.js"></script>
 </body>
 </html>
