@@ -6,4 +6,4 @@ Scope: marketplace storefront only. Catalog entries, costs, beta flags and tool 
 
 ## Navigation refinement
 
-The opening now pairs the task introduction with the single compact credit wallet. A sticky header keeps Buy credits available while browsing; the balance, three packs and existing wallet/payment controls retain their IDs and APIs. Optional private-link restoration is collapsed by default, keeping the purchase controls compact. The labeled fictional sample is at the bottom after the toolkit/how-it-works, reached with a top View examples button; the existing full sample-report link remains in that examples section. This reduces the mobile introduction scroll and avoids placing credit purchase below all eleven actors.
+A compact introduction leads directly into the actor catalog. The single wallet sits immediately after the catalog, before supporting how-it-works content and bottom examples. Sticky Buy credits still jumps straight to it; View examples remains in the short opening. The balance, packs, optional collapsed private-link controls and APIs are unchanged. This prioritizes choosing an actor before funding the wallet on both phone and desktop.

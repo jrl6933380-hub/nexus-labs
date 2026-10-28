@@ -26,7 +26,8 @@ for(const [name,viewport,colorScheme] of [['desktop',{width:1440,height:1000},'l
   await page.getByRole('button',{name:'All actors',exact:true}).click();await page.getByRole('searchbox',{name:'Search actors'}).fill('spreadsheet');await expect(page.locator('#grid .card')).toHaveCount(1);await expect(page.locator('#grid')).toContainText('Documents to Spreadsheet');
   await page.getByRole('searchbox',{name:'Search actors'}).fill('no-such-task-fixture');await expect(page.getByRole('heading',{name:'No actors match that search.'})).toBeVisible();await page.getByRole('button',{name:'Show all actors'}).click();await expect(page.locator('#grid .card')).toHaveCount(actors.length);
   await expect(page.getByRole('link',{name:'See a sample report'})).toHaveAttribute('href','/research.html?sample=1');
-  expect((await page.locator('#wallet').boundingBox()).y).toBeLessThan((await page.locator('#catalog').boundingBox()).y);
+  expect((await page.locator('#wallet').boundingBox()).y).toBeGreaterThan((await page.locator('#catalog').boundingBox()).y+(await page.locator('#catalog').boundingBox()).height-1);
+  expect(await page.locator('#grid .card').first().evaluate(el=>el.getBoundingClientRect().top+scrollY)).toBeLessThan(viewport.width<760?680:650);
   expect((await page.locator('#examples').boundingBox()).y).toBeGreaterThan((await page.locator('#how-it-works').boundingBox()).y);
   await expect(page.locator('#wallet-details')).not.toHaveAttribute('open','');
   await page.getByRole('link',{name:'View examples',exact:true}).click();await expect(page.locator('#examples-title')).toBeInViewport();
