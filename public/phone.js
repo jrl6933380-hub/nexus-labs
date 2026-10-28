@@ -6,3 +6,5 @@ $('copy').onclick=async()=>{try{await navigator.clipboard.writeText($('code').te
 $('stop').onclick=async()=>{try{await api('stop');await refresh();}catch(e){$('error').textContent=e.message;}};
 $('revoke').onclick=async()=>{if(!confirm('Revoke the phone credential and stop its session?'))return;try{await api('revoke');$('pair').hidden=true;await refresh();}catch(e){$('error').textContent=e.message;}};
 refresh();setInterval(()=>{if(!document.hidden)refresh();},10000);
+
+if(/Android/i.test(navigator.userAgent))document.getElementById('open-companion').hidden=false;
