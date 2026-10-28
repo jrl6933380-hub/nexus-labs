@@ -26,14 +26,16 @@ public final class HomeShortcuts {
   if("web".equals(kind))target=webUrl(target);else if(!target.matches("[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+"))throw new IllegalArgumentException("Choose an installed app.");
   prefs(c).edit().putString(key(d)+"kind",kind).putString(key(d)+"label",label).putString(key(d)+"target",target).putString(key(d)+"browser",browser).apply();
  }
- static List<ResolveInfo> browsers(Context c){return c.getPackageManager().queryIntentActivities(new Intent(Intent.ACTION_VIEW,Uri.parse("https://example.com/")).addCategory(Intent.CATEGORY_BROWSABLE),PackageManager.MATCH_DEFAULT_ONLY);}
+ // A hostless browser intent avoids Android 12+ domain/default-handler filtering.
+ static Intent browserIntent(){return new Intent(Intent.ACTION_VIEW,Uri.fromParts("http","",null)).addCategory(Intent.CATEGORY_BROWSABLE);}
+ static List<ResolveInfo> browsers(Context c){return c.getPackageManager().queryIntentActivities(browserIntent(),PackageManager.MATCH_ALL|PackageManager.MATCH_DEFAULT_ONLY|PackageManager.MATCH_DIRECT_BOOT_AWARE|PackageManager.MATCH_DIRECT_BOOT_UNAWARE);}
  static Intent launchIntent(Activity a,int d){
   if("app".equals(kind(a,d)))return a.getPackageManager().getLaunchIntentForPackage(target(a,d));
   Intent i=new Intent(Intent.ACTION_VIEW,Uri.parse(webUrl(target(a,d)))).addCategory(Intent.CATEGORY_BROWSABLE);
   String selected=browser(a,d);List<ResolveInfo> list=browsers(a);
   if(selected.isEmpty()){
    for(ResolveInfo r:list)if("com.android.chrome".equals(r.activityInfo.packageName)){selected=r.activityInfo.packageName;break;}
-   if(selected.isEmpty()&&!list.isEmpty()){ResolveInfo preferred=a.getPackageManager().resolveActivity(new Intent(Intent.ACTION_VIEW,Uri.parse("https://example.com/")).addCategory(Intent.CATEGORY_BROWSABLE),PackageManager.MATCH_DEFAULT_ONLY);for(ResolveInfo r:list)if(preferred!=null&&r.activityInfo.packageName.equals(preferred.activityInfo.packageName))selected=r.activityInfo.packageName;if(selected.isEmpty())selected=list.get(0).activityInfo.packageName;}
+   if(selected.isEmpty()&&!list.isEmpty()){ResolveInfo preferred=a.getPackageManager().resolveActivity(browserIntent(),PackageManager.MATCH_DEFAULT_ONLY);for(ResolveInfo r:list)if(preferred!=null&&r.activityInfo.packageName.equals(preferred.activityInfo.packageName))selected=r.activityInfo.packageName;if(selected.isEmpty())selected=list.get(0).activityInfo.packageName;}
   }
   for(ResolveInfo r:list)if(r.activityInfo.packageName.equals(selected))return i.setPackage(selected);
   return null;
