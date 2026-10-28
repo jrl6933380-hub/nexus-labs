@@ -97,3 +97,23 @@ test('hints are validated and leave results unchanged when empty', () => {
   const none=new Int8Array(160*120).fill(-1);
   assert.deepEqual(segmentSubject(img,rough,{hints:none}).alpha,segmentSubject(img,rough).alpha);
 });
+
+test('resizeAlpha scales a mask up smoothly and keeps its shape', async()=>{
+  const {resizeAlpha}=await import('../lib/nexusLabSegment.js');
+  const a=new Uint8Array(4*4);for(let y=1;y<3;y++)for(let x=1;x<3;x++)a[y*4+x]=255;
+  const b=resizeAlpha(a,4,4,16,16);
+  assert.equal(b.length,256);assert.equal(b[8*16+8],255);assert.equal(b[0],0);assert.equal(b[15*16+15],0);
+  const mid=b[8*16+3];assert.ok(mid>0&&mid<255,'edge should be soft, got '+mid);
+  assert.deepEqual([...resizeAlpha(a,4,4,4,4)],[...a]);
+  assert.throws(()=>resizeAlpha(a,3,3,6,6),/Mask size/);assert.throws(()=>resizeAlpha(a,4,4,0,4),/whole-number/);
+});
+test('featherAlpha softens edges only, leaves solid areas and zero radius alone', async()=>{
+  const {featherAlpha}=await import('../lib/nexusLabSegment.js');
+  const w=20,h=20,a=new Uint8Array(w*h);for(let y=5;y<15;y++)for(let x=5;x<15;x++)a[y*w+x]=255;
+  assert.deepEqual([...featherAlpha(a,w,h,0)],[...a]);
+  const f=featherAlpha(a,w,h,2);
+  assert.equal(f[10*w+10],255);assert.equal(f[0],0);
+  const edge=f[10*w+5];assert.ok(edge>0&&edge<255,'edge should be soft, got '+edge);
+  const total=x=>x.reduce((s,v)=>s+v,0);assert.ok(Math.abs(total(f)-total(a))<total(a)*0.02,'mass roughly preserved');
+  assert.throws(()=>featherAlpha(a,5,5,1),/Mask size/);
+});

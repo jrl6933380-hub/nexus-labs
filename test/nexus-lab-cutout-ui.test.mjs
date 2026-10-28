@@ -31,3 +31,15 @@ test('paint strokes become a keep/remove hint map, later strokes win', async()=>
   const edge=buildHints([{tool:'keep',r:5,pts:[[-3,-3],[40,30]]}],30,20);assert.equal(edge.length,600);
   assert.equal(strokeWords(1),'1 hand stroke');assert.equal(strokeWords(2),'2 hand strokes');
 });
+
+test('export size keeps the picture\'s own size unless it is over the memory cap', async()=>{
+  const {exportSize}=await import('../public/nexus-lab-cutout.js');
+  assert.deepEqual(exportSize(1024,771),{width:1024,height:771});
+  const big=exportSize(4288,2848);assert.ok(big.width*big.height<=12000001);assert.ok(Math.abs(big.width/big.height-4288/2848)<0.01);
+  assert.deepEqual(exportSize(4000,3000,1200000),exportSize(4000,3000,1200000));
+  const tiny=exportSize(8000,6000,1000);assert.ok(tiny.width>=1&&tiny.height>=1);
+});
+test('the editor offers a soft edge slider and original-size saving', ()=>{
+  const ui=readFileSync(new URL('../public/nexus-lab-cutout.js',import.meta.url),'utf8');
+  assert.match(ui,/Soft edge/);assert.match(ui,/resizeAlpha/);assert.match(ui,/featherAlpha/);assert.match(ui,/Save at /);
+});
