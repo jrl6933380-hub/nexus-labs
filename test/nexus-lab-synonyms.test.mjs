@@ -30,11 +30,11 @@ test('Rank matches synonyms when no exact word is shared, and still prefers exac
     'Peaceful Living senior home calm morning ad',
     'Life insurance explainer for families',
   ]),{synonyms:true});
-  assert.deepEqual(ranked.map(d=>d.name),['Option 3','Option 2','Option 1','Option 4'],'ties keep input order');
+  assert.deepEqual(ranked.map(d=>d.name),['Option 3','Option 2','Option 4','Option 1'],'exact first, synonyms next, loosely related last');
   assert.ok(ranked[1].score>0,'a pure-synonym option must score above zero');
   assert.ok(ranked[0].score>ranked[1].score,'exact words beat synonyms');
   assert.ok(ranked[1].synonyms.some(s=>s.term==='calm'&&s.word==='serene'));
-  assert.equal(ranked[2].score,0,'the unrelated options score zero');assert.equal(ranked[3].score,0);
+  assert.ok(ranked[2].score<0.3,'only loosely related words from the dictionary score low');assert.equal(ranked[3].score,0,'the unrelated option scores zero');
 });
 
 test('exact word beats its synonym',()=>{
@@ -57,7 +57,7 @@ test('without the option, ranking is the old exact-word behavior (Search is unch
 test('the Lab Rank run uses synonyms, labels its engine, and Search keeps keyword matching',async()=>{
   const lab=createNexusLab({command:memory(),env:{},catalog:async()=>[{id:'1',name:'Peaceful tool',text:'peaceful scheduler'}]});
   const rank=await lab.run(owner,{capability:'rank',query:'calm',candidates:['peaceful morning','loud drop']});
-  assert.equal(rank.engine,'token-coverage-synonyms-v1');
+  assert.equal(rank.engine,'token-coverage-dictionary-v1');
   assert.equal(rank.output.results[0].text,'peaceful morning');assert.equal(rank.output.results[0].score,.8);
   assert.match(rank.output.note,/synonym/);
   const search=await lab.run(owner,{capability:'search',query:'calm'});
