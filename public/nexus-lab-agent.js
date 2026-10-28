@@ -1,3 +1,4 @@
+import {renderCutoutRefiner} from './nexus-lab-cutout.js';
 const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
 const pct=v=>v==null?'no score yet':Math.round(v*100)+'%';
 const HELP={
@@ -29,7 +30,7 @@ export function renderLabAgent({request,cap,work}){
       for(const t of mine.slice(0,10)){
         const card=el('details'),head=el('summary',`${t.selftest?'Self-test':'Task'} · ${t.status}${t.score!=null?' · score '+pct(t.score):''}`);card.append(head,el('p',t.prompt));
         if(t.last_error&&t.status!=='done')card.append(el('p','Last rejected answer: '+t.last_error));
-        if(t.result){const pre=el('pre',JSON.stringify(t.result,null,2));pre.style.whiteSpace='pre-wrap';pre.style.overflowWrap='anywhere';card.append(pre);}
+        if(t.result){const pre=el('pre',JSON.stringify(t.result,null,2));pre.style.whiteSpace='pre-wrap';pre.style.overflowWrap='anywhere';card.append(pre);if(cap.id==='cutout'&&t.result.cutouts)card.append(el('h4','Refine'),renderCutoutRefiner({request,task:t}));}
         list.append(card);
       }
     }catch(e){list.replaceChildren(el('p',e.message));}
