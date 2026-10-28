@@ -55,3 +55,9 @@ test('Search hides weak dictionary-only hits when most of the brief is unmatched
   const r=await lab.run(owner,{capability:'search',query:'quiet luxury skiing living home'});
   assert.equal(r.output.results.length,0);
 });
+
+test('Predict uses a weekly pattern even when the held-back part is short', () => {
+  const r=forecast([120,135,150,90,60,140,160,125,140,155,95,65,145,165,130,145,160,100,70,150]);
+  assert.equal(r.seasonality.period,7);assert.equal(r.chosen,'seasonal');
+  assert.ok(Math.abs(r.next-170)<15,`expected about 170, got ${r.next}`);
+});
