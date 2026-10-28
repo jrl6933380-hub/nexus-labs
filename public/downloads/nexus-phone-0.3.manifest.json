@@ -1,0 +1,10 @@
+{
+  "version": "0.3.0",
+  "version_code": 3,
+  "package_name": "app.nexus.phone",
+  "bytes": 66152,
+  "sha256": "0f6f2e33fe67983a2e7f60699abff72db97cbaec7376884bda0263d26e7bfe07",
+  "update_from": "0.2.0",
+  "source_commit": "23609ec5f98a883eb977bafb34a45ce5de862055",
+  "remote_reset": false
+}

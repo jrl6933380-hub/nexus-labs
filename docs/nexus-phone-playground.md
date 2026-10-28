@@ -85,3 +85,11 @@ The existing MCP `control_nexus_phone` call now waits up to ten seconds for an a
 - A caller with write access alone keeps the existing queued-receipt behavior; private observation also requires read access. Read errors after enqueue return the receipt so a transport error does not invite duplicate actions.
 
 This reduces the normal command/observation cycle from two model tool calls to one. The phone still polls every two seconds and sends individual images. Continuous video and this chat host's ability to consume it are separate work; this is not a video stream or a claim of measured physical-phone speedup before deployment.
+
+## v0.3: configurable Home swipes
+
+The top section of native Nexus Home supports a physical swipe left or right. Defaults are Claude (https://claude.ai/) and ChatGPT (https://chatgpt.com/) in Chrome when installed, otherwise an available browser. These are normal website launches/tabs, not isolated browser instances. Labeled buttons provide the same actions. Android Home returns to Nexus. Vertical scrolling, short/diagonal/canceled gestures and gestures in pairing/setup controls do not launch shortcuts.
+
+Tap **Swipe shortcuts**, select Left or Right, then choose **Website in a browser** or **Installed app**. Website settings include a name, full HTTP/HTTPS address and browser picker. Choices persist locally and independently. Restore default resets only the selected side. Removed apps/browsers show a local repair dialog. No automatic install, message, project creation, account switching or conversation transfer occurs. Settings use no Shizuku permissions.
+
+Install `nexus-phone-0.3.apk` as an update over v0.2 using the retained signing identity (versionCode 3); do not uninstall or reset. Pairing, Home and device-owner management remain installed; if Android stops the active session during replacement, reopen Nexus and tap Connect. Existing provisioning QR remains pinned to immutable v0.2; update afterward using the normal v0.3 download. Old artifacts and their checksums remain unchanged.
