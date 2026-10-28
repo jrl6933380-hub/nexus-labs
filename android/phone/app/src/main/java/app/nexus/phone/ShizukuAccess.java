@@ -13,9 +13,10 @@ final class ShizukuAccess {
   if(!c.getSharedPreferences(PhoneApi.PREFS,0).getBoolean("deeper_tools",false))throw new IllegalStateException("Enable deeper tools on Nexus Home first.");
   CompletableFuture<IBinder> f=new CompletableFuture<>();
   ServiceConnection conn=new ServiceConnection(){public void onServiceConnected(ComponentName n,IBinder b){f.complete(b);}public void onServiceDisconnected(ComponentName n){f.completeExceptionally(new IllegalStateException("Shizuku disconnected."));}};
-  Shizuku.UserServiceArgs args=new Shizuku.UserServiceArgs(new ComponentName(c,PrivilegedService.class)).daemon(false).tag("nexus-playground").version(2).processNameSuffix("playground");
+  // Each bounded invocation needs its own tag: the previous service death is asynchronous.
+  Shizuku.UserServiceArgs args=new Shizuku.UserServiceArgs(new ComponentName(c,PrivilegedService.class)).daemon(false).tag("nexus-playground-"+java.util.UUID.randomUUID().toString()).version(2).processNameSuffix("playground");
   try{Shizuku.bindUserService(args,conn);IBinder binder=f.get(5,TimeUnit.SECONDS);
-   if(!allowed.getAsBoolean())throw new IllegalStateException("Session stopped or command expired.");
+   if(!allowed.getAsBoolean()||!ready()||!c.getSharedPreferences(PhoneApi.PREFS,0).getBoolean("deeper_tools",false))throw new IllegalStateException("Session stopped, permission revoked, tools disabled or command expired.");
    Parcel in=Parcel.obtain(),out=Parcel.obtain();try{in.writeInterfaceToken(PrivilegedService.DESCRIPTOR);in.writeString(op);in.writeString(arg);if(!binder.transact(IBinder.FIRST_CALL_TRANSACTION,in,out,0))throw new IllegalStateException("Privileged service unavailable.");out.readException();if(out.readInt()!=1)throw new IllegalStateException("Operation refused.");}finally{in.recycle();out.recycle();}
   }finally{try{Shizuku.unbindUserService(args,conn,true);}catch(Exception ignored){}}
  }
