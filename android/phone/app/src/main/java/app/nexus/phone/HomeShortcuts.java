@@ -40,9 +40,9 @@ public final class HomeShortcuts {
   for(ResolveInfo r:list)if(r.activityInfo.packageName.equals(selected))return i.setPackage(selected);
   return null;
  }
- static void open(Activity a,int d){
-  try{Intent i=launchIntent(a,d);if(i!=null){a.startActivity(i);return;}}catch(ActivityNotFoundException|SecurityException|IllegalArgumentException ignored){}
-  new AlertDialog.Builder(a).setTitle("Shortcut unavailable").setMessage("The app or browser for "+label(a,d)+" cannot be opened. Choose another installed app or browser in Swipe shortcuts.").setNegativeButton("Cancel",null).setPositiveButton("Edit shortcut",(dialog,w)->edit(a,d,()->{if(a instanceof MainActivity)((MainActivity)a).refreshShortcutLabels();})).show();
+ static AlertDialog open(Activity a,int d){
+  try{Intent i=launchIntent(a,d);if(i!=null){a.startActivity(i);return null;}}catch(ActivityNotFoundException|SecurityException|IllegalArgumentException ignored){}
+  return new AlertDialog.Builder(a).setTitle("Shortcut unavailable").setMessage("The app or browser for "+label(a,d)+" cannot be opened. Choose another installed app or browser in Swipe shortcuts.").setNegativeButton("Cancel",null).setPositiveButton("Edit shortcut",(dialog,w)->edit(a,d,()->{if(a instanceof MainActivity)((MainActivity)a).refreshShortcutLabels();})).show();
  }
  static void settings(Activity a,Runnable changed){new AlertDialog.Builder(a).setTitle("Swipe shortcuts").setItems(new String[]{"Left · "+label(a,-1),"Right · "+label(a,1)},(dialog,which)->edit(a,which==0?-1:1,changed)).setNegativeButton("Close",null).show();}
  static void edit(Activity a,int d,Runnable changed){new AlertDialog.Builder(a).setTitle(d<0?"Left swipe":"Right swipe").setItems(new String[]{"Website in a browser","Installed app","Restore default"},(dialog,which)->{if(which==0)editWebsite(a,d,changed);else if(which==1)pickApp(a,d,changed);else{prefs(a).edit().remove(key(d)+"kind").remove(key(d)+"label").remove(key(d)+"target").remove(key(d)+"browser").apply();changed.run();}}).setNegativeButton("Cancel",null).show();}
