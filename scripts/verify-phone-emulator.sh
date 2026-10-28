@@ -36,6 +36,7 @@ adb shell dpm set-device-owner app.nexus.phone/.NexusAdmin
 # Disposable package-name fixtures exercise native launch routing, never real assistant accounts.
 adb install android/phone/build/com.anthropic.claude.apk
 adb install android/phone/build/com.openai.chatgpt.apk
+adb install android/phone/build/com.example.nexusbrowser.apk
 timeout 120s adb shell am instrument -w -e assistants true app.nexus.phone.test/app.nexus.phone.PhoneTestRunner > /tmp/nexus-assistants.txt
 cat /tmp/nexus-assistants.txt
 grep -q 'PASS assistant installed-package' /tmp/nexus-assistants.txt

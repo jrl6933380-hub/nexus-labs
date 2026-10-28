@@ -7,7 +7,7 @@ import org.json.*;
 import java.util.*;
 final class DeviceTools {
  static String nexusPath(String view){switch(view){case "home":return "/workspace.html";case "ads":return "/ad-maker.html";case "board":return "/agent-board.html";case "phone":return "/workspace.html?view=phone";default:throw new IllegalArgumentException("Unknown Nexus view.");}}
- static JSONObject info(Context c) throws Exception {return new JSONObject().put("version","0.2.0").put("manufacturer",Build.MANUFACTURER).put("model",Build.MODEL).put("android",Build.VERSION.RELEASE).put("sdk",Build.VERSION.SDK_INT).put("device_owner",NexusAdmin.owner(c)).put("shizuku_ready",ShizukuAccess.ready()).put("deeper_tools",c.getSharedPreferences(PhoneApi.PREFS,0).getBoolean("deeper_tools",false)).put("action_screenshots",true);}
+ static JSONObject info(Context c) throws Exception {return new JSONObject().put("version","0.3.0").put("manufacturer",Build.MANUFACTURER).put("model",Build.MODEL).put("android",Build.VERSION.RELEASE).put("sdk",Build.VERSION.SDK_INT).put("device_owner",NexusAdmin.owner(c)).put("shizuku_ready",ShizukuAccess.ready()).put("deeper_tools",c.getSharedPreferences(PhoneApi.PREFS,0).getBoolean("deeper_tools",false)).put("action_screenshots",true);}
  static JSONObject apps(Context c) throws Exception {
   List<ResolveInfo> list=c.getPackageManager().queryIntentActivities(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER),0);
   list.sort((a,b)->a.loadLabel(c.getPackageManager()).toString().compareToIgnoreCase(b.loadLabel(c.getPackageManager()).toString()));

@@ -25,9 +25,11 @@ XML
 "$BT/zipalign" -f 4 "$OUT/disposable-base.apk" "$OUT/disposable-aligned.apk"
 "$BT/apksigner" sign --ks "${NEXUS_PHONE_KEYSTORE:-$OUT/playground.keystore}" --ks-key-alias nexus-phone --ks-pass env:NEXUS_PHONE_KEY_PASSWORD --key-pass env:NEXUS_PHONE_KEY_PASSWORD --out "$OUT/disposable-test.apk" "$OUT/disposable-aligned.apk"
 
-for pkg in com.anthropic.claude com.openai.chatgpt; do
+for pkg in com.anthropic.claude com.openai.chatgpt com.example.nexusbrowser; do
+ browser_filter=''
+ if [ "$pkg" = com.example.nexusbrowser ]; then browser_filter='<intent-filter><action android:name="android.intent.action.VIEW"/><category android:name="android.intent.category.DEFAULT"/><category android:name="android.intent.category.BROWSABLE"/><data android:scheme="https"/><data android:scheme="http"/></intent-filter>'; fi
  cat > "$OUT/assistant-manifest.xml" <<XML
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="$pkg"><uses-sdk android:minSdkVersion="30"/><application android:label="Disposable assistant fixture" android:hasCode="false"><activity android:name="android.app.Activity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity></application></manifest>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="$pkg"><uses-sdk android:minSdkVersion="30"/><application android:label="Disposable assistant fixture" android:hasCode="false"><activity android:name="android.app.Activity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>$browser_filter</activity></application></manifest>
 XML
  "$BT/aapt2" link -o "$OUT/assistant-base.apk" --manifest "$OUT/assistant-manifest.xml" -I "$JAR"
  "$BT/zipalign" -f 4 "$OUT/assistant-base.apk" "$OUT/assistant-aligned.apk"

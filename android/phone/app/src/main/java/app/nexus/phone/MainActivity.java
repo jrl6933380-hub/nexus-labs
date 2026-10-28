@@ -12,18 +12,19 @@ import android.widget.*;
 import org.json.*;
 public final class MainActivity extends Activity {
  private static final int BG=0xff0d1110,FG=0xfff5f2e8,GOLD=0xffe7c77b,MUTED=0xffb2bcb6;
- TextView state;EditText code;Button pair;LinearLayout layout;ScrollView scroll;HomeSwipeView assistantHome;final Handler ui=new Handler(Looper.getMainLooper());
+ TextView state;EditText code;Button pair;LinearLayout layout;ScrollView scroll;HomeSwipeView assistantHome;Button leftShortcut,rightShortcut;TextView swipeHint;final Handler ui=new Handler(Looper.getMainLooper());
  final Runnable refresh=new Runnable(){public void run(){if(state!=null)state.setText((BridgeService.active?"● CONNECTED":"○ DISCONNECTED")+"\n"+BridgeService.message+"\nControl: "+(PhoneAccessibility.instance!=null?"ready":"enable accessibility")+" · Management: "+(NexusAdmin.owner(MainActivity.this)?"device owner":"standard app")+"\nShizuku: "+ShizukuAccess.status());ui.postDelayed(this,1500);}};
  @Override public void onCreate(Bundle b){super.onCreate(b);getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(BG);render();routeIntent(getIntent());}
  void render(){
   scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setFitsSystemWindows(true);scroll.setBackgroundColor(BG);layout=new LinearLayout(this);layout.setOrientation(1);int p=dp(22);layout.setPadding(p,dp(20),p,dp(36));scroll.addView(layout);setContentView(scroll);
-  LinearLayout root=layout;assistantHome=new HomeSwipeView(this,direction->AssistantApps.open(this,direction));root.addView(assistantHome,new LinearLayout.LayoutParams(-1,-2));layout=assistantHome;
+  LinearLayout root=layout;assistantHome=new HomeSwipeView(this,direction->HomeShortcuts.open(this,direction));root.addView(assistantHome,new LinearLayout.LayoutParams(-1,-2));layout=assistantHome;
   TextView eyebrow=text("N E X U S   /   P H O N E   L A B");eyebrow.setTextColor(GOLD);eyebrow.setTextSize(12);
   TextView title=text("Your Nexus.\nYour playground.");title.setTextSize(32);title.setTypeface(null,1);
-  text("Swipe left for Claude · Swipe right for ChatGPT").setTextColor(GOLD);
-  button("← Claude",()->AssistantApps.open(this,-1));button("ChatGPT →",()->AssistantApps.open(this,1));
+  swipeHint=text("");swipeHint.setTextColor(GOLD);
+  leftShortcut=button("",()->HomeShortcuts.open(this,-1));rightShortcut=button("",()->HomeShortcuts.open(this,1));refreshShortcutLabels();
   text("Nexus is your center. Press Android Home to return here.").setTextColor(MUTED);
   layout=root;
+  button("Swipe shortcuts",()->HomeShortcuts.settings(this,()->refreshShortcutLabels()));
   state=text("");state.setTextColor(MUTED);state.setTextSize(14);
   button("Connect phone",()->connect());button("Disconnect",()->stop());
   section("WORKSPACE");button("Open Nexus",()->openNexus("home"));button("Ad Studio",()->openNexus("ads"));button("Agent Board",()->openNexus("board"));button("Apps",()->showApps());
@@ -65,6 +66,7 @@ public final class MainActivity extends Activity {
  void section(String s){TextView t=text(s);t.setTextSize(12);t.setTextColor(GOLD);t.setPadding(0,dp(28),0,dp(8));}
  Button button(String s,Runnable r){Button b=new Button(this);b.setText(s);b.setTextSize(16);b.setTextColor(FG);b.setAllCaps(false);b.setGravity(Gravity.CENTER_VERTICAL|Gravity.START);b.setPadding(dp(16),0,dp(16),0);b.setMinHeight(dp(54));GradientDrawable bg=new GradientDrawable();bg.setColor(0xff19221e);bg.setCornerRadius(dp(8));bg.setStroke(dp(1),0xff42554a);b.setBackground(bg);b.setOnClickListener(v->r.run());LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.bottomMargin=dp(8);layout.addView(b,lp);return b;}
  void notice(String s){Toast.makeText(this,s,Toast.LENGTH_LONG).show();}
- @Override protected void onResume(){super.onResume();ui.removeCallbacks(refresh);ui.post(refresh);}
+ void refreshShortcutLabels(){if(leftShortcut!=null){leftShortcut.setText("← "+HomeShortcuts.label(this,-1));rightShortcut.setText(HomeShortcuts.label(this,1)+" →");swipeHint.setText("Swipe left: "+HomeShortcuts.label(this,-1)+" · Swipe right: "+HomeShortcuts.label(this,1));}}
+ @Override protected void onResume(){super.onResume();refreshShortcutLabels();ui.removeCallbacks(refresh);ui.post(refresh);}
  @Override protected void onPause(){super.onPause();ui.removeCallbacks(refresh);}
 }
