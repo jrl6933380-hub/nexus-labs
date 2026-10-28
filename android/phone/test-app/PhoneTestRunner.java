@@ -12,6 +12,10 @@ public final class PhoneTestRunner extends Instrumentation {
  @Override public void onStart(){Bundle out=new Bundle();try{
   android.content.Context c=getTargetContext();Activity activity=startActivitySync(new Intent(c,MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));waitForIdleSync();
   if(shizukuTest){testShizuku(c);return;}
+  runOnMainSync(()->((MainActivity)activity).onNewIntent(new Intent(Intent.ACTION_VIEW,android.net.Uri.parse("nexusphone://connect"))));waitForIdleSync();
+  check(((MainActivity)activity).code.hasFocus(),"native app link focuses pairing without starting control");
+  check(!BridgeService.active,"deep link does not start remote control");
+  runOnMainSync(()->((MainActivity)activity).onNewIntent(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)));waitForIdleSync();
   check(NexusAdmin.owner(c),"device owner provisioned");NexusAdmin.makeHome(c);
   android.content.pm.ResolveInfo home=c.getPackageManager().resolveActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME),android.content.pm.PackageManager.MATCH_DEFAULT_ONLY);
   check(home!=null&&c.getPackageName().equals(home.activityInfo.packageName),"Nexus is preferred Home");

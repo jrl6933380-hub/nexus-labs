@@ -12,11 +12,11 @@ import android.widget.*;
 import org.json.*;
 public final class MainActivity extends Activity {
  private static final int BG=0xff0d1110,FG=0xfff5f2e8,GOLD=0xffe7c77b,MUTED=0xffb2bcb6;
- TextView state;EditText code;Button pair;LinearLayout layout;final Handler ui=new Handler(Looper.getMainLooper());
+ TextView state;EditText code;Button pair;LinearLayout layout;ScrollView scroll;final Handler ui=new Handler(Looper.getMainLooper());
  final Runnable refresh=new Runnable(){public void run(){if(state!=null)state.setText((BridgeService.active?"● CONNECTED":"○ DISCONNECTED")+"\n"+BridgeService.message+"\nControl: "+(PhoneAccessibility.instance!=null?"ready":"enable accessibility")+" · Management: "+(NexusAdmin.owner(MainActivity.this)?"device owner":"standard app")+"\nShizuku: "+ShizukuAccess.status());ui.postDelayed(this,1500);}};
- @Override public void onCreate(Bundle b){super.onCreate(b);getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(BG);render();}
+ @Override public void onCreate(Bundle b){super.onCreate(b);getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(BG);render();routeIntent(getIntent());}
  void render(){
-  ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setFitsSystemWindows(true);scroll.setBackgroundColor(BG);layout=new LinearLayout(this);layout.setOrientation(1);int p=dp(22);layout.setPadding(p,dp(20),p,dp(36));scroll.addView(layout);setContentView(scroll);
+  scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setFitsSystemWindows(true);scroll.setBackgroundColor(BG);layout=new LinearLayout(this);layout.setOrientation(1);int p=dp(22);layout.setPadding(p,dp(20),p,dp(36));scroll.addView(layout);setContentView(scroll);
   TextView eyebrow=text("N E X U S   /   P H O N E   L A B");eyebrow.setTextColor(GOLD);eyebrow.setTextSize(12);
   TextView title=text("Your Nexus.\nYour playground.");title.setTextSize(32);title.setTypeface(null,1);
   state=text("");state.setTextColor(MUTED);state.setTextSize(14);
@@ -39,6 +39,15 @@ public final class MainActivity extends Activity {
   button("Forget phone pairing",()->new AlertDialog.Builder(this).setTitle("Forget pairing?").setMessage("Stops this session and removes the phone credential. You can pair again from Nexus.").setNegativeButton("Cancel",null).setPositiveButton("Forget",(d,w)->{stop();getSharedPreferences(PhoneApi.PREFS,0).edit().remove("credential").putBoolean("deeper_tools",false).apply();BridgeService.message="Pairing removed. Revoke it on the owner page too.";}).show());
   button("Release device management",()->new AlertDialog.Builder(this).setTitle("Release management?").setMessage("Stops remote control and releases Nexus device-owner management without wiping your files. You will need provisioning again to restore device-owner mode.").setNegativeButton("Cancel",null).setPositiveButton("Release",(d,w)->{try{stop();getSharedPreferences(PhoneApi.PREFS,0).edit().putBoolean("deeper_tools",false).apply();NexusAdmin.releaseHome(this);if(NexusAdmin.owner(this))getSystemService(android.app.admin.DevicePolicyManager.class).clearDeviceOwnerApp(getPackageName());notice("Management released. You can choose another Home in Settings.");}catch(Exception e){notice("Could not release management: "+e.getMessage());}}).show());
   text("Nexus Phone 0.2.0 · Android stays underneath. No remote factory reset, password entry or unrestricted shell. Disconnect remains available in the notification and here. No remote session restarts automatically after reboot.").setTextColor(MUTED);
+ }
+ @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);routeIntent(intent);}
+ void routeIntent(Intent intent){
+  android.net.Uri uri=intent==null?null:intent.getData();
+  if(uri!=null&&"nexusphone".equals(uri.getScheme())&&"connect".equals(uri.getHost())){
+   code.post(()->{code.requestFocus();code.requestRectangleOnScreen(new android.graphics.Rect(0,0,code.getWidth(),code.getHeight()),true);getSystemService(android.view.inputmethod.InputMethodManager.class).showSoftInput(code,android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);});
+  }else if(intent!=null&&intent.hasCategory(Intent.CATEGORY_HOME)){
+   code.clearFocus();getSystemService(android.view.inputmethod.InputMethodManager.class).hideSoftInputFromWindow(code.getWindowToken(),0);scroll.post(()->scroll.scrollTo(0,0));
+  }
  }
  void stop(){BridgeService.active=false;startService(new Intent(this,BridgeService.class).setAction("STOP"));}
  void connect(){try{if(PhoneApi.token(this).isEmpty()){notice("Pair this phone first.");return;}if(PhoneAccessibility.instance==null){notice("Enable screen and touch control first.");return;}if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS},11);return;}startForegroundService(new Intent(this,BridgeService.class).setAction("CONNECT"));}catch(Exception e){notice("Could not connect: "+e.getMessage());}}
