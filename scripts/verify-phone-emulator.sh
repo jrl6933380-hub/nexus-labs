@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 mkdir -p test-results/phone
-trap 'adb logcat -d -t 1000 > test-results/phone/native-logcat.txt || true' EXIT
+trap 'adb logcat -d > test-results/phone/native-logcat.txt || true' EXIT
 adb install -r android/phone/build/nexus-phone-0.2.apk
 adb install -r android/phone/build/nexus-phone-tests.apk
 adb install -r android/phone/build/disposable-test.apk

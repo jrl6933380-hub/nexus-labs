@@ -15,7 +15,11 @@ public final class PhoneTestRunner extends Instrumentation {
   check(NexusAdmin.owner(c),"device owner provisioned");NexusAdmin.makeHome(c);
   android.content.pm.ResolveInfo home=c.getPackageManager().resolveActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME),android.content.pm.PackageManager.MATCH_DEFAULT_ONLY);
   check(home!=null&&c.getPackageName().equals(home.activityInfo.packageName),"Nexus is preferred Home");
-  long until=System.currentTimeMillis()+10000;while(PhoneAccessibility.instance==null&&System.currentTimeMillis()<until)Thread.sleep(100);
+  // am instrument force-stops the target process; rebind accessibility after that restart.
+  shell("settings put secure enabled_accessibility_services ''");
+  shell("settings put secure enabled_accessibility_services app.nexus.phone/.PhoneAccessibility");
+  shell("settings put secure accessibility_enabled 1");
+  long until=System.currentTimeMillis()+15000;while(PhoneAccessibility.instance==null&&System.currentTimeMillis()<until)Thread.sleep(100);
   check(PhoneAccessibility.instance!=null,"accessibility connected");String session=java.util.UUID.randomUUID().toString();BridgeService.currentSession=session;BridgeService.active=true;
   JSONObject info=PhoneAccessibility.instance.execute(command("device_info"),session);check(info.getBoolean("ok")&&info.getJSONObject("data").getBoolean("device_owner"),"device capabilities");
   check(!info.getJSONObject("data").getBoolean("shizuku_ready"),"Shizuku absence reported truthfully");
@@ -33,6 +37,7 @@ public final class PhoneTestRunner extends Instrumentation {
   NexusAdmin.releaseHome(c);c.getSystemService(android.app.admin.DevicePolicyManager.class).clearDeviceOwnerApp(c.getPackageName());check(!NexusAdmin.owner(c),"local management recovery");
   out.putString("stream","PASS native device-owner, Home, capabilities, app list, deeper-tools gate, stay-awake, Shizuku absence, action screenshot, stale frame, disconnect and management recovery\n");finish(Activity.RESULT_OK,out);
  }catch(Throwable e){out.putString("stream","FAIL "+e.toString()+"\n"+android.util.Log.getStackTraceString(e));finish(Activity.RESULT_CANCELED,out);}}
+ void shell(String command) throws Exception {try(java.io.InputStream in=new android.os.ParcelFileDescriptor.AutoCloseInputStream(getUiAutomation(android.app.UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES).executeShellCommand(command))){byte[] buf=new byte[1024];while(in.read(buf)!=-1){}}}
  void testShizuku(android.content.Context c) throws Exception {
   long until=System.currentTimeMillis()+15000;while(!rikka.shizuku.Shizuku.pingBinder()&&System.currentTimeMillis()<until)Thread.sleep(100);
   check(rikka.shizuku.Shizuku.pingBinder(),"Shizuku binder received");
