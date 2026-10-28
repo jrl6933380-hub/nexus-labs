@@ -68,7 +68,7 @@ jobs:
           "$BT/apksigner" verify --print-certs android/phone/build/nexus-phone-0.3.apk | sed -n '/Signer #1 certificate SHA-256 digest:/p' > /tmp/new-signer
           test -s /tmp/old-signer
           diff /tmp/old-signer /tmp/new-signer
-          # Release byte comparison is enabled after packaging the final signed build.
+          cmp public/downloads/nexus-phone-0.3.apk android/phone/build/nexus-phone-0.3.apk
       - name: Verify native operation policy
         run: |
           mkdir -p /tmp/nexus-policy
