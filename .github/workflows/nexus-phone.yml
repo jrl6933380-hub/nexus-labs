@@ -5,6 +5,7 @@ on:
       - 'android/phone/**'
       - 'scripts/*phone*'
       - 'lib/phoneBridge.js'
+      - 'lib/phoneFeedback.js'
       - 'api/phone.js'
       - 'lib/workspaceBoard.js'
       - 'public/phone*'
@@ -28,7 +29,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: node --test test/phone-bridge.test.mjs test/phone-provisioning.test.mjs test/phone-navigation.test.mjs test/workspace-board-resource.test.mjs test/workspace-connector.test.mjs
+      - run: node --test test/phone-feedback.test.mjs test/phone-bridge.test.mjs test/phone-provisioning.test.mjs test/phone-navigation.test.mjs test/workspace-board-resource.test.mjs test/workspace-connector.test.mjs test/workspace-oauth.test.mjs test/workspace-customer-oauth.test.mjs
       - run: NEXUS_TEST_BROWSER_PATH=/usr/bin/google-chrome node scripts/verify-phone-bridge.mjs
       - uses: actions/upload-artifact@v4
         if: always()

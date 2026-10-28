@@ -56,3 +56,29 @@ test('data and image payloads cannot be confused, oversized or attached to the w
  await assert.rejects(f.bridge.complete(p.token,p.session,info.command_id,{ok:true,image_base64:'/9j/AAAA',width:720,height:1440}),/Data commands/);
  await f.bridge.complete(p.token,p.session,info.command_id,{ok:true,data:{apps:[]}});
 });
+test('combined MCP observation reuses durable receipts but never persists or replays screenshots',async()=>{
+ const {waitForPhoneFeedback}=await import('../lib/phoneFeedback.js');
+ const {createWorkspaceRequests}=await import('../lib/workspaceRequests.js');
+ const {WORKSPACE_WRITES}=await import('../lib/workspaceConnector.js');
+ const f=fixture(),p=await connected(f),records=new Map();let enqueues=0;
+ const once=createWorkspaceRequests({command:async([op,key,value,flag])=>{
+  if(op==='SET'){if(flag==='NX'&&records.has(key))return null;records.set(key,value);return 'OK';}
+  if(op==='GET')return records.get(key)||null;
+  if(op==='LPUSH')return 1;throw Error(op);
+ }});
+ const service=createWorkspaceService({phone:f.bridge}),owner={id:'justin',owner:true,workbenchUserId:'owner',scheduleUserId:'owner'};
+ const registered=new Map();registerWorkspaceBoard({registerResource(){},registerTool(name,schema,fn){registered.set(name,fn);}},{authorize:async()=>{},phoneFeedback:options=>waitForPhoneFeedback({...options,timeoutMs:0}),call:async(action,input,id)=>{
+  const run=async()=>{const result=await service(action,input,owner);if(action==='phone_command'){
+   enqueues++;await f.bridge.poll(p.token,p.session,true);await f.bridge.complete(p.token,p.session,result.command_id,{ok:true,image_base64:'/9j/AAAA',width:720,height:1440});
+  }return result;};return WORKSPACE_WRITES.has(action)?once(owner.id,id,action,input,run):run();
+ }});
+ const control=registered.get('control_nexus_phone'),args={command:{action:'home'},request_id:'fast-phone-receipt-1'};
+ const first=await control(args);assert.equal(first.structuredContent.status,'done');assert.equal(first.structuredContent.requires_result_read,false);assert.equal(first.content.filter(c=>c.type==='image').length,1);assert.ok(!JSON.stringify([...records.values()]).includes('/9j/AAAA'));
+ const retry=await control(args);assert.equal(enqueues,1);assert.equal(retry.structuredContent.replayed,true);assert.equal(retry.content.filter(c=>c.type==='image').length,1);
+ await f.bridge.stop('justin');const stopped=await control(args);assert.equal(enqueues,1);assert.equal(stopped.structuredContent.status,'unavailable');assert.equal(stopped.content.filter(c=>c.type==='image').length,0);
+});
+test('write-only phone callers keep queue access but never read private images',async()=>{
+ const registered=new Map();let reads=0;
+ registerWorkspaceBoard({registerResource(){},registerTool(name,schema,fn){registered.set(name,fn);}},{authorize:async(name,write)=>{if(!write)throw Object.assign(Error('read scope denied'),{status:403});},call:async(action)=>{if(action==='phone_result')reads++;return {command_id:randomUUID(),status:'queued'};}});
+ const result=await registered.get('control_nexus_phone')({command:{action:'home'},request_id:'fast-phone-write-only'});assert.equal(result.structuredContent.status,'queued');assert.equal(reads,0);assert.equal(result.content.filter(c=>c.type==='image').length,0);
+});
