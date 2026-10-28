@@ -73,3 +73,15 @@ The emulator test APK is not in the release. Native screenshots are uploaded as 
 Physical acceptance after provisioning: verify QR download/installation and device owner, Nexus Home after pressing Home and reboot, fresh pairing, screenshot/tap/swipe/text, direct Nexus views, notifications/recents, app discovery, Shizuku startup/permission, requested brightness with adaptive brightness accounted for, stay-awake while charging, force-stop of one disposable downloaded test app, screenshot-failure semantics, Disconnect, network loss and all local recovery controls. Record actual results, not assumptions. Keep sending/posting/buying/deleting/account changes under their existing specific authorization boundaries.
 
 Design: retain Nexus black/gold, a left-aligned identity, one live state block, large stacked touch targets, workspace shortcuts above setup, and clearly reachable recovery. No fake usage or readiness indicators.
+
+## Faster feedback without an Android update
+
+The existing MCP `control_nexus_phone` call now waits up to ten seconds for an already-queued command and returns its completed receipt and image directly when available. The installed v0.2 app already captures a screen after successful UI actions, so this server change needs no APK update, reset or re-pairing.
+
+- `status: done`, `requires_result_read: false`: use the returned image/frame_id directly; no separate result call is needed.
+- `requires_result_read: true`: the command is still outstanding or observation was unavailable. Read the same `command_id`; never enqueue again just to wait.
+- A capture error still does not reverse an action's success. Ask for a fresh screen rather than repeating a successful tap.
+- Request-id deduplication stores only the original enqueue receipt. Each invocation, including a replay, re-reads the short-lived, session-scoped result outside that durable cache. No screenshot is added to permanent retry records.
+- A caller with write access alone keeps the existing queued-receipt behavior; private observation also requires read access. Read errors after enqueue return the receipt so a transport error does not invite duplicate actions.
+
+This reduces the normal command/observation cycle from two model tool calls to one. The phone still polls every two seconds and sends individual images. Continuous video and this chat host's ability to consume it are separate work; this is not a video stream or a claim of measured physical-phone speedup before deployment.
