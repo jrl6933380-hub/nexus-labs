@@ -2,10 +2,12 @@
 set -euo pipefail
 mkdir -p test-results/phone
 trap 'adb logcat -d > test-results/phone/native-logcat.txt || true' EXIT
+adb install -r public/downloads/nexus-phone-0.2.apk
+adb shell dpm set-device-owner app.nexus.phone/.NexusAdmin
+# Upgrade the managed v0.2 installation in place; instrumentation below must still see device owner.
 adb install -r android/phone/build/nexus-phone-0.3.apk
 adb install -r android/phone/build/nexus-phone-tests.apk
 adb install -r android/phone/build/disposable-test.apk
-adb shell dpm set-device-owner app.nexus.phone/.NexusAdmin
 adb shell settings put secure enabled_accessibility_services app.nexus.phone/.PhoneAccessibility
 adb shell settings put secure accessibility_enabled 1
 adb shell pm grant app.nexus.phone android.permission.POST_NOTIFICATIONS

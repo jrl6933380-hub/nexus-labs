@@ -61,6 +61,13 @@ jobs:
           chmod 600 android/phone/build/playground.keystore
       - run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
       - run: bash scripts/build-phone.sh && bash scripts/build-phone-tests.sh
+      - name: Verify update signing identity
+        run: |
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          "$BT/apksigner" verify --print-certs public/downloads/nexus-phone-0.2.apk | sed -n '/Signer #1 certificate SHA-256 digest:/p' > /tmp/old-signer
+          "$BT/apksigner" verify --print-certs android/phone/build/nexus-phone-0.3.apk | sed -n '/Signer #1 certificate SHA-256 digest:/p' > /tmp/new-signer
+          test -s /tmp/old-signer
+          diff /tmp/old-signer /tmp/new-signer
       - name: Verify native operation policy
         run: |
           mkdir -p /tmp/nexus-policy

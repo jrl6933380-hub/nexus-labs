@@ -52,7 +52,7 @@ public final class PhoneTestRunner extends Instrumentation {
   gesture(view[0],activity,40,10,50,160,false);check(calls[0]==2,"vertical scroll does not launch");
   gesture(view[0],activity,40,10,240,180,false);check(calls[0]==2,"diagonal does not launch");
   gesture(view[0],activity,240,30,40,30,true);check(calls[0]==2,"canceled gesture does not launch");
-  runOnMainSync(()->{long t=android.os.SystemClock.uptimeMillis();touch(view[0],t,t,0,40,30,activity);touch(view[0],t,t+10,1,40,30,activity);});check(clicks[0]==1,"ordinary child tap stays usable");
+  runOnMainSync(()->{long t=android.os.SystemClock.uptimeMillis();touch(view[0],t,t,0,40,30,activity);touch(view[0],t,t+10,1,40,30,activity);});waitForIdleSync();check(clicks[0]==1,"ordinary child tap stays usable");
   runOnMainSync(()->activity.layout.removeView(view[0]));
   check("https://claude.ai/".equals(HomeShortcuts.target(activity,-1))&&"https://chatgpt.com/".equals(HomeShortcuts.target(activity,1)),"default website targets");
   for(String bad:new String[]{"javascript:alert(1)","intent://anything","file:///secret","https://user:pass@example.com","not a url"}){boolean rejected=false;try{HomeShortcuts.webUrl(bad);}catch(IllegalArgumentException expected){rejected=true;}check(rejected,"unsafe or invalid URL rejected");}
