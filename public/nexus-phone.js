@@ -14,7 +14,7 @@ export async function renderNexusPhone(ctx){
  const signIn=node('a','Sign in to Nexus as owner');signIn.href='/nexus-login.html?next=%2Fworkspace.html%3Fview%3Dphone';signIn.hidden=true;root.append(signIn);
  async function api(action){const r=await fetch('/api/phone',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',cache:'no-store',body:JSON.stringify({action})});const d=await r.json();if(!r.ok)throw Error(d.error||'Phone connection unavailable.');return d;}
  const first=node('section');first.className='phonestep';first.append(node('h2','1. Install or update Nexus Phone'));
- first.append(node('p','Version 0.3 adds Home swipes: left for Claude, right for ChatGPT. Update directly from v0.3 without resetting or pairing again. Install both official assistant apps; sign in on the phone. From v0.1, uninstall the old app first and pair again.'));
+ first.append(node('p','Version 0.3 adds configurable Home swipes: Claude website left, ChatGPT website right by default. In Swipe shortcuts, choose a browser, another website or any installed app. Update directly from v0.2 without resetting or pairing again. Sign in on the phone. From v0.1, uninstall the old app first and pair again.'));
  const download=node('a','Download / update Android app · v0.3');download.className='phonebutton';download.href='/downloads/nexus-phone-0.3.apk';download.download='nexus-phone-0.3.apk';first.append(download);root.append(first);
  const second=node('section');second.className='phonestep';second.append(node('h2','2. Create and copy your pairing code'));
  const codeBox=node('div'),code=node('code'),expires=node('p');codeBox.hidden=true;codeBox.append(code,expires);
