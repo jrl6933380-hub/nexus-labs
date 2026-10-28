@@ -1,6 +1,6 @@
 # Nexus Phone prototype
 
-Owner-only remote Android tools, backed by the existing Nexus store and workspace MCP connection. Android companion package: `app.nexus.phone`, version 0.1.0, Android 11+, target 35. No root, Shizuku, model provider, microphone or camera permission. The first device target is Justin's TCL ION V T607DL, Android 13 UHBB, 3 GB RAM.
+Owner-only remote Android tools, backed by the existing Nexus store and workspace MCP connection. Android companion package: `app.nexus.phone`, version 0.2.0, Android 11+, target 35. No root, Shizuku, model provider, microphone or camera permission. The first device target is Justin's TCL ION V T607DL, Android 13 UHBB, 3 GB RAM.
 
 ## Flow
 
@@ -21,9 +21,9 @@ The service polls only during a visible user-started session. Closing ChatGPT do
 
 ## Build
 
-Install JDK 17 and Android SDK command-line tools; accept SDK licenses and install `platforms;android-35` and `build-tools;35.0.0`. Run `ANDROID_HOME=/path/to/sdk bash scripts/build-phone.sh`. This uses Android's aapt2/d8/apksigner directly, without Gradle or third-party Android dependencies. Output: `android/phone/build/nexus-phone-0.1.apk`.
+Install JDK 17 and Android SDK command-line tools; accept SDK licenses and install `platforms;android-35` and `build-tools;35.0.0`. Run `ANDROID_HOME=/path/to/sdk bash scripts/build-phone.sh`. This uses Android's aapt2/d8/apksigner directly, without Gradle or third-party Android dependencies. Output: `android/phone/build/nexus-phone-0.2.apk`.
 
-The ignored `android/phone/build/development.keystore` signs development builds. Retain it privately if you need in-place updates. A lost/replaced key means uninstalling the prototype before installing another build. Production release signing and distribution are separate work. Never commit a keystore or token. Put the tested APK in `public/downloads/nexus-phone-0.1.apk` for the owner download page. Source changes require rebuilding that binary.
+The ignored `android/phone/build/development.keystore` signs development builds. Retain it privately if you need in-place updates. A lost/replaced key means uninstalling the prototype before installing another build. Production release signing and distribution are separate work. Never commit a keystore or token. Put the tested APK in `public/downloads/nexus-phone-0.2.apk` for the owner download page. Source changes require rebuilding that binary.
 
 ## Deployment / acceptance
 
