@@ -1,5 +1,6 @@
 import {renderLabJobs} from './nexus-lab-jobs.js';
 import {renderLabAssets} from './nexus-lab-assets.js';
+import {renderLabAgent} from './nexus-lab-agent.js';
 const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
 const button=(label,run)=>{const n=el('button',label);n.type='button';n.onclick=run;return n;};
 async function request(input){const response=await fetch('/api/nexus-lab',{credentials:'include',cache:'no-store',...(input?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input)}:{})});const data=await response.json();if(!response.ok){const error=new Error(data.error||'Nexus Lab could not load.');error.status=response.status;throw error;}return data;}
@@ -23,6 +24,7 @@ export async function renderNexusLab(ctx){
  const actions=el('div',undefined,'labactions');actions.append(button('Manage run assets',()=>openAssets(run)));for(const direction of ['input','output'])if(run.assets?.[direction]?.length)out.append(el('p',`${direction} references: ${run.assets[direction].map(a=>a.name).join(', ')}`));actions.append(button('Export run JSON',()=>{const url=URL.createObjectURL(new Blob([JSON.stringify(run,null,2)],{type:'application/json'})),a=el('a');a.href=url;a.download=`nexus-lab-${run.id}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}));out.append(actions);content.insertBefore(out,content.querySelector('.labhistory')?.previousElementSibling||null);}
  function draw(){top();if(!active){content.append(el('p','Understand, find, select, and create. Every capability shares one run history.'));const grid=el('div',undefined,'labgrid');for(const cap of state.capabilities){const tile=button('',()=>open(cap));tile.className='labtile';tile.append(el('span',cap.status==='ready'?'Available':'Needs connection','labstatus'),el('strong',cap.name),el('small',cap.kind),el('small',cap.description));grid.append(tile);}content.append(grid);history();return;}
  content.append(el('p',active.description));const work=el('section',undefined,'labwork');
+ if(active.mode==='agent'){renderLabAgent({request,cap:active,work});content.append(work);return;}
  if(active.status!=='ready'){work.append(el('span','Needs connection','labstatus'),el('h2','What this workspace needs'),el('p',active.requires));const link=el('a','Open Ads Studio');link.href='/ads.html';if(active.id==='video')work.append(link);work.append(el('p','This workspace will show real model outputs once its backend is connected.'));content.append(work);history();return;}
  const form=el('form'),query=el('input'),data=el('textarea'),mode=el('select'),feedback=el('p');feedback.setAttribute('role','status');query.maxLength=500;query.required=true;query.id='lab-query';data.id='lab-data';
  function field(label,node){const lab=el('label',label);lab.htmlFor=node.id;form.append(lab,node);}
