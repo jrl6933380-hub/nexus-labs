@@ -28,7 +28,7 @@ try{
  await context.route('https://cdn.pixabay.com/**',route=>route.abort());
  const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto('https://nexus.test/marketplace.html');
- assert((await page.locator('#wallet').boundingBox()).y<(await page.locator('#grid').boundingBox()).y);
+ assert((await page.locator('#wallet').boundingBox()).y>(await page.locator('#grid').boundingBox()).y);
  assert((await page.locator('#examples').boundingBox()).y>(await page.locator('#grid').boundingBox()).y);
  await page.getByRole('link',{name:'See a sample report'}).click();
  await page.getByText('Illustrative output only.',{exact:false}).waitFor();

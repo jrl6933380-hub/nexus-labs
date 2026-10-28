@@ -17,13 +17,25 @@
 </header>
 <main>
  <section class="hero shell" aria-labelledby="page-title">
-  <div class="hero-copy"><p class="eyebrow"><span class="signal" aria-hidden="true"></span> AI tools. Built around your business.</p>
-   <h1 id="page-title">Small tools.<br><em>Useful work.</em></h1>
-   <p class="hero-description">The research you keep putting off. The spreadsheet you need tomorrow. The words you can’t quite get right. There’s an actor for that.</p>
+  <div class="hero-copy">
+   <h1 id="page-title">Small tools. <em>Useful work.</em></h1>
+   <p class="hero-description">Choose a task. Pay per run. One wallet for every actor.</p>
    <div class="hero-actions"><a class="button primary" href="#catalog">Find your actor <span aria-hidden="true">↓</span></a><a class="button secondary" href="#examples">View examples <span aria-hidden="true">↓</span></a></div>
-   <p class="hero-note">Choose a task. Pay per run. One wallet for every actor.</p>
   </div>
-  <aside class="wallet-panel hero-wallet" id="wallet" aria-labelledby="wallet-title">
+
+ </section>
+
+ <section class="catalog shell" id="catalog" aria-labelledby="catalog-title">
+  <div class="section-heading"><div><p class="eyebrow">THE TOOLKIT</p><h2 id="catalog-title">What’s on your list?</h2></div><p>Start with the job.<br>We’ll help with the work.</p></div>
+  <div class="catalog-controls"><div class="filters" id="filters" role="group" aria-label="Filter actors by category"><button type="button" class="filter active" data-category="all" aria-pressed="true">All actors</button></div><label class="search"><span class="search-symbol" aria-hidden="true"></span><input id="actor-search" type="search" placeholder="Search actors…" aria-label="Search actors" autocomplete="off"></label></div>
+  <div class="catalog-meta"><p id="result-count" role="status" aria-live="polite">Loading actors…</p><p>Prices shown in credits per run</p></div>
+  <div id="catalog-error" class="catalog-error" hidden><h3>We couldn’t load the actors.</h3><p>Please try again. Your wallet has not been changed.</p><button class="button secondary" id="retry-catalog" type="button">Try again</button></div>
+  <div class="grid" id="grid" aria-busy="true"><div class="loading-placeholder" aria-hidden="true"></div><div class="loading-placeholder" aria-hidden="true"></div><div class="loading-placeholder" aria-hidden="true"></div></div>
+  <div class="empty-state" id="empty-state" hidden><h3>No actors match that search.</h3><p>Try another task, or return to the full toolkit.</p><button type="button" class="button secondary" id="reset-filters">Show all actors</button></div>
+  <p class="catalog-footer"><span class="small-mark" aria-hidden="true">N</span> More actors will join the toolkit. The same credits will work on all of them.</p>
+ </section>
+ <section class="wallet-section shell" aria-label="Actor credit wallet">
+  <aside class="wallet-panel marketplace-wallet" id="wallet" aria-labelledby="wallet-title">
    <div class="wallet-title-row"><div><p class="eyebrow">ONE WALLET. EVERY ACTOR.</p><h2 id="wallet-title">Ready when you are.</h2></div><span class="wallet-emblem" aria-hidden="true">N</span></div>
    <div class="wallet-balance"><span class="mute" id="wlabel">Your credits</span><div class="bal" id="bal">—</div></div>
    <p class="mute" id="wnote">Buy credits to get your private wallet link. No signup.</p>
@@ -34,15 +46,6 @@
   </aside>
  </section>
  <div class="promise-strip"><div class="shell"><p><span aria-hidden="true">01 /</span> Focused on one job</p><p><span aria-hidden="true">02 /</span> Priced before you run</p><p><span aria-hidden="true">03 /</span> Credits shared across tools</p></div></div>
- <section class="catalog shell" id="catalog" aria-labelledby="catalog-title">
-  <div class="section-heading"><div><p class="eyebrow">THE TOOLKIT</p><h2 id="catalog-title">What’s on your list?</h2></div><p>Start with the job.<br>We’ll help with the work.</p></div>
-  <div class="catalog-controls"><div class="filters" id="filters" role="group" aria-label="Filter actors by category"><button type="button" class="filter active" data-category="all" aria-pressed="true">All actors</button></div><label class="search"><span class="search-symbol" aria-hidden="true"></span><input id="actor-search" type="search" placeholder="Search actors…" aria-label="Search actors" autocomplete="off"></label></div>
-  <div class="catalog-meta"><p id="result-count" role="status" aria-live="polite">Loading actors…</p><p>Prices shown in credits per run</p></div>
-  <div id="catalog-error" class="catalog-error" hidden><h3>We couldn’t load the actors.</h3><p>Please try again. Your wallet has not been changed.</p><button class="button secondary" id="retry-catalog" type="button">Try again</button></div>
-  <div class="grid" id="grid" aria-busy="true"><div class="loading-placeholder" aria-hidden="true"></div><div class="loading-placeholder" aria-hidden="true"></div><div class="loading-placeholder" aria-hidden="true"></div></div>
-  <div class="empty-state" id="empty-state" hidden><h3>No actors match that search.</h3><p>Try another task, or return to the full toolkit.</p><button type="button" class="button secondary" id="reset-filters">Show all actors</button></div>
-  <p class="catalog-footer"><span class="small-mark" aria-hidden="true">N</span> More actors will join the toolkit. The same credits will work on all of them.</p>
- </section>
  <section class="how-section" id="how-it-works" aria-labelledby="how-title"><div class="shell how-layout"><div><p class="eyebrow">A SMALLER WAY TO GET IT DONE</p><h2 id="how-title">One task.<br>One useful result.</h2></div><ol class="steps"><li><span>01</span><div><h3>Pick your actor</h3><p>Choose a focused tool and check its credit cost.</p></div></li><li><span>02</span><div><h3>Bring the details</h3><p>Add the business, documents or text the actor needs.</p></div></li><li><span>03</span><div><h3>Put the output to work</h3><p>Review your report, spreadsheet or draft before using it.</p></div></li></ol></div></section>
  <section class="examples-section shell" id="examples" aria-labelledby="examples-title">
   <div class="examples-intro"><p class="eyebrow">EXAMPLES, BEFORE YOU SPEND</p><h2 id="examples-title">See what you get.</h2><p>Take a closer look at a fictional Competitor Research report. The sample is free to explore.</p><a class="button secondary" id="sample-link" href="/research.html?sample=1">See a sample report <span aria-hidden="true">↗</span></a></div>
