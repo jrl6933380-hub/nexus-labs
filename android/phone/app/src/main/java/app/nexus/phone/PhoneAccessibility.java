@@ -22,6 +22,20 @@ public final class PhoneAccessibility extends AccessibilityService {
  private JSONObject error(String s){try{return new JSONObject().put("ok",false).put("error",s);}catch(Exception e){return new JSONObject();}}
  private void done(CompletableFuture<JSONObject> f,boolean ok,String err){try{f.complete(ok?new JSONObject().put("ok",true):error(err));}catch(Exception e){f.complete(error("Could not complete action."));}}
  JSONObject execute(JSONObject cmd,String session) throws Exception {
+  String action=cmd.getJSONObject("input").getString("action");JSONObject result;
+  if(DeviceTools.handles(action)){
+   try{result=DeviceTools.execute(this,cmd.getJSONObject("input"),()->BridgeService.isCurrent(session)&&allowed(cmd));}catch(Exception e){return error(e.getMessage()==null?"Device operation failed.":e.getMessage());}
+  }else result=executeOne(cmd,session);
+  if(result.optBoolean("ok")&&!"screen".equals(action)&&!"device_info".equals(action)&&!"list_apps".equals(action)){
+   // One action, then one observation. A capture failure must never imply the action failed.
+   Thread.sleep(650);
+   JSONObject capture=new JSONObject(cmd.toString());capture.put("input",new JSONObject().put("action","screen"));JSONObject image=executeOne(capture,session);
+   if(image.optBoolean("ok")){result.put("image_base64",image.getString("image_base64")).put("width",image.getInt("width")).put("height",image.getInt("height"));}
+   else result.put("screen_error",image.optString("error","Request a fresh screen before continuing."));
+  }
+  return result;
+ }
+ private JSONObject executeOne(JSONObject cmd,String session) throws Exception {
   CompletableFuture<JSONObject> future=new CompletableFuture<>();
   ui.post(()->{try{
    if(future.isDone()||!BridgeService.isCurrent(session)||!allowed(cmd)){future.complete(error("Disconnected, expired command, or phone locked."));return;}
@@ -52,6 +66,8 @@ public final class PhoneAccessibility extends AccessibilityService {
     AccessibilityNodeInfo root=getRootInActiveWindow(),focus=null;try{focus=root==null?null:root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);if(focus==null||!focus.isEditable()||focus.isPassword()){future.complete(error("Tap a non-password editable field first. Passwords must be entered on the phone."));return;}Bundle args=new Bundle();args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,in.getString("text"));done(future,focus.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT,args),"This app does not support setting text.");}finally{if(focus!=null)focus.recycle();if(root!=null)root.recycle();}return;
    }
    if("back".equals(action)||"home".equals(action)){done(future,performGlobalAction("home".equals(action)?GLOBAL_ACTION_HOME:GLOBAL_ACTION_BACK),"Android refused navigation.");return;}
+   if("open_nexus".equals(action)){startActivity(new Intent(Intent.ACTION_VIEW,android.net.Uri.parse(PhoneApi.ORIGIN+DeviceTools.nexusPath(in.getString("view")))).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));done(future,true,"");return;}
+   if("recents".equals(action)||"notifications".equals(action)){done(future,performGlobalAction("recents".equals(action)?GLOBAL_ACTION_RECENTS:GLOBAL_ACTION_NOTIFICATIONS),"Android refused navigation.");return;}
    if("open_app".equals(action)){Intent launch=getPackageManager().getLaunchIntentForPackage(in.getString("package_name"));if(launch==null){future.complete(error("App is not installed or cannot be launched."));return;}launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);startActivity(launch);done(future,true,"");return;}
    future.complete(error("Unsupported command."));
   }catch(Exception e){future.complete(error("Android could not perform this action."));}});

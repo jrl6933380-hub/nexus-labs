@@ -1,3 +1,11 @@
+# Nexus Phone
+
+The dedicated playground upgrade is v0.2. See [nexus-phone-playground.md](nexus-phone-playground.md) for the current launcher, device-owner provisioning, Shizuku, signing, recovery, test and reset procedures.
+
+Physical v0.1 testing on Oct 28, 2026 verified screen capture, Home, coordinate tap and opening Nexus. The v0.2 build has a new retained signing identity and needs reset/uninstall before installation. Its physical TCL provisioning and Shizuku acceptance are separate from v0.1's successful tests.
+
+The following is the historical v0.1 prototype specification and original pre-deployment evidence. Its statement that no physical test had run reflects that original build checkpoint, not the later Oct 28 test.
+
 # Nexus Phone prototype
 
 Owner-only remote Android tools, backed by the existing Nexus store and workspace MCP connection. Android companion package: `app.nexus.phone`, version 0.1.0, Android 11+, target 35. No root, Shizuku, model provider, microphone or camera permission. The first device target is Justin's TCL ION V T607DL, Android 13 UHBB, 3 GB RAM.

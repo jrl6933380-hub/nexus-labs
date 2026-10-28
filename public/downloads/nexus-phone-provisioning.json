@@ -1,0 +1,5 @@
+{
+  "android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME": "app.nexus.phone/.NexusAdmin",
+  "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION": "https://nexus-labs-sigma.vercel.app/downloads/nexus-phone-0.2.apk",
+  "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM": "RyLkaVRqG2bVugovP1EKFlRalIsYV1ywFeYE32CxuZU"
+}
