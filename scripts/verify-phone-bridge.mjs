@@ -1,0 +1,26 @@
+import express from 'express';
+import {chromium} from 'playwright';
+import {readFile,mkdir} from 'node:fs/promises';
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+import {runScript} from '../lib/store/lua.js';
+import {createPhoneBridge} from '../lib/phoneBridge.js';
+import {createPhoneHandler} from '../api/phone.js';
+const records=new Map(),ttl=new Map();let chain=Promise.resolve();
+const primitive=async([op,key,...a])=>{if(ttl.has(key)&&ttl.get(key)<=Date.now()){records.delete(key);ttl.delete(key);}if(op==='GET')return records.get(key)??null;if(op==='SET'){records.set(key,a[0]);const i=a.indexOf('EX');if(i>=0)ttl.set(key,Date.now()+Number(a[i+1])*1000);return 'OK';}if(op==='DEL'){records.delete(key);return 1;}if(op==='HGET')return records.get(key)?.get(a[0])??null;if(op==='HSET'){const h=records.get(key)||new Map();h.set(a[0],a[1]);records.set(key,h);return 1;}throw Error(op);};
+const command=async a=>{if(a[0]!=='EVAL')return primitive(a);const n=Number(a[2]),p=chain.then(()=>runScript(a[1],{keys:a.slice(3,3+n),argv:a.slice(3+n),redisCall:primitive}));chain=p.catch(()=>{});return p;};
+const bridge=createPhoneBridge({command});const app=express();app.use(express.json({limit:'600kb'}));app.post('/api/phone',createPhoneHandler({bridge,resolveAccount:async req=>({id:'justin',owner:String(req.headers.cookie).includes('phone-fixture-owner=1')})}));app.use(express.static(new URL('../public',import.meta.url).pathname));
+const server=await new Promise(resolve=>{const s=app.listen(0,'127.0.0.1',()=>resolve(s));});const origin='http://127.0.0.1:'+server.address().port;
+let browser;try{browser=await chromium.launch({headless:true,...(process.env.PHONE_BROWSER_LOW_MEMORY==='1'?{args:['--single-process','--no-zygote','--disable-dev-shm-usage','--js-flags=--max-old-space-size=128']}:{}),...(process.env.NEXUS_TEST_BROWSER_PATH?{executablePath:process.env.NEXUS_TEST_BROWSER_PATH}:{})});
+ for(const width of [393,1280]){
+  const context=await browser.newContext({viewport:{width,height:850},colorScheme:width===393?'dark':'light'});const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto(origin+'/phone.html');await page.getByText('Nexus owner access required.',{exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'Create pairing code'}).isDisabled(),true);
+  await context.addCookies([{name:'phone-fixture-owner',value:'1',url:origin}]);await page.reload();await page.getByText('No phone paired.',{exact:false}).waitFor();await page.getByRole('button',{name:'Create pairing code'}).click();await page.locator('#pair:visible').waitFor();const code=(await page.locator('#code').textContent()).replaceAll('-','');assert.match(code,/^[A-F0-9]{18}$/);
+  const call=async(body,token)=>{const r=await fetch(origin+'/api/phone',{method:'POST',headers:{'Content-Type':'application/json',...(token?{authorization:'Bearer '+token}:{})},body:JSON.stringify(body)});const d=await r.json();assert.equal(r.status,200,JSON.stringify(d));return d;};
+  const paired=await call({action:'pair',code,label:'TCL fixture '+width});const session_id=randomUUID();await call({action:'start',session_id},paired.token);await call({action:'poll',session_id,accessibility:true},paired.token);await page.evaluate(()=>refresh());await page.getByText('TCL fixture '+width+' · Connected',{exact:false}).waitFor();
+  const screen=await bridge.enqueue('justin',{action:'screen'}),polled=await call({action:'poll',session_id,accessibility:true},paired.token);assert.equal(polled.command.id,screen.command_id);const bytes=await page.screenshot({type:'jpeg',quality:40});await call({action:'complete',session_id,command_id:screen.command_id,result:{ok:true,image_base64:bytes.toString('base64'),width,height:850}},paired.token);assert.equal((await bridge.result('justin',screen.command_id)).inline_images.length,1);
+  await page.getByRole('button',{name:'Stop session',exact:true}).click();await page.getByText('TCL fixture '+width+' · Disconnected',{exact:false}).waitFor();assert.equal((await call({action:'poll',session_id,accessibility:true},paired.token)).active,false);
+  page.once('dialog',d=>d.accept());await page.getByRole('button',{name:'Revoke phone pairing'}).click();await page.getByText('No phone paired.',{exact:false}).waitFor();
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);assert.deepEqual(errors,[]);await mkdir(new URL('../test-results/phone/',import.meta.url),{recursive:true});await page.screenshot({path:new URL('../test-results/phone/setup-'+width+'.png',import.meta.url).pathname,fullPage:true});await context.close();console.log('PASS setup → pair → connect → screenshot result → stop → revoke; '+width+'px');
+ }
+}finally{if(browser)await browser.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
