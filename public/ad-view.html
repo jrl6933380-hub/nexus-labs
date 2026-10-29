@@ -5,11 +5,15 @@
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:#0b0b0f;color:#f2f2f5;font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-body{display:flex;flex-direction:column}
+body{display:flex;flex-direction:column;min-height:100%;height:auto}
+#voiceover{margin:0 auto;padding:16px;width:100%;max-width:620px;background:#15151d;border:1px solid #30303c;border-radius:16px;margin-bottom:max(16px,env(safe-area-inset-bottom))}
+#voiceover{overflow-wrap:anywhere}#voiceover button:focus-visible,#voiceover a:focus-visible{outline:2px solid #19ded7;outline-offset:3px}
+#voiceover h2{font-size:18px;margin:0 0 8px}#voiceover p{margin:8px 0;color:#bdbdca}#voiceover button,#voiceover .file-label,#voiceover a{display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:10px 14px;border-radius:10px;border:1px solid #40404e;background:#252533;color:#fff;font:inherit;text-decoration:none;cursor:pointer}
+#voiceover .primary{background:#19ded7;color:#071516;border:0;font-weight:700}#voiceover button:disabled{opacity:.5;cursor:wait}#voiceover .file-label:focus-within{outline:2px solid #19ded7}#voiceover input{position:absolute;width:1px;height:1px;opacity:0}#voiceover .actions{display:flex;flex-wrap:wrap;gap:8px}#voiceover audio,#voiceover video{display:block;width:100%;margin:12px 0}#voiceover video{max-height:55vh;background:#000}#voiceover progress{width:100%;accent-color:#19ded7}#voiceover small{display:block;color:#bdbdca;margin:8px 0}
 header{display:flex;align-items:center;gap:12px;padding:12px 16px;padding-top:max(12px,env(safe-area-inset-top))}
 header a{color:#f2f2f5;text-decoration:none;padding:8px 12px;border-radius:99px;background:#1c1c24}
 header h1{margin:0;font-size:16px;font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-main{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:0 16px 16px}
+main{height:60vh;flex:none;min-height:0;display:flex;align-items:center;justify-content:center;padding:0 16px 16px}
 #frame{border:0;border-radius:14px;background:#000;max-width:100%;max-height:100%;aspect-ratio:9/16;height:100%}
 #msg{padding:24px 16px;text-align:center}
 #msg a{display:inline-block;margin-top:12px;padding:12px 20px;border-radius:99px;background:#fff;color:#000;text-decoration:none;font-weight:700}
@@ -17,5 +21,14 @@ main{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;
 </style></head><body>
 <header><a href="/ads.html">&larr; Ads</a><h1 id="title">Loading&hellip;</h1></header>
 <main><iframe id="frame" title="Ad preview" sandbox="allow-scripts" hidden></iframe><div id="msg" role="status"></div></main>
-<script src="/ad-view.js"></script>
+<section id="voiceover" aria-labelledby="voice-title" hidden>
+<h2 id="voice-title">Voiceover</h2>
+<p>Add your ElevenLabs recording, then export the video with speech.</p>
+<div class="actions"><label class="file-label">Add voiceover<input id="voice-file" type="file" accept="audio/mpeg,audio/wav,audio/mp4,audio/ogg,.mp3,.wav,.m4a,.ogg"></label><button id="voice-export" class="primary" disabled>Export with voiceover</button></div>
+<small>MP3, WAV, M4A or OGG · up to 8 MB. Speech starts with the ad; longer audio is trimmed to the ad’s length. Preview the finished export to check timing.</small>
+<p id="voice-name"></p><audio id="voice-audio" aria-label="Voiceover preview" controls hidden></audio>
+<p id="voice-status" role="status" aria-live="polite"></p><progress aria-label="Upload or export progress" id="voice-progress" max="100" value="0" hidden></progress>
+<video id="voice-video" aria-label="Exported ad with voiceover" controls playsinline hidden></video><div class="actions"><button id="voice-load" hidden>Load finished video</button><a id="voice-download" hidden>Download video</a><button id="voice-share" hidden>Share / save video</button></div>
+</section>
+<script src="/ad-view.js"></script><script type="module" src="/ad-voiceover.mjs"></script>
 </body></html>
