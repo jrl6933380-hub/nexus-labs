@@ -789,6 +789,12 @@
     $('sheet-id').textContent = ad.campaign_id || '';
     $('sheet-open').href = openUrl(ad);
     $('sheet-open').textContent = 'Play ad';
+    var voiceLink = $('sheet-voice');
+    if (!voiceLink) { voiceLink = document.createElement('a'); voiceLink.id = 'sheet-voice'; voiceLink.className = 'btn'; $('sheet-open').parentNode.appendChild(voiceLink); }
+    voiceLink.href = openUrl(ad) + '#voiceover';
+    voiceLink.textContent = 'Add voiceover';
+    voiceLink.hidden = !isCinematic(ad);
+    voiceLink.style.display = isCinematic(ad) ? '' : 'none';
     $('sheet-copy').textContent = 'Copy ID';
     $('sheet-copy').onclick = function () { copyId(ad.campaign_id || ''); };
     $('sheet').hidden = false;

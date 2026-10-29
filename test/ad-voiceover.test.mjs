@@ -1,0 +1,51 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createHash,webcrypto} from 'node:crypto';
+import {File} from 'node:buffer';
+import {fixture} from './helpers/ad-voiceover-fixture.mjs';
+import {uploadVoiceover,loadVerifiedBlob} from '../public/ad-voiceover.mjs';
+if(!globalThis.crypto)globalThis.crypto=webcrypto;
+const mp3=size=>{const b=Buffer.alloc(size,7);b.write('ID3');return b;};
+test('multi-chunk phone upload preserves original bytes, persists attachment and queues an audio export',async()=>{
+ const f=await fixture(),buf=mp3(600000),file=new File([buf],'ElevenLabs.mp3');
+ const voice=await uploadVoiceover(file,f.api);
+ assert.deepEqual((await f.media.bytes('alice',voice.media_id)).buffer,buf);
+ const state=await f.api('state');assert.equal(state.voiceover.media_id,voice.media_id);
+ const preview=await loadVerifiedBlob(f.api,'audio_chunk',{media_id:voice.media_id},voice,voice.mime);
+ assert.equal(preview.size,buf.length);
+ const job=await f.api('render',{baseline:f.record.baseline});
+ assert.equal(job.kind,'mp4');assert.equal(job.options.audio_media_id,voice.media_id);assert.equal(job.options.scale,2);
+ assert.equal((await f.api('state')).render.job_id,job.job_id,'reload resumes the export');
+ assert.equal((await f.api('status',{job_id:job.job_id})).status,'queued');
+});
+test('upload/export stay scoped to signed-in account and campaign, with CSRF and stale-ad checks',async()=>{
+ const f=await fixture();
+ assert.equal((await f.call('state',{},null)).code,401);
+ assert.equal((await f.call('state',{},'bob')).code,404);
+ assert.equal((await f.call('begin',{},'alice',{origin:'https://attacker.example'})).code,403);
+ assert.equal((await f.call('state',{user_id:'bob'})).code,400);
+ const v=await uploadVoiceover(new File([mp3(1000)],'voice.mp3'),f.api);
+ assert.equal((await f.call('render',{baseline:'old'})).code,409);
+ const other=await f.ads.save('alice',{campaign_id:'other',project:f.record.project});
+ const j=await f.api('render',{baseline:f.record.baseline});
+ assert.equal((await f.call('status',{campaign_id:'other',job_id:j.job_id})).code,404);
+ assert.equal((await f.call('audio_chunk',{campaign_id:'other',media_id:v.media_id,index:0})).code,404);
+ assert.ok(other);
+});
+test('bad files, oversized uploads and damaged chunks cannot become attached audio',async()=>{
+ const f=await fixture();
+ assert.equal((await f.call('begin',{name:'x.mp3',bytes:9*1024*1024,sha256:'a'.repeat(64)})).code,400);
+ const b=Buffer.alloc(1000);b.write('ftypisom',4);
+ const begun=await f.api('begin',{name:'fake.mp3',bytes:b.length,sha256:createHash('sha256').update(b).digest('hex')});
+ await f.api('chunk',{media_id:begun.media_id,index:0,data_base64:b.toString('base64')});
+ await assert.rejects(f.api('finish',{media_id:begun.media_id}),/not a real audio/);
+ assert.equal((await f.api('state')).voiceover,null);
+ await assert.rejects(uploadVoiceover(new File([mp3(40)],'voice.exe'),f.api),/MP3/);
+ const good=await uploadVoiceover(new File([mp3(1000)],'good.mp3'),f.api);
+ await assert.rejects(loadVerifiedBlob(async()=>({data_base64:mp3(999).toString('base64')}),'audio_chunk',{},good,good.mime),/incomplete/);
+});
+test('replayed render request never queues a second job',async()=>{
+ const f=await fixture();await uploadVoiceover(new File([mp3(1000)],'voice.mp3'),f.api);
+ const input={baseline:f.record.baseline},r1=await f.call('render',input,'alice',{},'stable-render-id'),r2=await f.call('render',input,'alice',{},'stable-render-id');
+ assert.equal(r1.code,200);assert.equal(r2.code,200);assert.equal(r1.body.data.job_id,r2.body.data.job_id);assert.equal((await f.jobs.list('alice')).jobs.length,1);
+});

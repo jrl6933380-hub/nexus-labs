@@ -26,7 +26,7 @@ async function latestRenders(account,jobs=adRenderJobStore,links=adRenderLinks,m
 }
 // Same split the render worker uses: med- ids come from the media library, the rest from the image library.
 // clips:false returns a video's poster still, not the clip: whole clips are megabytes and would blow past the response size limit.
-async function resolveProjectImages(account,project,images=adImageStore,media=adMediaStore){
+export async function resolveProjectImages(account,project,images=adImageStore,media=adMediaStore){
  const ids=imageIdsOf(project),lib=ids.filter(i=>!i.startsWith('med-')),med=ids.filter(i=>i.startsWith('med-'));
  const a=lib.length?await images.resolve(account,lib):{images:{},missing:[]},b=med.length?await media.resolveImages(account,med,{clips:false}):{images:{},missing:[]};
  return {images:{...a.images,...b.images},missing:[...a.missing,...b.missing]};
