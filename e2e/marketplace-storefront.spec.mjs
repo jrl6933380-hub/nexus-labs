@@ -46,3 +46,42 @@ test('wallet keys survive discovery, sample navigation and checkout errors',asyn
 test('catalog errors show retry without inventing live tools',async({page})=>{
  const state=await setup(page,{failCatalog:true,hasWallet:true});await page.goto('/marketplace.html');await expect(page.getByRole('heading',{name:'We couldn’t load the actors.'})).toBeVisible();await expect(page.locator('#grid .card')).toHaveCount(0);await expect(page.locator('#bal')).toHaveText('16 credits');await expect(page.locator('#empty-state')).toBeHidden();state.recover();await page.getByRole('button',{name:'Try again',exact:true}).click();await expect(page.locator('#grid .card')).toHaveCount(actors.length);await expect(page.locator('#catalog-error')).toBeHidden();
 });
+
+// The bio hub reads the same public catalog without touching wallets or launching jobs.
+test('bio hub discovers new catalog tools, pauses motion and opens the marketplace',async({page})=>{
+ await page.setViewportSize({width:390,height:844});await page.emulateMedia({reducedMotion:'no-preference'});
+ const requests=[];const names=[...actors,{id:'new-fixture-tool',name:'A newly published tool'}];
+ await page.route('**/api/actor-credits',async route=>{const body=route.request().postDataJSON();requests.push(body);await route.fulfill({json:{data:{actors:names}}});});
+ await page.goto('/start.html');await expect(page.locator('#tool-names li')).toHaveCount(names.length);
+ await expect(page.locator('#tool-names')).toContainText('A newly published tool');
+ await expect(page.getByRole('heading',{name:'Explore AI tools',exact:true})).toBeVisible();
+ await expect(page.locator('.tools')).toContainText('Find the tool you saw in our videos');
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await expect(page.locator('.tools .action')).toBeInViewport();
+ const pause=page.getByRole('button',{name:'Pause scrolling',exact:true});await pause.click();
+ await expect(page.getByRole('button',{name:'Resume scrolling',exact:true})).toHaveAttribute('aria-pressed','true');
+ expect(await page.locator('#tool-track').evaluate(e=>getComputedStyle(e).animationPlayState)).toBe('paused');
+ await page.getByRole('button',{name:'Resume scrolling',exact:true}).click();await expect(pause).toHaveAttribute('aria-pressed','false');
+ const audit=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();expect(audit.violations).toEqual([]);
+ expect(requests).toEqual([{action:'catalog'}]);
+ await page.getByRole('link',{name:'Find your tool',exact:true}).click();await expect(page).toHaveURL(/\/marketplace\.html$/);
+ await expect(page.getByRole('searchbox',{name:'Search actors'})).toBeVisible();
+});
+test('bio hub reduced motion keeps a stationary list and responds to preference changes',async({page})=>{
+ await page.setViewportSize({width:320,height:700});await page.emulateMedia({reducedMotion:'reduce'});await setup(page);
+ await page.goto('/start.html');await expect(page.locator('#tool-names li')).toHaveCount(actors.length);
+ await expect(page.locator('#motion-toggle')).toBeHidden();
+ expect(await page.locator('#tool-track').evaluate(e=>getComputedStyle(e).animationName)).toBe('none');
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await page.emulateMedia({reducedMotion:'no-preference'});await expect(page.getByRole('button',{name:'Pause scrolling'})).toBeVisible();
+});
+test('bio hub keeps working if discovery fails and renders catalog names as text',async({page})=>{
+ await page.route('**/api/actor-credits',route=>route.fulfill({status:503,json:{error:'Offline fixture'}}));
+ await page.goto('/start.html');await expect(page.locator('#tool-names')).toContainText('Competitor Research');
+ await expect(page.getByRole('link',{name:'Find your tool',exact:true})).toHaveAttribute('href','/marketplace.html');
+ await page.unroute('**/api/actor-credits');
+ await page.route('**/api/actor-credits',route=>route.fulfill({json:{data:{actors:[{name:'<img src=x onerror=alert(1)>'},{name:'<img src=x onerror=alert(1)>'},{name:null}]}}}));
+ await page.reload();await expect(page.locator('#tool-names li')).toHaveCount(1);
+ await expect(page.locator('#tool-names')).toHaveText('<img src=x onerror=alert(1)>');await expect(page.locator('#tool-track img')).toHaveCount(0);
+ await expect(page.locator('#motion-toggle')).toBeHidden();
+});

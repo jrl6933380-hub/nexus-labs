@@ -23,15 +23,24 @@
           <p>Tell us your idea. Review a concept preview tailored to your business.</p>
           <span class="action">Start with your idea <span aria-hidden="true">→</span></span>
         </a>
-        <a class="choice tools" href="/marketplace.html">
-          <span class="choice-top"><span class="number">02 / THE ACTOR MARKETPLACE</span><span class="arrow" aria-hidden="true">↗</span></span>
-          <h2>Explore AI tools</h2>
-          <p>Research competitors, write review replies, turn documents into spreadsheets, and more.</p>
-          <span class="action">Find your tool <span aria-hidden="true">→</span></span>
-        </a>
+        <section class="choice tools" aria-labelledby="tools-title">
+          <span class="choice-top"><span class="number">02 / TOOLS FOR YOUR NEXT MOVE</span><span class="arrow" aria-hidden="true">↗</span></span>
+          <h2 id="tools-title">Explore AI tools</h2>
+          <p>Find the tool you saw in our videos—or discover something new.</p>
+          <div class="tool-discovery">
+            <div class="tool-window" id="tool-window" tabindex="0" role="region" aria-label="Tools in the marketplace">
+              <div class="tool-track" id="tool-track">
+                <ul class="tool-names" id="tool-names"><li>Competitor Research</li><li>Review Reply Writer</li><li>Documents to Spreadsheet</li></ul>
+              </div>
+            </div>
+            <button class="motion-toggle" id="motion-toggle" type="button" aria-controls="tool-track" aria-pressed="false" hidden>Pause scrolling</button>
+          </div>
+          <a class="action" href="/marketplace.html">Find your tool <span aria-hidden="true">→</span></a>
+        </section>
       </nav>
     </main>
     <footer>HUMAN IDEAS. MORE POSSIBILITIES.<span aria-hidden="true">✳</span></footer>
   </div>
+  <script src="/start.js" defer></script>
 </body>
 </html>
