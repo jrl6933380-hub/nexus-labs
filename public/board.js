@@ -1,7 +1,7 @@
 // Nexus Board: a free-form surface for anything visual. Items are inline visuals, Lab pictures/clips/audio,
 // notes and hand sketches. Boards are saved per owner through /api/nexus-lab (board_* actions); media stays in
 // the shared Lab library and is only referenced by id. Workflows can plug in through window.nexusBoard.
-import {ZOOM_MIN,ZOOM_MAX,clamp,buildVisualDocument,screenToWorld,zoomAt,fitView,addPoint,strokePath,inRect,newId,LOOKS,SWATCHES,INK,lookGrid} from './board-core.js?v=20261030-5';
+import {ZOOM_MIN,ZOOM_MAX,clamp,buildVisualDocument,screenToWorld,zoomAt,fitView,addPoint,strokePath,inRect,newId,LOOKS,SWATCHES,INK,lookGrid} from './board-core.js?v=20261030-6';
 
 const $=id=>document.getElementById(id);
 const viewport=$('viewport'),world=$('world'),selbar=$('selbar'),drawbar=$('drawbar'),sheetHost=$('sheetHost'),nameInput=$('boardName'),saveState=$('saveState'),emptyNote=$('empty'),toastEl=$('toast');
@@ -186,7 +186,7 @@ async function uploadFile(file){
   return (await request({action:'asset_finish',input:{media_id:asset.media_id}})).asset;
 }
 async function openCutter(it){
-  try{const {runCutter}=await import('./board-cut.js?v=20261030-5');
+  try{const {runCutter}=await import('./board-cut.js?v=20261030-6');
     runCutter({request,item:it,onSaved:asset=>{addItem({kind:'image',media_id:asset.media_id,title:(it.title?it.title+' ':'')+'cutout',w:it.w,h:it.h,x:it.x+it.w+24,y:it.y});toast('Cutout saved to your library and added.');}});
   }catch(e){toast(e.message||'Could not open the cutter.',true);}
 }

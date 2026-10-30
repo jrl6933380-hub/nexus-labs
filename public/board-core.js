@@ -69,3 +69,14 @@ export function limitAlpha(alpha,allowed,w,h,margin=2,discs=[]){
     for(let y=0;y<h;y++)if(cs[Math.min(h,y+m+1)]-cs[Math.max(0,y-m)]>0)out[y*w+x]=alpha[y*w+x];}
   return out;
 }
+
+// A touch-up should only change the picture near the strokes. Everything farther away than the brush (grown by `grow`) keeps the earlier cut.
+export function blendNearStrokes(base,refit,strokes,w,h,grow=1.6){
+  const zone=new Uint8Array(w*h);
+  for(const st of strokes){const r=Math.max(1,st.r*grow),r2=r*r;
+    for(const [cx,cy] of st.pts){
+      for(let y=Math.max(0,Math.floor(cy-r));y<=Math.min(h-1,Math.ceil(cy+r));y++)for(let x=Math.max(0,Math.floor(cx-r));x<=Math.min(w-1,Math.ceil(cx+r));x++)if((x-cx)**2+(y-cy)**2<=r2)zone[y*w+x]=1;}}
+  const out=new Uint8Array(base.length);
+  for(let i=0;i<out.length;i++)out[i]=zone[i]?refit[i]:base[i];
+  return out;
+}

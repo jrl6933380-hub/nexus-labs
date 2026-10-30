@@ -3,7 +3,7 @@
 // The result is saved to the shared library as a cutout linked to the original picture. Nothing is saved until you press Save.
 import {segmentSubject,rasterizePolygon,resizeAlpha} from './nexus-lab-segment.js';
 import {loadOriginal,cutoutCanvas,saveDerived,buildHints} from './nexus-lab-cutout.js';
-import {lassoPolygon,brushRadius,strokeSteps,limitAlpha} from './board-core.js?v=20261030-5';
+import {lassoPolygon,brushRadius,strokeSteps,limitAlpha,blendNearStrokes} from './board-core.js?v=20261030-6';
 
 const CONFIDENCE={high:'The subject stands out from the background, so the edge should be reliable.',medium:'The colors overlap a little. Check the edge before you rely on it.',low:'The subject and background look alike, so this edge is a best guess.'};
 const PAINT={keep:'rgba(86,214,160,.55)',remove:'rgba(255,124,140,.55)'};
@@ -17,7 +17,7 @@ export async function runCutter({request,item,onSaved}){
     h('div',{class:'top'},h('b',{text:'Cut out'}),close),stage,h('div',{class:'foot'},status,chips,actions));
   document.body.append(root);close.onclick=()=>root.remove();
   // outline: 'trace' (freehand) or 'points' (tap around the subject). After a cut, refinement strokes are painted with 'keep' or 'remove'.
-  const S={outline:'trace',tool:'keep',size:'M',lasso:null,points:[],polygon:null,strokes:[],result:null,busy:false,paint:null};
+  const S={outline:'trace',tool:'keep',size:'M',lasso:null,points:[],polygon:null,strokes:[],result:null,base:null,busy:false,paint:null};
   // Edits run on a smaller working copy so each touch-up takes seconds, not tens of seconds, on a phone; the saved cutout is scaled back to full size.
   const WORK_PIXELS=400000;
   let original,work,canvas,ctx;
@@ -57,7 +57,7 @@ export async function runCutter({request,item,onSaved}){
     actions.append(btn('Undo',()=>{S.strokes.pop();refit();},{disabled:!S.strokes.length||S.busy}),btn('Start over',reset,{disabled:S.busy}),btn('Save cutout',save,{gold:true,disabled:S.busy}));
   }
   function reset(){
-    Object.assign(S,{lasso:null,points:[],polygon:null,strokes:[],result:null,paint:null});
+    Object.assign(S,{lasso:null,points:[],polygon:null,strokes:[],result:null,base:null,paint:null});
     draw();controls();status.textContent=S.outline==='points'?'Tap points around the part you want to keep, one after another. Tap Finish when you are back where you started.':'Trace around the part you want to keep, all the way around, then lift your finger.';
   }
   // Runs the Lab refiner on the stored outline plus any painted strokes. A short delay lets the screen show "working" first.
@@ -68,6 +68,8 @@ export async function runCutter({request,item,onSaved}){
       S.result=segmentSubject(work.pixels,S.polygon,{hints});
       const w=canvas.width,h=canvas.height,margin=Math.max(2,Math.round(0.015*Math.min(w,h)));
       S.result.alpha=limitAlpha(S.result.alpha,rasterizePolygon(S.polygon,w,h),w,h,margin,S.strokes.filter(st=>st.tool==='keep'));
+      if(!S.strokes.length)S.base=S.result.alpha;
+      else if(S.base)S.result.alpha=blendNearStrokes(S.base,S.result.alpha,S.strokes,w,h);
       status.textContent=S.strokes.length?`Edge updated. Paint Keep or Remove over anything still wrong. ${CONFIDENCE[S.result.stats.confidence]||''} Nothing is saved yet.`
         :`Done. ${CONFIDENCE[S.result.stats.confidence]||''} Paint Keep over missing parts or Remove over leftovers to fix the edge. Nothing is saved yet.`;
     }catch(e){
