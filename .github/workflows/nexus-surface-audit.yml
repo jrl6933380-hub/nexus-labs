@@ -8,6 +8,8 @@ on:
       - 'lib/**'
       - 'vercel.json'
       - 'scripts/audit-surfaces.mjs'
+      - 'scripts/audit-route-dependencies.mjs'
+      - 'test/route-dependency-contract.test.mjs'
       - 'test/legacy-route-contract.test.mjs'
       - '.github/workflows/nexus-surface-audit.yml'
 permissions:
@@ -21,9 +23,11 @@ jobs:
         with:
           node-version: '22'
       - name: Test legacy redirect contracts
-        run: node --test test/legacy-route-contract.test.mjs
+        run: node --test test/legacy-route-contract.test.mjs test/route-dependency-contract.test.mjs
       - name: Generate complete surface inventory
         run: node scripts/audit-surfaces.mjs nexus-surface-audit.json
+      - name: Inventory hidden route dependencies
+        run: node scripts/audit-route-dependencies.mjs nexus-route-dependencies.json
       - name: Create audit summary
         shell: bash
         run: |
@@ -40,6 +44,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: nexus-surface-audit
-          path: nexus-surface-audit.json
+          path: |
+            nexus-surface-audit.json
+            nexus-route-dependencies.json
           retention-days: 14
           if-no-files-found: error
