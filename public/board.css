@@ -84,3 +84,20 @@ button{cursor:pointer}
 .cutter .foot button.chip[aria-pressed=true]{background:var(--gold);color:var(--ink);border-color:var(--gold);font-weight:600}
 .pill.icon{min-width:44px;padding:0;font-size:20px}
 .name{text-overflow:ellipsis}
+
+.composer{position:fixed;inset:0;z-index:65;background:var(--bg);display:flex;flex-direction:column}
+.compose-top{display:flex;align-items:center;gap:12px;padding:calc(8px + var(--safe-t)) 12px 8px;border-bottom:1px solid var(--line)}
+.compose-top h2{flex:1;margin:0;font:500 21px Georgia,serif}
+.composer button,.composer select,.composer input[type=text]{min-height:44px;border-radius:12px;padding:8px 12px;background:var(--card);border:1px solid var(--line);min-width:0}
+.compose-body{overflow:auto;flex:1;padding:12px 16px calc(20px + var(--safe-b));width:100%;max-width:960px;margin:auto}
+.compose-body p{color:var(--sub);margin:0 0 12px}
+.compose-body>input,.compose-body>select{display:block;width:100%;margin-bottom:10px}
+.compose-frame{display:flex;justify-content:center;background:repeating-conic-gradient(#24352b 0% 25%,#15251b 0% 50%) 50%/16px 16px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.compose-frame canvas{display:block;max-width:100%;max-height:42vh;width:auto;height:auto;touch-action:none}
+.compose-controls{display:grid;gap:8px;margin-top:12px}
+.compose-controls label{display:flex;flex-direction:column;gap:4px}
+.compose-controls input{width:100%;min-height:44px;accent-color:var(--gold)}
+.compose-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.composer button.gold{background:var(--gold);color:var(--ink);font-weight:600}
+.composer button:disabled{opacity:.5}
+.composer :focus-visible{outline:2px solid var(--gold);outline-offset:2px}
