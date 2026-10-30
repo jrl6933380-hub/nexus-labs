@@ -6,29 +6,32 @@ import android.content.*;
 import android.content.pm.*;
 import android.provider.Settings;
 import android.graphics.Color;
+import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.view.*;
 import android.widget.*;
 import org.json.*;
 public final class MainActivity extends Activity {
- private static final int BG=0xff0d1110,FG=0xfff5f2e8,GOLD=0xffe7c77b,MUTED=0xffb2bcb6;
+ private static final int BG=0xff0e1412,FG=0xfff5efe0,GOLD=0xffe8c36a,MUTED=0xff9aa59b,CARD=0xff172019,LINE=0xff2a3a30;
+ View phoneAnchor;
  TextView state;EditText code;Button pair;LinearLayout layout;ScrollView scroll;HomeSwipeView assistantHome;Button leftShortcut,rightShortcut;TextView swipeHint;final Handler ui=new Handler(Looper.getMainLooper());
  final Runnable refresh=new Runnable(){public void run(){if(state!=null)state.setText((BridgeService.active?"● CONNECTED":"○ DISCONNECTED")+"\n"+BridgeService.message+"\nControl: "+(PhoneAccessibility.instance!=null?"ready":"enable accessibility")+" · Management: "+(NexusAdmin.owner(MainActivity.this)?"device owner":"standard app")+"\nShizuku: "+ShizukuAccess.status());ui.postDelayed(this,1500);}};
  @Override public void onCreate(Bundle b){super.onCreate(b);getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(BG);render();routeIntent(getIntent());}
  void render(){
-  scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setFitsSystemWindows(true);scroll.setBackgroundColor(BG);layout=new LinearLayout(this);layout.setOrientation(1);int p=dp(22);layout.setPadding(p,dp(20),p,dp(36));scroll.addView(layout);setContentView(scroll);
+  scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setBackgroundColor(BG);layout=new LinearLayout(this);layout.setOrientation(1);int p=dp(22);layout.setPadding(p,dp(20),p,dp(36));scroll.addView(layout);
+  LinearLayout shell=new LinearLayout(this);shell.setOrientation(1);shell.setFitsSystemWindows(true);shell.setBackgroundColor(BG);shell.addView(scroll,new LinearLayout.LayoutParams(-1,0,1f));View rule=new View(this);rule.setBackgroundColor(LINE);shell.addView(rule,new LinearLayout.LayoutParams(-1,dp(1)));shell.addView(tabBar(),new LinearLayout.LayoutParams(-1,-2));setContentView(shell);
   LinearLayout root=layout;assistantHome=new HomeSwipeView(this,direction->HomeShortcuts.open(this,direction));root.addView(assistantHome,new LinearLayout.LayoutParams(-1,-2));layout=assistantHome;
-  TextView eyebrow=text("N E X U S   /   P H O N E   L A B");eyebrow.setTextColor(GOLD);eyebrow.setTextSize(12);
-  TextView title=text("Your Nexus.\nYour playground.");title.setTextSize(32);title.setTypeface(null,1);
+  TextView eyebrow=text("Nexus phone lab");eyebrow.setTextColor(GOLD);eyebrow.setTextSize(13);
+  TextView title=text("Your Nexus.\nYour playground.");title.setTextSize(34);title.setTypeface(Typeface.SERIF,Typeface.NORMAL);
   swipeHint=text("");swipeHint.setTextColor(GOLD);
   leftShortcut=button("",()->HomeShortcuts.open(this,-1));rightShortcut=button("",()->HomeShortcuts.open(this,1));refreshShortcutLabels();
   text("Nexus is your center. Press Android Home to return here.").setTextColor(MUTED);
   layout=root;
   button("Swipe shortcuts",()->HomeShortcuts.settings(this,()->refreshShortcutLabels()));
-  state=text("");state.setTextColor(MUTED);state.setTextSize(14);
+  state=text("");state.setTextColor(MUTED);state.setTextSize(14);state.setBackground(rounded(CARD,16,LINE));state.setPadding(dp(16),dp(14),dp(16),dp(14));
   button("Connect phone",()->connect());button("Disconnect",()->stop());
   section("WORKSPACE");button("Open Nexus",()->openNexus("home"));button("Ad Studio",()->openNexus("ads"));button("Agent Board",()->openNexus("board"));button("Apps",()->showApps());
-  section("PHONE SETUP");button("Set Nexus as Home",()->{try{if(NexusAdmin.owner(this))NexusAdmin.makeHome(this);else{RoleManager rm=getSystemService(RoleManager.class);if(rm.isRoleAvailable(RoleManager.ROLE_HOME))startActivityForResult(rm.createRequestRoleIntent(RoleManager.ROLE_HOME),31);else startActivity(new Intent(Settings.ACTION_HOME_SETTINGS));}}catch(Exception e){notice(e.getMessage());}});
+  phoneAnchor=section("PHONE SETUP");button("Set Nexus as Home",()->{try{if(NexusAdmin.owner(this))NexusAdmin.makeHome(this);else{RoleManager rm=getSystemService(RoleManager.class);if(rm.isRoleAvailable(RoleManager.ROLE_HOME))startActivityForResult(rm.createRequestRoleIntent(RoleManager.ROLE_HOME),31);else startActivity(new Intent(Settings.ACTION_HOME_SETTINGS));}}catch(Exception e){notice(e.getMessage());}});
   button("Enable screen and touch control",()->startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
   text("If Android 13 blocks accessibility: App info → three-dot menu → Allow restricted settings. Keep the phone unlocked for control.").setTextColor(MUTED);
   Switch deeper=new Switch(this);deeper.setText("Enable deeper tools");deeper.setTextColor(FG);deeper.setMinHeight(dp(54));deeper.setChecked(getSharedPreferences(PhoneApi.PREFS,0).getBoolean("deeper_tools",false));deeper.setOnCheckedChangeListener((v,on)->getSharedPreferences(PhoneApi.PREFS,0).edit().putBoolean("deeper_tools",on).apply());layout.addView(deeper);
@@ -63,8 +66,16 @@ public final class MainActivity extends Activity {
  void showApps(){try{JSONArray a=DeviceTools.apps(this).getJSONArray("apps");String[] labels=new String[a.length()];for(int i=0;i<labels.length;i++)labels[i]=a.getJSONObject(i).getString("label");new AlertDialog.Builder(this).setTitle("Open an app").setItems(labels,(d,n)->{try{Intent i=getPackageManager().getLaunchIntentForPackage(a.getJSONObject(n).getString("package_name"));if(i!=null)startActivity(i);}catch(Exception e){notice("App unavailable.");}}).setNegativeButton("Close",null).show();}catch(Exception e){notice("Could not list apps.");}}
  int dp(int n){return Math.round(n*getResources().getDisplayMetrics().density);}
  TextView text(String s){TextView t=new TextView(this);t.setText(s);t.setTextColor(FG);t.setTextSize(16);t.setPadding(0,dp(8),0,dp(10));layout.addView(t);return t;}
- void section(String s){TextView t=text(s);t.setTextSize(12);t.setTextColor(GOLD);t.setPadding(0,dp(28),0,dp(8));}
- Button button(String s,Runnable r){Button b=new Button(this);b.setText(s);b.setTextSize(16);b.setTextColor(FG);b.setAllCaps(false);b.setGravity(Gravity.CENTER_VERTICAL|Gravity.START);b.setPadding(dp(16),0,dp(16),0);b.setMinHeight(dp(54));GradientDrawable bg=new GradientDrawable();bg.setColor(0xff19221e);bg.setCornerRadius(dp(8));bg.setStroke(dp(1),0xff42554a);b.setBackground(bg);b.setOnClickListener(v->r.run());LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.bottomMargin=dp(8);layout.addView(b,lp);return b;}
+ TextView section(String s){TextView t=text(s);t.setTextSize(13);t.setTextColor(GOLD);t.setPadding(0,dp(28),0,dp(8));return t;}
+ GradientDrawable rounded(int fill,int radiusDp,int stroke){GradientDrawable g=new GradientDrawable();g.setColor(fill);g.setCornerRadius(dp(radiusDp));g.setStroke(dp(1),stroke);return g;}
+ View tabBar(){LinearLayout bar=new LinearLayout(this);bar.setOrientation(0);bar.setBackgroundColor(BG);bar.setPadding(0,dp(6),0,dp(6));
+  bar.addView(tab("Home",GOLD,()->scroll.smoothScrollTo(0,0)),new LinearLayout.LayoutParams(0,-2,1f));
+  bar.addView(tab("Board",MUTED,()->openNexus("board")),new LinearLayout.LayoutParams(0,-2,1f));
+  bar.addView(tab("Phone",MUTED,()->{if(phoneAnchor!=null)scroll.smoothScrollTo(0,phoneAnchor.getTop());}),new LinearLayout.LayoutParams(0,-2,1f));
+  bar.addView(tab("Swipes",MUTED,()->HomeShortcuts.settings(this,()->refreshShortcutLabels())),new LinearLayout.LayoutParams(0,-2,1f));
+  return bar;}
+ TextView tab(String s,int color,Runnable r){TextView t=new TextView(this);t.setText(s);t.setTextSize(13);t.setTextColor(color);t.setGravity(Gravity.CENTER);t.setMinHeight(dp(52));t.setOnClickListener(v->r.run());return t;}
+ Button button(String s,Runnable r){Button b=new Button(this);b.setText(s);b.setTextSize(16);b.setTextColor(FG);b.setAllCaps(false);b.setGravity(Gravity.CENTER_VERTICAL|Gravity.START);b.setPadding(dp(16),0,dp(16),0);b.setMinHeight(dp(54));GradientDrawable bg=new GradientDrawable();bg.setColor(CARD);bg.setCornerRadius(dp(14));bg.setStroke(dp(1),LINE);b.setBackground(bg);b.setOnClickListener(v->r.run());LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.bottomMargin=dp(8);layout.addView(b,lp);return b;}
  void notice(String s){Toast.makeText(this,s,Toast.LENGTH_LONG).show();}
  void refreshShortcutLabels(){if(leftShortcut!=null){leftShortcut.setText("← "+HomeShortcuts.label(this,-1));rightShortcut.setText(HomeShortcuts.label(this,1)+" →");swipeHint.setText("Swipe left: "+HomeShortcuts.label(this,-1)+" · Swipe right: "+HomeShortcuts.label(this,1));}}
  @Override protected void onResume(){super.onResume();refreshShortcutLabels();ui.removeCallbacks(refresh);ui.post(refresh);}
