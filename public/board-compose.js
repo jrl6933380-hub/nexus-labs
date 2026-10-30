@@ -64,7 +64,7 @@ export function runComposer({request,item,onSaved}){
   function sync(){for(const [key,input] of Object.entries(sliders))input.value=placement[key];}
   function dimensions(){if(format.value==='portrait')return {width:1080,height:1920};if(format.value==='square')return {width:1080,height:1080};if(format.value==='landscape')return {width:1920,height:1080};return outputSize(bg.bitmap.width,bg.bitmap.height);}
   function draw(){download.disabled=!ready();save.disabled=!ready()||saving||saved;
-    if(!ready())return;const size=dimensions();canvas.width=size.width;canvas.height=size.height;paintComposition(canvas,bg.bitmap,fg.bitmap,placement);
+    if(!ready()){canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);return;}const size=dimensions();canvas.width=size.width;canvas.height=size.height;paintComposition(canvas,bg.bitmap,fg.bitmap,placement);
   }
   async function exportBlob(){if(!ready())throw Error('Choose a background image first.');draw();return png(canvas);}
   function dispose(){if(saving)return;disposed=true;backgroundLoad++;fg?.bitmap.close?.();bg?.bitmap.close?.();if(downloadUrl)URL.revokeObjectURL(downloadUrl);host.remove();previousFocus?.focus?.();}

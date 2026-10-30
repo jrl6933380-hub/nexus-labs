@@ -48,7 +48,8 @@ for(const width of [320,393,1280])test('compose, interact, download, save and re
   const canvas=page.locator('.compose-frame canvas'),rect=await canvas.boundingBox();
   await page.mouse.move(rect.x+rect.width/2,rect.y+rect.height/2);await page.mouse.down();await page.mouse.move(rect.x+rect.width*.7,rect.y+rect.height/2);await page.mouse.up();
   await expect(page.getByLabel('Horizontal position')).toHaveValue('0.7');
-  await page.getByLabel('Horizontal position').fill('0.5');await page.getByLabel('Foreground size').fill('0.6');
+  await page.getByLabel('Horizontal position').press('Home');await expect(page.getByLabel('Horizontal position')).toHaveValue('-0.5');
+  await page.getByLabel('Horizontal position').evaluate(n=>{n.value='0.5';n.dispatchEvent(new Event('input',{bubbles:true}));});await page.getByLabel('Foreground size').evaluate(n=>{n.value='0.6';n.dispatchEvent(new Event('input',{bubbles:true}));});
   await page.getByLabel('Output format').selectOption('portrait');expect(await canvas.evaluate(c=>[c.width,c.height])).toEqual([1080,1920]);
   await page.getByLabel('Output format').selectOption('background');
   const downloading=page.waitForEvent('download');await page.getByRole('button',{name:'Download PNG',exact:true}).click();const download=await downloading;
