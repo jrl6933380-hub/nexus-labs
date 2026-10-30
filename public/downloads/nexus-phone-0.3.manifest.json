@@ -3,8 +3,8 @@
   "version_code": 3,
   "package_name": "app.nexus.phone",
   "bytes": 66152,
-  "sha256": "0f6f2e33fe67983a2e7f60699abff72db97cbaec7376884bda0263d26e7bfe07",
+  "sha256": "c9c428e3880d3b7c3bb4a070a8b162c30d3a1a881ab2d26e708b41630b2013ba",
   "update_from": "0.2.0",
-  "source_commit": "23609ec5f98a883eb977bafb34a45ce5de862055",
+  "source_commit": "3e52f07201be851afb9fc2db37c3ad571ddd49f7",
   "remote_reset": false
 }
