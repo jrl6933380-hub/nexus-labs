@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import {createNexusLabBoards} from '../lib/nexusLabBoards.js';
 import {createNexusLabHandler} from '../api/nexus-lab.js';
 const owner={id:'justin'};
-function memory(){const hashes=new Map();return async([op,key,field,value])=>{const h=hashes.get(key)||new Map();hashes.set(key,h);
+function memory(){const hashes=new Map();return async(args)=>{const [op,key,field,value]=args;
+ if(op==='EVAL'){const [,,,storage,id,old,next]=args;const m=hashes.get(storage)||new Map();if(m.get(id)!==old)return 0;m.set(id,next);hashes.set(storage,m);return 1;}
+const h=hashes.get(key)||new Map();hashes.set(key,h);
   if(op==='HGET')return h.get(field)??null;if(op==='HSET'){h.set(field,value);return 1;}if(op==='HDEL')return h.delete(field)?1:0;
   if(op==='HGETALL')return [...h.entries()].flat();throw Error(`unexpected ${op}`);};}
 let ticks=0;const setup=()=>createNexusLabBoards({command:memory(),now:()=>++ticks,uuid:()=>`board${String(ticks).padStart(8,'0')}aaaaaaaa`});

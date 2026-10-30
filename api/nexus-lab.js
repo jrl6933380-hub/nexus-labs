@@ -44,6 +44,7 @@ export function createNexusLabHandler({authenticate=getNexusOwner,stockSearch=se
     if(typeof action==='string'&&action.startsWith('board_')){
       if(!input||typeof input!=='object'||Array.isArray(input))return res.status(400).json({error:'Supply board input.'});
       if(action==='board_list')return res.status(200).json(await boards.list(owner));
+      if(action==='board_scene_edit')return res.status(200).json({board:await boards.editScene(owner,input)});
       if(action==='board_read')return res.status(200).json({board:await boards.read(owner,input.id)});
       if(action==='board_save')return res.status(200).json({board:await boards.save(owner,input)});
       if(action==='board_delete')return res.status(200).json(await boards.remove(owner,input.id));

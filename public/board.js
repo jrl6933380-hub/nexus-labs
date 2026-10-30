@@ -11,6 +11,7 @@ function h(tag,props={},...kids){const n=document.createElement(tag);for(const [
 
 let board=null,selId=null,liveId=null,mode='select',ink={c:INK[0],s:6},drawItemId=null;
 let dirty=false,saving=false,again=false,locked=false,saveTimer=null,toastTimer=null;
+const scenePlayers=new Map();
 const els=new Map(),ptrs=new Map(),media=new Map();let gesture=null;
 
 async function request(body){
@@ -36,7 +37,7 @@ async function flush(){
   }catch(e){
     if(e.status===409&&board.id){locked=true;setState('Changed elsewhere',true);conflictSheet(e.message);}
     else{dirty=true;setState('Not saved',true);toast(e.message,true);if(!e.status||e.status>=500)saveTimer=setTimeout(flush,6000);}
-  }finally{saving=false;if(again){again=false;if(dirty)flush();}}
+  }finally{saving=false;window.dispatchEvent(new Event('nexus-board:save-settled'));if(again){again=false;if(dirty)flush();}}
 }
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flush();});
 
@@ -75,7 +76,14 @@ function makeEl(it){
     el.append(h('div',{class:'loading',text:'Loading…'}));
     mediaUrl(it.media_id).then(url=>{if(els.get(it.id)!==el)return;const m=h(it.kind==='image'?'img':it.kind,it.kind==='image'?{alt:it.title||'Board picture',src:url}:{src:url,playsinline:true,preload:'metadata'});if(it.kind==='video'&&it.loop)m.loop=true;el.querySelector('.loading')?.remove();el.prepend(m);})
       .catch(e=>{const l=el.querySelector('.loading');if(l)l.textContent=e.message||'Could not load this file.';});
-  }else if(it.kind==='sketch'){const svg=document.createElementNS(SVGNS,'svg');svg.setAttribute('class','sk');svg.setAttribute('preserveAspectRatio','none');el.append(svg);}
+  }else if(it.kind==='scene'){
+    const canvas=h('canvas',{'aria-label':it.title||'Animated scene'});el.append(canvas);
+    import('./board-scene-tile.js?v=20261030-scene1').then(({mountSceneTile})=>{
+      if(els.get(it.id)!==el)return;
+      const player=mountSceneTile(canvas,{request,scene:byId(it.id)?.scene||it.scene,onError:message=>toast(message,true)});scenePlayers.set(it.id,player);
+    }).catch(e=>toast(e.message,true));
+  }
+  else if(it.kind==='sketch'){const svg=document.createElementNS(SVGNS,'svg');svg.setAttribute('class','sk');svg.setAttribute('preserveAspectRatio','none');el.append(svg);}
   else if(it.kind==='note')el.append(h('div',{class:'txt'}));
   return el;
 }
@@ -84,12 +92,13 @@ function updateEl(el,it){
   el.classList.toggle('sel',selId===it.id);el.classList.toggle('live',liveId===it.id);
   if(it.kind==='visual'){const f=el.querySelector('iframe');if(f.dataset.code!==it.html){f.dataset.code=it.html;f.srcdoc=buildVisualDocument(it.html);}f.title=it.title||'Inline visual';}
   else if(it.kind==='note'){el.className=`bitem k-note c-${it.color||'gold'}${selId===it.id?' sel':''}`;const t=el.querySelector('.txt');if(t.textContent!==it.text)t.textContent=it.text;}
+  else if(it.kind==='scene'){scenePlayers.get(it.id)?.update(it.scene);}
   else if(it.kind==='sketch'){const svg=el.querySelector('svg'),sig=it.strokes.length+':'+it.strokes.reduce((n,x)=>n+x.p.length,0)+`:${it.w}x${it.h}`;
     if(svg.dataset.sig!==sig){svg.dataset.sig=sig;svg.setAttribute('viewBox',`0 0 ${it.w} ${it.h}`);svg.replaceChildren(...it.strokes.flatMap(st=>{const mk=(color,width,hit)=>{const p=document.createElementNS(SVGNS,'path');p.setAttribute('d',strokePath(st.p));p.setAttribute('fill','none');p.setAttribute('stroke',color);p.setAttribute('stroke-width',width);p.setAttribute('stroke-linecap','round');p.setAttribute('stroke-linejoin','round');if(hit)p.setAttribute('class','hit');return p;};return [mk(st.c,st.s,false),mk('transparent',Math.max(st.s,24),true)];}));}}
   else{const m=el.querySelector('video,audio');if(m){m.controls=liveId===it.id;}}
   el.querySelector('.handle')?.remove();
   if(selId===it.id&&mode==='select')el.append(h('div',{class:'handle','aria-label':'Resize','data-handle':'1',text:'↘'}));
-  const cap=el.querySelector('.cap');if(it.title&&(it.kind==='image'||it.kind==='video'||it.kind==='audio')){if(!cap)el.append(h('div',{class:'cap',text:it.title}));else cap.textContent=it.title;}
+  const cap=el.querySelector('.cap');if(it.title&&(it.kind==='image'||it.kind==='video'||it.kind==='audio'||it.kind==='scene')){if(!cap)el.append(h('div',{class:'cap',text:it.title}));else cap.textContent=it.title;}
 }
 function applyView(){
   const v=board.view;world.style.transform=`translate(${v.x}px,${v.y}px) scale(${v.z})`;
@@ -99,7 +108,7 @@ function render(){
   viewport.className=`viewport look-${board.look}${mode==='draw'?' drawing':''}`;viewport.style.backgroundColor=board.bg||'';
   applyView();const seen=new Set();
   for(const it of board.items){seen.add(it.id);let el=els.get(it.id);if(!el){el=makeEl(it);els.set(it.id,el);world.append(el);}updateEl(el,it);}
-  for(const [id,el] of [...els])if(!seen.has(id)){el.remove();els.delete(id);}
+  for(const [id,el] of [...els])if(!seen.has(id)){scenePlayers.get(id)?.dispose();scenePlayers.delete(id);el.remove();els.delete(id);}
   emptyNote.hidden=board.items.length>0;if(document.activeElement!==nameInput)nameInput.value=board.name;
   $('drawBtn').setAttribute('aria-pressed',String(mode==='draw'));drawbar.hidden=mode!=='draw';
   drawSelbar();if(mode==='draw')drawBar();
@@ -113,7 +122,11 @@ function drawSelbar(){
   const add=(...b)=>selbar.append(...b);
   if(it.kind==='visual')add(btn('Edit',()=>visualSheet(it)),btn('Interact',()=>{liveId=liveId===it.id?null:it.id;render();},'',liveId===it.id));
   if(it.kind==='note')add(btn('Edit',()=>noteSheet(it)),btn('Color',()=>{const order=['gold','green','sky','rose','paper'];updateItem(it.id,{color:order[(order.indexOf(it.color||'gold')+1)%order.length]});}));
-  if(it.kind==='image')add(btn('Cut out',()=>openCutter(it)),btn('Background',()=>openComposer(it)));
+  if(it.kind==='image')add(btn('Cut out',()=>openCutter(it)),btn('Background',()=>openComposer(it)),btn('Compose scene',()=>openScene(it)));
+  if(it.kind==='scene')add(btn('Edit scene',()=>openScene(it)),btn('Play / pause scene',()=>{const p=scenePlayers.get(it.id);if(p)p.playing?p.pause():p.play();}),btn('Add scene controls',async()=>{
+    const {sceneControlsHtml}=await import('./board-scene-render.js?v=20261030-scene1');
+    addItem({kind:'visual',title:'Scene controls',scene_target_id:it.id,html:sceneControlsHtml(it.id,it.scene.duration),w:320,h:240,x:it.x+it.w+24,y:it.y});
+  }));
   if(it.kind==='video'||it.kind==='audio')add(btn('Controls',()=>{liveId=liveId===it.id?null:it.id;render();},'',liveId===it.id));
   if(it.kind==='sketch')add(btn('Undo stroke',()=>{it.strokes.pop();render();touch();}));
   if(it.kind!=='sketch')add(btn('Rename',()=>renameSheet(it)));
@@ -133,6 +146,7 @@ function closeSheet(){sheetHost.replaceChildren();}
 function addSheet(){
   const big=(t,sm,run)=>{const b=h('button',{class:'big',type:'button'},t,h('small',{text:sm}));b.onclick=run;return b;};
   sheet('Add to the board','Anything works. Nothing here is limited to one kind of thing.',h('div',{class:'row col'},
+    big('Layered scene','Images, masks, puppets and local animation tools',()=>{closeSheet();openScene();}),
     big('Inline visual','Paste HTML or SVG, like one Claude drew in chat',()=>visualSheet()),
     big('Picture, clip or sound from your library','Everything in your Nexus Lab media',()=>librarySheet()),
     big('Upload a file','A picture, video or audio file from this phone',()=>pickFile()),
@@ -203,6 +217,72 @@ async function openComposer(it){
     }});
   }catch(e){toast(e.message||'Could not open composition.',true);}
 }
+async function saveBoardNow(){
+  for(let attempt=0;attempt<3;attempt++){
+    if(saving)await new Promise(resolve=>window.addEventListener('nexus-board:save-settled',resolve,{once:true}));
+    await flush();if(!saving&&!dirty&&!locked)return;
+    if(locked)throw Error('This board changed elsewhere. Reload before saving this scene.');
+  }
+  throw Error('The board has not finished saving. Your draft is still open; try Save editable scene again.');
+}
+async function commitSceneBoardItems(mutate){
+  await saveBoardNow();
+  const target=board,draft=structuredClone(board),resultId=mutate(draft);
+  saving=true;setState('Saving…');
+  try{
+    const {board:saved}=await request({action:'board_save',input:{board:draft,...(board.id?{base_rev:board.rev}:{})}});
+    if(board!==target)throw Error('The board changed while saving. Reopen the saved board to see the result.');
+    Object.assign(board,saved);dirty=false;remember();setState('Saved');render();return structuredClone(byId(resultId));
+  }catch(error){if(error.status===409){locked=true;setState('Changed elsewhere',true);}else setState('Not saved',true);throw error;}
+  finally{saving=false;window.dispatchEvent(new Event('nexus-board:save-settled'));}
+}
+async function openScene(it){
+  const target=board;let sceneItemId=it?.kind==='scene'?it.id:null;
+  try{
+    const {runSceneEditor}=await import('./board-scene.js?v=20261030-scene1');
+    let item=it?.kind==='scene'?structuredClone(it):null;
+    if(it?.kind==='image'){
+      const {asset}=await request({action:'asset_read',input:{media_id:it.media_id}});
+      const {emptyScene,newLayer}=await import('./board-scene-core.js?v=20261030-scene1');
+      const scene=emptyScene(),s=Math.min(scene.width*.75/(asset.width||1080),scene.height*.75/(asset.height||1350)),w=(asset.width||1080)*s,h=(asset.height||1350)*s;
+      scene.layers.push(newLayer('image',scene,{name:(it.title||'Main subject').slice(0,80),media_id:it.media_id,w,h,x:(scene.width-w)/2,y:(scene.height-h)/2}));
+      item={title:(it.title||'Layered scene').slice(0,80),scene};
+    }
+    runSceneEditor({request,item,boardItems:board.items.map(i=>({...i})),onUpload:uploadFile,
+      onSave:async scene=>{
+        if(board!==target)throw Error('The board changed. Reopen the correct board before saving.');
+        if(!sceneItemId)sceneItemId=newId();
+        return commitSceneBoardItems(draft=>{
+          let record=draft.items.find(i=>i.id===sceneItemId);
+          if(record)record.scene=scene;
+          else{
+            if(draft.items.length>=LIMITS.items)throw Error('This board is full.');
+            const box=fitBox(scene.width,scene.height,340),c=center();
+            record={id:sceneItemId,kind:'scene',scene,title:item?.title||'Layered scene',...box,x:it?it.x+it.w+24:Math.round(c.x-box.w/2),y:it?it.y:Math.round(c.y-box.h/2),z:maxZ()+1};draft.items.push(record);
+          }
+          return record.id;
+        });
+      },
+      onExport:async asset=>{
+        if(board!==target)throw Error('Your PNG is in the library; reopen the correct board to add it.');
+        return commitSceneBoardItems(draft=>{
+          if(draft.items.length>=LIMITS.items)throw Error('PNG is saved in the library. This board is full.');
+          const box=fitBox(asset.width,asset.height,340),c=center(),id=newId();
+          draft.items.push({id,kind:'image',media_id:asset.media_id,title:asset.name.slice(0,80),...box,x:Math.round(c.x-box.w/2),y:Math.round(c.y-box.h/2),z:maxZ()+1});return id;
+        });
+      }});
+  }catch(e){toast(e.message||'Could not open scene composer.',true);}
+}
+// Only an explicitly linked, currently interactive control tile can operate its scene.
+// The bridge permits transport only: no network calls, scene writes or arbitrary tools.
+window.addEventListener('message',event=>{
+  const message=event.data;if(!message||message.type!=='nexus-scene-control'||!board)return;
+  const tool=board.items.find(i=>i.kind==='visual'&&i.scene_target_id&&i.id===liveId&&els.get(i.id)?.querySelector('iframe')?.contentWindow===event.source);
+  if(!tool||message.target_id!==tool.scene_target_id)return;
+  const target=board.items.find(i=>i.id===tool.scene_target_id&&i.kind==='scene'),player=target&&scenePlayers.get(target.id);if(!player)return;
+  if(message.command==='play')player.play();else if(message.command==='pause')player.pause();
+  else if(message.command==='seek'&&Number.isFinite(message.time)&&message.time>=0&&message.time<=target.scene.duration)player.seek(message.time);
+});
 function looksSheet(){
   const row=h('div',{class:'row'}),sw=h('div',{class:'row'});
   for(const [id,label] of LOOKS)row.append(btn(label,()=>{board.look=id;render();touch();},'big',board.look===id));
@@ -284,7 +364,7 @@ viewport.addEventListener('wheel',e=>{if(!board)return;e.preventDefault();board.
 // ---- boards ------------------------------------------------------------------
 function blank(){return {name:'New board',look:'dots',bg:'',view:{x:innerWidth/2-140,y:innerHeight/2-120,z:1},items:[],rev:0};}
 async function openBoard(id){
-  await flush();els.forEach(e=>e.remove());els.clear();selId=liveId=null;mode='select';locked=false;dirty=false;
+  await flush();scenePlayers.forEach(p=>p.dispose());scenePlayers.clear();els.forEach(e=>e.remove());els.clear();selId=liveId=null;mode='select';locked=false;dirty=false;
   if(id){try{board=(await request({action:'board_read',input:{id}})).board;}catch(e){toast(e.message,true);board=blank();}}else board=blank();
   if(board.id){remember();try{history.replaceState(null,'',`?id=${encodeURIComponent(board.id)}`);}catch{}}else{try{history.replaceState(null,'',location.pathname);}catch{}}
   render();setState(board.id?'Saved':'');
