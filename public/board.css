@@ -88,7 +88,7 @@ button{cursor:pointer}
 .composer{position:fixed;inset:0;z-index:65;background:var(--bg);display:flex;flex-direction:column}
 .compose-top{display:flex;align-items:center;gap:12px;padding:calc(8px + var(--safe-t)) 12px 8px;border-bottom:1px solid var(--line)}
 .compose-top h2{flex:1;margin:0;font:500 21px Georgia,serif}
-.composer button,.composer select,.composer input[type=text]{min-height:44px;border-radius:12px;padding:8px 12px;background:var(--card);border:1px solid var(--line);min-width:0}
+.composer button,.composer select,.composer input[type=text],.composer input[type=number]{min-height:44px;border-radius:12px;padding:8px 12px;background:var(--card);border:1px solid var(--line);min-width:0}
 .compose-body{overflow:auto;flex:1;padding:12px 16px calc(20px + var(--safe-b));width:100%;max-width:960px;margin:auto}
 .compose-body p{color:var(--sub);margin:0 0 12px}
 .compose-body>input,.compose-body>select{display:block;width:100%;margin-bottom:10px}
@@ -101,3 +101,18 @@ button{cursor:pointer}
 .composer button.gold{background:var(--gold);color:var(--ink);font-weight:600}
 .composer button:disabled{opacity:.5}
 .composer :focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+
+.compose-editing{border:0;padding:0;margin:0;min-width:0}
+.compose-editing>input,.compose-editing>select,.compose-editing textarea{display:block;width:100%;margin-bottom:10px}
+.compose-editing textarea{background:var(--card);color:inherit;border:1px solid var(--line);border-radius:12px;padding:12px;resize:vertical;font:13px ui-monospace,monospace}
+.compose-editing [hidden]{display:none!important}
+.compose-dimensions{display:flex;gap:12px;margin-bottom:10px}
+.compose-dimensions label{flex:1;min-width:0}
+.compose-dimensions input{display:block;width:100%;min-height:44px}
+.compose-editing button{margin:0 8px 10px 0}
+.compose-results{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin:10px 0;max-height:42vh;overflow:auto}
+.compose-result{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px;min-width:0}
+.compose-result img{width:100%;height:100px;object-fit:cover;border-radius:8px}
+.compose-result small{display:block;overflow-wrap:anywhere;margin-bottom:8px;color:var(--sub)}
+.compose-result p{font-size:14px;margin:8px 0}
+.compose-credit{font-size:13px;overflow-wrap:anywhere;margin-top:8px!important}
