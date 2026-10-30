@@ -1,0 +1,45 @@
+name: Nexus surface audit
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'public/**'
+      - 'api/**'
+      - 'lib/**'
+      - 'vercel.json'
+      - 'scripts/audit-surfaces.mjs'
+      - 'test/legacy-route-contract.test.mjs'
+      - '.github/workflows/nexus-surface-audit.yml'
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test legacy redirect contracts
+        run: node --test test/legacy-route-contract.test.mjs
+      - name: Generate complete surface inventory
+        run: node scripts/audit-surfaces.mjs nexus-surface-audit.json
+      - name: Create audit summary
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const a=JSON.parse(fs.readFileSync('nexus-surface-audit.json'));
+          const groups=Object.groupBy(a.candidates,c=>c.classification);
+          const lines=['## Nexus route inventory','',`Scanned: ${a.counts.scannedFiles} source files · HTML pages: ${a.counts.publicHtml} · Redirects: ${a.counts.redirects}`,'',
+            '| Category | Pages |','|---|---:|',...Object.entries(groups).map(([name,items])=>`| ${name} | ${items.length} |`),
+            '','**Warning:** Unreferenced is NOT permission to delete. Check external links, service worker, API, automation, dynamic routes and bookmarks.','',
+            'Full JSON report: workflow artifact `nexus-surface-audit`.'];
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,lines.join('\n')+'\n');
+          NODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nexus-surface-audit
+          path: nexus-surface-audit.json
+          retention-days: 14
+          if-no-files-found: error
