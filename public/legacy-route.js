@@ -11,9 +11,10 @@
     '/nexus-canvas.html':'/workspace.html?view=messages',
     '/thoughtspace.html':'/workspace.html?view=messages',
   };
-  const spaces={command:'deck',conference:'agents',builder:'forge',story:'story',memory:'memory',queue:'approvals',connectors:'skills',tenants:'forge'};
+  const spaces={command:'/workspace.html?view=deck',conference:'/workspace.html?view=agents',builder:'/forge.html?view=chat',story:'/story-studio.html',memory:'/workspace.html?view=memory',queue:'/workspace.html?view=approvals',connectors:'/workspace.html?view=skills',tenants:'/workspace.html?view=forge'};
+  const room=location.hash.slice(1).toLowerCase();
   const target=location.pathname==='/nexus-space.html'
-    ? `/workspace.html?view=${spaces[location.hash.slice(1)] || 'messages'}`
+    ? (spaces[room] || '/workspace.html?view=messages')
     : direct[location.pathname];
   if(target)location.replace(target);
 })();
