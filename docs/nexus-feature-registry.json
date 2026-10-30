@@ -1,0 +1,121 @@
+{
+  "schema_version": 1,
+  "purpose": "Manual canonical entry-point registry for owner navigation and conservative cleanup. Proposed placement is NOT proof of live UI availability.",
+  "entries": [
+    {
+      "id": "messages",
+      "name": "Nexus Messages",
+      "route": "/workspace.html?view=messages",
+      "area": "core",
+      "audience": "all",
+      "status": "production",
+      "owner_home": "home",
+      "dependencies": [
+        "/api/nexus-messages"
+      ]
+    },
+    {
+      "id": "life",
+      "name": "Life & Schedule",
+      "route": "/workspace.html?view=life",
+      "area": "core",
+      "audience": "all",
+      "status": "production",
+      "owner_home": "life",
+      "dependencies": []
+    },
+    {
+      "id": "workbench",
+      "name": "Projects",
+      "route": "/workspace.html?view=workbench",
+      "area": "projects",
+      "audience": "all",
+      "status": "production",
+      "owner_home": "projects",
+      "dependencies": []
+    },
+    {
+      "id": "deck",
+      "name": "Operations Deck",
+      "route": "/workspace.html?view=deck",
+      "area": "owner",
+      "audience": "owner",
+      "status": "production",
+      "owner_home": "operations",
+      "dependencies": []
+    },
+    {
+      "id": "forge",
+      "name": "Forge",
+      "route": "/workspace.html?view=forge",
+      "area": "owner",
+      "audience": "owner",
+      "status": "production",
+      "owner_home": "operations",
+      "dependencies": []
+    },
+    {
+      "id": "agents",
+      "name": "Agent collaboration",
+      "route": "/workspace.html?view=agents",
+      "area": "owner",
+      "audience": "owner",
+      "status": "production",
+      "owner_home": "operations",
+      "dependencies": []
+    },
+    {
+      "id": "approvals",
+      "name": "Approvals",
+      "route": "/workspace.html?view=approvals",
+      "area": "owner",
+      "audience": "owner",
+      "status": "production",
+      "owner_home": "operations",
+      "dependencies": []
+    },
+    {
+      "id": "phone",
+      "name": "Nexus Phone",
+      "route": "/phone.html",
+      "area": "owner",
+      "audience": "owner",
+      "status": "production",
+      "owner_home": "devices",
+      "dependencies": [
+        "/api/phone"
+      ]
+    },
+    {
+      "id": "ad-maker",
+      "name": "Ad Maker",
+      "route": "/ads.html",
+      "area": "creative",
+      "audience": "owner",
+      "status": "production",
+      "owner_home": "creative",
+      "dependencies": []
+    },
+    {
+      "id": "image-board",
+      "name": "Image Board",
+      "route": "/board.html",
+      "area": "creative",
+      "audience": "owner",
+      "status": "production",
+      "owner_home": "creative",
+      "dependencies": []
+    },
+    {
+      "id": "local-ai",
+      "name": "Local AI",
+      "route": null,
+      "area": "labs",
+      "audience": "owner",
+      "status": "planned",
+      "owner_home": "devices",
+      "dependencies": [],
+      "note": "PR #835 experimental Android implementation; no owner UI yet."
+    }
+  ]
+}
