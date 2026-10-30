@@ -1,9 +1,9 @@
 // Cut-out tool for the Board. Outline the subject (trace with a finger, or tap points around it), and the Lab's pixel
 // refiner turns the rough outline into a clean edge. Then paint "Keep" or "Remove" over mistakes and it re-fits the edge.
 // The result is saved to the shared library as a cutout linked to the original picture. Nothing is saved until you press Save.
-import {segmentSubject} from './nexus-lab-segment.js';
+import {segmentSubject,rasterizePolygon,resizeAlpha} from './nexus-lab-segment.js';
 import {loadOriginal,cutoutCanvas,saveDerived,buildHints} from './nexus-lab-cutout.js';
-import {lassoPolygon,brushRadius,strokeSteps} from './board-core.js?v=20261030-3';
+import {lassoPolygon,brushRadius,strokeSteps,limitAlpha} from './board-core.js?v=20261030-4';
 
 const CONFIDENCE={high:'The subject stands out from the background, so the edge should be reliable.',medium:'The colors overlap a little. Check the edge before you rely on it.',low:'The subject and background look alike, so this edge is a best guess.'};
 const PAINT={keep:'rgba(86,214,160,.55)',remove:'rgba(255,124,140,.55)'};
@@ -18,14 +18,16 @@ export async function runCutter({request,item,onSaved}){
   document.body.append(root);close.onclick=()=>root.remove();
   // outline: 'trace' (freehand) or 'points' (tap around the subject). After a cut, refinement strokes are painted with 'keep' or 'remove'.
   const S={outline:'trace',tool:'keep',size:'M',lasso:null,points:[],polygon:null,strokes:[],result:null,busy:false,paint:null};
-  let original,canvas,ctx;
+  // Edits run on a smaller working copy so each touch-up takes seconds, not tens of seconds, on a phone; the saved cutout is scaled back to full size.
+  const WORK_PIXELS=400000;
+  let original,work,canvas,ctx;
   const chip=(label,pressed,on)=>h('button',{type:'button',class:'chip','aria-pressed':String(!!pressed),text:label,onclick:on});
   const btn=(label,on,{gold=false,disabled=false}={})=>h('button',{type:'button',class:gold?'gold':'',text:label,disabled,onclick:on});
 
   function draw(){
     ctx.clearRect(0,0,canvas.width,canvas.height);
     if(S.result){
-      ctx.drawImage(cutoutCanvas(original.pixels,S.result.alpha),0,0);
+      ctx.drawImage(cutoutCanvas(work.pixels,S.result.alpha),0,0);
       for(const st of [...S.strokes,...(S.paint?[S.paint]:[])]){
         ctx.save();ctx.fillStyle=ctx.strokeStyle=PAINT[st.tool];ctx.lineWidth=st.r*2;ctx.lineCap=ctx.lineJoin='round';
         ctx.beginPath();st.pts.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.stroke();
@@ -34,7 +36,7 @@ export async function runCutter({request,item,onSaved}){
       }
       return;
     }
-    ctx.putImageData(original.pixels,0,0);
+    ctx.putImageData(work.pixels,0,0);
     const line=S.lasso&&S.lasso.length>1?S.lasso:S.points.length?S.points:null;
     if(!line)return;
     const lw=Math.max(2,canvas.width/200);
@@ -63,7 +65,9 @@ export async function runCutter({request,item,onSaved}){
     S.busy=true;controls();status.textContent=message;
     setTimeout(()=>{try{
       const hints=S.strokes.length?buildHints(S.strokes,canvas.width,canvas.height):undefined;
-      S.result=segmentSubject(original.pixels,S.polygon,{hints});
+      S.result=segmentSubject(work.pixels,S.polygon,{hints});
+      const w=canvas.width,h=canvas.height,margin=Math.max(2,Math.round(0.015*Math.min(w,h)));
+      S.result.alpha=limitAlpha(S.result.alpha,rasterizePolygon(S.polygon,w,h),w,h,margin,S.strokes.filter(st=>st.tool==='keep'));
       status.textContent=S.strokes.length?`Edge updated. Paint Keep or Remove over anything still wrong. ${CONFIDENCE[S.result.stats.confidence]||''} Nothing is saved yet.`
         :`Done. ${CONFIDENCE[S.result.stats.confidence]||''} Paint Keep over missing parts or Remove over leftovers to fix the edge. Nothing is saved yet.`;
     }catch(e){
@@ -79,7 +83,11 @@ export async function runCutter({request,item,onSaved}){
   }
   try{
     original=await loadOriginal(request,item.media_id);
-    canvas=h('canvas',{width:original.width,height:original.height,'aria-label':'Picture to outline'});ctx=canvas.getContext('2d');stage.append(canvas);reset();
+    const scale=Math.min(1,Math.sqrt(WORK_PIXELS/(original.width*original.height)));
+    if(scale<1){const ww=Math.max(1,Math.round(original.width*scale)),hh=Math.max(1,Math.round(original.height*scale)),c=document.createElement('canvas');c.width=ww;c.height=hh;
+      const cx=c.getContext('2d',{willReadFrequently:true});cx.drawImage(original.bitmap,0,0,ww,hh);work={width:ww,height:hh,pixels:cx.getImageData(0,0,ww,hh)};}
+    else work={width:original.width,height:original.height,pixels:original.pixels};
+    canvas=h('canvas',{width:work.width,height:work.height,'aria-label':'Picture to outline'});ctx=canvas.getContext('2d');stage.append(canvas);reset();
   }catch(e){status.textContent=e.message||'Could not load this picture.';return;}
   const at=e=>{const r=canvas.getBoundingClientRect();return [(e.clientX-r.left)*canvas.width/r.width,(e.clientY-r.top)*canvas.height/r.height];};
   canvas.onpointerdown=e=>{
@@ -104,10 +112,11 @@ export async function runCutter({request,item,onSaved}){
   async function save(){
     if(!S.result||S.busy)return;S.busy=true;controls();status.textContent='Saving to your library…';
     try{
-      const clean=cutoutCanvas(original.pixels,S.result.alpha); // saved without the green and red paint
+      const full=resizeAlpha(S.result.alpha,work.width,work.height,original.width,original.height);
+      const clean=cutoutCanvas(original.pixels,full); // full size, saved without the green and red paint
       const blob=await new Promise((ok,no)=>clean.toBlob(b=>b?ok(b):no(Error('Could not make a PNG.')),'image/png'));
       const edits=S.strokes.length?` and touched up with ${S.strokes.length} keep/remove stroke${S.strokes.length===1?'':'s'}`:'';
-      const asset=await saveDerived({request,parentId:item.media_id,blob,name:`${(item.title||'picture').slice(0,60)} cutout`,role:'cutout',width:canvas.width,height:canvas.height,
+      const asset=await saveDerived({request,parentId:item.media_id,blob,name:`${(item.title||'picture').slice(0,60)} cutout`,role:'cutout',width:original.width,height:original.height,
         notes:`Cut out on the Nexus Board by outlining${edits}; edge refined from pixel colors (${S.result.stats.confidence} confidence).`});
       root.remove();onSaved(asset);
     }catch(e){status.textContent=e.message||'Could not save.';S.busy=false;controls();}
