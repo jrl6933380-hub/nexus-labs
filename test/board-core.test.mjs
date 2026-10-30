@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {buildVisualDocument,VISUAL_CSP,zoomAt,screenToWorld,fitView,addPoint,strokePath,lassoPolygon,inRect,clamp,ZOOM_MIN,ZOOM_MAX} from '../public/board-core.js';
+import {buildVisualDocument,VISUAL_CSP,zoomAt,screenToWorld,fitView,addPoint,strokePath,lassoPolygon,inRect,clamp,ZOOM_MIN,ZOOM_MAX,brushRadius,strokeSteps} from '../public/board-core.js';
 import {segmentSubject} from '../public/nexus-lab-segment.js';
+import {buildHints} from '../public/nexus-lab-cutout.js';
 
 test('inline visuals run under a locked-down policy with no network, storage or outside access',()=>{
   for(const rule of ["default-src 'none'","connect-src 'none'","frame-src 'none'","object-src 'none'","form-action 'none'","base-uri 'none'"])assert.ok(VISUAL_CSP.includes(rule),rule);
@@ -36,4 +37,22 @@ test('the Lab refiner accepts a Board lasso and cuts a red square out of a blue 
   const lasso=[];for(let t=0;t<64;t++){const a=t/64*Math.PI*2;lasso.push([20+Math.cos(a)*11,20+Math.sin(a)*11]);}
   const result=segmentSubject({data,width:w,height:h},lassoPolygon(lasso,w,h));
   assert.equal(result.alpha[20*w+20],255);assert.equal(result.alpha[2*w+2],0);assert.ok(['high','medium','low'].includes(result.stats.confidence));
+});
+test('brush sizes scale with the picture and a fast drag leaves no gaps',()=>{
+  assert.ok(brushRadius('S',1000,800)<brushRadius('M',1000,800)&&brushRadius('M',1000,800)<brushRadius('L',1000,800));
+  assert.equal(brushRadius('M',40,40)>=2,true);assert.equal(brushRadius('nope',1000,1000),brushRadius('M',1000,1000));
+  const steps=strokeSteps([0,0],[100,0],10);assert.equal(steps.length,10);assert.deepEqual(steps.at(-1),[100,0]);
+  for(let i=1;i<steps.length;i++)assert.ok(steps[i][0]-steps[i-1][0]<=10.0001);
+  assert.deepEqual(strokeSteps([5,5],[5,5],10),[[5,5]]);
+});
+test('a Remove stroke over a leftover strip, and a Keep stroke over a missing corner, steer the cut-out',()=>{
+  const w=60,h=60,data=new Uint8ClampedArray(w*h*4);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=(y*w+x)*4,inside=x>=15&&x<45&&y>=15&&y<45;data[i]=inside?220:20;data[i+1]=inside?30:40;data[i+2]=inside?30:200;data[i+3]=255;}
+  // an outline that is too wide on the right (takes a strip of background) and clips the top-left corner of the square
+  const poly=[[0.33,0.33],[0.8,0.25],[0.8,0.75],[0.25,0.75],[0.25,0.5],[0.33,0.5]].map(([x,y])=>[x,y]);
+  const loose=segmentSubject({data,width:w,height:h},poly);
+  const remove={tool:'remove',r:4,pts:[[52,30]]},keep={tool:'keep',r:4,pts:[[17,17]]};
+  const fixed=segmentSubject({data,width:w,height:h},poly,{hints:buildHints([remove,keep],w,h)});
+  assert.equal(fixed.alpha[30*w+52],0);assert.equal(fixed.alpha[17*w+17],255);assert.equal(fixed.alpha[30*w+30],255);assert.equal(fixed.alpha[2*w+2],0);
+  assert.ok(loose.alpha.length===fixed.alpha.length);
 });

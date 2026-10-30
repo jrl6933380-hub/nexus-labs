@@ -39,3 +39,9 @@ Also available: `board` (a copy of the current board), `selected`, `addItem`, `u
 ## Not built yet
 
 Keep/remove touch-up strokes in the cutter, an Ad Maker scene item, background-job items, sharing a board, and a link from the web workspace home (today: the phone Board tab and the direct URL).
+
+## Cut out: outline and touch up
+
+- Outline by tracing with a finger, or switch to **Tap points** and tap around the subject, then **Finish outline**. Tapping is steadier on small screens and works with tools that can only tap.
+- After the cut, paint **Keep** (green) over parts that went missing and **Remove** (red) over leftovers, in S/M/L brush sizes. Each stroke re-fits the edge using the Lab refiner's hint map, so a little paint steers the whole edge. **Undo** removes the last stroke; **Start over** returns to the outline.
+- Saving writes the clean cutout (no paint) to the library as a derived `cutout` linked to the original.
