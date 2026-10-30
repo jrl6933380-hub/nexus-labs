@@ -4,7 +4,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 const root=path.resolve(import.meta.dirname,'..');
 const config=JSON.parse(fs.readFileSync(path.join(root,'vercel.json'),'utf8'));
-const clean=(value='')=>value.split('?')[0].replace(/\\:([a-zA-Z_][\\w-]*)/g,':$1');
 function destinationCandidates(route){
   const p=clean(route).replace(/^\\//,'');
   if(!p||p.includes(':')||p.includes('*'))return [];
