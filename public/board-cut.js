@@ -2,7 +2,7 @@
 // into a clean edge, and the result is saved to the shared library as a cutout linked to the original picture.
 import {segmentSubject} from './nexus-lab-segment.js';
 import {loadOriginal,cutoutCanvas,saveDerived} from './nexus-lab-cutout.js';
-import {lassoPolygon} from './board-core.js?v=20261030-1';
+import {lassoPolygon} from './board-core.js?v=20261030-2';
 
 const CONFIDENCE={high:'The subject stands out from the background, so the edge should be reliable.',medium:'The colors overlap a little. Check the edge before you rely on it.',low:'The subject and background look alike, so this edge is a best guess.'};
 function h(tag,props={},...kids){const n=document.createElement(tag);for(const [k,v] of Object.entries(props)){if(k==='class')n.className=v;else if(k==='text')n.textContent=v;else if(k.startsWith('on'))n[k]=v;else if(v!=null&&v!==false)n.setAttribute(k,v===true?'':v);}n.append(...kids);return n;}

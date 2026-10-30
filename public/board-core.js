@@ -4,7 +4,7 @@ export const clamp=(v,lo,hi)=>Math.min(hi,Math.max(lo,v));
 // An inline visual runs in a sandboxed frame with no network, no storage and no access to the page around it.
 export const VISUAL_CSP="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; media-src data:; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'";
 export function buildVisualDocument(code){
-  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${VISUAL_CSP}"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;min-height:100%;background:#071016;color:#e8fbff;font-family:Inter,ui-sans-serif,system-ui,sans-serif}*{box-sizing:border-box}</style></head><body>${String(code||'')}</body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${VISUAL_CSP}"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;min-height:100%;background:#071016;color:#e8fbff;font-family:Inter,ui-sans-serif,system-ui,sans-serif}*{box-sizing:border-box}svg,img,canvas,video{display:block;max-width:100%}</style></head><body>${String(code||'')}</body></html>`;
 }
 export const screenToWorld=(view,p)=>({x:(p.x-view.x)/view.z,y:(p.y-view.y)/view.z});
 // Zoom by `factor` keeping the world point under screen point `p` fixed.
