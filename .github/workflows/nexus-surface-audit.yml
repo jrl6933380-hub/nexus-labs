@@ -11,6 +11,8 @@ on:
       - 'scripts/audit-route-dependencies.mjs'
       - 'test/route-dependency-contract.test.mjs'
       - 'test/legacy-route-contract.test.mjs'
+      - 'test/feature-registry-contract.test.mjs'
+      - 'docs/nexus-feature-registry.json'
       - '.github/workflows/nexus-surface-audit.yml'
 permissions:
   contents: read
@@ -23,7 +25,7 @@ jobs:
         with:
           node-version: '22'
       - name: Test legacy redirect contracts
-        run: node --test test/legacy-route-contract.test.mjs test/route-dependency-contract.test.mjs
+        run: node --test test/legacy-route-contract.test.mjs test/route-dependency-contract.test.mjs test/feature-registry-contract.test.mjs
       - name: Generate complete surface inventory
         run: node scripts/audit-surfaces.mjs nexus-surface-audit.json
       - name: Inventory hidden route dependencies
