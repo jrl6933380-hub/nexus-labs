@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {buildVisualDocument,VISUAL_CSP,zoomAt,screenToWorld,fitView,addPoint,strokePath,lassoPolygon,inRect,clamp,ZOOM_MIN,ZOOM_MAX,brushRadius,strokeSteps} from '../public/board-core.js';
+import {buildVisualDocument,VISUAL_CSP,zoomAt,screenToWorld,fitView,addPoint,strokePath,lassoPolygon,inRect,clamp,ZOOM_MIN,ZOOM_MAX,brushRadius,strokeSteps,limitAlpha} from '../public/board-core.js';
 import {segmentSubject} from '../public/nexus-lab-segment.js';
 import {buildHints} from '../public/nexus-lab-cutout.js';
 
@@ -55,4 +55,13 @@ test('a Remove stroke over a leftover strip, and a Keep stroke over a missing co
   const fixed=segmentSubject({data,width:w,height:h},poly,{hints:buildHints([remove,keep],w,h)});
   assert.equal(fixed.alpha[30*w+52],0);assert.equal(fixed.alpha[17*w+17],255);assert.equal(fixed.alpha[30*w+30],255);assert.equal(fixed.alpha[2*w+2],0);
   assert.ok(loose.alpha.length===fixed.alpha.length);
+});
+test('a refit stays inside the outline plus a margin, but a Keep stroke may reach outside it',()=>{
+  const w=20,h=10,alpha=new Uint8Array(w*h).fill(255),allowed=new Uint8Array(w*h);
+  for(let y=0;y<h;y++)for(let x=5;x<10;x++)allowed[y*w+x]=1;
+  const out=limitAlpha(alpha,allowed,w,h,2);
+  assert.equal(out[5*w+5],255);assert.equal(out[5*w+11],255);assert.equal(out[5*w+12],0);assert.equal(out[5*w+3],255);assert.equal(out[5*w+2],0);
+  const withKeep=limitAlpha(alpha,allowed,w,h,0,[{tool:'keep',r:2,pts:[[16,5]]}]);
+  assert.equal(withKeep[5*w+16],255);assert.equal(withKeep[5*w+19],0);assert.equal(withKeep[5*w+4],0);
+  assert.equal(alpha[5*w+19],255); // input untouched
 });

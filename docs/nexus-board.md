@@ -45,3 +45,5 @@ Keep/remove touch-up strokes in the cutter, an Ad Maker scene item, background-j
 - Outline by tracing with a finger, or switch to **Tap points** and tap around the subject, then **Finish outline**. Tapping is steadier on small screens and works with tools that can only tap.
 - After the cut, paint **Keep** (green) over parts that went missing and **Remove** (red) over leftovers, in S/M/L brush sizes. Each stroke re-fits the edge using the Lab refiner's hint map, so a little paint steers the whole edge. **Undo** removes the last stroke; **Start over** returns to the outline.
 - Saving writes the clean cutout (no paint) to the library as a derived `cutout` linked to the original.
+
+Touch-ups run on a smaller working copy (about 0.4 megapixels) so each refit takes seconds on a phone; the saved cutout is scaled back to the picture's working size. A refit also stays inside your outline plus a small margin, so a stroke cannot pull in stray bits from across the picture. A Keep stroke can reach outside the outline to recover a part you missed.

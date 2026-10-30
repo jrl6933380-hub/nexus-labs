@@ -54,3 +54,18 @@ export function strokeSteps(a,b,step){
   for(let i=1;i<=n;i++)out.push([a[0]+(b[0]-a[0])*i/n,a[1]+(b[1]-a[1])*i/n]);
   return out;
 }
+// After a refit, keep the result inside what the person outlined (plus a small margin), so a touch-up stroke can never
+// pull stray bits back in from across the picture. Keep strokes may reach outside the outline: their discs are always allowed.
+export function limitAlpha(alpha,allowed,w,h,margin=2,discs=[]){
+  const base=new Uint8Array(allowed);
+  for(const d of discs){const r=Math.max(1,d.r),r2=r*r;
+    for(const [cx,cy] of d.pts){
+      for(let y=Math.max(0,Math.floor(cy-r));y<=Math.min(h-1,Math.ceil(cy+r));y++)for(let x=Math.max(0,Math.floor(cx-r));x<=Math.min(w-1,Math.ceil(cx+r));x++)if((x-cx)**2+(y-cy)**2<=r2)base[y*w+x]=1;}}
+  const m=Math.max(0,Math.round(margin)),tmp=new Uint8Array(w*h),out=new Uint8Array(alpha.length);
+  const cs=new Int32Array(Math.max(w,h)+1);
+  for(let y=0;y<h;y++){cs[0]=0;for(let x=0;x<w;x++)cs[x+1]=cs[x]+base[y*w+x];
+    for(let x=0;x<w;x++)tmp[y*w+x]=cs[Math.min(w,x+m+1)]-cs[Math.max(0,x-m)]>0?1:0;}
+  for(let x=0;x<w;x++){cs[0]=0;for(let y=0;y<h;y++)cs[y+1]=cs[y]+tmp[y*w+x];
+    for(let y=0;y<h;y++)if(cs[Math.min(h,y+m+1)]-cs[Math.max(0,y-m)]>0)out[y*w+x]=alpha[y*w+x];}
+  return out;
+}
