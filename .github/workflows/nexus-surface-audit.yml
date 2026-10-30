@@ -9,6 +9,7 @@ on:
       - 'vercel.json'
       - 'scripts/audit-surfaces.mjs'
       - 'scripts/audit-route-dependencies.mjs'
+      - 'scripts/audit-legacy-links.mjs'
       - 'test/route-dependency-contract.test.mjs'
       - 'test/legacy-route-contract.test.mjs'
       - '.github/workflows/nexus-surface-audit.yml'
@@ -28,6 +29,8 @@ jobs:
         run: node scripts/audit-surfaces.mjs nexus-surface-audit.json
       - name: Inventory hidden route dependencies
         run: node scripts/audit-route-dependencies.mjs nexus-route-dependencies.json
+      - name: Audit legacy in-repository links
+        run: node scripts/audit-legacy-links.mjs nexus-legacy-links.json
       - name: Create audit summary
         shell: bash
         run: |
@@ -47,5 +50,6 @@ jobs:
           path: |
             nexus-surface-audit.json
             nexus-route-dependencies.json
+            nexus-legacy-links.json
           retention-days: 14
           if-no-files-found: error
