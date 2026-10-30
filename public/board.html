@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0e1412">
+<title>Nexus Board</title>
+<link rel="stylesheet" href="/board.css?v=20261030-1">
+</head>
+<body>
+<header class="bar" id="bar">
+  <a class="back" href="/workspace.html" aria-label="Back to Nexus">‹</a>
+  <input id="boardName" class="name" aria-label="Board name" maxlength="80" value="Board" autocomplete="off">
+  <span id="saveState" class="save" role="status" aria-live="polite"></span>
+  <button id="boardsBtn" class="pill" type="button">Boards</button>
+</header>
+<main id="viewport" class="viewport" aria-label="Board surface. Drag to move around, pinch to zoom.">
+  <div id="world" class="world"></div>
+  <p id="empty" class="empty" hidden>A blank board.<br>Add a visual, a picture, a note, or just draw.</p>
+</main>
+<p id="toast" class="toast" role="status" aria-live="polite" hidden></p>
+<section id="selbar" class="selbar" aria-label="Selected item tools" hidden></section>
+<nav class="dock" id="dock" aria-label="Board tools">
+  <button id="addBtn" type="button">Add</button>
+  <button id="drawBtn" type="button" aria-pressed="false">Draw</button>
+  <button id="lookBtn" type="button">Look</button>
+  <button id="fitBtn" type="button">Fit</button>
+</nav>
+<div id="drawbar" class="drawbar" hidden></div>
+<div id="sheetHost"></div>
+<noscript><p class="empty">The Board needs JavaScript.</p></noscript>
+<script type="module" src="/board.js?v=20261030-1"></script>
+</body>
+</html>

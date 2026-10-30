@@ -70,7 +70,7 @@ public final class MainActivity extends Activity {
  GradientDrawable rounded(int fill,int radiusDp,int stroke){GradientDrawable g=new GradientDrawable();g.setColor(fill);g.setCornerRadius(dp(radiusDp));g.setStroke(dp(1),stroke);return g;}
  View tabBar(){LinearLayout bar=new LinearLayout(this);bar.setOrientation(0);bar.setBackgroundColor(BG);bar.setPadding(0,dp(6),0,dp(6));
   bar.addView(tab("Home",GOLD,()->scroll.smoothScrollTo(0,0)),new LinearLayout.LayoutParams(0,-2,1f));
-  bar.addView(tab("Board",MUTED,()->openNexus("board")),new LinearLayout.LayoutParams(0,-2,1f));
+  bar.addView(tab("Board",MUTED,()->openNexus("boards")),new LinearLayout.LayoutParams(0,-2,1f));
   bar.addView(tab("Phone",MUTED,()->{if(phoneAnchor!=null)scroll.smoothScrollTo(0,phoneAnchor.getTop());}),new LinearLayout.LayoutParams(0,-2,1f));
   bar.addView(tab("Swipes",MUTED,()->HomeShortcuts.settings(this,()->refreshShortcutLabels())),new LinearLayout.LayoutParams(0,-2,1f));
   return bar;}

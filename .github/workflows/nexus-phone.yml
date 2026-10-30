@@ -14,6 +14,10 @@ on:
       - 'public/workspace-views.js'
       - 'public/downloads/nexus-phone*'
       - 'test/phone*'
+      - 'test/board-*'
+      - 'test/nexus-lab-boards*'
+      - 'public/board*'
+      - 'lib/nexusLabBoards.js'
       - '.github/workflows/nexus-phone.yml'
   workflow_dispatch:
 permissions:
@@ -29,7 +33,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: node --test test/phone-feedback.test.mjs test/phone-bridge.test.mjs test/phone-provisioning.test.mjs test/phone-shortcuts-release.test.mjs test/phone-navigation.test.mjs test/workspace-board-resource.test.mjs test/workspace-connector.test.mjs test/workspace-oauth.test.mjs test/workspace-customer-oauth.test.mjs
+      - run: node --test test/phone-feedback.test.mjs test/phone-bridge.test.mjs test/phone-provisioning.test.mjs test/phone-shortcuts-release.test.mjs test/phone-navigation.test.mjs test/workspace-board-resource.test.mjs test/workspace-connector.test.mjs test/workspace-oauth.test.mjs test/workspace-customer-oauth.test.mjs test/board-core.test.mjs test/nexus-lab-boards.test.mjs test/nexus-lab-boards-api.test.mjs test/board-phone-tab.test.mjs
       - run: NEXUS_TEST_BROWSER_PATH=/usr/bin/google-chrome node scripts/verify-phone-bridge.mjs
       - uses: actions/upload-artifact@v4
         if: always()
@@ -68,7 +72,13 @@ jobs:
           "$BT/apksigner" verify --print-certs android/phone/build/nexus-phone-0.3.apk | sed -n '/Signer #1 certificate SHA-256 digest:/p' > /tmp/new-signer
           test -s /tmp/old-signer
           diff /tmp/old-signer /tmp/new-signer
-          cmp public/downloads/nexus-phone-0.3.apk android/phone/build/nexus-phone-0.3.apk
+          # On a pull request the committed APK is expected to be stale: the Nexus Phone release workflow rebuilds,
+          # tests and commits it after merge. A manual run of this workflow still requires an exact match.
+          if [ "${{ github.event_name }}" = pull_request ]; then
+            cmp public/downloads/nexus-phone-0.3.apk android/phone/build/nexus-phone-0.3.apk || echo '::notice::Committed APK differs from this build. Run Nexus Phone release after merge to publish it.'
+          else
+            cmp public/downloads/nexus-phone-0.3.apk android/phone/build/nexus-phone-0.3.apk
+          fi
       - name: Verify native operation policy
         run: |
           mkdir -p /tmp/nexus-policy
