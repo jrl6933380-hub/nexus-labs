@@ -1,3 +1,5 @@
+import {searchMedia,useMedia} from '../lib/mediaBroker.js';
+import {adMediaStore} from '../lib/adMedia.js';
 import {waitUntil} from '@vercel/functions';
 import {nexusLabJobs} from '../lib/nexusLabJobs.js';
 import {workLabJobOnce} from '../lib/nexusLabWorker.js';
@@ -7,7 +9,7 @@ import {nexusLabBoards} from '../lib/nexusLabBoards.js';
 import {nexusLabAgentTasks} from '../lib/nexusLabAgentRuntime.js';
 import {workspaceRequests} from '../lib/workspaceRequests.js';
 import {getNexusOwner} from '../lib/nexusOwnerAuth.js';
-export function createNexusLabHandler({authenticate=getNexusOwner,assets=nexusLabAssets,boards=nexusLabBoards,once=workspaceRequests,service=nexusLabService,jobs=nexusLabJobs,agent=nexusLabAgentTasks,kick=(owner,id)=>waitUntil(workLabJobOnce({owner,id,store:jobs,service}).catch(()=>console.error('lab_worker_wake_failed')))}={}){return async(req,res)=>{
+export function createNexusLabHandler({authenticate=getNexusOwner,stockSearch=searchMedia,stockImport=input=>useMedia(input,{media:adMediaStore}),assets=nexusLabAssets,boards=nexusLabBoards,once=workspaceRequests,service=nexusLabService,jobs=nexusLabJobs,agent=nexusLabAgentTasks,kick=(owner,id)=>waitUntil(workLabJobOnce({owner,id,store:jobs,service}).catch(()=>console.error('lab_worker_wake_failed')))}={}){return async(req,res)=>{
   res.setHeader('Cache-Control','private, no-store');res.setHeader('X-Content-Type-Options','nosniff');
   if(!['GET','POST'].includes(req.method)){res.setHeader('Allow','GET, POST');return res.status(405).json({error:'Method not allowed.'});}
   try{
@@ -17,6 +19,15 @@ export function createNexusLabHandler({authenticate=getNexusOwner,assets=nexusLa
     if(!origin||!host||new URL(origin).host!==host||!/^application\/json(?:;|$)/i.test(req.headers?.['content-type']||''))return res.status(403).json({error:'Run this from Nexus Lab.'});
     if(Buffer.byteLength(JSON.stringify(req.body||{}))>(req.body?.action==='asset_chunk'?540000:130000))return res.status(413).json({error:'The input is too large.'});
     const action=req.body?.action,input=req.body?.input||{};
+    if(action==='background_search')return res.status(200).json(await stockSearch({...input,kind:'photo',limit:8}));
+    if(action==='background_import'){
+      if(!/^(pexels|pixabay|openverse):photo:[A-Za-z0-9-]{1,64}$/.test(input.candidate_id||''))return res.status(400).json({error:'Choose a photo from image lookup.'});
+      const asset=await once(owner.id,req.body.request_id,'lab_background_import',input,async()=>{
+        const imported=await stockImport({user:owner.id,candidate_id:input.candidate_id,name:input.name});
+        return assets.adopt(owner,{media_id:imported.media_id,provenance:{role:'original',origin:'imported',source_url:imported.source_url,attribution:imported.credit,rights:imported.license}});
+      });
+      return res.status(200).json({asset});
+    }
     if(typeof action==='string'&&action.startsWith('asset_')){
       if(!input||typeof input!=='object'||Array.isArray(input))return res.status(400).json({error:'Supply asset input.'});
       if(action==='asset_list')return res.status(200).json(await assets.list(owner));

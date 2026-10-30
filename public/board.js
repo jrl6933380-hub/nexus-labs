@@ -193,8 +193,8 @@ async function openCutter(it){
 async function openComposer(it){
   if(board.items.length>=LIMITS.items){toast('This board is full. Make room before composing.',true);return;}
   const target=board;
-  try{const {runComposer}=await import('./board-compose.js?v=20261030-compose1');
-    runComposer({request,item:it,onSaved:asset=>{
+  try{const {runComposer}=await import('./board-compose.js?v=20261030-sources1');
+    runComposer({request,item:it,boardItems:board.items.map(i=>({...i})),onUpload:uploadFile,onSaved:asset=>{
       if(board!==target)throw Error('The board changed. Your image is saved in the library; reopen it from Add.');
       const box=fitBox(asset.width,asset.height,340);
       const added=addItem({kind:'image',media_id:asset.media_id,title:asset.name.slice(0,80),...box,x:it.x+it.w+24,y:it.y});
