@@ -5,7 +5,7 @@ import path from 'node:path';
 const root=path.resolve(import.meta.dirname,'..');
 const config=JSON.parse(fs.readFileSync(path.join(root,'vercel.json'),'utf8'));
 function destinationCandidates(route){
-  const p=clean(route).replace(/^\\//,'');
+  const p=route.split('?')[0].replace(/^\//,'');
   if(!p||p.includes(':')||p.includes('*'))return [];
   const out=[path.join(root,'public',p),path.join(root,p)];
   if(p.startsWith('api/'))out.push(path.join(root,p+'.js'),path.join(root,p+'.mjs'));
