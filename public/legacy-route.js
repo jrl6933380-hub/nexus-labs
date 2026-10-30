@@ -12,8 +12,9 @@
     '/thoughtspace.html':'/workspace.html?view=messages',
   };
   const spaces={command:'deck',conference:'agents',builder:'forge',story:'story',memory:'memory',queue:'approvals',connectors:'skills',tenants:'forge'};
+  const hash=location.hash.slice(1);
   const target=location.pathname==='/nexus-space.html'
-    ? `/workspace.html?view=${spaces[location.hash.slice(1)] || 'messages'}`
+    ? (hash==='builder' ? '/forge.html?view=chat' : `/workspace.html?view=${spaces[hash] || 'messages'}`)
     : direct[location.pathname];
   if(target)location.replace(target);
 })();
