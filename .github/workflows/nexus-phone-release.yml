@@ -1,0 +1,83 @@
+name: Nexus Phone release
+# Manual. Builds the signed phone APK from main with the retained signing identity,
+# runs the same native emulator tests, and only if they pass commits the APK to
+# public/downloads so the phone can update in place. Run from the Actions tab
+# (or ask Claude) after any change under android/phone.
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: nexus-phone-release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      NEXUS_PHONE_KEY_PASSWORD: ${{ secrets.NEXUS_PHONE_PLAYGROUND_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Restore signing identity
+        env:
+          KEYSTORE_B64: ${{ secrets.NEXUS_PHONE_PLAYGROUND_KEYSTORE_B64 }}
+        run: |
+          test -n "$KEYSTORE_B64"
+          mkdir -p android/phone/build
+          printf '%s' "$KEYSTORE_B64" | base64 -d > android/phone/build/playground.keystore
+          chmod 600 android/phone/build/playground.keystore
+      - run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - run: bash scripts/build-phone.sh && bash scripts/build-phone-tests.sh
+      - name: Verify update signing identity matches the installed phone app
+        run: |
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          "$BT/apksigner" verify --print-certs public/downloads/nexus-phone-0.2.apk | sed -n '/Signer #1 certificate SHA-256 digest:/p' > /tmp/old-signer
+          "$BT/apksigner" verify --print-certs android/phone/build/nexus-phone-0.3.apk | sed -n '/Signer #1 certificate SHA-256 digest:/p' > /tmp/new-signer
+          test -s /tmp/old-signer
+          diff /tmp/old-signer /tmp/new-signer
+      - name: Verify native operation policy
+        run: |
+          mkdir -p /tmp/nexus-policy
+          javac -encoding UTF-8 -d /tmp/nexus-policy android/phone/app/src/main/java/app/nexus/phone/PlaygroundPolicy.java android/phone/test/PlaygroundPolicyTest.java
+          java -cp /tmp/nexus-policy PlaygroundPolicyTest
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: bash scripts/verify-phone-emulator.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nexus-phone-release
+          path: |
+            test-results/phone/
+            android/phone/build/nexus-phone-0.3.apk
+      - name: Commit the tested APK
+        run: |
+          cp android/phone/build/nexus-phone-0.3.apk public/downloads/nexus-phone-0.3.apk
+          if git diff --quiet -- public/downloads/nexus-phone-0.3.apk; then echo 'APK already up to date'; exit 0; fi
+          git config user.name 'nexus-phone-release'
+          git config user.email 'actions@users.noreply.github.com'
+          git add public/downloads/nexus-phone-0.3.apk
+          git commit -m 'Release signed Nexus Phone 0.3 APK (tested on Android 13 emulator)'
+          git push origin HEAD:main
+      - name: Remove signing material
+        if: always()
+        run: rm -f android/phone/build/playground.keystore
