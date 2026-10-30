@@ -33,7 +33,7 @@ test('Nexus Space loads browser fallback instead of an edge redirect', () => {
 
 test('Nexus Space retains its historical fragment-based browser fallback', () => {
   const views = {
-    command: 'deck', conference: 'agents', builder: 'forge',
+    command: 'deck', conference: 'agents',
     story: 'story', memory: 'memory', queue: 'approvals',
     connectors: 'skills', tenants: 'forge'
   };
@@ -41,4 +41,5 @@ test('Nexus Space retains its historical fragment-based browser fallback', () =>
     assert.equal(browserFallback('/nexus-space.html', '#' + hash),
       '/workspace.html?view=' + view, hash);
   }
+  assert.equal(browserFallback('/nexus-space.html','#builder'), '/forge.html?view=chat');
 });
