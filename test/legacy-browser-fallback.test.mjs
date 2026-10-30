@@ -19,11 +19,16 @@ test('Legacy HTML fallback agrees with edge redirects for paths without fragment
   const paths = [
     '/mission-control.html', '/conference-room.html', '/memory.html',
     '/queue.html', '/connectors.html', '/tenants.html',
-    '/nexus-canvas.html', '/thoughtspace.html', '/nexus-space.html'
+    '/nexus-canvas.html', '/thoughtspace.html'
   ];
   for (const pathname of paths) {
     assert.equal(browserFallback(pathname), redirects.get(pathname), pathname);
   }
+});
+
+test('Nexus Space loads browser fallback instead of an edge redirect', () => {
+  assert.ok(!redirects.has('/nexus-space.html'));
+  assert.equal(browserFallback('/nexus-space.html'), '/workspace.html?view=messages');
 });
 
 test('Nexus Space retains its historical fragment-based browser fallback', () => {
