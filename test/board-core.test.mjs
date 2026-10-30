@@ -65,3 +65,11 @@ test('a refit stays inside the outline plus a margin, but a Keep stroke may reac
   assert.equal(withKeep[5*w+16],255);assert.equal(withKeep[5*w+19],0);assert.equal(withKeep[5*w+4],0);
   assert.equal(alpha[5*w+19],255); // input untouched
 });
+
+test('blendNearStrokes keeps the earlier cut away from the strokes', async () => {
+  const {blendNearStrokes} = await import('../public/board-core.js');
+  const w = 40, h = 10, base = new Uint8Array(w * h).fill(255), refit = new Uint8Array(w * h); // refit would erase everything
+  const out = blendNearStrokes(base, refit, [{tool: 'remove', r: 2, pts: [[5, 5]]}], w, h);
+  assert.equal(out[5 * w + 5], 0, 'changed under the stroke');
+  assert.equal(out[5 * w + 35], 255, 'untouched far from the stroke');
+});
