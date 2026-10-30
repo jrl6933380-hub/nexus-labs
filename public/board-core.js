@@ -45,3 +45,12 @@ export const LOOKS=[['plain','Plain'],['grid','Grid'],['dots','Dots'],['paper','
 export const SWATCHES=['#0e1412','#172019','#1b2433','#2b1d2f','#3a2a12','#f3ecd9'];
 export const INK=['#e8c36a','#f5efe0','#56d6a0','#5db8ff','#ff7c8c','#0e1412'];
 export const lookGrid={plain:0,grid:32,dots:28,paper:32,night:0};
+// Cut-out refinement helpers. Brush sizes are a share of the picture's shorter side so S/M/L feel the same on any picture.
+export const BRUSH_SHARE={S:0.02,M:0.045,L:0.09};
+export const brushRadius=(size,w,h)=>Math.max(2,Math.round((BRUSH_SHARE[size]||BRUSH_SHARE.M)*Math.min(w,h)));
+// Points along a straight drag, no more than `step` apart, so a fast finger leaves no gaps in the paint.
+export function strokeSteps(a,b,step){
+  const n=Math.max(1,Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1])/Math.max(1,step))),out=[];
+  for(let i=1;i<=n;i++)out.push([a[0]+(b[0]-a[0])*i/n,a[1]+(b[1]-a[1])*i/n]);
+  return out;
+}
