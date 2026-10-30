@@ -3,7 +3,7 @@
 // The result is saved to the shared library as a cutout linked to the original picture. Nothing is saved until you press Save.
 import {segmentSubject,rasterizePolygon,resizeAlpha} from './nexus-lab-segment.js';
 import {loadOriginal,cutoutCanvas,saveDerived,buildHints} from './nexus-lab-cutout.js';
-import {lassoPolygon,brushRadius,strokeSteps,limitAlpha} from './board-core.js?v=20261030-4';
+import {lassoPolygon,brushRadius,strokeSteps,limitAlpha} from './board-core.js?v=20261030-5';
 
 const CONFIDENCE={high:'The subject stands out from the background, so the edge should be reliable.',medium:'The colors overlap a little. Check the edge before you rely on it.',low:'The subject and background look alike, so this edge is a best guess.'};
 const PAINT={keep:'rgba(86,214,160,.55)',remove:'rgba(255,124,140,.55)'};

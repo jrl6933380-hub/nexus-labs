@@ -1,7 +1,7 @@
 // Nexus Board: a free-form surface for anything visual. Items are inline visuals, Lab pictures/clips/audio,
 // notes and hand sketches. Boards are saved per owner through /api/nexus-lab (board_* actions); media stays in
 // the shared Lab library and is only referenced by id. Workflows can plug in through window.nexusBoard.
-import {ZOOM_MIN,ZOOM_MAX,clamp,buildVisualDocument,screenToWorld,zoomAt,fitView,addPoint,strokePath,inRect,newId,LOOKS,SWATCHES,INK,lookGrid} from './board-core.js?v=20261030-4';
+import {ZOOM_MIN,ZOOM_MAX,clamp,buildVisualDocument,screenToWorld,zoomAt,fitView,addPoint,strokePath,inRect,newId,LOOKS,SWATCHES,INK,lookGrid} from './board-core.js?v=20261030-5';
 
 const $=id=>document.getElementById(id);
 const viewport=$('viewport'),world=$('world'),selbar=$('selbar'),drawbar=$('drawbar'),sheetHost=$('sheetHost'),nameInput=$('boardName'),saveState=$('saveState'),emptyNote=$('empty'),toastEl=$('toast');
@@ -186,7 +186,7 @@ async function uploadFile(file){
   return (await request({action:'asset_finish',input:{media_id:asset.media_id}})).asset;
 }
 async function openCutter(it){
-  try{const {runCutter}=await import('./board-cut.js?v=20261030-4');
+  try{const {runCutter}=await import('./board-cut.js?v=20261030-5');
     runCutter({request,item:it,onSaved:asset=>{addItem({kind:'image',media_id:asset.media_id,title:(it.title?it.title+' ':'')+'cutout',w:it.w,h:it.h,x:it.x+it.w+24,y:it.y});toast('Cutout saved to your library and added.');}});
   }catch(e){toast(e.message||'Could not open the cutter.',true);}
 }
@@ -202,6 +202,7 @@ async function boardsSheet(){
   sheet('Boards','',msg,list,h('div',{class:'row'},btn('New board',()=>{closeSheet();openBoard(null);},'big gold')));
   try{const {boards}=await request({action:'board_list',input:{}});msg.textContent=boards.length?'':'No saved boards yet.';
     for(const b of boards){const t=h('button',{type:'button',class:'big'},b.name+(b.id===board.id?'  ·  open':''),h('small',{text:`${b.items} item${b.items===1?'':'s'}`}));t.onclick=()=>{closeSheet();openBoard(b.id);};list.append(t);}
+    list.append(btn('Rename this board',()=>{closeSheet();renameBoard();},'big'));
     if(board.id)list.append(btn('Delete this board',()=>{const sure=h('button',{class:'big warn',type:'button',text:'Tap again to delete this board for good'});sure.onclick=async()=>{try{await request({action:'board_delete',input:{id:board.id}});try{localStorage.removeItem('nexus-board-last');}catch{}closeSheet();openBoard(null);}catch(e){toast(e.message,true);}};list.append(sure);},'big warn'));
   }catch(e){msg.textContent=e.message;msg.className='err';}
 }
@@ -278,6 +279,8 @@ async function openBoard(id){
 $('addBtn').onclick=addSheet;$('lookBtn').onclick=looksSheet;$('boardsBtn').onclick=boardsSheet;
 $('drawBtn').onclick=()=>setMode(mode==='draw'?'select':'draw');
 $('fitBtn').onclick=()=>{board.view=fitView(board.items,{w:innerWidth,h:innerHeight});render();touch();};
+function renameBoard(){nameInput.focus();nameInput.select();}
+$('renameBtn').onclick=renameBoard;
 nameInput.addEventListener('input',()=>{board.name=nameInput.value.slice(0,80)||'Board';touch();});
 nameInput.addEventListener('blur',()=>{nameInput.value=board.name;});
 nameInput.addEventListener('keydown',e=>{if(e.key==='Enter')nameInput.blur();});

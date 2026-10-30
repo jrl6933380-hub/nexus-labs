@@ -82,3 +82,5 @@ button{cursor:pointer}
 .cutter .foot .row.chips{flex-wrap:wrap}
 .cutter .foot button.chip{flex:none;min-height:44px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:var(--card)}
 .cutter .foot button.chip[aria-pressed=true]{background:var(--gold);color:var(--ink);border-color:var(--gold);font-weight:600}
+.pill.icon{min-width:44px;padding:0;font-size:20px}
+.name{text-overflow:ellipsis}
