@@ -11,8 +11,7 @@ const canonical = new Map([
  ['/connectors.html','/workspace.html?view=skills'],
  ['/tenants.html','/workspace.html?view=forge'],
  ['/nexus-canvas.html','/workspace.html?view=messages'],
- ['/thoughtspace.html','/workspace.html?view=messages'],
- ['/nexus-space.html','/workspace.html?view=messages']
+ ['/thoughtspace.html','/workspace.html?view=messages']
 ]);
 test('Legacy operator bookmarks retain canonical Vercel redirects',()=>{
  for(const [oldPath,newPath] of canonical) assert.equal(redirects.get(oldPath),newPath,oldPath);
@@ -20,6 +19,10 @@ test('Legacy operator bookmarks retain canonical Vercel redirects',()=>{
 test('Canonical workspace file still exists',()=>{
  assert.ok(fs.existsSync(new URL('../public/workspace.html',import.meta.url)));
 });
-test('Old page URLs remain handled at the edge even if page files are retired',()=>{
+test('Old edge-redirected page URLs remain covered',()=>{
  for(const route of canonical.keys()) assert.ok(redirects.has(route),route);
+});
+test('Nexus Space remains a browser entry so URL fragments can be preserved',()=>{
+ assert.ok(!redirects.has('/nexus-space.html'));
+ assert.ok(fs.existsSync(new URL('../public/nexus-space.html',import.meta.url)));
 });
