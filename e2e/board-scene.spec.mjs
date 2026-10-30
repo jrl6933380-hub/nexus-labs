@@ -1,0 +1,146 @@
+import {test,expect} from '@playwright/test';
+import {readFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
+import {createAdMediaStore} from '../lib/adMedia.js';
+import {createNexusLabAssets} from '../lib/nexusLabAssets.js';
+import {createNexusLabBoards} from '../lib/nexusLabBoards.js';
+import {createNexusLabHandler} from '../api/nexus-lab.js';
+import {labJobMemory} from '../test-support/labJobMemory.mjs';
+async function setup(page,width=393){
+  await page.setViewportSize({width,height:900});await page.goto('/board.html');
+  const command=labJobMemory(),owner={id:'scene-e2e'},media=createAdMediaStore({command}),assets=createNexusLabAssets({command,media}),boards=createNexusLabBoards({command});
+  const bytes=Buffer.from(await page.evaluate(()=>{const c=document.createElement('canvas');c.width=c.height=100;const x=c.getContext('2d');x.fillStyle='red';x.fillRect(25,25,50,50);return c.toDataURL().split(',')[1];}),'base64');
+  const begun=await assets.begin(owner,{name:'Subject',kind:'image',bytes:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex'),width:100,height:100,provenance:{role:'original',origin:'uploaded'}});
+  await assets.putChunk(owner,{media_id:begun.media_id,index:0,data_base64:bytes.toString('base64')});const asset=await assets.finish(owner,{media_id:begun.media_id});
+  const board=await boards.save(owner,{board:{name:'Layer studio',view:{x:20,y:100,z:1},items:[{id:'subject',kind:'image',media_id:asset.media_id,title:'Subject',x:0,y:0,w:160,h:160,z:0}]}});
+  const handler=createNexusLabHandler({authenticate:async()=>owner,assets,boards,once:async(id,key,op,input,run)=>run()});
+  await page.route('**/api/nexus-lab',async route=>{
+    const request=route.request(),body=request.postDataJSON();let status=200;
+    const res={setHeader(){return this;},status(n){status=n;return this;},json(body){this.body=body;return this;}};
+    await handler({method:'POST',headers:{host:'127.0.0.1:4173',origin:'http://127.0.0.1:4173','content-type':'application/json'},body},res);
+    await route.fulfill({status,json:res.body});
+  });
+  await page.goto('/board.html?id='+board.id);await page.locator('.bitem img').waitFor();
+  await page.locator('.bitem[data-id=subject]').click();await page.getByRole('button',{name:'Compose scene',exact:true}).click();
+  await expect(page.getByRole('dialog',{name:'Compose scene'}).getByRole('status')).toContainText('Scene ready');
+  return {owner,assets,boards,board,asset};
+}
+const pixel=async(page,x,y)=>page.locator('.scene-preview canvas').evaluate((c,p)=>{const s=c.width/window.nexusScene.scene.width;return [...c.getContext('2d').getImageData(Math.round(p.x*s),Math.round(p.y*s),1,1).data];},{x,y});
+for(const width of [320,393])test('scene phone flow at '+width+'px saves layers and reopens',async({page},info)=>{
+  const data=await setup(page,width),dialog=page.getByRole('dialog',{name:'Compose scene'});
+  await expect(page.locator('.scene-save-state')).toHaveText('Unsaved scene');
+  await page.getByRole('button',{name:'Preview',exact:true}).focus();await page.keyboard.press('Delete');
+  expect(await page.evaluate(()=>window.nexusBoard.board.items.some(i=>i.id==='subject'))).toBe(true);
+  await page.getByRole('button',{name:'Park starter',exact:true}).click();
+  await expect(dialog.getByRole('status')).toContainText('Stylized park');
+  expect(await page.evaluate(()=>window.nexusScene.scene.layers.length)).toBe(15);
+  await page.getByRole('button',{name:'Select layer Subject',exact:true}).click();
+  await page.getByLabel('Layer name',{exact:true}).fill('Main person');await page.getByLabel('Layer name',{exact:true}).press('Tab');
+  await page.getByRole('button',{name:'Save editable scene',exact:true}).click();
+  await expect(dialog.getByRole('status')).toContainText('Editable scene saved');
+  const saved=await data.boards.read(data.owner,data.board.id),item=saved.items.find(i=>i.kind==='scene');
+  expect(item.scene.layers).toHaveLength(15);expect(item.scene.layers.some(l=>l.name==='Main person')).toBe(true);
+  expect(item.scene.layers.some(l=>l.name==='Bird left wing'&&l.motion.kind==='flap')).toBe(true);
+  await page.locator('.scene-preview').evaluate(n=>n.scrollIntoView({block:'center'}));await page.screenshot({path:info.outputPath('scene-phone.png')});
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.getByRole('button',{name:'Selected piece',exact:true}).click();await page.screenshot({path:info.outputPath('scene-inspector-phone.png')});
+  await page.getByRole('button',{name:'Close scene',exact:true}).click();
+  await page.reload();await expect(page.locator('.bitem.k-scene canvas')).toHaveCount(1);
+  await page.locator('.bitem.k-scene').click();await page.getByRole('button',{name:'Edit scene',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Select layer Main person',exact:true})).toBeVisible();
+});
+test('painted masks, zone clipping, undo and PNG exports match actual pixels',async({page})=>{
+  await setup(page,1280);
+  await page.evaluate(()=>{
+    const a=window.nexusScene;a.command({op:'settings',patch:{width:100,height:100,background:'#000000'}});
+    for(const l of a.scene.layers)a.command({op:'remove',id:l.id});
+    a.command({op:'add',layer:{id:'zone',name:'Left half',type:'zone',shape:'rect',color:'#0000ff',x:0,y:0,w:50,h:100}});
+    a.command({op:'add',layer:{id:'green',name:'Green piece',type:'shape',shape:'rect',color:'#00ff00',x:0,y:0,w:100,h:100,zone_id:'zone'}});
+    a.select('green');
+  });
+  await page.getByLabel('Show editing guides').uncheck();
+  expect(await pixel(page,25,25)).toEqual([0,255,0,255]);expect(await pixel(page,75,25)).toEqual([0,0,0,255]);
+  await page.evaluate(()=>window.nexusScene.command({op:'mask_stroke',id:'green',stroke:{op:'subtract',size:.2,points:[[.25,0],[.25,1]]}}));
+  expect(await pixel(page,25,25)).toEqual([0,0,0,255]);expect(await pixel(page,45,25)).toEqual([0,255,0,255]);
+  await page.getByRole('button',{name:'Undo scene',exact:true}).click();expect(await pixel(page,25,25)).toEqual([0,255,0,255]);
+  await page.getByRole('button',{name:'Redo scene',exact:true}).click();
+  const downloading=page.waitForEvent('download');await page.getByRole('button',{name:'Download PNG',exact:true}).click();const bytes=readFileSync(await (await downloading).path());
+  const actual=await page.evaluate(async data=>{
+    const bm=await createImageBitmap(new Blob([Uint8Array.from(atob(data),c=>c.charCodeAt(0))],{type:'image/png'})),c=document.createElement('canvas');c.width=bm.width;c.height=bm.height;c.getContext('2d').drawImage(bm,0,0);
+    return {size:[bm.width,bm.height],hidden:[...c.getContext('2d').getImageData(25,25,1,1).data],shown:[...c.getContext('2d').getImageData(45,25,1,1).data]};
+  },bytes.toString('base64'));
+  expect(actual).toEqual({size:[100,100],hidden:[0,0,0,255],shown:[0,255,0,255]});
+  await page.getByRole('button',{name:'Save editable scene',exact:true}).click();
+  await expect(page.getByRole('dialog').getByRole('status')).toContainText('Editable scene saved');
+});
+test('new image source, touch mask, puppet transport and standalone HTML work',async({page})=>{
+  await setup(page);
+  await page.getByRole('button',{name:'Add image',exact:true}).click();
+  await page.getByLabel('Saved layer image').selectOption({label:'Subject'});
+  await expect(page.locator('.scene-source')).toHaveCount(0);
+  await expect(page.getByRole('dialog',{name:'Compose scene'}).getByRole('status')).toContainText('Scene ready');
+  expect(await page.evaluate(()=>window.nexusScene.scene.layers.length)).toBe(2);
+  const id=await page.evaluate(()=>window.nexusScene.selected);
+  await page.evaluate(id=>window.nexusScene.command({op:'patch',id,patch:{name:'Puppet hand',x:200,y:200,w:300,h:300,rotation:25,motion:{kind:'sway',amount:40,period:2}}}),id);
+  await page.getByLabel('Show editing guides').uncheck();
+  const anchorBefore=await page.evaluate(async id=>{const {worldLayers}=await import('/board-scene-core.js');return worldLayers(window.nexusScene.scene,0).map.get(id).matrix;},id);
+  await page.getByLabel('Pivot X',{exact:true}).evaluate(n=>{n.value=0;n.dispatchEvent(new Event('change',{bubbles:true}));});
+  const anchorAfter=await page.evaluate(async id=>{const {worldLayers}=await import('/board-scene-core.js');return worldLayers(window.nexusScene.scene,0).map.get(id).matrix;},id);
+  expect(Math.max(...anchorBefore.map((v,i)=>Math.abs(v-anchorAfter[i])))).toBeLessThan(.001);
+  const before=await page.locator('.scene-preview canvas').evaluate(c=>c.toDataURL());
+  await page.evaluate(()=>window.nexusScene.seek(.5));
+  expect(await page.locator('.scene-preview canvas').evaluate(c=>c.toDataURL())).not.toBe(before);
+  await page.evaluate(()=>window.nexusScene.seek(0));
+  // Real pointer stroke through the same mask editor used on the phone.
+  await page.getByText('Paint mask',{exact:true}).click();
+  await page.getByLabel('Mask coverage').selectOption('visible');
+  await page.getByRole('button',{name:'Paint selected mask',exact:true}).click();
+  const rect=await page.locator('.scene-preview canvas').boundingBox();
+  await page.mouse.move(rect.x+rect.width*.3,rect.y+rect.height*.25);await page.mouse.down();await page.mouse.move(rect.x+rect.width*.36,rect.y+rect.height*.3);await page.mouse.up();
+  expect(await page.evaluate(id=>window.nexusScene.scene.layers.find(l=>l.id===id).mask.strokes.length,id)).toBe(1);
+  const downloading=page.waitForEvent('download');await page.getByRole('button',{name:'Download animated HTML',exact:true}).click();const html=readFileSync(await (await downloading).path(),'utf8');
+  expect(html).toContain('worldLayers');expect(html).not.toContain('https://');
+  await page.goto('data:text/html;charset=utf-8,'+encodeURIComponent(html));
+  await expect(page.getByRole('button',{name:'Play',exact:true})).toBeVisible();
+  await expect(page.locator('canvas')).toHaveAttribute('data-scene-ready','true');
+  const first=await page.locator('canvas').evaluate(c=>c.toDataURL());
+  await page.locator('#time').evaluate(n=>{n.value=.5;n.dispatchEvent(new Event('input',{bubbles:true}));});
+  expect(await page.locator('canvas').evaluate(c=>c.toDataURL())).not.toBe(first);
+  const paused=await page.locator('canvas').evaluate(c=>c.toDataURL());
+  await page.getByRole('button',{name:'Play',exact:true}).click();
+  await expect.poll(()=>page.locator('canvas').evaluate(c=>c.toDataURL())).not.toBe(paused);
+  await page.getByRole('button',{name:'Pause',exact:true}).click();
+});
+test('linked interactive control tile operates only its saved scene',async({page})=>{
+  await setup(page,1280);
+  await page.evaluate(()=>{const a=window.nexusScene;const id=a.scene.layers[0].id;a.command({op:'patch',id,patch:{motion:{kind:'travel',dx:250,dy:0}}});});
+  await page.getByRole('button',{name:'Save editable scene',exact:true}).click();await expect(page.getByRole('dialog').getByRole('status')).toContainText('Editable scene saved');
+  await page.getByRole('button',{name:'Close scene',exact:true}).click();
+  await page.locator('.bitem.k-scene').click();await page.getByRole('button',{name:'Add scene controls',exact:true}).click();
+  await expect(page.locator('.bitem.k-visual iframe')).toHaveCount(1);
+  await page.getByRole('button',{name:'Interact',exact:true}).click();
+  const target=await page.evaluate(()=>window.nexusBoard.board.items.find(i=>i.kind==='scene').id);
+  const tile=page.locator('.bitem.k-scene canvas');await expect(tile).toHaveAttribute('data-scene-ready','true');
+  const before=await tile.evaluate(c=>c.toDataURL());
+  await page.evaluate(target=>window.postMessage({type:'nexus-scene-control',target_id:target,command:'seek',time:3},'*'),target);
+  expect(await tile.evaluate(c=>c.toDataURL())).toBe(before);
+  await page.frameLocator('.bitem.k-visual iframe').locator('#time').evaluate(n=>{n.value=3;n.dispatchEvent(new Event('input',{bubbles:true}));});
+  await expect.poll(()=>tile.evaluate(c=>c.toDataURL())).not.toBe(before);
+});
+
+test('failed scene save keeps the draft separate and discard does not edit the board',async({page})=>{
+  await setup(page);
+  await page.route('**/api/nexus-lab',async route=>{
+    const body=route.request().postDataJSON();
+    if(body.action==='board_save'&&body.input.board.items.some(i=>i.kind==='scene'))return route.fulfill({status:503,json:{error:'Storage temporarily unavailable.'}});
+    return route.fallback();
+  });
+  await page.getByRole('button',{name:'Save editable scene',exact:true}).click();
+  await expect(page.getByRole('dialog',{name:'Compose scene'}).getByRole('status')).toContainText('Storage temporarily unavailable');
+  expect(await page.evaluate(()=>window.nexusBoard.board.items.length)).toBe(1);
+  await expect(page.locator('.scene-save-state')).toHaveText('Unsaved scene');
+  await page.getByRole('button',{name:'Close scene',exact:true}).click();
+  await page.getByRole('button',{name:'Discard scene changes',exact:true}).click();
+  await expect(page.getByRole('dialog',{name:'Compose scene'})).toHaveCount(0);
+  expect(await page.evaluate(()=>window.nexusBoard.board.items[0].id)).toBe('subject');
+});

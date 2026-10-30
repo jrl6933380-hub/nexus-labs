@@ -5,7 +5,11 @@ on:
       - 'public/board*'
       - 'public/nexus-lab-cutout.js'
       - 'test/board-compose.test.mjs'
+      - 'test/board-scene.test.mjs'
+      - 'lib/nexusLabBoards.js'
+      - 'api/nexus-lab.js'
       - 'e2e/board-compose.spec.mjs'
+      - 'e2e/board-scene.spec.mjs'
       - '.github/workflows/board-compose.yml'
 jobs:
   compose:
@@ -19,8 +23,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - run: node --test test/board-compose.test.mjs test/board-core.test.mjs test/nexus-lab-boards.test.mjs test/nexus-lab-boards-api.test.mjs
-      - run: npx playwright test e2e/board-compose.spec.mjs --workers=1
+      - run: node --test test/board-compose.test.mjs test/board-scene.test.mjs test/board-background-api.test.mjs test/board-core.test.mjs test/nexus-lab-boards.test.mjs test/nexus-lab-boards-api.test.mjs
+      - run: npx playwright test e2e/board-compose.spec.mjs e2e/board-scene.spec.mjs --workers=1
       - uses: actions/upload-artifact@v4
         if: always()
         with:
