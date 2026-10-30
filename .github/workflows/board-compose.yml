@@ -1,0 +1,28 @@
+name: Board image composition
+on:
+  pull_request:
+    paths:
+      - 'public/board*'
+      - 'public/nexus-lab-cutout.js'
+      - 'test/board-compose.test.mjs'
+      - 'e2e/board-compose.spec.mjs'
+      - '.github/workflows/board-compose.yml'
+jobs:
+  compose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: node --test test/board-compose.test.mjs test/board-core.test.mjs test/nexus-lab-boards.test.mjs test/nexus-lab-boards-api.test.mjs
+      - run: npx playwright test e2e/board-compose.spec.mjs --workers=1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: board-compose-browser
+          path: test-results/

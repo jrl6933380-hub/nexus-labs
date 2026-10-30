@@ -113,7 +113,7 @@ function drawSelbar(){
   const add=(...b)=>selbar.append(...b);
   if(it.kind==='visual')add(btn('Edit',()=>visualSheet(it)),btn('Interact',()=>{liveId=liveId===it.id?null:it.id;render();},'',liveId===it.id));
   if(it.kind==='note')add(btn('Edit',()=>noteSheet(it)),btn('Color',()=>{const order=['gold','green','sky','rose','paper'];updateItem(it.id,{color:order[(order.indexOf(it.color||'gold')+1)%order.length]});}));
-  if(it.kind==='image')add(btn('Cut out',()=>openCutter(it)));
+  if(it.kind==='image')add(btn('Cut out',()=>openCutter(it)),btn('Background',()=>openComposer(it)));
   if(it.kind==='video'||it.kind==='audio')add(btn('Controls',()=>{liveId=liveId===it.id?null:it.id;render();},'',liveId===it.id));
   if(it.kind==='sketch')add(btn('Undo stroke',()=>{it.strokes.pop();render();touch();}));
   if(it.kind!=='sketch')add(btn('Rename',()=>renameSheet(it)));
@@ -189,6 +189,19 @@ async function openCutter(it){
   try{const {runCutter}=await import('./board-cut.js?v=20261030-6');
     runCutter({request,item:it,onSaved:asset=>{addItem({kind:'image',media_id:asset.media_id,title:(it.title?it.title+' ':'')+'cutout',w:it.w,h:it.h,x:it.x+it.w+24,y:it.y});toast('Cutout saved to your library and added.');}});
   }catch(e){toast(e.message||'Could not open the cutter.',true);}
+}
+async function openComposer(it){
+  if(board.items.length>=LIMITS.items){toast('This board is full. Make room before composing.',true);return;}
+  const target=board;
+  try{const {runComposer}=await import('./board-compose.js?v=20261030-compose1');
+    runComposer({request,item:it,onSaved:asset=>{
+      if(board!==target)throw Error('The board changed. Your image is saved in the library; reopen it from Add.');
+      const box=fitBox(asset.width,asset.height,340);
+      const added=addItem({kind:'image',media_id:asset.media_id,title:asset.name.slice(0,80),...box,x:it.x+it.w+24,y:it.y});
+      if(!added)throw Error('The board is full. Your image is saved in the library; add it after making room.');
+      flush();
+    }});
+  }catch(e){toast(e.message||'Could not open composition.',true);}
 }
 function looksSheet(){
   const row=h('div',{class:'row'}),sw=h('div',{class:'row'});

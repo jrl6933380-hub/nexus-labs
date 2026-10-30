@@ -47,3 +47,9 @@ Keep/remove touch-up strokes in the cutter, an Ad Maker scene item, background-j
 - Saving writes the clean cutout (no paint) to the library as a derived `cutout` linked to the original.
 
 Touch-ups run on a smaller working copy (about 0.4 megapixels) so each refit takes seconds on a phone; the saved cutout is scaled back to the picture's working size. A refit also stays inside your outline plus a small margin, so a stroke cannot pull in stray bits from across the picture. A Keep stroke can reach outside the outline to recover a part you missed.
+
+## Compose a background (still image)
+
+Select an image on the board and tap **Background**. Choose another ready image from your media library. The selected image is the foreground: use a transparent cutout for a person over a new scene. The background fills the frame with a centered crop; the foreground keeps its proportions. Drag it, or use the horizontal position, vertical position and size sliders. Choose background proportions, portrait 9:16, square, or landscape 16:9.
+
+**Download PNG** exports the composited pixels. **Save to library** saves a separate derived output with both source media IDs and placement metadata, then adds that flattened image to the same board. Originals and existing board layers are preserved. Other than saving/downloading, preview changes are temporary; close and reopen to start another composition. Outputs use the background's size capped at 4 MP / 4096 pixels on the longest edge, or the chosen 1080p format. This first version composes two still images, without animation, painted placement masks or editable saved multi-layer projects. Add/upload the background through the existing Add menu before opening the composer.
