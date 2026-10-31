@@ -6,26 +6,35 @@ import android.content.Intent;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraManager;
 import android.net.Uri;
+import android.os.SystemClock;
 import android.provider.Settings;
 import org.json.JSONObject;
 
 /**
- * Runs an action proposed by the on-device language model, but only after LocalActionGate approves it.
- * The single entry point re-validates the JSON itself, so a caller cannot execute an un-gated action.
- * Supports exactly the gate allowlist: flashlight_on, flashlight_off, open_wifi_settings, show_map.
+ * Runs an action proposed by the on-device language model. Two independent checks stand in front of every action:
+ *  - LocalActionGate: is this exactly one allowlisted action with valid arguments?
+ *  - LocalActionPolicy: is the master switch on, does this answer belong to a ticket the user just issued by tapping,
+ *    is it inside the rate limit, and is the action's risk tier satisfied?
+ * The single entry point runs both itself, so a caller cannot execute an un-gated or unsolicited action.
+ * Supports exactly the allowlist: flashlight_on, flashlight_off, open_wifi_settings, show_map.
  * Needs no extra permissions: setTorchMode works without CAMERA, and the other two just open system screens.
+ * Never reachable from BridgeService, accessibility or any remote command.
  */
 final class LocalActionExecutor {
  private LocalActionExecutor() {}
 
  /**
   * @param actionJson model-derived action JSON, e.g. {"action":"flashlight_on","arguments":{}}
+  * @param ticket the one-use ticket from {@link LocalActionPolicy#issue} for this request
+  * @param userRequest the exact text the user submitted, which the ticket is bound to
+  * @param enabled the user's master switch for local AI actions (off by default)
   * @return a short human-readable result
-  * @throws Exception when the gate rejects the action or the device cannot perform it
+  * @throws Exception when the gate or policy rejects the action or the device cannot perform it
   */
- static String execute(Context context, String actionJson) throws Exception {
+ static String execute(Context context, String actionJson, LocalActionPolicy policy, String ticket, String userRequest, boolean enabled) throws Exception {
   JSONObject approved = LocalActionGate.validate(actionJson);
   String action = approved.getString("action");
+  policy.authorize(ticket, userRequest, action, enabled, false, SystemClock.elapsedRealtime());
   switch (action) {
    case "flashlight_on":
     torch(context, true);
