@@ -56,6 +56,17 @@ public final class LocalActionPolicyTest {
   p8.authorize(later, req, "flashlight_on", true, false, t + LocalActionPolicy.WINDOW_MS + 10);
   check(true, "allowed again after the window");
 
+  LocalActionPolicy pc = new LocalActionPolicy();
+  String tc = pc.issue(req, t);
+  check(denied(() -> pc.authorize(tc, req, "send_email", true, false, t + 1)), "send_email needs confirmation");
+  String tc2 = pc.issue(req, t + 2);
+  pc.authorize(tc2, req, "send_email", true, true, t + 2);
+  check(true, "send_email approved once confirmed");
+  for (String a : new String[]{"create_contact", "send_email", "create_calendar_event"})
+   check(LocalActionPolicy.risk(a) == LocalActionPolicy.Risk.CONFIRM, a + " is CONFIRM tier");
+  for (String a : new String[]{"flashlight_on", "flashlight_off", "open_wifi_settings", "show_map"})
+   check(LocalActionPolicy.risk(a) == LocalActionPolicy.Risk.LOW, a + " is LOW tier");
+
   check(denied(() -> LocalActionPolicy.risk("delete_everything")), "risk() rejects unknown");
   check(denied(() -> LocalActionPolicy.risk(null)), "risk() rejects null");
 
