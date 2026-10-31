@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "purpose": "Manual canonical entry-point registry for owner navigation and conservative cleanup. Proposed placement is NOT proof of live UI availability.",
+  "purpose": "Manual entry-point registry for conservative cleanup. Audience describes access to the registered route, not availability of a feature through other shells. This file does not drive runtime navigation.",
   "entries": [
     {
       "id": "messages",
       "name": "Nexus Messages",
       "route": "/workspace.html?view=messages",
       "area": "core",
-      "audience": "all",
+      "audience": "owner",
       "status": "production",
       "owner_home": "home",
       "dependencies": [
@@ -19,7 +19,7 @@
       "name": "Life & Schedule",
       "route": "/workspace.html?view=life",
       "area": "core",
-      "audience": "all",
+      "audience": "owner",
       "status": "production",
       "owner_home": "life",
       "dependencies": []
@@ -29,20 +29,22 @@
       "name": "Projects",
       "route": "/workspace.html?view=workbench",
       "area": "projects",
-      "audience": "all",
+      "audience": "owner",
       "status": "production",
       "owner_home": "projects",
       "dependencies": []
     },
     {
       "id": "deck",
-      "name": "Operations Deck",
+      "name": "Agent Board (Command Deck)",
       "route": "/workspace.html?view=deck",
       "area": "owner",
       "audience": "owner",
       "status": "production",
       "owner_home": "operations",
-      "dependencies": []
+      "dependencies": [
+        "/api/board"
+      ]
     },
     {
       "id": "forge",
@@ -77,14 +79,15 @@
     {
       "id": "phone",
       "name": "Nexus Phone",
-      "route": "/phone.html",
+      "route": "/workspace.html?view=phone",
       "area": "owner",
       "audience": "owner",
       "status": "production",
       "owner_home": "devices",
       "dependencies": [
         "/api/phone"
-      ]
+      ],
+      "setup_route": "/phone.html"
     },
     {
       "id": "ad-maker",
@@ -116,6 +119,91 @@
       "owner_home": "devices",
       "dependencies": [],
       "note": "PR #835 experimental Android implementation; no owner UI yet."
+    },
+    {
+      "id": "planner",
+      "name": "Calendar",
+      "route": "/workspace.html?view=planner",
+      "area": "core",
+      "audience": "owner",
+      "status": "production",
+      "owner_home": "life",
+      "dependencies": [
+        "/api/planner"
+      ]
+    },
+    {
+      "id": "reminders",
+      "name": "Reminders",
+      "route": "/workspace.html?view=reminders",
+      "area": "core",
+      "audience": "owner",
+      "status": "production",
+      "owner_home": "life",
+      "dependencies": [
+        "/api/reminders"
+      ]
+    },
+    {
+      "id": "forge-ops",
+      "name": "Forge Ops",
+      "route": "/forge-hub.html#ops",
+      "area": "owner",
+      "audience": "owner",
+      "status": "production",
+      "owner_home": "operations",
+      "dependencies": [
+        "/api/room-history"
+      ]
+    },
+    {
+      "id": "forge-templates",
+      "name": "Forge Templates",
+      "route": "/forge-hub.html#templates",
+      "area": "owner",
+      "audience": "owner",
+      "status": "production",
+      "owner_home": "operations",
+      "dependencies": [
+        "/api/room-history"
+      ]
+    },
+    {
+      "id": "nexus-lab",
+      "name": "Nexus Lab",
+      "route": "/workspace.html?view=lab",
+      "area": "labs",
+      "audience": "owner",
+      "status": "production",
+      "owner_home": "creative",
+      "dependencies": [
+        "/api/nexus-lab"
+      ]
+    },
+    {
+      "id": "story-studio",
+      "name": "Story Studio",
+      "route": "/workspace.html?view=story",
+      "area": "creative",
+      "audience": "owner",
+      "status": "production",
+      "owner_home": "creative",
+      "dependencies": [
+        "/api/story-studio"
+      ]
+    },
+    {
+      "id": "customer-home",
+      "name": "Customer Nexus",
+      "route": "/nexus.html",
+      "area": "core",
+      "audience": "customer",
+      "status": "production",
+      "owner_home": "customer",
+      "dependencies": [
+        "/api/room-auth"
+      ],
+      "note": "Customer Messages, Calendar, Reminders and Life use this room-auth shell. Owner /workspace.html routes require the separate owner session."
     }
   ]
 }
