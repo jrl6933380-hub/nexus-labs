@@ -1,0 +1,28 @@
+name: Local Finder regression
+on:
+  pull_request:
+    paths:
+      - 'scripts/verify-local-finder-browser.mjs'
+      - 'lib/localOpportunities.js'
+      - 'lib/researchJobs.js'
+      - 'lib/actorCatalog.js'
+      - 'public/actor.html'
+      - 'public/actor-wallet.js'
+      - 'public/local-opportunities.js'
+      - 'test/local-finder.test.mjs'
+      - '.github/workflows/local-finder.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  localfinder:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: node --test test/local-finder.test.mjs test/actor-catalog.test.mjs test/actor-recovery.test.mjs test/actor-interfaces.test.mjs
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/verify-local-finder-browser.mjs
