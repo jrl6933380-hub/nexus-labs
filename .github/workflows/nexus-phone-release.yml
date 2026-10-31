@@ -75,9 +75,9 @@ jobs:
           if git diff --quiet -- public/downloads/nexus-phone-0.3.apk; then echo 'APK already up to date'; exit 0; fi
           git config user.name 'nexus-phone-release'
           git config user.email 'actions@users.noreply.github.com'
-          node -e "const fs=require('fs'),c=require('crypto'),p='public/downloads/nexus-phone-0.3.manifest.json',b=fs.readFileSync('public/downloads/nexus-phone-0.3.apk'),m=JSON.parse(fs.readFileSync(p));m.bytes=b.length;m.sha256=c.createHash('sha256').update(b).digest('hex');m.source_commit=process.env.GITHUB_SHA;fs.writeFileSync(p,JSON.stringify(m,null,2)+'\\n')"
+          node -e "const fs=require('fs'),c=require('crypto'),p='public/downloads/nexus-phone-0.3.manifest.json',b=fs.readFileSync('public/downloads/nexus-phone-0.3.apk'),m=JSON.parse(fs.readFileSync(p));m.version='0.3.1';m.version_code=4;m.bytes=b.length;m.sha256=c.createHash('sha256').update(b).digest('hex');m.source_commit=process.env.GITHUB_SHA;fs.writeFileSync(p,JSON.stringify(m,null,2)+'\n')"
           git add public/downloads/nexus-phone-0.3.apk public/downloads/nexus-phone-0.3.manifest.json
-          git commit -m 'Release signed Nexus Phone 0.3 APK (tested on Android 13 emulator)'
+          git commit -m 'Release signed Nexus Phone 0.3.1 APK (tested on Android 13 emulator)'
           git push origin HEAD:main
       - name: Remove signing material
         if: always()
