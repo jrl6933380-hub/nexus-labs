@@ -17,7 +17,7 @@ test('retired operator pages open the matching current Nexus workspace view',()=
   assert.equal(destination('/queue.html'),'/workspace.html?view=approvals');
   assert.equal(destination('/connectors.html'),'/workspace.html?view=skills');
   assert.equal(destination('/tenants.html'),'/workspace.html?view=forge');
-  assert.equal(destination('/nexus-space.html','#story'),'/workspace.html?view=story');
+  assert.equal(destination('/nexus-space.html','#story'),'/story-studio.html');
 });
 
 test('current product pages are not redirected by the legacy fallback',()=>{
