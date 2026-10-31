@@ -19,7 +19,7 @@ adb install -r android/phone/build/disposable-test.apk
 # Do not pre-bind the service: am instrument force-stops the target process.
 # The runner enables it only after instrumentation owns the process.
 adb shell settings put secure accessibility_enabled 0
-adb shell settings put secure enabled_accessibility_services ''
+adb shell settings delete secure enabled_accessibility_services
 adb shell pm grant app.nexus.phone android.permission.POST_NOTIFICATIONS
 timeout 120s adb shell am instrument -w app.nexus.phone.test/app.nexus.phone.PhoneTestRunner > /tmp/nexus-phone-instrumentation.txt
 cat /tmp/nexus-phone-instrumentation.txt
