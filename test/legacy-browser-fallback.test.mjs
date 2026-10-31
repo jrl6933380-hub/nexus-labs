@@ -19,21 +19,27 @@ test('Legacy HTML fallback agrees with edge redirects for paths without fragment
   const paths = [
     '/mission-control.html', '/conference-room.html', '/memory.html',
     '/queue.html', '/connectors.html', '/tenants.html',
-    '/nexus-canvas.html', '/thoughtspace.html', '/nexus-space.html'
+    '/nexus-canvas.html', '/thoughtspace.html'
   ];
   for (const pathname of paths) {
     assert.equal(browserFallback(pathname), redirects.get(pathname), pathname);
   }
 });
 
-test('Nexus Space retains its historical fragment-based browser fallback', () => {
-  const views = {
-    command: 'deck', conference: 'agents', builder: 'forge',
-    story: 'story', memory: 'memory', queue: 'approvals',
-    connectors: 'skills', tenants: 'forge'
+test('Nexus Space routes hashes through its browser fallback, not an edge redirect', () => {
+  assert.ok(!redirects.has('/nexus-space.html'));
+  const destinations = {
+    command: '/workspace.html?view=deck',
+    conference: '/workspace.html?view=agents',
+    builder: '/forge.html?view=chat',
+    story: '/story-studio.html',
+    memory: '/workspace.html?view=memory',
+    queue: '/workspace.html?view=approvals',
+    connectors: '/workspace.html?view=skills',
+    tenants: '/workspace.html?view=forge'
   };
-  for (const [hash, view] of Object.entries(views)) {
-    assert.equal(browserFallback('/nexus-space.html', '#' + hash),
-      '/workspace.html?view=' + view, hash);
+  for (const [hash, target] of Object.entries(destinations)) {
+    assert.equal(browserFallback('/nexus-space.html', '#' + hash), target, hash);
   }
+  assert.equal(browserFallback('/nexus-space.html'), '/workspace.html?view=messages');
 });
