@@ -1,0 +1,46 @@
+name: Local AI Android Lab
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'android/local-ai-spike/**'
+      - '.github/workflows/local-ai-lab.yml'
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          # Default is 'tools platform-tools'; the obsolete 'tools' package fails setup.
+          packages: 'platform-tools'
+      - name: Install Android SDK platform
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Assemble isolated debug APK
+        working-directory: android/local-ai-spike
+        shell: bash
+        run: |
+          set -o pipefail
+          if ! gradle --no-daemon --console=plain :app:assembleDebug 2>&1 | tee /tmp/gradle.log; then
+            # Annotations are visible on the PR without signing in to read logs.
+            grep -E '^e: |error:|What went wrong|Could not (resolve|find)|FAILED|Execution failed' -A2 /tmp/gradle.log | head -40 | while IFS= read -r line; do
+              echo "::error title=gradle::${line//%/%25}"
+            done
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nexus-local-ai-lab-debug
+          path: android/local-ai-spike/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
