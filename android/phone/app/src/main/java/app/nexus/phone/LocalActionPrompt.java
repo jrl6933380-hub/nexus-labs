@@ -4,16 +4,24 @@ package app.nexus.phone;
  * Builds the FunctionGemma prompt from the Nexus local-action allowlist. The user's request is
  * untrusted text placed inside a turn, so characters that could forge control tokens are rejected.
  * This class only builds text; it loads no model and executes nothing.
+ * The declared functions are the ones FunctionGemma's mobile-actions model was fine-tuned on, so it knows them best.
  */
 public final class LocalActionPrompt {
  private static final int MAX_REQUEST = 300;
  private static final String E = "<escape>";
 
  private static final String DECLARATIONS =
-  decl("turn_on_flashlight", "Turns the flashlight on", null)
-  + decl("turn_off_flashlight", "Turns the flashlight off", null)
-  + decl("open_wifi_settings", "Opens the Wi-Fi settings screen", null)
-  + decl("show_map", "Shows a place on a map", "query");
+  decl("turn_on_flashlight", "Turns the flashlight on")
+  + decl("turn_off_flashlight", "Turns the flashlight off")
+  + decl("open_wifi_settings", "Opens the Wi-Fi settings screen")
+  + decl("show_map", "Shows a place on a map", p("query", "Place or address to show", true))
+  + decl("create_contact", "Creates a contact",
+   p("first_name", "First name", true), p("last_name", "Last name", false),
+   p("phone_number", "Phone number", false), p("email", "Email address", false))
+  + decl("send_email", "Drafts an email",
+   p("to", "Recipient email address", true), p("subject", "Subject line", false), p("body", "Message text", false))
+  + decl("create_calendar_event", "Creates a calendar event",
+   p("title", "Event title", true), p("datetime", "Start date and time as YYYY-MM-DDTHH:MM:SS", true));
 
  private LocalActionPrompt() {}
 
@@ -33,15 +41,31 @@ public final class LocalActionPrompt {
    + "<start_of_turn>model\n";
  }
 
- private static String decl(String name, String description, String stringParam) {
-  String params;
-  if (stringParam == null) {
-   params = "parameters:{type:" + E + "OBJECT" + E + "}";
+ private static String[] p(String name, String description, boolean required) {
+  return new String[]{name, description, required ? "1" : "0"};
+ }
+
+ private static String decl(String name, String description, String[]... params) {
+  String body;
+  if (params.length == 0) {
+   body = "parameters:{type:" + E + "OBJECT" + E + "}";
   } else {
-   params = "parameters:{properties:{" + stringParam + ":{description:" + E + "Place or address to show" + E
-    + ",type:" + E + "STRING" + E + "}},required:[" + E + stringParam + E + "],type:" + E + "OBJECT" + E + "}";
+   StringBuilder props = new StringBuilder();
+   StringBuilder required = new StringBuilder();
+   for (String[] param : params) {
+    if (props.length() > 0) props.append(',');
+    props.append(param[0]).append(":{description:").append(E).append(param[1]).append(E)
+     .append(",type:").append(E).append("STRING").append(E).append('}');
+    if ("1".equals(param[2])) {
+     if (required.length() > 0) required.append(',');
+     required.append(E).append(param[0]).append(E);
+    }
+   }
+   body = "parameters:{properties:{" + props + "}"
+    + (required.length() > 0 ? ",required:[" + required + "]" : "")
+    + ",type:" + E + "OBJECT" + E + "}";
   }
-  return "<start_function_declaration>declaration:" + name + "{description:" + E + description + E + "," + params
+  return "<start_function_declaration>declaration:" + name + "{description:" + E + description + E + "," + body
    + "}<end_function_declaration>";
  }
 }
