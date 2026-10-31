@@ -1,0 +1,34 @@
+name: Legacy retirement checks
+on:
+  pull_request:
+    paths:
+      - 'public/**'
+      - 'vercel.json'
+      - 'test/legacy-route.test.mjs'
+      - 'e2e/legacy-retirement.spec.mjs'
+      - '.github/workflows/legacy-retirement.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'public/queue.html'
+      - 'public/connectors.html'
+      - 'public/tenants.html'
+      - 'public/legacy-route.js'
+      - 'vercel.json'
+      - 'test/legacy-route.test.mjs'
+      - 'e2e/legacy-retirement.spec.mjs'
+      - '.github/workflows/legacy-retirement.yml'
+permissions:
+  contents: read
+jobs:
+  compatibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: node --test test/legacy-route-contract.test.mjs test/legacy-browser-fallback.test.mjs test/legacy-route.test.mjs tests/nexus-space-anchors.test.mjs
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test e2e/legacy-retirement.spec.mjs
