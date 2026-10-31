@@ -4,11 +4,11 @@ plugins {
 }
 
 // Single source of truth: compile the phone app's local-action prompt, parser and gate into this isolated
-// lab. Only these three files are copied; none of the phone bridge or accessibility code comes along.
+// lab. Only these four files are copied; none of the phone bridge, executor, policy or accessibility code comes along.
 val phoneActionDir = layout.buildDirectory.dir("generated/phoneAction")
 val copyPhoneAction = tasks.register<Copy>("copyPhoneAction") {
  from("../../phone/app/src/main/java/app/nexus/phone") {
-  include("LocalActionCall.java", "LocalActionPrompt.java", "LocalActionGate.java")
+  include("LocalActionCall.java", "LocalActionPrompt.java", "LocalActionGate.java", "LocalActionArgs.java")
  }
  into(phoneActionDir.map { it.dir("app/nexus/phone") })
 }

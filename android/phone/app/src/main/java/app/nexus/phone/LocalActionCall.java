@@ -27,6 +27,9 @@ public final class LocalActionCall {
   ACTIONS.put("turn_off_flashlight", "flashlight_off");
   ACTIONS.put("open_wifi_settings", "open_wifi_settings");
   ACTIONS.put("show_map", "show_map");
+  ACTIONS.put("create_contact", "create_contact");
+  ACTIONS.put("send_email", "send_email");
+  ACTIONS.put("create_calendar_event", "create_calendar_event");
  }
 
  private LocalActionCall() {}

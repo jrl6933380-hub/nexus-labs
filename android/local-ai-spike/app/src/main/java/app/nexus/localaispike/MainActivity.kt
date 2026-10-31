@@ -230,7 +230,8 @@ class MainActivity : Activity() {
     "flashlight_off" -> "Turn the flashlight off"
     "open_wifi_settings" -> "Open Wi-Fi settings"
     "show_map" -> "Show \"${args.getString("query")}\" on the map"
-    else -> action
+    // Contact, email and calendar actions: show every validated field so the test is easy to read.
+    else -> "$action $args"
    }
    showResult("✔ Would run: $label", "Passed the safety gate. Nothing was executed.\n\n$shown")
   } catch (e: Exception) {
