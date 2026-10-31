@@ -1,0 +1,26 @@
+name: Owner Home navigation
+on:
+  pull_request:
+    paths:
+      - 'public/nexus-messages.js'
+      - 'public/workspace-views.js'
+      - 'e2e/owner-home-navigation.spec.mjs'
+      - '.github/workflows/owner-home-navigation.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'public/nexus-messages.js'
+      - 'public/workspace-views.js'
+      - 'e2e/owner-home-navigation.spec.mjs'
+      - '.github/workflows/owner-home-navigation.yml'
+jobs:
+  navigation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test e2e/owner-home-navigation.spec.mjs
