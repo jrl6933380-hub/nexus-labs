@@ -87,6 +87,9 @@ jobs:
           mkdir -p /tmp/nexus-local-action
           javac -encoding UTF-8 -d /tmp/nexus-local-action android/phone/app/src/main/java/app/nexus/phone/LocalActionCall.java android/phone/app/src/main/java/app/nexus/phone/LocalActionPrompt.java android/phone/test/LocalActionCallTest.java
           java -cp /tmp/nexus-local-action LocalActionCallTest
+          mkdir -p /tmp/nexus-local-policy
+          javac -encoding UTF-8 -d /tmp/nexus-local-policy android/phone/app/src/main/java/app/nexus/phone/LocalActionPolicy.java android/phone/test/LocalActionPolicyTest.java
+          java -cp /tmp/nexus-local-policy app.nexus.phone.LocalActionPolicyTest
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
