@@ -5,10 +5,12 @@ on:
     branches: [main]
     paths:
       - 'android/local-ai-spike/**'
+      - 'android/phone/app/src/main/java/app/nexus/phone/LocalAction*.java'
       - '.github/workflows/local-ai-lab.yml'
   pull_request:
     paths:
       - 'android/local-ai-spike/**'
+      - 'android/phone/app/src/main/java/app/nexus/phone/LocalAction*.java'
       - '.github/workflows/local-ai-lab.yml'
 jobs:
   build:
