@@ -10,6 +10,7 @@
     *{box-sizing:border-box}body{margin:0;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
     header{flex-shrink:0;padding:10px 14px;background:#1c150d;border-bottom:1px solid #3a2c1c;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
     h1{font-size:15px;margin:0;flex:1}nav{display:flex;gap:6px}
+    .home-link{display:inline-flex;align-items:center;min-height:44px;padding:9px 10px;color:#f2b47f;text-decoration:none}
     button,a{font:inherit}button{min-height:44px;padding:9px 14px;border:1px solid #3a2c1c;border-radius:9px;background:#241a10;color:#d9cdb8;cursor:pointer;font-size:14px}
     button[aria-selected="true"]{background:#d97b2f;color:#14100b;border-color:#d97b2f;font-weight:650}
     button:focus-visible,a:focus-visible{outline:2px solid #f2e9dd;outline-offset:3px}
@@ -21,6 +22,7 @@
 <body>
   <header>
     <h1>Nexus Forge</h1>
+    <a id="home-link" class="home-link" href="/workspace.html?view=messages" target="_top" hidden>Nexus Home</a>
     <nav role="tablist" aria-label="Forge workspace" hidden id="tabs">
       <button id="ops-tab" type="button" role="tab" aria-selected="true" aria-controls="ops-panel">Owner · Ops</button>
       <button id="field-tab" type="button" role="tab" aria-selected="false" aria-controls="field-panel" tabindex="-1">Caller · Field</button>
@@ -75,6 +77,7 @@
       }
       state.hidden = true;
       document.getElementById('tabs').hidden = false;
+      document.getElementById('home-link').hidden = false;
       document.getElementById('content').hidden = false;
       tabs.forEach(function (tab, index) {
         tab.addEventListener('click', function () { select(tab); });
