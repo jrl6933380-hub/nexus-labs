@@ -31,8 +31,11 @@ for (const width of [320, 393, 1280]) {
 
     test('admin opens outside the Ops iframe and returns to the hub', async ({ page }) => {
       await page.route('**/api/room-history', route => route.fulfill({ json: { workbench: { operator: true } } }));
+      const dashboard = await page.request.get('/forge-dashboard.html');
+      const adminLink = (await dashboard.text()).match(/<a href="\/forge-admin.html"[^>]*>Forge Admin<\/a>/)?.[0];
+      expect(adminLink).toContain('target="_top"');
       await page.route('**/forge-dashboard.html', route => route.fulfill({
-        body: '<a href="/forge-admin.html" target="_top">Forge Admin</a>', contentType: 'text/html'
+        body: adminLink, contentType: 'text/html'
       }));
       await page.goto('/forge-hub.html#ops');
       await page.frameLocator('#ops-frame').getByRole('link', { name: 'Forge Admin' }).click();
