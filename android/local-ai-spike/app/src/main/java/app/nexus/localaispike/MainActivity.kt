@@ -41,6 +41,9 @@ class MainActivity : Activity() {
    hint = "Enter a short local test prompt"
    setSingleLine(false)
    minLines = 2
+   // Long structured prompts must scroll inside the box, not push the Run button off screen.
+   maxLines = 5
+   isVerticalScrollBarEnabled = true
    setText("Respond with one short sentence: offline inference is working.")
   }
   runButton = Button(this).apply { text = "Run local model"; isEnabled = false }
