@@ -147,7 +147,16 @@ export async function renderMessages(ctx){
       {name:'Life',copy:'Your rhythm and schedule',icon:'✦',tone:'life',run:()=>ctx.go('life')},
       {name:'Calendar',copy:'Your day and upcoming activities',icon:'◷',tone:'schedule',run:()=>ctx.go('planner')},
       {name:'Reminders',copy:`${reminderItems.filter(item=>item.status!=='done').length} things to remember`,icon:'✓',tone:'reminders',run:()=>ctx.go('reminders')},
-      ...(!ctx.customer?[{name:'Phone',copy:'Pair and open your TCL companion',icon:'P',tone:'more',run:()=>ctx.go('phone')},{name:'Nexus Lab',copy:'Seven capability workspaces',icon:'L',tone:'more',run:()=>ctx.go('lab')}]:[]),
+      ...(!ctx.customer?[
+        {name:'Phone',copy:'Pair and open your TCL companion',icon:'P',tone:'more',run:()=>ctx.go('phone')},
+        {name:'Nexus Lab',copy:'Seven capability workspaces',icon:'L',tone:'more',run:()=>ctx.go('lab')},
+        {name:'Forge Ops',copy:'Sales, callers, and operator controls',icon:'F',tone:'forge',run:()=>window.location.assign('/forge-hub.html#ops')},
+        {name:'Templates',copy:'Reusable service site starters',icon:'T',tone:'forge',run:()=>window.location.assign('/forge-hub.html#templates')},
+        {name:'Agent Board',copy:'Tasks, claims, and checkpoints',icon:'A',tone:'operations',run:()=>ctx.go('deck')},
+        {name:'Ad Maker',copy:'Create and review campaigns',icon:'A',tone:'more',run:()=>window.location.assign('/ads.html')},
+        {name:'Image Board',copy:'Images, layers, and motion',icon:'B',tone:'more',run:()=>window.location.assign('/board.html')},
+        {name:'Story Studio',copy:'Stories, scenes, and characters',icon:'S',tone:'story',run:()=>ctx.go('story')},
+      ]:[]),
       {name:'More',copy:'Explore and customize',icon:'…',tone:'more',run:moreView},
     ]){const item=button('',space.run,`homespace tone-${space.tone}`);item.append(avatar(space.icon,space.tone));const copy=node('span');copy.append(node('strong',space.name),node('small',space.copy));item.append(copy,node('i','›'));spaces.append(item);}root.append(spaces);
 

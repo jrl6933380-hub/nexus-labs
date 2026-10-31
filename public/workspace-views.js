@@ -532,7 +532,9 @@ export const VIEWS = {
       nodes.push(chips([
         { label: 'Refresh', run: () => ctx.go('forge') },
         { label: 'Create test account', run: () => ctx.createDeveloper() },
-        { label: 'Open Forge', run: () => location.assign('/forge.html') },
+        { label: 'Open Forge Ops', run: () => location.assign('/forge-hub.html#ops') },
+        { label: 'Templates', run: () => location.assign('/forge-hub.html#templates') },
+        { label: 'Open customer builder', run: () => location.assign('/forge.html') },
         { label: 'Return to owner', run: () => ctx.returnToOwner() },
         { label: 'Build something', run: () => ctx.ask('I want to build a new site. Ask me what you need to start.') },
         { label: 'Lead queue', run: () => ctx.ask('What leads are queued in Forge Field right now?') },
