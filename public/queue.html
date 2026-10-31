@@ -1,133 +1,16 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<script src="/legacy-route.js"></script>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-<title>Nexus // Approvals</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<style>
-  html, body { margin: 0; padding: 0; height: 100%; background: #05070c; }
-  .queue-panel { padding: 14px; font: 13px/1.5 Inter, -apple-system, sans-serif; color: #e8eefb; height: 100%; box-sizing: border-box; overflow-y: auto; }
-  .queue-item {
-    background: #ffffff03; border: 1px solid #26334d; border-left: 3px solid #ffc56b;
-    border-radius: 8px; padding: 12px; margin-bottom: 10px;
-  }
-  .queue-item-title { font: 700 12px 'JetBrains Mono', monospace; margin-bottom: 6px; }
-  .queue-item-desc { font-size: 12px; color: #91a0b9; line-height: 1.5; margin-bottom: 10px; }
-  .queue-actions { display: flex; gap: 8px; }
-  .btn-run, .btn-skip {
-    font: 700 10px 'JetBrains Mono', monospace; letter-spacing: 0.04em; padding: 7px 12px;
-    border-radius: 6px; cursor: pointer; border: 1px solid transparent; text-transform: uppercase; flex: 1;
-  }
-  .btn-run { background: #4b8dff; color: #06090f; }
-  .btn-skip { background: transparent; border-color: #26334d; color: #91a0b9; }
-  .empty-hint { font: 400 11px 'JetBrains Mono', monospace; color: #5e6b81; padding: 10px 2px; line-height: 1.6; }
-
-  .canvas-title-bar {
-    position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 10000;
-    font: 700 11px 'JetBrains Mono', monospace; letter-spacing: 0.1em; text-transform: uppercase;
-    color: #58d7ff; background: #111827e8; border: 1px solid #3c5a84; border-radius: 8px;
-    padding: 7px 16px; backdrop-filter: blur(12px);
-  }
-  .return-link {
-    position: fixed; top: 12px; left: 12px; z-index: 10000;
-    font: 700 10px 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.06em;
-    color: #91a0b9; text-decoration: none; background: #111827e8; border: 1px solid #26334d;
-    border-radius: 8px; padding: 8px 12px; backdrop-filter: blur(12px);
-  }
-  .return-link:hover { color: #58d7ff; border-color: #4b8dff77; }
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Approvals — Nexus</title>
+  <script src="/legacy-route.js"></script>
 </head>
 <body>
-<script type="module">
-  import { mountCanvas } from '/canvas-engine.js?v=20260918-1';
-  import '/nex-chat-bar.js?v=20260919-1';
-
-  const titleBar = document.createElement('div');
-  titleBar.className = 'canvas-title-bar';
-  titleBar.textContent = 'Approval Queue';
-  document.body.appendChild(titleBar);
-
-  const returnLink = document.createElement('a');
-  returnLink.className = 'return-link';
-  returnLink.href = '/';
-  returnLink.textContent = '← Dashboard';
-  document.body.appendChild(returnLink);
-
-  const canvas = mountCanvas({ canvasId: 'queue', canvasTitle: 'Approval Queue' });
-
-  const queueBody = document.createElement('div');
-  queueBody.className = 'queue-panel';
-  queueBody.innerHTML = '<div class="empty-hint">Loading…</div>';
-  canvas.addPanel({ id: 'queue-list', title: 'Pending Approvals', content: queueBody, x: 80, y: 80, w: 460, h: 460 });
-
-  function renderQueueItem(item) {
-    const el = document.createElement('div');
-    el.className = 'queue-item';
-    const label = item.tool.replace('_repo_file', '').replace('_', ' ');
-    el.innerHTML = `
-      <div class="queue-item-title"></div>
-      <div class="queue-item-desc"></div>
-      <div class="queue-actions">
-        <button class="btn-run">Approve</button>
-        <button class="btn-skip">Reject</button>
-      </div>
-    `;
-    // Falls back to name/repo when the queued item isn't a plain file
-    // edit (create_repo, commit_repo_files, etc. don't have .path) —
-    // matches the fallback already used on the main dashboard.
-    const itemLabel = item.input && item.input.path
-      ? `${label} — ${item.input.path}`
-      : `${label} — ${(item.input && (item.input.name || item.input.repo)) || ''}`;
-    el.querySelector('.queue-item-title').innerText = itemLabel;
-    el.querySelector('.queue-item-desc').innerText = item.description;
-    el.querySelector('.btn-run').addEventListener('click', () => handleQueueAction(item.id, 'approve', el));
-    el.querySelector('.btn-skip').addEventListener('click', () => handleQueueAction(item.id, 'reject', el));
-    return el;
-  }
-
-  async function loadQueue() {
-    try {
-      const res = await fetch('/api/queue');
-      const data = await res.json();
-      const items = data.items || [];
-
-      queueBody.innerHTML = '';
-      if (items.length === 0) {
-        queueBody.innerHTML = '<div class="empty-hint">Nothing waiting on you right now.<br><br>When Nex proposes a file change, it\'ll show up here for you to approve or reject.</div>';
-        return;
-      }
-      items.forEach((item) => queueBody.appendChild(renderQueueItem(item)));
-    } catch (err) {
-      queueBody.innerHTML = '<div class="empty-hint">Couldn\'t load the queue.</div>';
-    }
-  }
-
-  async function handleQueueAction(id, action, el) {
-    el.style.opacity = '0.5';
-    try {
-      const res = await fetch('/api/queue', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, action }),
-      });
-      const data = await res.json();
-      if (data.error) {
-        alert('Failed: ' + data.error);
-        el.style.opacity = '1';
-        return;
-      }
-      loadQueue();
-    } catch (err) {
-      alert('Something went wrong.');
-      el.style.opacity = '1';
-    }
-  }
-
-  loadQueue();
-  setInterval(loadQueue, 8000);
-</script>
+  <main>
+    <h1>Approvals has moved</h1>
+    <p><a href="/workspace.html?view=approvals">Open Approvals in Nexus</a></p>
+  </main>
 </body>
 </html>
