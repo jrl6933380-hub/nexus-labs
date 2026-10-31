@@ -10,6 +10,7 @@ import com.google.ai.edge.litertlm.EngineConfig
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collect
 import java.io.File
+import java.security.MessageDigest
 
 /**
  * Standalone, local-only model loading probe. No network permission and no device-action executor.
@@ -23,6 +24,8 @@ class MainActivity : Activity() {
  private lateinit var runButton: Button
  private var modelFile: File? = null
  private var busy = false
+ private var lastChecksum = ""
+ private val maxModelBytes = 1_500_000_000L
  private val chooserRequest = 101
 
  override fun onCreate(savedInstanceState: Bundle?) {
@@ -70,7 +73,7 @@ class MainActivity : Activity() {
    status.text = "Copying model into private app storage…"
    try {
     modelFile = withContext(Dispatchers.IO) { copyModel(uri) }
-    status.text = "Model imported: ${modelFile!!.length() / (1024 * 1024)} MiB"
+    status.text = "Model imported: ${modelFile!!.length() / (1024 * 1024)} MiB\nSHA-256: $lastChecksum"
    } catch (e: Exception) {
     modelFile = null
     status.text = "Import failed: ${e.message}"
@@ -82,11 +85,25 @@ class MainActivity : Activity() {
   val target = File(filesDir, "model.litertlm")
   val temp = File(filesDir, "model.pending")
   try {
+   val digest = MessageDigest.getInstance("SHA-256")
+   var total = 0L
    contentResolver.openInputStream(uri).use { input ->
     requireNotNull(input) { "Cannot open selected model" }
-    temp.outputStream().use { dest -> input.copyTo(dest) }
+    temp.outputStream().use { dest ->
+     val buf = ByteArray(1 shl 16)
+     while (true) {
+      val n = input.read(buf)
+      if (n < 0) break
+      total += n
+      // Enforce the cap while copying so an oversized file never fills storage.
+      require(total <= maxModelBytes) { "Model too large for this TCL test (1.5 GB cap)." }
+      digest.update(buf, 0, n)
+      dest.write(buf, 0, n)
+     }
+    }
    }
-   require(temp.length() in 1..1_500_000_000L) { "Model too large for this TCL test (1.5 GB cap)." }
+   require(total > 0) { "Selected file is empty" }
+   lastChecksum = digest.digest().joinToString("") { "%02x".format(it) }
    if (target.exists()) target.delete()
    check(temp.renameTo(target)) { "Could not commit model file" }
    return target
