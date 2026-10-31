@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 
 const routes = [
+  ['/memory.html', 'Memory', 'memory'],
+  ['/nexus-canvas.html', 'Home', 'messages'],
   ['/queue.html', 'Approvals', 'approvals'],
   ['/connectors.html', 'Skills', 'skills'],
   ['/tenants.html', 'Forge', 'forge'],
@@ -16,7 +18,7 @@ for (const width of [393, 1280]) {
           contentType: 'text/html', body: '<!doctype html><html><body><h1>Canonical destination</h1></body></html>'
         }));
         await page.goto(oldPath);
-        await expect(page).toHaveURL(new RegExp('/workspace\\.html\\?view=' + view + '$'));
+        await expect(page).toHaveURL(url => url.pathname === '/workspace.html' && url.searchParams.get('view') === view);
         await expect(page.getByRole('heading', {name: 'Canonical destination'})).toBeVisible();
         expect(calls).toEqual([]);
       });
