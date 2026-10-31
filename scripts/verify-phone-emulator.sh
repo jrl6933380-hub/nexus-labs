@@ -1,15 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 mkdir -p test-results/phone
-trap 'adb logcat -d > test-results/phone/native-logcat.txt || true' EXIT
+collect_diagnostics() {
+  adb logcat -d > test-results/phone/native-logcat.txt 2>&1 || true
+  adb shell dumpsys accessibility > test-results/phone/accessibility-state.txt 2>&1 || true
+  adb shell dumpsys activity services app.nexus.phone > test-results/phone/phone-services.txt 2>&1 || true
+  for report in /tmp/nexus-phone-instrumentation.txt /tmp/nexus-shizuku-instrumentation.txt /tmp/nexus-assistants.txt; do
+    if [ -f "$report" ]; then cp "$report" test-results/phone/; fi
+  done
+}
+trap collect_diagnostics EXIT
 adb install -r public/downloads/nexus-phone-0.2.apk
 adb shell dpm set-device-owner app.nexus.phone/.NexusAdmin
 # Upgrade the managed v0.2 installation in place; instrumentation below must still see device owner.
 adb install -r android/phone/build/nexus-phone-0.3.apk
 adb install -r android/phone/build/nexus-phone-tests.apk
 adb install -r android/phone/build/disposable-test.apk
-adb shell settings put secure enabled_accessibility_services app.nexus.phone/.PhoneAccessibility
-adb shell settings put secure accessibility_enabled 1
+# Do not pre-bind the service: am instrument force-stops the target process.
+# The runner enables it only after instrumentation owns the process.
+adb shell settings put secure accessibility_enabled 0
+adb shell settings put secure enabled_accessibility_services ''
 adb shell pm grant app.nexus.phone android.permission.POST_NOTIFICATIONS
 timeout 120s adb shell am instrument -w app.nexus.phone.test/app.nexus.phone.PhoneTestRunner > /tmp/nexus-phone-instrumentation.txt
 cat /tmp/nexus-phone-instrumentation.txt
