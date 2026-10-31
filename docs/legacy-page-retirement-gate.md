@@ -48,3 +48,26 @@ screens remain outside this removal batch. Surface-audit CI captures the
 full source/reference and route inventories. Browser coverage exercises
 redirects at phone/desktop sizes and manual links with JavaScript disabled.
 
+## Retirement batch 3: Memory and Canvas
+
+Reviewed against main `1e08f8d823bd3b6f08cfdfc8186d1d5d8f3841f3`.
+The old Memory and Canvas bodies are replaced with compatibility pages;
+the eight edge rules and the shared browser fallback remain unchanged.
+With JavaScript unavailable, each page exposes its exact canonical link.
+No APIs, shared scripts/styles, data stores or integrations are removed.
+
+| Remaining surface | Decision and dependency evidence |
+| --- | --- |
+| memory.html | Retire markup; API comments, auth/context mappings and historical links refer to the URL, not DOM elements. Keep URL and /api/memory. |
+| nexus-canvas.html | Retire markup; pinned-visual room mapping refers to the URL. Keep that mapping, API, shared script and canonical Home destination. |
+| mission-control.html | Retain pending separate migration: nexus-owner-boundaries.test.mjs still verifies its owner-auth implementation; shared chat/shell code retains compatibility handling. |
+| conference-room.html | Retain pending separate migration: conference-workshop.test.mjs and pinned-visual-panel.spec.mjs consume its workshop DOM and behavior. Do not discard those capabilities to make a static audit green. |
+| nexus-space.html | Retain compatibility shell and all eight fragment destinations; already contains no old workspace UI. |
+| thoughtspace.html | Already absent; preserve existing edge redirect. |
+
+Repository-wide source/reference search and the network-first service-worker
+policy were reviewed. Neither retired page is precached. External bookmarks
+cannot be inventoried, so neither URL nor redirect layer is removed. Tests
+exercise the two retired pages at phone and desktop widths, including
+JavaScript-disabled links and absence of legacy API traffic. Actual signed-in
+production navigation and physical-device validation remain release gates.
