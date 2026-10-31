@@ -22,7 +22,7 @@ forge-caller.html for Connect onboarding returns. Static similarity is not a rem
 - Owner workspace Forge view remains unchanged.
 - Hub exposes Nexus Home (/workspace.html?view=messages) only after operator access succeeds.
 - Ops, Field and Templates keep their existing hash deep links and lazy panel loading.
-- Admin returns to /forge-hub.html#ops with target=_top, so opening Admin inside the Ops iframe cannot nest another hub.
+- Ops opens Admin with target=_top. Admin returns to /forge-hub.html#ops at the top level, rebuilding the Ops panel rather than preserving stale iframe contents.
 - Templates keeps its existing top-level return to Forge.
 - Existing URLs, APIs, authentication, caller access and billing paths remain intact.
 

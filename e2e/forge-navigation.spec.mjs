@@ -29,14 +29,15 @@ for (const width of [320, 393, 1280]) {
       await expect(page).toHaveURL(/workspace\.html\?view=messages$/);
     });
 
-    test('admin return escapes the Ops iframe and restores the hub', async ({ page }) => {
+    test('admin opens outside the Ops iframe and returns to the hub', async ({ page }) => {
       await page.route('**/api/room-history', route => route.fulfill({ json: { workbench: { operator: true } } }));
       await page.route('**/forge-dashboard.html', route => route.fulfill({
-        body: '<a href="/forge-admin.html">Forge Admin</a>', contentType: 'text/html'
+        body: '<a href="/forge-admin.html" target="_top">Forge Admin</a>', contentType: 'text/html'
       }));
       await page.goto('/forge-hub.html#ops');
       await page.frameLocator('#ops-frame').getByRole('link', { name: 'Forge Admin' }).click();
-      const back = page.frameLocator('#ops-frame').getByRole('link', { name: 'Back to Forge Ops' });
+      await expect(page).toHaveURL(/forge-admin\.html$/);
+      const back = page.getByRole('link', { name: 'Back to Forge Ops' });
       await expect(back).toHaveAttribute('target', '_top');
       expect((await back.boundingBox()).height).toBeGreaterThanOrEqual(44);
       await back.click();
