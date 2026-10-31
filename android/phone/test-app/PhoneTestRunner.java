@@ -21,8 +21,15 @@ public final class PhoneTestRunner extends Instrumentation {
   check(NexusAdmin.owner(c),"device owner provisioned");NexusAdmin.makeHome(c);
   android.content.pm.ResolveInfo home=c.getPackageManager().resolveActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME),android.content.pm.PackageManager.MATCH_DEFAULT_ONLY);
   check(home!=null&&c.getPackageName().equals(home.activityInfo.packageName),"Nexus is preferred Home");
-  // am instrument force-stops the target process; rebind accessibility after that restart.
+  // UiAutomation must preserve real accessibility services before enabling ours.
+  // Pre-binding in the shell is unsafe: am instrument force-stops this process.
+  getUiAutomation(android.app.UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES);
+  shell("settings put secure accessibility_enabled 0");
   shell("settings put secure enabled_accessibility_services ''");
+  long disabledUntil=android.os.SystemClock.elapsedRealtime()+5000;
+  android.view.accessibility.AccessibilityManager manager=(android.view.accessibility.AccessibilityManager)c.getSystemService(android.content.Context.ACCESSIBILITY_SERVICE);
+  while(ourAccessibilityEnabled(manager)&&android.os.SystemClock.elapsedRealtime()<disabledUntil)Thread.sleep(100);
+  check(!ourAccessibilityEnabled(manager),"accessibility disable acknowledged before enable");
   shell("settings put secure enabled_accessibility_services app.nexus.phone/.PhoneAccessibility");
   shell("settings put secure accessibility_enabled 1");
   // Cold emulator boots can take longer to bind after the instrumentation process restarts.
@@ -80,6 +87,13 @@ public final class PhoneTestRunner extends Instrumentation {
   for(int d:new int[]{-1,1}){String pkg=d<0?"com.anthropic.claude":"com.openai.chatgpt";HomeShortcuts.save(activity,d,"app","Fixture",pkg,"");Intent launch=HomeShortcuts.launchIntent(activity,d);check(launch!=null&&pkg.equals(launch.getComponent().getPackageName()),"correct assistant package");gesture(activity.assistantHome,activity,d<0?240:40,30,d<0?40:240,30,false);waitForIdleSync();boolean found=false;long until=System.currentTimeMillis()+5000;while(System.currentTimeMillis()<until){android.view.accessibility.AccessibilityNodeInfo root=getUiAutomation(android.app.UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES).getRootInActiveWindow();if(root!=null&&pkg.contentEquals(root.getPackageName())){found=true;break;}Thread.sleep(100);}check(found,"assistant fixture opened");NexusAdmin.makeHome(activity);shell("am start -a android.intent.action.MAIN -c android.intent.category.HOME");waitForIdleSync();check(waitForPackage(activity.getPackageName()),"Home returns to Nexus");}
   HomeShortcuts.save(activity,-1,"web","Browser fixture","https://example.com/custom?q=1","com.example.nexusbrowser");Intent web=HomeShortcuts.launchIntent(activity,-1);check(web!=null&&"com.example.nexusbrowser".equals(web.getPackage())&&"https://example.com/custom?q=1".equals(web.getDataString()),"website uses selected browser with exact URL");runOnMainSync(()->HomeShortcuts.open(activity,-1));waitForIdleSync();check(waitForPackage("com.example.nexusbrowser"),"browser fixture actually opened");clearShortcuts(activity);
   Bundle out=new Bundle();out.putString("stream","PASS assistant installed-package launch and Home return (disposable fixtures, not real accounts)\n");finish(Activity.RESULT_OK,out);
+ }
+ boolean ourAccessibilityEnabled(android.view.accessibility.AccessibilityManager manager){
+  for(android.accessibilityservice.AccessibilityServiceInfo info:manager.getEnabledAccessibilityServiceList(android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK)){
+   android.content.pm.ServiceInfo service=info.getResolveInfo().serviceInfo;
+   if("app.nexus.phone".equals(service.packageName)&&"app.nexus.phone.PhoneAccessibility".equals(service.name))return true;
+  }
+  return false;
  }
  void shell(String command) throws Exception {try(java.io.InputStream in=new android.os.ParcelFileDescriptor.AutoCloseInputStream(getUiAutomation(android.app.UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES).executeShellCommand(command))){byte[] buf=new byte[1024];while(in.read(buf)!=-1){}}}
  void testShizuku(android.content.Context c) throws Exception {
