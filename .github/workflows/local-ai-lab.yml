@@ -28,7 +28,16 @@ jobs:
           gradle-version: '8.11.1'
       - name: Assemble isolated debug APK
         working-directory: android/local-ai-spike
-        run: gradle --no-daemon :app:assembleDebug
+        shell: bash
+        run: |
+          set -o pipefail
+          if ! gradle --no-daemon --console=plain :app:assembleDebug 2>&1 | tee /tmp/gradle.log; then
+            # Annotations are visible on the PR without signing in to read logs.
+            grep -E '^e: |error:|What went wrong|Could not (resolve|find)|FAILED|Execution failed' -A2 /tmp/gradle.log | head -40 | while IFS= read -r line; do
+              echo "::error title=gradle::${line//%/%25}"
+            done
+            exit 1
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: nexus-local-ai-lab-debug
