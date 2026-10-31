@@ -1,6 +1,11 @@
 name: Local AI Android Lab
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'android/local-ai-spike/**'
+      - '.github/workflows/local-ai-lab.yml'
   pull_request:
     paths:
       - 'android/local-ai-spike/**'
@@ -10,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
-      contents: read
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -44,3 +49,16 @@ jobs:
           path: android/local-ai-spike/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
+      # Debug-signed experimental APK, separate app id (app.nexus.localaispike).
+      # A prerelease asset downloads on the phone without a GitHub login.
+      - name: Publish prerelease APK
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp android/local-ai-spike/app/build/outputs/apk/debug/app-debug.apk nexus-local-ai-lab-debug.apk
+          sha256sum nexus-local-ai-lab-debug.apk | tee nexus-local-ai-lab-debug.apk.sha256
+          gh release delete local-ai-lab-latest --yes --cleanup-tag 2>/dev/null || true
+          gh release create local-ai-lab-latest nexus-local-ai-lab-debug.apk nexus-local-ai-lab-debug.apk.sha256 \
+            --prerelease --title "Local AI Lab (debug, experimental)" \
+            --notes "Isolated test app app.nexus.localaispike. Not the Nexus Phone app. Commit ${{ github.sha }}."
