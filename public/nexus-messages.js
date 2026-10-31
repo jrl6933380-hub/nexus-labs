@@ -193,6 +193,8 @@ export async function renderMessages(ctx){
     heading(root,'More','Customize Messages and choose which Nexus spaces stay close.',draw);
     root.append(row({name:'Account & Controls',meta:'Settings and live usage',preview:'Usage, reply preferences, appearance, notifications, security, and data.',icon:'⌁',tone:'more',run:accountControls}));
     root.append(row({name:'Explore Nexus',meta:'Everyday life, projects, and work',preview:'See what each feature does and try a practical example.',icon:'?',tone:'more',run:()=>ctx.go('guide')}));
+    root.append(row({name:'Ad Maker',meta:'Creative tools',preview:'Open Nexus Ads to review and create campaigns.',icon:'A',tone:'more',run:()=>window.location.assign('/ads.html')}));
+    root.append(row({name:'Image Board',meta:'Creative tools',preview:'Open your visual board and arrange images and layers.',icon:'B',tone:'more',run:()=>window.location.assign('/board.html')}));
     const pinned=new Set(pinnedBundles(state.pinned_system_ids || [])),list=node('div',undefined,'pinmanager');
     for(const system of SPACE_BUNDLES){
       const item=node('div',undefined,`pinmanagerrow${pinned.has(system.id)?' is-pinned':''}`);
