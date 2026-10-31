@@ -23,7 +23,7 @@ for module in api provider aidl shared; do
 done
 CP="$JAR:$OUT/deps/api.jar:$OUT/deps/provider.jar:$OUT/deps/aidl.jar:$OUT/deps/shared.jar"
 "$BT/aapt2" compile --dir "$SRC/res" -o "$OUT/resources.zip"
-"$BT/aapt2" link -o "$OUT/base.apk" --manifest "$SRC/AndroidManifest.xml" -I "$JAR" --java "$OUT/generated" --version-code 3 --version-name 0.3.0 "$OUT/resources.zip"
+"$BT/aapt2" link -o "$OUT/base.apk" --manifest "$SRC/AndroidManifest.xml" -I "$JAR" --java "$OUT/generated" --version-code 4 --version-name 0.3.1 "$OUT/resources.zip"
 find "$SRC/java" "$OUT/generated" -name '*.java' > "$OUT/sources.txt"
 javac -source 8 -target 8 -encoding UTF-8 -classpath "$CP" -d "$OUT/classes" @"$OUT/sources.txt"
 jar cf "$OUT/classes.jar" -C "$OUT/classes" .

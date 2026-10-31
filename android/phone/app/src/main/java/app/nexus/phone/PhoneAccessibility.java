@@ -26,7 +26,7 @@ public final class PhoneAccessibility extends AccessibilityService {
   if(DeviceTools.handles(action)){
    try{result=DeviceTools.execute(this,cmd.getJSONObject("input"),()->BridgeService.isCurrent(session)&&allowed(cmd));}catch(Exception e){return error(e.getMessage()==null?"Device operation failed.":e.getMessage());}
   }else result=executeOne(cmd,session);
-  if(result.optBoolean("ok")&&!"screen".equals(action)&&!"device_info".equals(action)&&!"list_apps".equals(action)){
+  if(result.optBoolean("ok")&&!cmd.getJSONObject("input").optBoolean("sensitive",false)&&!"screen".equals(action)&&!"device_info".equals(action)&&!"list_apps".equals(action)){
    // One action, then one observation. A capture failure must never imply the action failed.
    Thread.sleep(650);
    JSONObject capture=new JSONObject(cmd.toString());capture.put("input",new JSONObject().put("action","screen"));JSONObject image=executeOne(capture,session);
@@ -63,7 +63,7 @@ public final class PhoneAccessibility extends AccessibilityService {
     if(!accepted)future.complete(error("Android refused the gesture."));return;
    }
    if("type".equals(action)){
-    AccessibilityNodeInfo root=getRootInActiveWindow(),focus=null;try{focus=root==null?null:root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);if(focus==null||!focus.isEditable()||focus.isPassword()){future.complete(error("Tap a non-password editable field first. Passwords must be entered on the phone."));return;}Bundle args=new Bundle();args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,in.getString("text"));done(future,focus.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT,args),"This app does not support setting text.");}finally{if(focus!=null)focus.recycle();if(root!=null)root.recycle();}return;
+    AccessibilityNodeInfo root=getRootInActiveWindow(),focus=null;try{focus=root==null?null:root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);if(focus==null||!focus.isEditable()){future.complete(error("Tap an editable field first."));return;}if(focus.isPassword()&&!in.optBoolean("sensitive",false)){future.complete(error("Password fields require sensitive:true for authorized credential entry."));return;}Bundle args=new Bundle();args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,in.getString("text"));done(future,focus.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT,args),"This app does not support setting text.");}finally{if(focus!=null)focus.recycle();if(root!=null)root.recycle();}return;
    }
    if("back".equals(action)||"home".equals(action)){done(future,performGlobalAction("home".equals(action)?GLOBAL_ACTION_HOME:GLOBAL_ACTION_BACK),"Android refused navigation.");return;}
    if("open_nexus".equals(action)){startActivity(new Intent(Intent.ACTION_VIEW,android.net.Uri.parse(PhoneApi.ORIGIN+DeviceTools.nexusPath(in.getString("view")))).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));done(future,true,"");return;}

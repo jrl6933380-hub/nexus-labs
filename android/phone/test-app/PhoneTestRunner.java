@@ -40,6 +40,7 @@ public final class PhoneTestRunner extends Instrumentation {
    android.util.Log.e("NexusPhoneTest","Accessibility did not bind; enabled_services="+android.provider.Settings.Secure.getString(c.getContentResolver(),android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)+" accessibility_enabled="+android.provider.Settings.Secure.getString(c.getContentResolver(),android.provider.Settings.Secure.ACCESSIBILITY_ENABLED));
   }
   check(PhoneAccessibility.instance!=null,"accessibility connected");String session=java.util.UUID.randomUUID().toString();BridgeService.currentSession=session;BridgeService.active=true;
+  testSensitiveEntry((MainActivity)activity,session);
   JSONObject info=PhoneAccessibility.instance.execute(command("device_info"),session);check(info.getBoolean("ok")&&info.getJSONObject("data").getBoolean("device_owner"),"device capabilities");
   check(!info.getJSONObject("data").getBoolean("shizuku_ready"),"Shizuku absence reported truthfully");
   JSONObject apps=PhoneAccessibility.instance.execute(command("list_apps"),session);check(apps.getBoolean("ok")&&apps.getJSONObject("data").getJSONArray("apps").length()>0,"app list");
@@ -56,6 +57,22 @@ public final class PhoneTestRunner extends Instrumentation {
   NexusAdmin.releaseHome(c);c.getSystemService(android.app.admin.DevicePolicyManager.class).clearDeviceOwnerApp(c.getPackageName());check(!NexusAdmin.owner(c),"local management recovery");
   out.putString("stream","PASS native device-owner, Home, capabilities, app list, deeper-tools gate, stay-awake, Shizuku absence, action screenshot, stale frame, disconnect and management recovery\n");finish(Activity.RESULT_OK,out);
  }catch(Throwable e){out.putString("stream","FAIL "+e.toString()+"\n"+android.util.Log.getStackTraceString(e));finish(Activity.RESULT_CANCELED,out);}}
+ void testSensitiveEntry(MainActivity activity,String session) throws Exception {
+  final android.widget.EditText[] field={null};
+  runOnMainSync(()->{field[0]=new android.widget.EditText(activity);field[0].setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);field[0].setShowSoftInputOnFocus(false);field[0].setContentDescription("Sensitive entry fixture");activity.layout.addView(field[0],0);field[0].requestFocus();});
+  waitForIdleSync();Thread.sleep(500);
+  try{
+   JSONObject shot=command("screen"),capture=PhoneAccessibility.instance.execute(shot,session);check(capture.getBoolean("ok"),"sensitive fixture screenshot");
+   JSONObject ordinary=command("type");ordinary.getJSONObject("input").put("frame_id",shot.getString("id")).put("text","synthetic-test-secret");
+   JSONObject denied=PhoneAccessibility.instance.execute(ordinary,session);check(!denied.getBoolean("ok"),"password entry requires sensitive flag");
+   final String[] actual={null};runOnMainSync(()->actual[0]=field[0].getText().toString());check(actual[0].isEmpty(),"unmarked password is unchanged");
+   JSONObject secret=command("type");secret.getJSONObject("input").put("frame_id",shot.getString("id")).put("text","synthetic-test-secret").put("sensitive",true);
+   JSONObject result=PhoneAccessibility.instance.execute(secret,session);check(result.getBoolean("ok"),"marked password entry succeeds");
+   runOnMainSync(()->actual[0]=field[0].getText().toString());check("synthetic-test-secret".equals(actual[0]),"password fixture receives exact text");
+   check(!result.has("image_base64")&&!result.toString().contains("synthetic-test-secret"),"sensitive receipt has no screenshot or echo");
+   secret.getJSONObject("input").put("frame_id",java.util.UUID.randomUUID().toString());check(!PhoneAccessibility.instance.execute(secret,session).getBoolean("ok"),"sensitive entry keeps stale-frame fence");
+  }finally{runOnMainSync(()->{field[0].setText("");activity.layout.removeView(field[0]);});waitForIdleSync();}
+ }
  void testAssistantGestures(MainActivity activity) throws Exception {
   final int[] calls={0},direction={0};final HomeSwipeView[] view={null};final android.widget.Button[] child={null};final int[] clicks={0};
   runOnMainSync(()->{view[0]=new HomeSwipeView(activity,d->{calls[0]++;direction[0]=d;});child[0]=new android.widget.Button(activity);child[0].setText("Fixture button");child[0].setOnClickListener(v->clicks[0]++);view[0].addView(child[0],new android.widget.LinearLayout.LayoutParams(-1,activity.dp(60)));activity.layout.addView(view[0],0);});waitForIdleSync();

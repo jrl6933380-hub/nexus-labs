@@ -82,3 +82,37 @@ test('write-only phone callers keep queue access but never read private images',
  registerWorkspaceBoard({registerResource(){},registerTool(name,schema,fn){registered.set(name,fn);}},{authorize:async(name,write)=>{if(!write)throw Object.assign(Error('read scope denied'),{status:403});},call:async(action)=>{if(action==='phone_result')reads++;return {command_id:randomUUID(),status:'queued'};}});
  const result=await registered.get('control_nexus_phone')({command:{action:'home'},request_id:'fast-phone-write-only'});assert.equal(result.structuredContent.status,'queued');assert.equal(reads,0);assert.equal(result.content.filter(c=>c.type==='image').length,0);
 });
+
+async function sensitiveReady(f,p){const q=await f.bridge.enqueue('justin',{action:'device_info'});await f.bridge.poll(p.token,p.session,true);await f.bridge.complete(p.token,p.session,q.command_id,{ok:true,data:{sensitive_text:true,version:'0.3.1'}});}
+test('password flag is explicit, strictly typed and requires fresh native capability',async()=>{
+ const schema=WORKSPACE_TOOLS.find(t=>t[0]==='control_nexus_phone')[3].command,frame_id=randomUUID();
+ assert.equal(schema.safeParse({action:'type',text:'fixture',frame_id,sensitive:true}).success,true);
+ assert.throws(()=>validatePhoneCommand({action:'type',text:'fixture',frame_id,sensitive:'true'}));
+ assert.equal(schema.safeParse({action:'home',sensitive:true}).success,false);
+ const f=fixture(),p=await connected(f),frame=await screen(f,p);
+ await assert.rejects(f.bridge.enqueue('justin',{action:'type',text:'fixture',frame_id:frame,sensitive:true}),/verify sensitive text support/);
+ assert.ok(![...f.data.keys()].some(k=>k.startsWith('nexus:phone:secret:')));
+ await sensitiveReady(f,p);assert.equal((await f.bridge.status('justin')).sensitive_text,true);
+ await f.bridge.start(p.token,randomUUID());assert.equal((await f.bridge.status('justin')).sensitive_text,false);
+});
+test('sensitive text has short-lived transit, one delivery, and no screenshot, echo or frame in its result',async()=>{
+ const f=fixture(),p=await connected(f);await sensitiveReady(f,p);const frame=await screen(f,p),secret='synthetic-secret-for-test';
+ const q=await f.bridge.enqueue('justin',{action:'type',text:secret,frame_id:frame,sensitive:true});
+ assert.ok(!f.data.get('nexus:phone:v1').get('justin').includes(secret));
+ const polls=await Promise.all([f.bridge.poll(p.token,p.session,true),f.bridge.poll(p.token,p.session,true)]);
+ assert.equal(polls.filter(x=>x.command).length,1);assert.equal(polls.find(x=>x.command).command.input.text,secret);
+ assert.ok(![...f.data.keys()].some(k=>k.startsWith('nexus:phone:secret:')));
+ await f.bridge.complete(p.token,p.session,q.command_id,{ok:true,image_base64:'/9j/AAAA',width:720,height:1440});
+ const result=await f.bridge.result('justin',q.command_id);assert.equal(result.ok,true);assert.equal(result.sensitive,true);
+ assert.equal(result.frame_id,undefined);assert.equal(result.inline_images,undefined);assert.ok(!JSON.stringify(result).includes(secret));
+ assert.equal(JSON.parse(f.data.get('nexus:phone:v1').get('justin')).frame,null);
+ const q2=await f.bridge.enqueue('justin',{action:'screen'});await f.bridge.poll(p.token,p.session,true);await f.bridge.complete(p.token,p.session,q2.command_id,{ok:true,image_base64:'/9j/AAAA',width:720,height:1440});
+ const q3=await f.bridge.enqueue('justin',{action:'type',text:secret,frame_id:q2.command_id,sensitive:true});await f.bridge.poll(p.token,p.session,true);
+ await f.bridge.complete(p.token,p.session,q3.command_id,{ok:false,error:secret});assert.ok(!JSON.stringify(await f.bridge.result('justin',q3.command_id)).includes(secret));
+});
+test('lost sensitive transit text is never delivered or retried from metadata',async()=>{
+ const f=fixture(),p=await connected(f);await sensitiveReady(f,p);const frame=await screen(f,p);
+ const q=await f.bridge.enqueue('justin',{action:'type',text:'synthetic-secret',frame_id:frame,sensitive:true});
+ f.data.delete(`nexus:phone:secret:justin:${q.command_id}`);
+ assert.equal((await f.bridge.poll(p.token,p.session,true)).command,null);assert.equal((await f.bridge.result('justin',q.command_id)).status,'expired');
+});
