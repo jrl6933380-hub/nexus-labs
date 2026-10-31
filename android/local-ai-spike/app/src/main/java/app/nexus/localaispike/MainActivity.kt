@@ -113,7 +113,7 @@ class MainActivity : Activity() {
  private fun infer() {
   val file = modelFile ?: return
   val text = prompt.text.toString()
-  if (text.isBlank() || text.length > 500) { status.text = "Prompt must be 1–500 characters."; return }
+  if (text.isBlank() || text.length > 2000) { status.text = "Prompt must be 1–2000 characters."; return }
   scope.launch {
    setBusy(true)
    output.text = ""

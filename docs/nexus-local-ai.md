@@ -5,6 +5,15 @@ Status: integration scaffold only, NOT a working Nexus local inference runtime. 
 ## Actual device evidence
 Owner tested Google AI Edge Gallery's Mobile Actions 270M model on the TCL T607DL (3 GB RAM / 32 GB storage) with Wi-Fi disabled and reported flashlight activation. This demonstrates **Gallery's** fine-tuned model plus its native Android action executor works locally; it does not establish an inference API inside Nexus, nor prove all network routes were disabled. Test explicitly with Airplane mode if possible (then turn Wi-Fi off), and repeat inside the future Nexus APK.
 
+## Isolated lab results (2026-10-31, TCL ION V / T607DL)
+Hardware read from Settings > About phone (not benchmarked): MediaTek Helio G25, 3.0 GB RAM, 32 GB storage, Android 13.
+The debug APK from `local-ai-lab-latest` (separate app id `app.nexus.localaispike`, no INTERNET permission, no executor) imported `litert-community/functiongemma-270m-ft-mobile-actions` (`mobile_actions_q8_ekv1024.litertlm`, 275 MiB) and ran it with the LiteRT-LM CPU path:
+- Cold first run (model load plus generation): 13162 ms. Warm runs: about 2.4-2.8 s.
+- Plain chat prompt: replies that it only handles function calls.
+- Hand-typed prompt declaring `turn_on_flashlight` plus the user turn "Turn on the flashlight": `<start_function_call>call:turn_on_flashlight{}<end_function_call>`.
+Limits of this evidence: one device, one function, one prompt, Wi-Fi was on (the lab APK simply has no network permission), nothing was executed.
+`LocalActionCall` translates that native format into the JSON `LocalActionGate` validates, and `LocalActionPrompt` builds the prompt from the same four-action allowlist. Neither loads a model or executes anything.
+
 ## Existing app constraints
 - Java Android companion: `android/phone/app/src/main/java/app/nexus/phone` (package `app.nexus.phone`).
 - Build: `scripts/build-phone.sh` uses aapt2, javac and d8 directly, with retained APK signing. **No Gradle**, LiteRT dependency or model weights currently bundled.
