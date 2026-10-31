@@ -25,7 +25,13 @@ public final class PhoneTestRunner extends Instrumentation {
   shell("settings put secure enabled_accessibility_services ''");
   shell("settings put secure enabled_accessibility_services app.nexus.phone/.PhoneAccessibility");
   shell("settings put secure accessibility_enabled 1");
-  long until=System.currentTimeMillis()+15000;while(PhoneAccessibility.instance==null&&System.currentTimeMillis()<until)Thread.sleep(100);
+  // Cold emulator boots can take longer to bind after the instrumentation process restarts.
+  // Keep the hard requirement: do not silently skip accessibility-dependent assertions.
+  long until=System.currentTimeMillis()+45000;
+  while(PhoneAccessibility.instance==null&&System.currentTimeMillis()<until)Thread.sleep(250);
+  if(PhoneAccessibility.instance==null){
+   android.util.Log.e("NexusPhoneTest","Accessibility did not bind; enabled_services="+android.provider.Settings.Secure.getString(c.getContentResolver(),android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)+" accessibility_enabled="+android.provider.Settings.Secure.getString(c.getContentResolver(),android.provider.Settings.Secure.ACCESSIBILITY_ENABLED));
+  }
   check(PhoneAccessibility.instance!=null,"accessibility connected");String session=java.util.UUID.randomUUID().toString();BridgeService.currentSession=session;BridgeService.active=true;
   JSONObject info=PhoneAccessibility.instance.execute(command("device_info"),session);check(info.getBoolean("ok")&&info.getJSONObject("data").getBoolean("device_owner"),"device capabilities");
   check(!info.getJSONObject("data").getBoolean("shizuku_ready"),"Shizuku absence reported truthfully");
