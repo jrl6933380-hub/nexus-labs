@@ -35,6 +35,11 @@ final class LocalActionPolicy {
   RISK.put("flashlight_off", Risk.LOW);
   RISK.put("open_wifi_settings", Risk.LOW);
   RISK.put("show_map", Risk.LOW);
+  // CONFIRM: carries personal data. Each only opens the system compose/editor screen pre-filled, so nothing is
+  // saved or sent until the user also taps Save/Send there, and our own screen must show the exact fields first.
+  RISK.put("create_contact", Risk.CONFIRM);
+  RISK.put("send_email", Risk.CONFIRM);
+  RISK.put("create_calendar_event", Risk.CONFIRM);
   // Future actions that message, call, install or delete must be added here as CONFIRM, never LOW.
  }
 
