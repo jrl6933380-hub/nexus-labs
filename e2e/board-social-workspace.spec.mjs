@@ -26,7 +26,9 @@ for(const width of [360,1280])test('posting flow stays on the board with durable
  await page.getByRole('button',{name:'Add',exact:true}).click();await page.getByRole('button',{name:/^Social Post Flow/}).click();
  const panel=page.getByRole('region',{name:'Social posting workspace'});await expect(panel).toBeVisible();
  const flow=page.frameLocator('iframe[title="Social Post Flow workspace"]');
+ await flow.getByText('Sticky notes on this board',{exact:true}).click();
  await expect(flow.getByText('Make a sample competitor ad.',{exact:false})).toBeVisible();
+ expect(await flow.locator('body').evaluate(()=>window.pwned)).toBeUndefined();
  expect(await page.evaluate(()=>window.pwned)).toBeUndefined();
  await flow.getByLabel('Posting batch').selectOption(campaign.id);
  await expect.poll(async()=>{const b=await boards.read(owner,first.id);return b.items.find(i=>i.kind==='tool')?.batch_id;}).toBe(campaign.id);
@@ -45,6 +47,7 @@ for(const width of [360,1280])test('posting flow stays on the board with durable
  await page.reload();await page.getByRole('button',{name:'Open posting flow',exact:true}).click();
  await expect(flow.getByLabel('Posting batch')).toHaveValue(campaign.id);
  await expect(flow.getByLabel('Description',{exact:true})).toHaveValue('A concept preview of competitor research.');
+ await flow.getByText('Sticky notes on this board',{exact:true}).click();
  await expect(flow.getByText('Next: make an ad for Review Intelligence.',{exact:true})).toBeVisible();
  expect(await page.locator('.k-tool iframe').count()).toBe(0); // tool URL is not caller-provided canvas HTML
  await expect(page.locator('#viewport')).toBeVisible();expect(page.url()).toContain('/board.html?id='+first.id);
