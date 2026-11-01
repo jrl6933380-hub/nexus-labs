@@ -1,15 +1,18 @@
 import {test,expect} from '@playwright/test';
 import {createNexusLabBoards} from '../lib/nexusLabBoards.js';
-import {createNexusLabHandler} from '../api/nexus-lab.js';
 import {labJobMemory} from '../test-support/labJobMemory.mjs';
 for(const width of [360,1280])test('posting flow stays on the board with durable notes and batch at '+width+'px',async({page})=>{
  await page.setViewportSize({width,height:900});
  const owner={id:'posting-owner'},boards=createNexusLabBoards({command:labJobMemory()});
  const first=await boards.save(owner,{board:{name:'Ad Maker workspace',view:{x:20,y:90,z:1},items:[{id:'brief-one',kind:'note',title:'Actor ad',text:'Make a sample competitor ad. <script>window.pwned=true</script>',x:0,y:0,w:200,h:150,z:1}]}});
- const handler=createNexusLabHandler({authenticate:async()=>owner,boards,assets:{list:async()=>({media:[]})}});
  await page.route('**/api/nexus-lab',async route=>{
-  const req=route.request(),host=new URL(req.url()).host;let status=200;const res={setHeader(){return this;},status(n){status=n;return this;},json(body){this.body=body;return this;}};
-  await handler({method:'POST',headers:{...req.headers(),host,origin:new URL(req.url()).origin},body:req.postDataJSON()},res);await route.fulfill({status,json:res.body});
+  const {action,input}=route.request().postDataJSON();let data;
+  if(action==='board_list')data=await boards.list(owner);
+  else if(action==='board_read')data={board:await boards.read(owner,input.id)};
+  else if(action==='board_save')data={board:await boards.save(owner,input)};
+  else if(action==='asset_list')data={media:[]};
+  else throw Error('Unexpected lab action '+action);
+  await route.fulfill({json:data});
  });
  const campaign={id:'sf-batch-reuse',name:'Actor launches'},videos=[];let serial=0;
  await page.route('**/api/tiktok-plans',async route=>{const {action,input}=route.request().postDataJSON();let data;
