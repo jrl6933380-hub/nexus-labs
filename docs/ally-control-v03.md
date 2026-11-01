@@ -1,0 +1,26 @@
+# Nexus Ally control toolkit v0.3 — staged review build
+
+Adds owner-only Nexus Workspace actions to existing connected Ally: status, screenshot (existing), Notepad launcher, mouse click, scroll, text typing, navigation keys, localhost Qwen health, and read-only drive free-space inventory.
+
+## Security and limitations
+- Interactive PowerShell companion, user-started/visible, no automatic boot or elevated permissions.
+- No arbitrary shell, process execution from user-supplied text, file deletion, credential/password entry, browser navigation to arbitrary URLs, or model file edits.
+- Click/type/scroll/key require a screenshot frame ID created within the previous 30 seconds. Coordinates normalized to the captured virtual desktop.
+- Results are session-scoped and short-lived; after uncertain execution never resend without a fresh screenshot.
+- Callers must have owner workspace access, and should obtain explicit approval before consequential clicks.
+- Screenshot/image results may reveal personal content; close private tabs before testing.
+- Only approved fixed application launched is Notepad. Qwen health checks only loopback 127.0.0.1:9931.
+- Storage status is drive free/total **only**; no cleanup runs.
+- Three transient connection failures are tolerated before the companion exits. Reconnect manually if it stops.
+
+## Test plan after merge and deploy
+1. Stop currently running Ally companion with Ctrl+C; download updated `scripts/ally/connect.ps1` from reviewed main revision (replace the file; don't re-pair).
+2. Reconnect with `powershell -NoProfile -ExecutionPolicy Bypass -File ./connect.ps1 -Action Connect`.
+3. Refresh Nexus Workspace connector in ChatGPT and Claude.
+4. Run status → qwen_status → storage. All must be read-only and return receipts.
+5. Request a fresh screenshot; inspect it, then `open_notepad` and new screenshot; type a harmless test sentence into Notepad using fresh frame. Verify on-screen and stop.
+6. Test expired frame, malformed coordinates, invalid key, command duplication, disconnect/revoke, slow response, and locked screen refusal before production reliance.
+
+**Not yet verified on the physical ROG Ally.** Do not merge this as a certified end-to-end control system without tests and owner approval.
+
+Future work: explicitly permissioned app allowlist, screenshot JPEG quality tuning, model server start/stop with owner control, storage cleanup candidates with per-file approval, signed installer, and more resilient transport.
