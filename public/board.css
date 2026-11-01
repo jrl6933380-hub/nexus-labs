@@ -163,3 +163,23 @@ button{cursor:pointer}
 .social-workspace .dock,.social-workspace .selbar,.social-workspace .drawbar{right:calc(min(52vw,720px) + 10px)}
 @media(max-width:700px){.social-panel{top:32dvh;width:100%;border-radius:18px 18px 0 0}.social-panel-head strong{flex-basis:100%}.social-workspace .dock,.social-workspace .selbar,.social-workspace .drawbar{display:none}}
 
+
+/* Posting rows are native canvas content; no iframe or opening step. */
+.bitem.canvas-post-flow{padding:0;overflow:visible;background:transparent;box-shadow:none;border:0;color:var(--text)}
+.canvas-post-flow .flow-heading{height:48px;display:flex;align-items:center;padding:0 12px;font-size:14px;font-weight:600;touch-action:none}
+.canvas-post-flow .flow-row{height:280px;display:grid;grid-template-columns:228px 24px 252px 24px 172px;gap:0;align-items:center;padding:0 8px 12px}
+.canvas-post-flow .flow-slot,.canvas-post-flow .flow-copy,.canvas-post-flow .flow-end{height:268px;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--card);display:flex;flex-direction:column;gap:6px;min-width:0}
+.canvas-post-flow .flow-slot{border-style:dashed;justify-content:center}
+.canvas-post-flow>.flow-slot{height:52px;width:228px;margin:0 8px;flex-direction:row;align-items:center;padding:4px;font-size:12px}
+.canvas-post-flow>.flow-slot select{max-width:130px}
+.canvas-post-flow .flow-arrow{text-align:center;color:var(--gold);font-size:22px}
+.canvas-post-flow button,.canvas-post-flow select,.canvas-post-flow a{min-height:44px;padding:5px 7px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text);font-size:13px;max-width:100%;text-decoration:none}
+.canvas-post-flow a{text-align:center}
+.canvas-post-flow textarea{display:block;resize:none;width:100%;padding:6px;border:1px solid var(--line);border-radius:8px;background:var(--bg);font-size:16px;user-select:text;-webkit-user-select:text}
+.canvas-post-flow label{font-size:13px}.canvas-post-flow .flow-slot span{overflow-wrap:anywhere;font-size:13px}
+.canvas-post-flow .flow-slot video{height:128px;width:100%;pointer-events:auto;object-fit:contain}
+.canvas-post-flow .flow-empty .flow-copy,.canvas-post-flow .flow-empty .flow-end{justify-content:center;text-align:center;color:var(--sub)}
+.canvas-post-flow .flow-slot.flow-over{outline:3px solid var(--gold);background:var(--bg)}
+.canvas-post-flow .handle{display:none}
+
+.canvas-post-flow textarea,.canvas-post-flow select,.canvas-post-flow button,.canvas-post-flow a,.canvas-post-flow video{touch-action:manipulation}
