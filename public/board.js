@@ -146,6 +146,7 @@ function closeSheet(){sheetHost.replaceChildren();}
 function addSheet(){
   const big=(t,sm,run)=>{const b=h('button',{class:'big',type:'button'},t,h('small',{text:sm}));b.onclick=run;return b;};
   sheet('Add to the board','Anything works. Nothing here is limited to one kind of thing.',h('div',{class:'row col'},
+    big('Social Post Flow','Video branches, captions and social posting queue',()=>{location.href='/social-post-flow.html';}),
     big('Layered scene','Images, masks, puppets and local animation tools',()=>{closeSheet();openScene();}),
     big('Inline visual','Paste HTML or SVG, like one Claude drew in chat',()=>visualSheet()),
     big('Picture, clip or sound from your library','Everything in your Nexus Lab media',()=>librarySheet()),
