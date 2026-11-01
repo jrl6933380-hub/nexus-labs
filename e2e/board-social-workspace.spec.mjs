@@ -6,7 +6,7 @@ for(const width of [360,1280])test('posting flow stays on the board with durable
  await page.setViewportSize({width,height:900});
  const owner={id:'posting-owner'},boards=createNexusLabBoards({command:labJobMemory()});
  const first=await boards.save(owner,{board:{name:'Ad Maker workspace',view:{x:20,y:90,z:1},items:[{id:'brief-one',kind:'note',title:'Actor ad',text:'Make a sample competitor ad. <script>window.pwned=true</script>',x:0,y:0,w:200,h:150,z:1}]}});
- const handler=createNexusLabHandler({authenticate:async()=>owner,boards});
+ const handler=createNexusLabHandler({authenticate:async()=>owner,boards,assets:{list:async()=>({media:[]})}});
  await page.route('**/api/nexus-lab',async route=>{
   const req=route.request(),host=new URL(req.url()).host;let status=200;const res={setHeader(){return this;},status(n){status=n;return this;},json(body){this.body=body;return this;}};
   await handler({method:'POST',headers:{...req.headers(),host,origin:new URL(req.url()).origin},body:req.postDataJSON()},res);await route.fulfill({status,json:res.body});
