@@ -38,7 +38,7 @@ for(const width of [393,1280])test('canvas video queue grows, edits, removes and
  await expect.poll(async()=>((await boards.read(owner,first.id)).items.find(i=>i.id==='flow').flow_rows||[]).length).toBe(2);
  await expect.poll(async()=>(await boards.read(owner,first.id)).items.find(i=>i.id==='flow').flow_rows[1].caption).toBe('Second caption');
  await page.reload();await expect(page.getByLabel('Caption for video 1',{exact:true})).toHaveValue('First caption <script>not code</script>');
- if(width<700){await page.mouse.move(350,730);await page.mouse.down();await page.mouse.move(30,730,{steps:10});await page.mouse.up();}
+ if(width<700){await page.mouse.move(350,75);await page.mouse.down();await page.mouse.move(30,75,{steps:10});await page.mouse.up();}
  await page.getByRole('button',{name:'Remove from flow',exact:true}).first().click();
  await expect(page.locator('.flow-row video')).toHaveCount(1);
  await expect(page.getByLabel('Caption for video 1',{exact:true})).toHaveValue('Second caption');

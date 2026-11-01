@@ -16,7 +16,7 @@ export function renderPostFlow(el,item,{items,assign,remove,change,mediaUrl,toas
  }
  function rowView(row,index){
   const wrap=node('div',{class:'flow-row','data-flow-row':index});
-  const s=slot(index,true);s.firstChild.textContent=row.title||`Video ${index+1}`;
+  const s=slot(index,true);s.firstChild.textContent=row.title||`Video ${index+1}`;s.firstChild.setAttribute('title',row.title||`Video ${index+1}`);
   const video=node('video',{controls:'',playsinline:'',preload:'metadata','aria-label':row.title||`Video ${index+1}`});
   s.insertBefore(video,s.children[1]);mediaUrl(row.media_id).then(url=>{if(video.isConnected)video.src=url;}).catch(e=>{s.firstChild.textContent=e.message;});
   const middle=node('div',{class:'flow-copy'});

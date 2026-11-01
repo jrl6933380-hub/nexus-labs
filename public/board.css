@@ -183,3 +183,5 @@ button{cursor:pointer}
 .canvas-post-flow .handle{display:none}
 
 .canvas-post-flow textarea,.canvas-post-flow select,.canvas-post-flow button,.canvas-post-flow a,.canvas-post-flow video{touch-action:manipulation}
+
+.canvas-post-flow .flow-slot>span{max-height:38px;overflow:hidden;flex-shrink:0}
