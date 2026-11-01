@@ -9,7 +9,8 @@ param(
 )
 $ErrorActionPreference='Stop'
 if (-not ($Install -or $Repair -or $Check)) { $Check=$true }
-if (@($Install,$Repair,$Check | Where-Object { $_ }).Count -gt 1) { throw 'Choose one mode only.' }
+$selected = @($Install, $Repair, $Check) | Where-Object { $_ }
+if (@($selected).Count -gt 1) { throw 'Choose one mode only.' }
 
 function Find-Command([string]$name) {
   $cmd=Get-Command $name -ErrorAction SilentlyContinue
