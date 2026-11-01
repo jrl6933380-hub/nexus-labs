@@ -62,10 +62,12 @@ function Capture-Jpeg {
  $stream=New-Object System.IO.MemoryStream
  try {$small.Save($stream,[System.Drawing.Imaging.ImageFormat]::Jpeg);return [Convert]::ToBase64String($stream.ToArray())} finally {$small.Dispose();$stream.Dispose()}
 }
+$failures=0
 try {
  while ($true) {
   Start-Sleep -Seconds 3
-  $result=Call-Nexus 'poll' @{session_id=$session} $token
+  try { $result=Call-Nexus 'poll' @{session_id=$session} $token; $failures=0 }
+  catch { $failures++;Write-Warning ('Nexus response failed '+$failures+'/3; retrying.');if($failures -ge 3){throw 'Connection interrupted. Restart Connect to resume.'};Start-Sleep -Seconds ([Math]::Min(5,$failures*2));continue }
   if (-not $result.active) { break }
   if ($result.command -and $result.command.action -eq 'screen') {
    try {
