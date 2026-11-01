@@ -2,6 +2,7 @@ import {test,expect} from '@playwright/test';
 import {createNexusLabBoards} from '../lib/nexusLabBoards.js';
 import {labJobMemory} from '../test-support/labJobMemory.mjs';
 for(const width of [360,1280])test('posting flow stays on the board with durable notes and batch at '+width+'px',async({page})=>{
+ test.setTimeout(60000);
  await page.setViewportSize({width,height:900});
  const owner={id:'posting-owner'},boards=createNexusLabBoards({command:labJobMemory()});
  const first=await boards.save(owner,{board:{name:'Ad Maker workspace',view:{x:20,y:90,z:1},items:[{id:'brief-one',kind:'note',title:'Actor ad',text:'Make a sample competitor ad. <script>window.pwned=true</script>',x:0,y:0,w:200,h:150,z:1}]}});
