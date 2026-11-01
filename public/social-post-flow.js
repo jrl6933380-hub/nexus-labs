@@ -1,6 +1,10 @@
 import {PLATFORMS,LABELS,LINKS,groupVideos,videoFields,captionOf,pendingFor,validPostUrl} from './social-post-flow-core.mjs';
 const $=id=>document.getElementById(id),state={campaigns:[],videos:[],batch:'',platform:'tiktok',current:'',busy:false};
 const blobs=new Map(),dirty=new Set(),drafts=new Map();
+const context=new URLSearchParams(location.search),boardId=/^[A-Za-z0-9_-]{1,64}$/.test(context.get('board')||'')?context.get('board'):'',itemId=context.get('item')||'';
+if(context.get('embedded')==='1')document.body.classList.add('embedded');
+if(/^sf-batch-[A-Za-z0-9_-]{1,91}$/.test(context.get('batch')||''))state.batch=context.get('batch');
+window.nexusSocialFlow={hasUnsaved:()=>dirty.size>0||state.busy};
 const node=(tag,text)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;return e;};
 const uid=()=>crypto.randomUUID();
 function message(text,bad=false){$('message').textContent=text;$('message').classList.toggle('error',bad);}
@@ -14,12 +18,13 @@ async function work(fn){if(state.busy)return;state.busy=true;document.querySelec
 function put(v){const at=state.videos.findIndex(x=>x.id===v.id);if(at<0)state.videos.push(v);else state.videos[at]=v;}
 const groups=()=>groupVideos(state.videos,state.batch);
 async function save(v,patch={}){const r=await plan('save_video',{id:v.id,...(v.baseline?{baseline:v.baseline}:{}),video:{...videoFields(v),...patch}},true);put(r);return r;}
-async function load(){const d=await plan('overview');state.campaigns=d.campaigns.filter(c=>c.id.startsWith('sf-batch-'));state.videos=d.videos;if(!state.campaigns.some(c=>c.id===state.batch))state.batch=state.campaigns[0]?.id||'';render();}
+async function load(){const d=await plan('overview');state.campaigns=d.campaigns.filter(c=>c.id.startsWith('sf-batch-'));state.videos=d.videos;if(!state.campaigns.some(c=>c.id===state.batch))state.batch=boardId?'':state.campaigns[0]?.id||'';render();if(boardId)await readBoardNotes();}
 async function newBatch(){if(dirty.size)throw Error('Save your edited branches first.');const name=prompt('Name this posting batch');if(!name?.trim())return;const c=await plan('save_campaign',{id:'sf-batch-'+uid(),campaign:{name:name.trim().slice(0,80),goal:'Social Post Flow batch',status:'planning'}},true);state.campaigns.push(c);state.batch=c.id;render();}
 async function addSource(source){if(!state.batch)throw Error('Create a batch first.');const key='sf-'+uid();await save({id:key+'-tiktok',campaign_id:state.batch,title:source.name.slice(0,100),platform:'tiktok',status:'idea',caption:'',hashtags:'',sound:'',video_ref:source.ref,ad_campaign_id:source.ad||'',scope:{ready:false,brief:null}});render();message('Added video branch. Write its caption and choose its socials.');}
 function field(parent,label,value,max,multiline=false){const l=node('label',label),n=node(multiline?'textarea':'input');n.value=value||'';n.maxLength=max;l.append(n);parent.append(l);return n;}
 function render(){
- const sel=$('batches');sel.replaceChildren();if(!state.campaigns.length)sel.append(new Option('Create your first batch',''));for(const c of state.campaigns)sel.append(new Option(c.name,c.id));sel.value=state.batch;
+ const sel=$('batches');sel.replaceChildren();if(!state.batch)sel.append(new Option(state.campaigns.length?'Choose or create a batch':'Create your first batch',''));for(const c of state.campaigns)sel.append(new Option(c.name,c.id));sel.value=state.batch;
+ if(boardId&&state.batch&&window.parent!==window)window.parent.postMessage({type:'nexus-social:batch',board:boardId,item:itemId,batch:state.batch},location.origin);
  $('addSaved').disabled=!state.batch;$('upload').disabled=!state.batch;
  const area=$('branches');area.replaceChildren();const all=groups();
  if(!all.length){const empty=node('div','Add saved ads or upload videos to start your flow.');empty.className='empty';area.append(empty);}
@@ -80,5 +85,17 @@ async function upload(file){
 $('newBatch').onclick=()=>work(newBatch);$('batches').onchange=()=>{if(dirty.size){$('batches').value=state.batch;message('Save your edited branches first.',true);return;}state.batch=$('batches').value;state.current='';render();};
 $('addSaved').onclick=()=>work(picker);$('upload').onclick=()=>{if(dirty.size){message('Save your edited branches first.',true);return;}$('files').click();};
 $('files').onchange=()=>work(async()=>{for(const f of $('files').files){message('Uploading '+f.name+'…');const a=await upload(f);await addSource({name:a.name,ref:a.media_id});}$('files').value='';message('Videos uploaded and added.');});
+
+async function readBoardNotes(){
+ $('boardBriefs').hidden=false;const list=$('briefList');
+ try{const {board}=await lab('board_read',{id:boardId});list.replaceChildren();
+  const notes=board.items.filter(i=>i.kind==='note');
+  if(!notes.length)list.append(node('p','No sticky notes yet. Use + Sticky note above.'));
+  for(const note of notes){const card=node('article');card.append(node('h3',note.title||'Ad brief'),node('small','Note '+note.id),node('pre',note.text),button('Copy brief',async()=>{await copyText(note.text);message('Brief copied.');}));list.append(card);}
+ }catch(e){list.replaceChildren(node('p',e.message));}
+}
+$('refreshBriefs').onclick=()=>work(readBoardNotes);
+window.addEventListener('message',e=>{if(e.origin===location.origin&&e.source===window.parent&&e.data?.type==='nexus-board:saved'&&e.data.board===boardId)readBoardNotes();});
+
 window.addEventListener('beforeunload',e=>{if(dirty.size){e.preventDefault();e.returnValue='';}});
 work(load);
