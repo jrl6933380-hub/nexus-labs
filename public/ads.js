@@ -7,6 +7,7 @@
   var loading = false;
   var renders = {};
   var videoUrl = null;
+  var videoFile = null;
   var plans = {};
   var planCampaign = null;
   var postStatus = 'idea';
@@ -715,6 +716,10 @@
     box.hidden = true;
     box.style.display = 'none';
     if (videoUrl) { URL.revokeObjectURL(videoUrl); videoUrl = null; }
+    videoFile = null;
+    var share = $('sheet-share');
+    share.textContent = 'Share to TikTok';
+    share.disabled = false;
   }
 
   // Download the finished MP4 in its stored chunks, then play it here and offer a save link.
@@ -738,7 +743,11 @@
     var lanes = [];
     for (var n = 0; n < 4; n++) lanes.push(lane());
     Promise.all(lanes).then(function () {
-      videoUrl = URL.createObjectURL(new Blob(parts, { type: 'video/mp4' }));
+      var name = ((ad.name || 'Nexus ad').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'nexus-ad') + '.mp4';
+      videoFile = new File(parts, name, { type: 'video/mp4' });
+      videoUrl = URL.createObjectURL(videoFile);
+      $('sheet-share').disabled = false;
+      $('sheet-share').textContent = 'Share to TikTok';
       var box = $('sheet-video');
       var v = document.createElement('video');
       v.src = videoUrl;
@@ -768,6 +777,31 @@
     });
   }
 
+  // Native Android share sheet lets the owner choose TikTok (or More > TikTok).
+  // The first tap loads the existing MP4 if needed; a second user gesture opens the chooser.
+  async function shareVideo(ad, info) {
+    var btn = $('sheet-share');
+    if (!info) return;
+    if (!videoUrl) {
+      btn.disabled = true;
+      btn.textContent = 'Loading video...';
+      watchVideo(ad, info);
+      return;
+    }
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [videoFile] })) {
+        await navigator.share({ files: [videoFile], title: ad.name || 'Nexus ad' });
+      } else {
+        var link = document.createElement('a');
+        link.href = videoUrl; link.download = videoFile.name;
+        document.body.appendChild(link); link.click(); link.remove();
+        postMsg('Sharing is unavailable here. Video saved; import it in TikTok.');
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') postMsg(err.message || 'Could not share this video.', true);
+    }
+  }
+
   function openSheet(ad, tile) {
     lastTile = tile;
     currentAd = ad;
@@ -779,6 +813,10 @@
     watch.hidden = !info;
     watch.style.display = info ? '' : 'none'; // .btn's display would otherwise override the hidden attribute
     watch.onclick = function () { if (info) watchVideo(ad, info); };
+    var share = $('sheet-share');
+    share.hidden = !info;
+    share.style.display = info ? '' : 'none';
+    share.onclick = function () { shareVideo(ad, info); };
     $('sheet-title').textContent = ad.name || 'Untitled ad';
     var bits = [isCinematic(ad) ? 'Cinematic ad' : 'Studio ad'];
     var meta = metaOf(ad);
