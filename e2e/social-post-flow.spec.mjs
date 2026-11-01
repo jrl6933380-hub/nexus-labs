@@ -1,0 +1,44 @@
+import {test,expect} from '@playwright/test';
+test('branch captions persist, platform copies stay separate, and posted advances only with a live link',async({page})=>{
+ const campaign={id:'sf-batch-abc',name:'Launch batch'},videos=[];let n=0;
+ await page.route('**/api/tiktok-plans',async route=>{
+  const {action,input}=route.request().postDataJSON();let data;
+  if(action==='overview')data={campaigns:[campaign],videos};
+  else if(action==='save_video'){
+   const at=videos.findIndex(v=>v.id===input.id),old=videos[at];
+   if(old&&old.baseline!==input.baseline)return route.fulfill({status:409,json:{error:'Changed elsewhere. Reload first.'}});
+   data={caption:'',hashtags:'',sound:'',post_url:'',...input.video,id:input.id,baseline:'v'+(++n),kind:'v'};
+   if(at<0)videos.push(data);else videos[at]=data;
+  }else throw Error('Unexpected planner action '+action);
+  await route.fulfill({json:{ok:true,data}});
+ });
+ await page.route('**/api/nexus-lab',route=>route.fulfill({json:{media:[{media_id:'med-one',name:'First video',kind:'video',status:'ready'},{media_id:'med-two',name:'Second video',kind:'video',status:'ready'}]}}));
+ await page.route('**/api/ad-campaigns',route=>{const {action}=route.request().postDataJSON();return route.fulfill({json:{ok:true,data:action==='list'?{campaigns:[{campaign_id:'ad-one',name:'Saved ad'}]}:{renders:{}}}});});
+ await page.goto('/social-post-flow.html');
+ await page.getByRole('button',{name:'+ Saved ads / videos',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Ad · Saved ad · needs a rendered video'})).toBeVisible();
+ await page.getByRole('button',{name:'Video · First video',exact:true}).click();
+ await page.getByRole('button',{name:'Video · Second video',exact:true}).click();
+ await page.getByRole('button',{name:'Done',exact:true}).click();
+ const first=page.locator('.branch').nth(0),second=page.locator('.branch').nth(1);
+ await first.getByLabel('Description',{exact:true}).fill('Caption for first');
+ await first.getByLabel('Hashtags',{exact:true}).fill('#first');
+ await first.getByLabel('Instagram',{exact:true}).check();
+ await second.getByLabel('Description',{exact:true}).fill('Caption for second');
+ await first.getByRole('button',{name:'Save branch'}).click();
+ await expect(second.getByLabel('Description',{exact:true})).toHaveValue('Caption for second');
+ await second.getByRole('button',{name:'Save branch'}).click();
+ await expect(page.locator('#summary')).toHaveText('2 videos · 0 / 3 posts complete');
+ await page.reload();await expect(page.locator('.branch').nth(0).getByLabel('Description',{exact:true})).toHaveValue('Caption for first');
+ await expect(page.locator('#queue textarea')).toHaveValue('Caption for first\n\n#first');
+ await page.getByRole('button',{name:'Mark posted → next video'}).click();
+ await expect(page.locator('#message')).toContainText('live HTTPS TikTok post link');
+ await page.getByLabel('Live post link (after publishing)').fill('https://www.tiktok.com/@nexus/video/123');
+ await page.getByRole('button',{name:'Mark posted → next video'}).click();
+ await expect(page.locator('#queueTitle')).toHaveText('Second video');
+ await page.getByRole('button',{name:'Instagram · 1 left'}).click();
+ await expect(page.locator('#queue textarea')).toHaveValue('Caption for first\n\n#first');
+ expect(videos.find(v=>v.platform==='instagram').status).toBe('idea');
+ expect(videos.filter(v=>v.status==='posted')).toHaveLength(1);
+ const width=await page.evaluate(()=>({scroll:document.documentElement.scrollWidth,view:innerWidth}));expect(width.scroll).toBeLessThanOrEqual(width.view);
+});
