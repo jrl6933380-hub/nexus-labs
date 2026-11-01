@@ -24,8 +24,9 @@ test('branch captions persist, platform copies stay separate, and posted advance
  await first.getByLabel('Description',{exact:true}).fill('Caption for first');
  await first.getByLabel('Hashtags',{exact:true}).fill('#first');
  await first.getByLabel('Instagram',{exact:true}).check();
- await first.getByRole('button',{name:'Save branch'}).click();
  await second.getByLabel('Description',{exact:true}).fill('Caption for second');
+ await first.getByRole('button',{name:'Save branch'}).click();
+ await expect(second.getByLabel('Description',{exact:true})).toHaveValue('Caption for second');
  await second.getByRole('button',{name:'Save branch'}).click();
  await expect(page.locator('#summary')).toHaveText('2 videos · 0 / 3 posts complete');
  await page.reload();await expect(page.locator('.branch').nth(0).getByLabel('Description',{exact:true})).toHaveValue('Caption for first');

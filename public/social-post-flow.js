@@ -1,6 +1,6 @@
 import {PLATFORMS,LABELS,LINKS,groupVideos,videoFields,captionOf,pendingFor,validPostUrl} from './social-post-flow-core.mjs';
 const $=id=>document.getElementById(id),state={campaigns:[],videos:[],batch:'',platform:'tiktok',current:'',busy:false};
-const blobs=new Map(),dirty=new Set();
+const blobs=new Map(),dirty=new Set(),drafts=new Map();
 const node=(tag,text)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;return e;};
 const uid=()=>crypto.randomUUID();
 function message(text,bad=false){$('message').textContent=text;$('message').classList.toggle('error',bad);}
@@ -10,7 +10,7 @@ async function request(endpoint,action,input={},write=false){
  const d=await r.json();if(!r.ok)throw Error(r.status===401?'Sign in to Nexus in this browser first.':d.error||'Could not save. Reload before retrying.');return endpoint==='/api/nexus-lab'?d:d.data;
 }
 const plan=(a,i,w)=>request('/api/tiktok-plans',a,i,w),lab=(a,i,w)=>request('/api/nexus-lab',a,i,w),ads=(a,i)=>request('/api/ad-campaigns',a,i);
-async function work(fn){if(state.busy)return;state.busy=true;document.querySelectorAll('button,select').forEach(b=>b.disabled=true);try{await fn();}catch(e){message(e.message,true);}finally{state.busy=false;document.querySelectorAll('button,select').forEach(b=>b.disabled=false);document.querySelectorAll('[data-existing]').forEach(b=>b.disabled=true);}}
+async function work(fn){if(state.busy)return;state.busy=true;document.querySelectorAll('button,select,input,textarea').forEach(b=>b.disabled=true);try{await fn();}catch(e){message(e.message,true);}finally{state.busy=false;document.querySelectorAll('button,select,input,textarea').forEach(b=>b.disabled=false);document.querySelectorAll('[data-existing]').forEach(b=>b.disabled=true);$('addSaved').disabled=!state.batch;$('upload').disabled=!state.batch;}}
 function put(v){const at=state.videos.findIndex(x=>x.id===v.id);if(at<0)state.videos.push(v);else state.videos[at]=v;}
 const groups=()=>groupVideos(state.videos,state.batch);
 async function save(v,patch={}){const r=await plan('save_video',{id:v.id,...(v.baseline?{baseline:v.baseline}:{}),video:{...videoFields(v),...patch}},true);put(r);return r;}
@@ -27,14 +27,14 @@ function render(){
   const v=g.records.find(r=>r.status!=='posted')||g.records[0],card=node('article');card.className='branch';card.dataset.key=g.key;
   card.append(node('h2',`${index+1} · ${v.title}`),node('p','Video → description + tags'));
   const preview=button('Preview / get video',async()=>{const file=await getFile(v);const player=node('video');player.controls=true;player.playsInline=true;player.src=URL.createObjectURL(file);player.onloadeddata=()=>URL.revokeObjectURL(player.src);preview.replaceWith(player);});card.append(preview);
-  const title=field(card,'Video name',v.title,100),caption=field(card,'Description',v.caption,2200,true),tags=field(card,'Hashtags',v.hashtags,300),sound=field(card,'Sound / voiceover notes',v.sound,100);
-  for(const n of [title,caption,tags,sound])n.oninput=()=>{dirty.add(g.key);};
-  const checks={};for(const p of PLATFORMS){const l=node('label'),n=node('input');n.type='checkbox';const existing=g.records.find(r=>r.platform===p);n.checked=!!existing;if(existing){n.disabled=true;n.dataset.existing='true';}n.onchange=()=>dirty.add(g.key);checks[p]=n;l.className='check';l.append(n,document.createTextNode(LABELS[p]+(existing?' · '+existing.status:'')));card.append(l);}
+  const draft=drafts.get(g.key)||{},title=field(card,'Video name',draft.title??v.title,100),caption=field(card,'Description',draft.caption??v.caption,2200,true),tags=field(card,'Hashtags',draft.hashtags??v.hashtags,300),sound=field(card,'Sound / voiceover notes',draft.sound??v.sound,100);
+  for(const [name,n] of Object.entries({title,caption,hashtags:tags,sound}))n.oninput=()=>{dirty.add(g.key);draft[name]=n.value;drafts.set(g.key,draft);};
+  const checks={};for(const p of PLATFORMS){const l=node('label'),n=node('input');n.type='checkbox';const existing=g.records.find(r=>r.platform===p);n.checked=!!existing||!!draft[p];if(existing){n.disabled=true;n.dataset.existing='true';}n.onchange=()=>{dirty.add(g.key);draft[p]=n.checked;drafts.set(g.key,draft);};checks[p]=n;l.className='check';l.append(n,document.createTextNode(LABELS[p]+(existing?' · '+existing.status:'')));card.append(l);}
   const saveButton=button('Save branch',async()=>{
    if(!title.value.trim())throw Error('Give this video a name.');const patch={title:title.value.trim(),caption:caption.value,hashtags:tags.value,sound:sound.value};
    // Each platform is saved separately. Keep successful writes if a later one fails.
    for(const p of PLATFORMS){if(!checks[p].checked)continue;const old=state.videos.find(r=>r.id===g.key+'-'+p);if(old?.status==='posted')continue;await save(old||{...videoFields(v),id:g.key+'-'+p,platform:p,status:'idea',post_url:'',claimed_by:'',date:''},patch);}
-   dirty.delete(g.key);render();message('Branch saved for its selected socials.');
+   dirty.delete(g.key);drafts.delete(g.key);render();message('Branch saved for its selected socials.');
   });card.append(saveButton,node('p','Posted copies stay unchanged. Existing destinations remain in the batch.'));area.append(card);
  }
  const total=all.reduce((n,g)=>n+g.records.length,0),done=all.reduce((n,g)=>n+g.records.filter(v=>v.status==='posted').length,0);$('summary').textContent=`${all.length} videos · ${done} / ${total} posts complete`;
