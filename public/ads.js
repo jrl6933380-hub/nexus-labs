@@ -7,6 +7,7 @@
   var loading = false;
   var renders = {};
   var videoUrl = null;
+  var videoFile = null;
   var plans = {};
   var planCampaign = null;
   var postStatus = 'idea';
@@ -715,6 +716,7 @@
     box.hidden = true;
     box.style.display = 'none';
     if (videoUrl) { URL.revokeObjectURL(videoUrl); videoUrl = null; }
+    videoFile = null;
     var share = $('sheet-share');
     share.textContent = 'Share to TikTok';
     share.disabled = false;
@@ -741,7 +743,9 @@
     var lanes = [];
     for (var n = 0; n < 4; n++) lanes.push(lane());
     Promise.all(lanes).then(function () {
-      videoUrl = URL.createObjectURL(new Blob(parts, { type: 'video/mp4' }));
+      var name = ((ad.name || 'Nexus ad').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'nexus-ad') + '.mp4';
+      videoFile = new File(parts, name, { type: 'video/mp4' });
+      videoUrl = URL.createObjectURL(videoFile);
       $('sheet-share').disabled = false;
       $('sheet-share').textContent = 'Share to TikTok';
       var box = $('sheet-video');
@@ -785,14 +789,11 @@
       return;
     }
     try {
-      var blob = await fetch(videoUrl).then(function (r) { return r.blob(); });
-      var name = ((ad.name || 'Nexus ad').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'nexus-ad') + '.mp4';
-      var file = new File([blob], name, { type: 'video/mp4' });
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], title: ad.name || 'Nexus ad' });
+      if (navigator.canShare && navigator.canShare({ files: [videoFile] })) {
+        await navigator.share({ files: [videoFile], title: ad.name || 'Nexus ad' });
       } else {
         var link = document.createElement('a');
-        link.href = videoUrl; link.download = name;
+        link.href = videoUrl; link.download = videoFile.name;
         document.body.appendChild(link); link.click(); link.remove();
         postMsg('Sharing is unavailable here. Video saved; import it in TikTok.');
       }
