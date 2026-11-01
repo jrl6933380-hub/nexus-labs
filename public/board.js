@@ -1,3 +1,5 @@
+import {flowHeight,flowDropIndex,putFlowVideo} from './board-post-flow-core.js?v=20261101';
+import {renderPostFlow} from './board-post-flow.js?v=20261101';
 // Nexus Board: a free-form surface for anything visual. Items are inline visuals, Lab pictures/clips/audio,
 // notes and hand sketches. Boards are saved per owner through /api/nexus-lab (board_* actions); media stays in
 // the shared Lab library and is only referenced by id. Workflows can plug in through window.nexusBoard.
@@ -73,9 +75,7 @@ function mediaUrl(id){
 function makeEl(it){
   const el=h('div',{class:`bitem k-${it.kind}`,'data-id':it.id});
   if(it.kind==='tool'){
-    const open=btn('Open posting flow',()=>openSocialTool(it),'tool-open');
-    open.addEventListener('pointerdown',e=>e.stopPropagation());
-    el.append(h('div',{class:'tool-heading',text:'SOCIAL POST FLOW'}),h('p',{text:'Videos → captions + tags → batch'}),h('p',{text:'TikTok · Instagram · Facebook'}),open);
+    // Native posting rows render in updateEl, directly on the canvas.
   }else if(it.kind==='visual')el.append(h('iframe',{sandbox:'allow-scripts',referrerpolicy:'no-referrer',title:it.title||'Inline visual'}));
   else if(it.kind==='image'||it.kind==='video'||it.kind==='audio'){
     el.append(h('div',{class:'loading',text:'Loading…'}));
@@ -93,6 +93,7 @@ function makeEl(it){
   return el;
 }
 function updateEl(el,it){
+  if(it.kind==='tool'){it.w=716;it.h=flowHeight(it.flow_rows||[]);renderPostFlow(el,it,{items:board.items,assign:(index,video)=>assignFlowVideo(it.id,index,video),remove:index=>{it.flow_rows.splice(index,1);render();touch();},change:(index,key,value)=>{it.flow_rows[index][key]=value;touch();},mediaUrl,toast});}
   const s=el.style;s.left=it.x+'px';s.top=it.y+'px';s.width=it.w+'px';s.height=it.h+'px';s.zIndex=it.z;
   el.classList.toggle('sel',selId===it.id);el.classList.toggle('live',liveId===it.id);
   if(it.kind==='visual'){const f=el.querySelector('iframe');if(f.dataset.code!==it.html){f.dataset.code=it.html;f.srcdoc=buildVisualDocument(it.html);}f.title=it.title||'Inline visual';}
@@ -100,7 +101,7 @@ function updateEl(el,it){
   else if(it.kind==='scene'){scenePlayers.get(it.id)?.update(it.scene);}
   else if(it.kind==='sketch'){const svg=el.querySelector('svg'),sig=it.strokes.length+':'+it.strokes.reduce((n,x)=>n+x.p.length,0)+`:${it.w}x${it.h}`;
     if(svg.dataset.sig!==sig){svg.dataset.sig=sig;svg.setAttribute('viewBox',`0 0 ${it.w} ${it.h}`);svg.replaceChildren(...it.strokes.flatMap(st=>{const mk=(color,width,hit)=>{const p=document.createElementNS(SVGNS,'path');p.setAttribute('d',strokePath(st.p));p.setAttribute('fill','none');p.setAttribute('stroke',color);p.setAttribute('stroke-width',width);p.setAttribute('stroke-linecap','round');p.setAttribute('stroke-linejoin','round');if(hit)p.setAttribute('class','hit');return p;};return [mk(st.c,st.s,false),mk('transparent',Math.max(st.s,24),true)];}));}}
-  else{const m=el.querySelector('video,audio');if(m){m.controls=liveId===it.id;}}
+  else if(it.kind==='video'||it.kind==='audio'){const m=el.querySelector('video,audio');if(m){m.controls=liveId===it.id;}}
   el.querySelector('.handle')?.remove();
   if(selId===it.id&&mode==='select')el.append(h('div',{class:'handle','aria-label':'Resize','data-handle':'1',text:'↘'}));
   const cap=el.querySelector('.cap');if(it.title&&(it.kind==='image'||it.kind==='video'||it.kind==='audio'||it.kind==='scene')){if(!cap)el.append(h('div',{class:'cap',text:it.title}));else cap.textContent=it.title;}
@@ -125,7 +126,7 @@ function btn(label,run,cls='',pressed){const b=h('button',{type:'button',class:c
 function drawSelbar(){
   const it=selId&&mode==='select'?byId(selId):null;selbar.hidden=!it;if(!it)return;selbar.replaceChildren();
   const add=(...b)=>selbar.append(...b);
-  if(it.kind==='tool')add(btn('Open posting flow',()=>openSocialTool(it)));
+  if(it.kind==='tool')add(btn('Saved posting batches',()=>openSocialTool(it)));
   if(it.kind==='note')add(btn('Posting workspace',()=>addSocialTool()));
   if(it.kind==='visual')add(btn('Edit',()=>visualSheet(it)),btn('Interact',()=>{liveId=liveId===it.id?null:it.id;render();},'',liveId===it.id));
   if(it.kind==='note')add(btn('Edit',()=>noteSheet(it)),btn('Color',()=>{const order=['gold','green','sky','rose','paper'];updateItem(it.id,{color:order[(order.indexOf(it.color||'gold')+1)%order.length]});}));
@@ -155,7 +156,7 @@ function closeSocialTool(dispose=false){
 async function addSocialTool(){
   closeSheet();let it=board.items.find(i=>i.kind==='tool'&&i.tool_id==='social-post-flow');
   if(!it)it=addItem({kind:'tool',tool_id:'social-post-flow',title:'Social Post Flow',w:320,h:210});
-  if(it)await openSocialTool(it);
+  if(it){choose(it.id);board.view=fitView([it],{w:innerWidth,h:innerHeight});render();touch();}
 }
 async function openSocialTool(it){
   try{
@@ -177,6 +178,12 @@ addEventListener('message',e=>{
   const it=byId(socialItem);if(it?.kind==='tool'&&it.batch_id!==d.batch)updateItem(it.id,{batch_id:d.batch});
 });
 
+
+function assignFlowVideo(toolId,index,video){
+  const tool=byId(toolId);if(!tool||tool.kind!=='tool'||video?.kind!=='video'){toast('Choose a board video and a posting slot.',true);return;}
+  try{tool.flow_rows=putFlowVideo(tool.flow_rows||[],video.media_id,video.title,index);render();touch();}catch(e){toast(e.message,true);}
+}
+
 // ---- sheets ------------------------------------------------------------------
 function sheet(title,sub,...content){
   closeSheet();const back=h('div',{class:'sheet-back',role:'dialog','aria-modal':'true','aria-label':title});
@@ -187,7 +194,7 @@ function closeSheet(){sheetHost.replaceChildren();}
 function addSheet(){
   const big=(t,sm,run)=>{const b=h('button',{class:'big',type:'button'},t,h('small',{text:sm}));b.onclick=run;return b;};
   sheet('Add to the board','Anything works. Nothing here is limited to one kind of thing.',h('div',{class:'row col'},
-    big('Social Post Flow','A saved posting tool here, alongside your notes',()=>addSocialTool()),
+    big('Social Post Flow','Video drop slots, captions and socials directly on this canvas',()=>addSocialTool()),
     big('Layered scene','Images, masks, puppets and local animation tools',()=>{closeSheet();openScene();}),
     big('Inline visual','Paste HTML or SVG, like one Claude drew in chat',()=>visualSheet()),
     big('Picture, clip or sound from your library','Everything in your Nexus Lab media',()=>librarySheet()),
@@ -382,6 +389,8 @@ viewport.addEventListener('pointerdown',e=>{
   gesture={type:'pan',sx,sy,ox:board.view.x,oy:board.view.y,moved:false};
 });
 viewport.addEventListener('pointermove',e=>{
+  for(const slot of world.querySelectorAll('.flow-over'))slot.classList.remove('flow-over');
+  if(gesture?.type==='move'&&byId(gesture.id)?.kind==='video'){const p=screenToWorld(board.view,{x:e.clientX,y:e.clientY});for(const it of board.items){const index=flowDropIndex(it,p);if(index>=0)els.get(it.id)?.querySelector(`[data-flow-slot="${index}"]`)?.classList.add('flow-over');}}
   if(!ptrs.has(e.pointerId)||!gesture)return;ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});const z=board.view.z;
   if(gesture.type==='pinch'&&ptrs.size===2){const m=mid(),g=gesture,w=screenToWorld(g.view0,g.m0),nz=clamp(g.view0.z*m.d/g.m0.d,ZOOM_MIN,ZOOM_MAX);board.view={x:m.x-w.x*nz,y:m.y-w.y*nz,z:nz};applyView();return;}
   if(ptrs.size!==1)return;
@@ -392,11 +401,12 @@ viewport.addEventListener('pointermove',e=>{
   else if(gesture.type==='resize'){const it=byId(gesture.id);it.w=clamp(Math.round(gesture.ow+dx/z),40,6000);it.h=clamp(Math.round(gesture.oh+dy/z),40,6000);updateEl(els.get(it.id),it);}
 });
 function endPointer(e){
+  for(const slot of world.querySelectorAll('.flow-over'))slot.classList.remove('flow-over');
   ptrs.delete(e.pointerId);const g=gesture;
   if(ptrs.size===1&&g?.type==='pinch'){const [only]=ptrs.values();gesture={type:'pan',sx:only.x,sy:only.y,ox:board.view.x,oy:board.view.y,moved:true};touch();return;}
   if(ptrs.size>0)return;gesture=null;if(!g)return;
   if(g.type==='pan'){if(g.moved)touch();else if(selId){selId=null;liveId=null;render();}}
-  else if(g.type==='move'||g.type==='resize'){if(g.moved){render();touch();}}
+  else if(g.type==='move'||g.type==='resize'){if(g.moved){if(g.type==='move'&&e.type==='pointerup'){const video=byId(g.id);if(video?.kind==='video'){const p=screenToWorld(board.view,{x:e.clientX,y:e.clientY});const target=[...board.items].sort((a,b)=>b.z-a.z).find(it=>flowDropIndex(it,p)>=0);if(target){assignFlowVideo(target.id,flowDropIndex(target,p),video);video.x=g.ox;video.y=g.oy;}}}render();touch();}}
   else if(g.type==='draw'){render();touch();}
   else if(g.type==='pinch')touch();
 }
@@ -426,6 +436,7 @@ addEventListener('keydown',e=>{if((e.key==='Delete'||e.key==='Backspace')&&selId
 const api={
   get board(){return structuredClone(board);},get selected(){const it=selId&&byId(selId);return it?structuredClone(it):null;},
   addItem:p=>addItem(p),updateItem,removeItem,toast,request,
+  assignFlowVideo:(toolId,index,videoId)=>assignFlowVideo(toolId,index,byId(videoId)),
   registerAction(a){if(!a||typeof a.run!=='function'||typeof a.label!=='string')throw Error('An action needs a label and a run function.');hooks.push(a);render();}
 };
 window.nexusBoard=api;

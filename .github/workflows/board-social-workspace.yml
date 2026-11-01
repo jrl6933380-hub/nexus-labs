@@ -10,6 +10,8 @@ on:
       - 'lib/workspaceBoard.js'
       - 'lib/workspaceConnector.js'
       - 'test/board-social-workspace.test.mjs'
+      - 'test/board-post-flow.test.mjs'
+      - 'e2e/board-post-flow.spec.mjs'
       - 'e2e/board-social-workspace.spec.mjs'
       - 'e2e/social-post-flow.spec.mjs'
   push:
@@ -23,6 +25,8 @@ on:
       - 'lib/workspaceBoard.js'
       - 'lib/workspaceConnector.js'
       - 'test/board-social-workspace.test.mjs'
+      - 'test/board-post-flow.test.mjs'
+      - 'e2e/board-post-flow.spec.mjs'
       - 'e2e/board-social-workspace.spec.mjs'
       - 'e2e/social-post-flow.spec.mjs'
 permissions:
@@ -39,8 +43,8 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
-      - run: node --test test/board-social-workspace.test.mjs test/nexus-lab-boards.test.mjs test/board-phone-tab.test.mjs test/social-post-flow.test.mjs
-      - run: npx playwright test e2e/board-social-workspace.spec.mjs e2e/social-post-flow.spec.mjs
+      - run: node --test test/board-post-flow.test.mjs test/board-social-workspace.test.mjs test/nexus-lab-boards.test.mjs test/board-phone-tab.test.mjs test/social-post-flow.test.mjs
+      - run: npx playwright test e2e/board-post-flow.spec.mjs e2e/board-social-workspace.spec.mjs e2e/social-post-flow.spec.mjs
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

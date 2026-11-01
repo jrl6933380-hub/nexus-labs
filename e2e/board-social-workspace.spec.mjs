@@ -24,6 +24,7 @@ for(const width of [360,1280])test('posting flow stays on the board with durable
  await page.route('**/api/ad-campaigns',route=>route.fulfill({json:{ok:true,data:route.request().postDataJSON().action==='list'?{campaigns:[{campaign_id:'ad-one',name:'Competitor sample'}]}:{renders:{}}}}));
  await page.goto('/board.html?id='+first.id);
  await page.getByRole('button',{name:'Add',exact:true}).click();await page.getByRole('button',{name:/^Social Post Flow/}).click();
+ await page.getByRole('button',{name:'Saved posting batches',exact:true}).click();
  const panel=page.getByRole('region',{name:'Social posting workspace'});await expect(panel).toBeVisible();
  const flow=page.frameLocator('iframe[title="Social Post Flow workspace"]');
  await flow.getByText('Sticky notes on this board',{exact:true}).click();
@@ -44,7 +45,7 @@ for(const width of [360,1280])test('posting flow stays on the board with durable
  // A same-origin message from any source other than the trusted tool iframe is ignored.
  await page.evaluate(({board,item})=>window.postMessage({type:'nexus-social:batch',board,item,batch:'sf-batch-evil'},location.origin),{board:first.id,item:saved.items.find(i=>i.kind==='tool').id});
  expect((await boards.read(owner,first.id)).items.find(i=>i.kind==='tool').batch_id).toBe(campaign.id);
- await page.reload();await page.getByRole('button',{name:'Open posting flow',exact:true}).click();
+ await page.reload();await page.locator('.flow-heading').click();await page.getByRole('button',{name:'Saved posting batches',exact:true}).click();
  await expect(flow.getByLabel('Posting batch')).toHaveValue(campaign.id);
  await expect(flow.getByLabel('Description',{exact:true})).toHaveValue('A concept preview of competitor research.');
  await flow.getByText('Sticky notes on this board',{exact:true}).click();
