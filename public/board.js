@@ -34,6 +34,7 @@ async function flush(){
   try{
     const {board:saved}=await request({action:'board_save',input:{board:snapshot,...(board.id?{base_rev:board.rev}:{})}});
     board.id=saved.id;board.rev=saved.rev;remember();setState(dirty?'Unsaved':'Saved');
+    socialFrame?.contentWindow?.postMessage({type:'nexus-board:saved',board:board.id},location.origin);
   }catch(e){
     if(e.status===409&&board.id){locked=true;setState('Changed elsewhere',true);conflictSheet(e.message);}
     else{dirty=true;setState('Not saved',true);toast(e.message,true);if(!e.status||e.status>=500)saveTimer=setTimeout(flush,6000);}
@@ -71,7 +72,11 @@ function mediaUrl(id){
 // ---- rendering -------------------------------------------------------------
 function makeEl(it){
   const el=h('div',{class:`bitem k-${it.kind}`,'data-id':it.id});
-  if(it.kind==='visual')el.append(h('iframe',{sandbox:'allow-scripts',referrerpolicy:'no-referrer',title:it.title||'Inline visual'}));
+  if(it.kind==='tool'){
+    const open=btn('Open posting flow',()=>openSocialTool(it),'tool-open');
+    open.addEventListener('pointerdown',e=>e.stopPropagation());
+    el.append(h('div',{class:'tool-heading',text:'SOCIAL POST FLOW'}),h('p',{text:'Videos → captions + tags → batch'}),h('p',{text:'TikTok · Instagram · Facebook'}),open);
+  }else if(it.kind==='visual')el.append(h('iframe',{sandbox:'allow-scripts',referrerpolicy:'no-referrer',title:it.title||'Inline visual'}));
   else if(it.kind==='image'||it.kind==='video'||it.kind==='audio'){
     el.append(h('div',{class:'loading',text:'Loading…'}));
     mediaUrl(it.media_id).then(url=>{if(els.get(it.id)!==el)return;const m=h(it.kind==='image'?'img':it.kind,it.kind==='image'?{alt:it.title||'Board picture',src:url}:{src:url,playsinline:true,preload:'metadata'});if(it.kind==='video'&&it.loop)m.loop=true;el.querySelector('.loading')?.remove();el.prepend(m);})
@@ -120,6 +125,8 @@ function btn(label,run,cls='',pressed){const b=h('button',{type:'button',class:c
 function drawSelbar(){
   const it=selId&&mode==='select'?byId(selId):null;selbar.hidden=!it;if(!it)return;selbar.replaceChildren();
   const add=(...b)=>selbar.append(...b);
+  if(it.kind==='tool')add(btn('Open posting flow',()=>openSocialTool(it)));
+  if(it.kind==='note')add(btn('Posting workspace',()=>addSocialTool()));
   if(it.kind==='visual')add(btn('Edit',()=>visualSheet(it)),btn('Interact',()=>{liveId=liveId===it.id?null:it.id;render();},'',liveId===it.id));
   if(it.kind==='note')add(btn('Edit',()=>noteSheet(it)),btn('Color',()=>{const order=['gold','green','sky','rose','paper'];updateItem(it.id,{color:order[(order.indexOf(it.color||'gold')+1)%order.length]});}));
   if(it.kind==='image')add(btn('Cut out',()=>openCutter(it)),btn('Background',()=>openComposer(it)),btn('Compose scene',()=>openScene(it)));
@@ -136,6 +143,40 @@ function drawSelbar(){
     btn('Delete',()=>removeItem(it.id),'warn'));
 }
 
+// Trusted app tools live beside the canvas; inline visuals cannot supply their URL or invoke them.
+let socialPanel=null,socialFrame=null,socialItem=null;
+function closeSocialTool(dispose=false){
+  if(!socialPanel)return true;
+  if(dispose&&socialFrame?.contentWindow?.nexusSocialFlow?.hasUnsaved?.()&&!confirm('Discard unsaved posting edits and switch boards?'))return false;
+  if(dispose){socialPanel.remove();socialPanel=socialFrame=socialItem=null;document.body.classList.remove('social-workspace');}
+  else{socialPanel.hidden=true;document.body.classList.remove('social-workspace');socialItem&&els.get(socialItem)?.querySelector('button')?.focus();}
+  return true;
+}
+async function addSocialTool(){
+  closeSheet();let it=board.items.find(i=>i.kind==='tool'&&i.tool_id==='social-post-flow');
+  if(!it)it=addItem({kind:'tool',tool_id:'social-post-flow',title:'Social Post Flow',w:320,h:210});
+  if(it)await openSocialTool(it);
+}
+async function openSocialTool(it){
+  try{
+    await flush();if(!board.id||dirty||saving||locked){toast('Wait until this board is saved, then open the flow.',true);return;}
+    if(socialPanel&&socialItem===it.id){socialPanel.hidden=false;document.body.classList.add('social-workspace');return;}
+    if(!closeSocialTool(true))return;
+    socialItem=it.id;
+    const panel=h('section',{class:'social-panel',role:'region','aria-label':'Social posting workspace'});
+    const close=btn('Back to board',()=>closeSocialTool()),note=btn('+ Sticky note',()=>noteSheet(null,{x:it.x+it.w+24,y:it.y}));
+    panel.append(h('div',{class:'social-panel-head'},h('strong',{text:'Ad Maker workspace'}),note,close));
+    const params=new URLSearchParams({embedded:'1',board:board.id,item:it.id,...(it.batch_id?{batch:it.batch_id}:{})});
+    const frame=h('iframe',{title:'Social Post Flow workspace',src:'/social-post-flow.html?'+params,allow:'clipboard-write; web-share'});
+    panel.append(frame);document.body.append(panel);socialPanel=panel;socialFrame=frame;document.body.classList.add('social-workspace');close.focus();
+  }catch(e){toast(e.message||'Could not open the posting workspace.',true);}
+}
+addEventListener('message',e=>{
+  if(e.origin!==location.origin||e.source!==socialFrame?.contentWindow||!board||!socialItem)return;
+  const d=e.data;if(d?.type!=='nexus-social:batch'||d.board!==board.id||d.item!==socialItem||typeof d.batch!=='string'||!/^sf-batch-[A-Za-z0-9_-]{1,91}$/.test(d.batch))return;
+  const it=byId(socialItem);if(it?.kind==='tool'&&it.batch_id!==d.batch)updateItem(it.id,{batch_id:d.batch});
+});
+
 // ---- sheets ------------------------------------------------------------------
 function sheet(title,sub,...content){
   closeSheet();const back=h('div',{class:'sheet-back',role:'dialog','aria-modal':'true','aria-label':title});
@@ -146,7 +187,7 @@ function closeSheet(){sheetHost.replaceChildren();}
 function addSheet(){
   const big=(t,sm,run)=>{const b=h('button',{class:'big',type:'button'},t,h('small',{text:sm}));b.onclick=run;return b;};
   sheet('Add to the board','Anything works. Nothing here is limited to one kind of thing.',h('div',{class:'row col'},
-    big('Social Post Flow','Video branches, captions and social posting queue',()=>{location.href='/social-post-flow.html';}),
+    big('Social Post Flow','A saved posting tool here, alongside your notes',()=>addSocialTool()),
     big('Layered scene','Images, masks, puppets and local animation tools',()=>{closeSheet();openScene();}),
     big('Inline visual','Paste HTML or SVG, like one Claude drew in chat',()=>visualSheet()),
     big('Picture, clip or sound from your library','Everything in your Nexus Lab media',()=>librarySheet()),
@@ -164,9 +205,9 @@ function visualSheet(existing){
   sheet(existing?'Edit visual':'Inline visual','It runs in a sealed frame: no network, no saved data, and it cannot touch the rest of Nexus.',ta,msg,h('div',{class:'row'},go));
   setTimeout(()=>ta.focus(),50);
 }
-function noteSheet(existing){
+function noteSheet(existing,placement={}){
   const ta=h('textarea',{'aria-label':'Note text'});ta.value=existing?.text||'';ta.style.minHeight='120px';ta.style.font='16px Georgia,serif';
-  const go=h('button',{class:'big gold',type:'button',text:existing?'Save':'Add note'});go.onclick=()=>{const t=ta.value.slice(0,2000);if(existing)updateItem(existing.id,{text:t});else addItem({kind:'note',text:t,color:'gold',w:200,h:150});closeSheet();};
+  const go=h('button',{class:'big gold',type:'button',text:existing?'Save':'Add note'});go.onclick=()=>{const t=ta.value.slice(0,2000);if(existing)updateItem(existing.id,{text:t});else addItem({kind:'note',text:t,color:'gold',w:200,h:150,...placement});closeSheet();};
   sheet(existing?'Edit note':'New note','',ta,h('div',{class:'row'},go));setTimeout(()=>ta.focus(),50);
 }
 function renameSheet(it){
@@ -365,6 +406,7 @@ viewport.addEventListener('wheel',e=>{if(!board)return;e.preventDefault();board.
 // ---- boards ------------------------------------------------------------------
 function blank(){return {name:'New board',look:'dots',bg:'',view:{x:innerWidth/2-140,y:innerHeight/2-120,z:1},items:[],rev:0};}
 async function openBoard(id){
+  if(!closeSocialTool(true))return;
   await flush();scenePlayers.forEach(p=>p.dispose());scenePlayers.clear();els.forEach(e=>e.remove());els.clear();selId=liveId=null;mode='select';locked=false;dirty=false;
   if(id){try{board=(await request({action:'board_read',input:{id}})).board;}catch(e){toast(e.message,true);board=blank();}}else board=blank();
   if(board.id){remember();try{history.replaceState(null,'',`?id=${encodeURIComponent(board.id)}`);}catch{}}else{try{history.replaceState(null,'',location.pathname);}catch{}}

@@ -1,6 +1,12 @@
 # Social Post Flow
 
-Owner entry points: Board → Add → Social Post Flow, or the link above the existing TikTok Planner tabs. Page: `/social-post-flow.html`.
+Owner entry points: Board → Add → Social Post Flow adds a saved tool tile to the current visual workspace and opens the working flow in an in-page panel. The board remains visible and usable. The separate `/social-post-flow.html` page and planner link remain available.
+
+The panel shows this board's saved sticky-note briefs and has a + Sticky note action. Saved notes refresh in the panel. The selected posting batch is persisted on the tool item, so reopening the board restores its context. Back to board hides the panel while retaining its current edits; switching boards checks before discarding unsaved posting edits.
+
+Agents: use `list_nexus_visual_boards` and `read_nexus_visual_board` to read the actual phone canvas, distinct from Agent Board tasks or Board Studio kits. Read a selected board first; use `note_id` for a specific brief when there are more than 20 notes. Follow the user's current request to create ads with existing Ad Maker tools, then prepare the saved ad in this board's posting batch. A sticky note alone does not wake an agent or authorize publication. New MCP tool names require the host's catalog to refresh after deployment.
+
+Native tool tiles accept only the allowlisted `social-post-flow` identifier and a validated optional batch ID. They cannot provide arbitrary iframe URLs or HTML. The panel loads only the trusted same-origin app route. Existing arbitrary inline visuals retain their opaque sandbox and no-network CSP. Batch-binding messages require both the exact panel window and same origin; note text is rendered as text.
 
 Create a named batch, add saved ads / saved video files or upload multiple videos, and edit the description, hashtags and sound notes on each video branch. Select additional destinations and save that branch. The connecting lines join the video branches into a batch, then split into TikTok, Instagram and Facebook queues. Unsaved edits on other branches survive a branch save.
 
