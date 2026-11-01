@@ -72,8 +72,8 @@ try {
     $image=Capture-Jpeg
     if ($image.Length -le 450000) { Call-Nexus 'complete_screen' @{session_id=$session;command_id=$result.command.command_id;image_base64=$image} $token | Out-Null }
     else { Write-Warning 'Screen too large to transmit; request expires.' }
-   }
-  elseif ($result.command) {
+   } catch { Write-Warning 'Screen capture failed; request expires.' }
+  } elseif ($result.command) {
    $cmd=$result.command
    $receipt=@{ok=$true}
    try {
@@ -97,7 +97,6 @@ try {
    } catch {$receipt=@{ok=$false;error='Action failed or refused on Ally.'}}
    try { Call-Nexus 'complete_command' @{session_id=$session;command_id=$cmd.command_id;result=$receipt} $token | Out-Null }
    catch {Write-Warning 'Receipt could not be delivered; do not blindly replay.'}
-  } catch { Write-Warning 'Screen capture failed; request expires.' }
   }
  }
 } finally {
