@@ -164,7 +164,7 @@ async function openSocialTool(it){
     if(!closeSocialTool(true))return;
     socialItem=it.id;
     const panel=h('section',{class:'social-panel',role:'region','aria-label':'Social posting workspace'});
-    const close=btn('Back to board',()=>closeSocialTool()),note=btn('+ Sticky note',()=>noteSheet());
+    const close=btn('Back to board',()=>closeSocialTool()),note=btn('+ Sticky note',()=>noteSheet(null,{x:it.x+it.w+24,y:it.y}));
     panel.append(h('div',{class:'social-panel-head'},h('strong',{text:'Ad Maker workspace'}),note,close));
     const params=new URLSearchParams({embedded:'1',board:board.id,item:it.id,...(it.batch_id?{batch:it.batch_id}:{})});
     const frame=h('iframe',{title:'Social Post Flow workspace',src:'/social-post-flow.html?'+params,allow:'clipboard-write; web-share'});
@@ -205,9 +205,9 @@ function visualSheet(existing){
   sheet(existing?'Edit visual':'Inline visual','It runs in a sealed frame: no network, no saved data, and it cannot touch the rest of Nexus.',ta,msg,h('div',{class:'row'},go));
   setTimeout(()=>ta.focus(),50);
 }
-function noteSheet(existing){
+function noteSheet(existing,placement={}){
   const ta=h('textarea',{'aria-label':'Note text'});ta.value=existing?.text||'';ta.style.minHeight='120px';ta.style.font='16px Georgia,serif';
-  const go=h('button',{class:'big gold',type:'button',text:existing?'Save':'Add note'});go.onclick=()=>{const t=ta.value.slice(0,2000);if(existing)updateItem(existing.id,{text:t});else addItem({kind:'note',text:t,color:'gold',w:200,h:150});closeSheet();};
+  const go=h('button',{class:'big gold',type:'button',text:existing?'Save':'Add note'});go.onclick=()=>{const t=ta.value.slice(0,2000);if(existing)updateItem(existing.id,{text:t});else addItem({kind:'note',text:t,color:'gold',w:200,h:150,...placement});closeSheet();};
   sheet(existing?'Edit note':'New note','',ta,h('div',{class:'row'},go));setTimeout(()=>ta.focus(),50);
 }
 function renameSheet(it){
