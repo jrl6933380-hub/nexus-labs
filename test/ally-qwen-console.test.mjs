@@ -46,12 +46,12 @@ test('server delivers local UI and status, but refuses external POST and wrong H
   await new Promise((resolve,reject)=>{s.once('error',reject);s.listen(PORT,HOST,resolve);});
   const page=await fetch(`http://${HOST}:${PORT}/`);assert.equal(page.status,200);assert.match(await page.text(),/Qwen Control Console/);
   const deck=await fetch(`http://${HOST}:${PORT}/deck`);assert.equal(deck.status,200);assert.match(await deck.text(),/id="qwenConsole"/);
-  // Same-origin embed is allowed; unrelated origins must not frame the local console.
+  // Only the console itself and the Nexus Ally deck site may frame the local console; unrelated origins must not.
   for(const response of [page,deck]){
-   assert.equal(response.headers.get('x-frame-options'),'SAMEORIGIN');
+   assert.equal(response.headers.get('x-frame-options'),null);
    const csp=response.headers.get('content-security-policy');
    assert.match(csp,/frame-src 'self'/);
-   assert.match(csp,/frame-ancestors 'self'/);
+   assert.match(csp,/frame-ancestors 'self' https:\/\/nexus-labs-sigma\.vercel\.app;/);
    assert.match(csp,/connect-src 'self'/);
   }
   const status=await fetch(`http://${HOST}:${PORT}/api/status`);assert.equal((await status.json()).qwen.online,true);
