@@ -72,6 +72,7 @@ a{color:var(--acc)}
   </div>
 </main>
 <script src="/actor-wallet.js"></script>
+<script src="/nexus-viz.js"></script>
 <script type="module">
 import {renderLocalOpportunities} from '/local-opportunities.js';
 const $=id=>document.getElementById(id);
@@ -101,7 +102,9 @@ function show(d){
   if(d.archived||!d.result){out.append(el('b','Older result'),el('p','This result has been cleared. Run it again for a fresh one.','mute'));return;}
   const r=d.result;lastResult=r;
   out.append(el('b','Your result'),el('p',r.summary));
+  if(window.NexusViz)NexusViz.gauge(out,NexusViz.scoreFromText(r.summary),'From this check. Higher is better.');
   for(const s of r.sections||[]){
+    if(window.NexusViz&&/^(fix first|quick wins)/i.test(s.title||'')&&(s.items||[]).length){NexusViz.actionPlan(out,s.title,s.items);continue;}
     const box=el('div',null,'sec');box.append(el('h3',s.title));
     if(s.body)box.append(el('p',s.body));
     if(s.items&&s.items.length){const u=el('ul');s.items.forEach(i=>u.append(el('li',i)));box.append(u);}

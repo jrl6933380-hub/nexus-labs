@@ -92,6 +92,7 @@ a{color:var(--acc)}
 <p class="credit">Photo: <a href="https://pixabay.com/photos/singapore-gardens-by-the-bay-1896765/" target="_blank" rel="noopener noreferrer">suyashdixit on Pixabay</a></p>
 </main>
 <script src="/actor-wallet.js"></script>
+<script src="/nexus-viz.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 let key=NexusWallet.current();
@@ -126,16 +127,18 @@ function show(d){
   if(r.website){const p=el('p',null,'mute'),l=el('a',r.website);l.href=r.website;l.target='_blank';l.rel='noopener noreferrer';p.append('Website: ',l);out.append(p);}
   const linkTo=(cell,url)=>{if(!url)return;const l=el('a',' source');l.href=url;l.target='_blank';l.rel='noopener noreferrer';cell.append(l);};
   const table=(title,rows,mk)=>{if(!rows||!rows.length)return;out.append(el('h2',title));const t=el('table',null,'tbl');for(const x of rows){const tr=el('tr'),[name,sub,price,url]=mk(x),a=el('td');a.append(el('div',name));if(sub)a.append(el('div',sub,'mute'));linkTo(a,url);tr.append(a,el('td',price,'p'));t.append(tr);}out.append(t);};
+  if(window.NexusViz){const pr=(r.subscriptions||[]).length>1?r.subscriptions:r.products;NexusViz.priceBars(out,'Price comparison',pr);}
   table('Products and prices',r.products,x=>[x.name,x.notes,x.price,x.url]);
   table('Subscriptions and memberships',r.subscriptions,x=>[x.name,[x.billing,x.includes].filter(Boolean).join(' · '),x.price,x.url]);
   table('Deals and promos',r.deals,x=>[x.title,x.details,x.ends?'Ends '+x.ends:'',x.url]);
   const f=list('Fees and policies',r.fees_and_policies);if(f)out.append(f);
   if(r.positioning)out.append(el('h2','How they position themselves'),el('p',r.positioning));
+  if(window.NexusViz)NexusViz.balance(out,r.strengths,r.weaknesses);
   const sw=el('div',null,'two');for(const s of [list('Strengths',r.strengths),list('Weaknesses',r.weaknesses)])if(s)sw.append(s);if(sw.children.length)out.append(sw);
   if(r.opportunities&&r.opportunities.length){
-    out.append(el('h2','How you can beat them'));const u=el('ul');
+    const viz=window.NexusViz&&NexusViz.actionPlan(out,'How you can beat them: your action plan',r.opportunities.map(x=>typeof x==='string'?x:x.text));if(!viz)out.append(el('h2','How you can beat them'));const u=el('ul');
     r.opportunities.forEach(x=>u.append(el('li',typeof x==='string'?x:x.text)));
-    out.append(u);
+    if(!viz)out.append(u);
   }
   if(r.sources&&r.sources.length){out.append(el('h2','Sources'));const u=el('ul');for(const s of r.sources){const li=el('li'),l=el('a',s.title||s.url);l.href=s.url;l.target='_blank';l.rel='noopener noreferrer';li.append(l);u.append(li);}out.append(u);}
   if(r.notes)out.append(el('p',r.notes,'mute'));
