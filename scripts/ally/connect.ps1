@@ -1,4 +1,4 @@
-# Nexus Ally v0.3.2 — visible, owner-requested screenshots and bounded controls.
+# Nexus Ally v0.4.0 — visible, owner-requested screenshots and bounded controls.
 # No arbitrary shell or auto-start.
 [CmdletBinding()]
 param(
@@ -33,9 +33,9 @@ if ($Action -eq 'Disconnect') {
  exit
 }
 $session=[guid]::NewGuid().ToString()
-Call-Nexus 'start' @{session_id=$session} $token | Out-Null
+Call-Nexus 'start' @{session_id=$session;capabilities=@('terminal','self_update')} $token | Out-Null
 Write-Host 'Nexus Ally connected (screenshots and bounded controls enabled). Keep this visible PowerShell window open.'
-Write-Host 'Press Ctrl+C to disconnect. Owner-requested clicks and typing require a fresh screenshot.'
+Write-Host 'Press Ctrl+C to disconnect. Owner terminal tools are enabled; commands run visibly as your Windows user.'
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
@@ -81,6 +81,81 @@ function Capture-Jpeg {
  try {$small.Save($stream,[System.Drawing.Imaging.ImageFormat]::Jpeg);return [Convert]::ToBase64String($stream.ToArray())} finally {$small.Dispose();$stream.Dispose()}
  } finally { [NexusAllyInput]::EndPhysicalCoordinates($previousDpi) }
 }
+# Each command runs in a separate visible, non-elevated PowerShell process.
+function Invoke-NexusTerminal([string]$script,[int]$timeoutSeconds) {
+ $receiptPath=Join-Path ([IO.Path]::GetTempPath()) ('nexus-ally-'+[guid]::NewGuid().ToString()+'.json')
+ $script64=[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($script))
+ $path64=[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($receiptPath))
+ $wrapper=@'
+$ErrorActionPreference='Stop'
+$script=[Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('__SCRIPT__'))
+$path=[Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('__PATH__'))
+$output=New-Object Text.StringBuilder
+$truncated=$false
+$exitCode=0
+$global:LASTEXITCODE=0
+Write-Host 'Nexus Ally terminal command (owner session)'
+function Append-Output($value) {
+ $line=[string]$value
+ $remaining=6000-$output.Length
+ if($remaining -gt 0) {
+  $shown=($line+[Environment]::NewLine)
+  if($shown.Length -gt $remaining) {$shown=$shown.Substring(0,$remaining);$script:truncated=$true}
+  [void]$output.Append($shown)
+  Write-Host $shown -NoNewline
+ } else {$script:truncated=$true}
+}
+try {
+ & ([scriptblock]::Create($script)) *>&1 | ForEach-Object { Append-Output $_ }
+ $exitCode=$global:LASTEXITCODE
+} catch { $exitCode=1;Append-Output ($_ | Out-String) }
+@{exit_code=$exitCode;output=$output.ToString();truncated=$truncated} | ConvertTo-Json -Depth 4 -Compress | Set-Content -LiteralPath $path -Encoding UTF8
+'@
+ $wrapper=$wrapper.Replace('__SCRIPT__',$script64).Replace('__PATH__',$path64)
+ $runnerPath=$receiptPath+'.ps1'
+ [IO.File]::WriteAllText($runnerPath,$wrapper,[Text.Encoding]::UTF8)
+ Write-Host ('Running owner terminal command: '+$script)
+ $process=$null
+ try {
+  $process=Start-Process -FilePath "$PSHOME\powershell.exe" -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+$runnerPath+'"')) -WorkingDirectory $env:USERPROFILE -PassThru
+  if(-not $process.WaitForExit($timeoutSeconds*1000)) {
+   & "$env:SystemRoot\System32\taskkill.exe" /PID $process.Id /T /F | Out-Null
+   return @{exit_code=$null;output='Command timed out. Inspect state before retrying; changes may have occurred.';truncated=$false;timed_out=$true}
+  }
+  if(!(Test-Path -LiteralPath $receiptPath)) {throw 'Terminal ended without a receipt.'}
+  if((Get-Item -LiteralPath $receiptPath).Length -gt 60000) {throw 'Terminal receipt too large.'}
+  $r=Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json
+  Write-Host ([string]$r.output)
+  return @{exit_code=$r.exit_code;output=[string]$r.output;truncated=[bool]$r.truncated;timed_out=$false}
+ } finally {
+  if($process) {
+   if(-not $process.HasExited) { & "$env:SystemRoot\System32\taskkill.exe" /PID $process.Id /T /F | Out-Null }
+   $process.Dispose()
+  }
+  Remove-Item -LiteralPath $receiptPath,$runnerPath -Force -ErrorAction SilentlyContinue
+ }
+}
+function Stage-NexusCompanion([string]$revision,[string]$sha256) {
+ if($revision -notmatch '^[a-f0-9]{40}$' -or $sha256 -notmatch '^[a-f0-9]{64}$') {throw 'Pinned source required.'}
+ $updates=Join-Path $base 'updates'
+ [void](New-Item -ItemType Directory -Path $updates -Force)
+ $path=Join-Path $updates ('connect-'+[guid]::NewGuid().ToString()+'.ps1')
+ try {
+  $uri='https://raw.githubusercontent.com/jrl6933380-hub/nexus-labs/'+$revision+'/scripts/ally/connect.ps1'
+  Invoke-WebRequest -Uri $uri -OutFile $path -UseBasicParsing -TimeoutSec 12 -MaximumRedirection 0
+  if((Get-Item -LiteralPath $path).Length -gt 100000) {throw 'Companion too large.'}
+  if((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -ne $sha256) {throw 'Companion checksum mismatch.'}
+  $parseErrors=$null;$parseTokens=$null
+  [void][Management.Automation.Language.Parser]::ParseFile($path,[ref]$parseTokens,[ref]$parseErrors)
+  if($parseErrors.Count -gt 0) {throw 'Companion syntax invalid.'}
+  return $path
+ } catch {
+  Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
+  throw
+ }
+}
+
+$restartPath=$null
 $failures=0
 try {
  while ($true) {
@@ -100,11 +175,13 @@ try {
    try {
     if (-not [Environment]::UserInteractive) { throw 'Interactive desktop required.' }
     switch ($cmd.action) {
-     'status' { $receipt.data=@{host=$env:COMPUTERNAME;version='0.3.2';session='interactive'} }
+     'status' { $receipt.data=@{host=$env:COMPUTERNAME;version='0.4.0';session='interactive'} }
      'qwen_status' {
       try {$response=Invoke-WebRequest -Uri 'http://127.0.0.1:9931/health' -UseBasicParsing -TimeoutSec 3;$receipt.data=@{reachable=$true;status=[int]$response.StatusCode}}
       catch {$receipt.data=@{reachable=$false}} }
      'storage' { $drives=@(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3' | ForEach-Object { @{drive=$_.DeviceID;free_bytes=[long]$_.FreeSpace;total_bytes=[long]$_.Size} });$receipt.data=@{drives=$drives;read_only=$true} }
+     'terminal' { $receipt.data=Invoke-NexusTerminal ([string]$cmd.script) ([int]$cmd.timeout_seconds);$receipt.ok=($receipt.data.exit_code -eq 0 -and -not $receipt.data.timed_out) }
+     'self_update' { $restartPath=Stage-NexusCompanion ([string]$cmd.revision) ([string]$cmd.sha256);$receipt.data=@{staged=$true;revision=$cmd.revision;restart_scheduled=$true} }
      'open_notepad' { Start-Process notepad.exe | Out-Null }
      'click' { [NexusAllyInput]::Click([double]$cmd.x,[double]$cmd.y) }
      'scroll' { [NexusAllyInput]::Scroll([int]$cmd.dy) }
@@ -116,11 +193,15 @@ try {
      default {throw 'Unsupported action.'}
     }
    } catch {$receipt=@{ok=$false;error='Action failed or refused on Ally.'}}
-   try { Call-Nexus 'complete_command' @{session_id=$session;command_id=$cmd.command_id;result=$receipt} $token | Out-Null }
-   catch {Write-Warning 'Receipt could not be delivered; do not blindly replay.'}
+   try { Call-Nexus 'complete_command' @{session_id=$session;command_id=$cmd.command_id;result=$receipt} $token | Out-Null;if($restartPath) {break} }
+   catch {$restartPath=$null;Write-Warning 'Receipt could not be delivered; do not blindly replay.'}
   }
  }
 } finally {
  try { Call-Nexus 'disconnect' @{session_id=$session} $token | Out-Null } catch {}
  Write-Host 'Nexus Ally disconnected.'
+}
+
+if($restartPath) {
+ Start-Process -FilePath "$PSHOME\powershell.exe" -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+$restartPath+'"'),'-Action','Connect')
 }
