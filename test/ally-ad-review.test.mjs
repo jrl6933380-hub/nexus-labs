@@ -19,6 +19,9 @@ test('review uses canonical validation plus exact duration, CTA, hook and readin
  const wrong=good();wrong.scenes[1].duration=6;assert.ok(reviewProject(wrong).issues.some(x=>x.code==='total_duration'));
  const dense=good();dense.scenes[1]={id:'steps',type:'steps_list',duration:7,params:{items:[{title:'Capture',detail:'one two three four five six seven eight nine ten'},{title:'Plan',detail:'one two three four five six seven eight nine ten'},{title:'Make',detail:'one two three four five six seven eight nine ten'}],stagger:.8}};
  assert.ok(reviewProject(dense).issues.some(x=>x.code==='reading_time'));
+ const borderline=good();borderline.scenes[0].duration=2.5;borderline.scenes[1].duration=8.5;
+ const message=reviewProject(borderline).issues.find(x=>x.code==='reading_time').message;
+ assert.match(message,/2\.60s/);assert.match(message,/at least 2\.6s/);
 });
 test('invalid seed gets real feedback, narrow repair, and still requires visual review',async()=>{
  const p=good();p.scenes[2].duration=2;p.scenes[1].duration=9;const states=[],attempts=[];let calls=0;

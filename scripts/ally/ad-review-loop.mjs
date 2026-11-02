@@ -35,7 +35,7 @@ export function reviewProject(project, targetSec = 15) {
     const stagger = s.type === 'steps_list' ? (q.stagger ?? .25) * (q.items.length - 1) : 0;
     // Deliberately a heuristic, not a vision/readability certification.
     const estimate = .6 + stagger + copy.reduce((n, x) => n + words(x), 0) / 3.5;
-    if (s.duration + .01 < estimate) issues.push(issue('reading_time', path, `Reading-time estimate is ${estimate.toFixed(1)}s, but this scene lasts ${s.duration}s. Trim copy or redistribute time; keep the total ${targetSec}s.`));
+    if (s.duration + .01 < estimate) issues.push(issue('reading_time', path, `Reading-time estimate is ${estimate.toFixed(2)}s, but this scene lasts ${s.duration}s. Use at least ${(Math.ceil(estimate * 10) / 10).toFixed(1)}s or trim copy; keep the total ${targetSec}s.`));
   }
   return {ok: issues.length === 0, issues, project: p};
 }
