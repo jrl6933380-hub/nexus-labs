@@ -46,6 +46,14 @@ test('server delivers local UI and status, but refuses external POST and wrong H
   await new Promise((resolve,reject)=>{s.once('error',reject);s.listen(PORT,HOST,resolve);});
   const page=await fetch(`http://${HOST}:${PORT}/`);assert.equal(page.status,200);assert.match(await page.text(),/Qwen Control Console/);
   const deck=await fetch(`http://${HOST}:${PORT}/deck`);assert.equal(deck.status,200);assert.match(await deck.text(),/id="qwenConsole"/);
+  // Same-origin embed is allowed; unrelated origins must not frame the local console.
+  for(const response of [page,deck]){
+   assert.equal(response.headers.get('x-frame-options'),'SAMEORIGIN');
+   const csp=response.headers.get('content-security-policy');
+   assert.match(csp,/frame-src 'self'/);
+   assert.match(csp,/frame-ancestors 'self'/);
+   assert.match(csp,/connect-src 'self'/);
+  }
   const status=await fetch(`http://${HOST}:${PORT}/api/status`);assert.equal((await status.json()).qwen.online,true);
   const forbidden=await fetch(`http://${HOST}:${PORT}/api/chat`,{method:'POST',headers:{...commandHeaders,origin:'null'},body:JSON.stringify({message:'hey'})});assert.equal(forbidden.status,403);
   const allowed=await fetch(`http://${HOST}:${PORT}/api/chat`,{method:'POST',headers:commandHeaders,body:JSON.stringify({message:'hey'})});assert.equal(allowed.status,200);assert.equal((await allowed.json()).answer,'Hello from local Qwen');
