@@ -1,4 +1,4 @@
-# Nexus Ally v0.3.1 — visible, owner-requested screenshots and bounded controls.
+# Nexus Ally v0.3.2 — visible, owner-requested screenshots and bounded controls.
 # No arbitrary shell or auto-start.
 [CmdletBinding()]
 param(
@@ -43,14 +43,32 @@ Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
 public static class NexusAllyInput {
- [DllImport("user32.dll")] static extern bool SetCursorPos(int x,int y);
+ [DllImport("user32.dll", SetLastError=true)] static extern bool SetCursorPos(int x,int y);
+ [DllImport("user32.dll", SetLastError=true)] static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
+ [DllImport("user32.dll")] static extern int GetSystemMetrics(int index);
+ public static IntPtr BeginPhysicalCoordinates() {
+  IntPtr previous=SetThreadDpiAwarenessContext(new IntPtr(-4));
+  if(previous==IntPtr.Zero) throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+  return previous;
+ }
+ public static void EndPhysicalCoordinates(IntPtr previous) { SetThreadDpiAwarenessContext(previous); }
  [DllImport("user32.dll")] static extern void mouse_event(uint flags,uint dx,uint dy,int data,UIntPtr extra);
- public static void Click(int x,int y) { SetCursorPos(x,y); mouse_event(2,0,0,0,UIntPtr.Zero); mouse_event(4,0,0,0,UIntPtr.Zero); }
+ public static void Click(double x,double y) {
+  IntPtr previous=BeginPhysicalCoordinates();
+  try {
+   int left=GetSystemMetrics(76),top=GetSystemMetrics(77),width=GetSystemMetrics(78),height=GetSystemMetrics(79);
+   if(width<1 || height<1) throw new InvalidOperationException("No interactive display.");
+   if(!SetCursorPos(left+(int)(x*(width-1)),top+(int)(y*(height-1)))) throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+   mouse_event(2,0,0,0,UIntPtr.Zero); mouse_event(4,0,0,0,UIntPtr.Zero);
+  } finally { EndPhysicalCoordinates(previous); }
+ }
  public static void Scroll(int delta) { mouse_event(0x0800,0,0,delta,UIntPtr.Zero); }
 }
 '@
 
 function Capture-Jpeg {
+ $previousDpi=[NexusAllyInput]::BeginPhysicalCoordinates()
+ try {
  $bounds=[System.Windows.Forms.SystemInformation]::VirtualScreen
  if($bounds.Width -lt 1 -or $bounds.Height -lt 1){throw 'No interactive display.'}
  $scale=[Math]::Min(1.0,1280.0/$bounds.Width)
@@ -61,6 +79,7 @@ function Capture-Jpeg {
  $small=New-Object System.Drawing.Bitmap($original,$w,$h);$original.Dispose()
  $stream=New-Object System.IO.MemoryStream
  try {$small.Save($stream,[System.Drawing.Imaging.ImageFormat]::Jpeg);return [Convert]::ToBase64String($stream.ToArray())} finally {$small.Dispose();$stream.Dispose()}
+ } finally { [NexusAllyInput]::EndPhysicalCoordinates($previousDpi) }
 }
 $failures=0
 try {
@@ -81,13 +100,13 @@ try {
    try {
     if (-not [Environment]::UserInteractive) { throw 'Interactive desktop required.' }
     switch ($cmd.action) {
-     'status' { $receipt.data=@{host=$env:COMPUTERNAME;version='0.3.1';session='interactive'} }
+     'status' { $receipt.data=@{host=$env:COMPUTERNAME;version='0.3.2';session='interactive'} }
      'qwen_status' {
       try {$response=Invoke-WebRequest -Uri 'http://127.0.0.1:9931/health' -UseBasicParsing -TimeoutSec 3;$receipt.data=@{reachable=$true;status=[int]$response.StatusCode}}
       catch {$receipt.data=@{reachable=$false}} }
      'storage' { $drives=@(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3' | ForEach-Object { @{drive=$_.DeviceID;free_bytes=[long]$_.FreeSpace;total_bytes=[long]$_.Size} });$receipt.data=@{drives=$drives;read_only=$true} }
      'open_notepad' { Start-Process notepad.exe | Out-Null }
-     'click' { $b=[System.Windows.Forms.SystemInformation]::VirtualScreen;[NexusAllyInput]::Click([int]($b.Left+$cmd.x*($b.Width-1)),[int]($b.Top+$cmd.y*($b.Height-1))) }
+     'click' { [NexusAllyInput]::Click([double]$cmd.x,[double]$cmd.y) }
      'scroll' { [NexusAllyInput]::Scroll([int]$cmd.dy) }
      'type' {
       if($cmd.text -match '(?i)password|api.key|secret|token') {throw 'Sensitive text not supported.'}
