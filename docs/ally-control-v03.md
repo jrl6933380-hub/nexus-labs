@@ -42,3 +42,21 @@ Future work: explicitly permissioned app allowlist, screenshot JPEG quality tuni
   to check actual nested JSON serialization without pairing or network calls.
 - Physical mouse/typing and Windows receipt verification remain required after
   deployment; automated bridge tests are not physical-device certification.
+
+## v0.3.2 Windows display scaling repair
+
+Physical Ally testing verified typing, but clicks aimed at Notepad menus landed
+in the document instead. The companion mixed DPI-virtualized desktop bounds
+with physical screenshot/cursor coordinates.
+
+Capture and click now temporarily select per-monitor-v2 DPI awareness on the
+current thread, restoring the previous context afterward. Click coordinates use
+the physical virtual-desktop origin and size; screenshot capture uses that same
+coordinate space before reducing the image to 1280 pixels wide. Cursor movement
+failure now returns a failed receipt rather than claiming success.
+
+Download the updated companion and restart Connect; no pairing is required.
+Status should report 0.3.2. Verify menu clicks at the Ally's existing display
+scale, then typing, before relying on it. No display settings are changed.
+The Node bridge suite does not exercise Windows user32 or physical input;
+this patch still requires on-device verification after installation.
