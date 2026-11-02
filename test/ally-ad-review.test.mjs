@@ -3,12 +3,23 @@ import assert from 'node:assert/strict';
 import {mkdtemp, readFile, writeFile, mkdir, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {reviewProject, parseModelJson, applyRepair, runReview, runJob, buildPreview, localGenerator} from '../scripts/ally/ad-review-loop.mjs';
+import {reviewProject, fitTiming, parseModelJson, applyRepair, runReview, runJob, buildPreview, localGenerator} from '../scripts/ally/ad-review-loop.mjs';
 const good = () => ({specVersion:2,name:'Review fixture',brand:'Nexus Labs',initial:'N',mood:'clean',palette:'electric-pop',platform:{format:'portrait',lengthSec:15},concept:true,scenes:[
  {id:'hook',type:'hook_text',duration:4,params:{headline:'Too many ideas?',support:'Make a clear plan.'}},
  {id:'change',type:'before_after',duration:7,params:{beforeText:'Scattered tasks',afterText:'Clear next steps'}},
  {id:'close',type:'end_card',duration:4,params:{cta:'Explore Nexus',tagline:'Concept preview'}}]});
 const reply = x => ({content:JSON.stringify(x),metrics:{seconds:.01}});
+test('controller fixes model timing arithmetic without changing copy or accepting overfull copy',async()=>{
+ const p=good();p.scenes[0].duration=2;p.scenes[1].duration=2.5;p.scenes[2].duration=4.5;
+ const fit=fitTiming(p);assert.equal(reviewProject(fit).ok,true);assert.equal(fit.scenes.reduce((n,s)=>n+s.duration,0),15);
+ assert.deepEqual(fit.scenes.map(s=>s.params),p.scenes.map(s=>s.params));assert.equal(p.scenes[0].duration,2);
+ const seed=good();seed.scenes[2].duration=2;seed.scenes[1].duration=9;const attempts=[];
+ const r=await runReview({brief:'A concept',seedProject:seed},{generate:async()=>reply(p),onAttempt:async x=>attempts.push(x)});
+ assert.equal(r.status,'awaiting_visual_review');assert.equal(r.repairCount,1);assert.ok(attempts.some(x=>x.source==='controller_timing_fit'));
+ const dense=good();for(const s of dense.scenes)if(s.params.support!==undefined)s.params.support='one '.repeat(29);
+ dense.scenes[1].params.beforeText='one '.repeat(14);dense.scenes[1].params.afterText='two '.repeat(14);
+ assert.equal(fitTiming(dense),null);
+});
 test('review uses canonical validation plus exact duration, CTA, hook and reading-time checks',()=>{
  assert.equal(reviewProject(good()).ok,true);
  const p=good();p.scenes[2].duration=1;assert.equal(reviewProject(p).issues[0].code,'schema');

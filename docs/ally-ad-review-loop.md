@@ -13,6 +13,10 @@ user in a visible process and is invoked through the paired terminal connector.
 4. Send specific errors to local Qwen. Accept a narrow duration/params patch or
    a full revised project. Revalidate every result. Model output is JSON data,
    never evaluated code or a terminal command.
+   After a model repair, timing-only errors are fitted deterministically in
+   tenths of a second when all reading-time minimums fit within 15 seconds.
+   This changes durations only and records a separate controller timing receipt;
+   copy that cannot fit still requires revision or becomes `needs_help`.
 5. Stop after **two repair attempts**. Persistent errors become `needs_help`,
    with the draft and feedback retained. Successful data checks become
    `awaiting_visual_review`, with `project.json` and a local `preview.html`.

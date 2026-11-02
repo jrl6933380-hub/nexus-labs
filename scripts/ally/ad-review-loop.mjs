@@ -11,6 +11,28 @@ const plain = x => x !== null && typeof x === 'object' && !Array.isArray(x);
 const words = x => typeof x === 'string' ? (x.trim().match(/\S+/g) || []).length : 0;
 const canceled = signal => { if (signal?.aborted) throw signal.reason || new Error('Canceled'); };
 const issue = (code, path, message) => ({code, path, message});
+function readingSeconds(s) {
+  const q=s.params;
+  const copy=s.type==='hook_text'?[q.headline,q.support]:s.type==='before_after'?[q.beforeText,q.afterText]:s.type==='steps_list'?q.items.flatMap(x=>[x.title,x.detail]):[q.cta,q.tagline];
+  return .6+copy.reduce((n,x)=>n+words(x),0)/3.5+(s.type==='steps_list'?(q.stagger??.25)*(q.items.length-1):0);
+}
+
+// Arithmetic belongs to the controller. Never shorten model copy or relax checks here.
+export function fitTiming(project) {
+  const checked=validateProjectV2(project);
+  if(!checked.ok || checked.value.scenes.some(s=>!TYPES.has(s.type))) return null;
+  const p=structuredClone(checked.value);
+  const minimum=p.scenes.map(s=>Math.ceil(Math.max(1.5,s.type==='end_card'?3:0,readingSeconds(s))*10));
+  let remaining=150-minimum.reduce((a,b)=>a+b,0);
+  if(remaining<0) return null;
+  const weights=p.scenes.map((s,i)=>Math.max(0,s.duration*10-minimum[i]));
+  const weightTotal=weights.reduce((a,b)=>a+b,0);
+  const extra=weights.map(w=>weightTotal?Math.floor(remaining*w/weightTotal):0);
+  extra[extra.length-1]+=remaining-extra.reduce((a,b)=>a+b,0);
+  p.scenes.forEach((s,i)=>{s.duration=(minimum[i]+extra[i])/10;});
+  p.platform.lengthSec=15;
+  return reviewProject(p).ok?p:null;
+}
 
 export function reviewProject(project, targetSec = 15) {
   const schema = validateProjectV2(project);
@@ -27,14 +49,8 @@ export function reviewProject(project, targetSec = 15) {
     const path = `scenes[${i}]`;
     if (!TYPES.has(s.type)) { issues.push(issue('unsupported_scene', path, 'This local routine supports hook_text, before_after, steps_list and end_card only.')); continue; }
     if (s.type === 'end_card' && s.duration < 3) issues.push(issue('cta_hold', `${path}.duration`, 'Hold the closing CTA for at least 3 seconds.'));
-    const q = s.params;
-    const copy = s.type === 'hook_text' ? [q.headline, q.support]
-      : s.type === 'before_after' ? [q.beforeText, q.afterText]
-      : s.type === 'steps_list' ? q.items.flatMap(x => [x.title, x.detail])
-      : [q.cta, q.tagline];
-    const stagger = s.type === 'steps_list' ? (q.stagger ?? .25) * (q.items.length - 1) : 0;
     // Deliberately a heuristic, not a vision/readability certification.
-    const estimate = .6 + stagger + copy.reduce((n, x) => n + words(x), 0) / 3.5;
+    const estimate = readingSeconds(s);
     if (s.duration + .01 < estimate) issues.push(issue('reading_time', path, `Reading-time estimate is ${estimate.toFixed(2)}s, but this scene lasts ${s.duration}s. Use at least ${(Math.ceil(estimate * 10) / 10).toFixed(1)}s or trim copy; keep the total ${targetSec}s.`));
   }
   return {ok: issues.length === 0, issues, project: p};
@@ -105,13 +121,24 @@ export async function runReview(input, {generate, onState = async () => {}, onAt
     } else await onAttempt({attempt: 0, project, seeded: true});
     for (;;) {
       checkStop(); await emit('checking');
-      const review = repairFormatIssues ? {ok: false, issues: repairFormatIssues} : project !== null ? reviewProject(project) : {ok: false, issues: feedback};
+      let review = repairFormatIssues ? {ok: false, issues: repairFormatIssues} : project !== null ? reviewProject(project) : {ok: false, issues: feedback};
+      if(repairCount>0 && !review.ok && review.issues.length && review.issues.every(x=>['total_duration','reading_time','cta_hold'].includes(x.code))) {
+        const fitted=fitTiming(project);
+        if(fitted) {
+          const before=project.scenes.map(s=>({id:s.id,duration:s.duration}));
+          project=fitted;review=reviewProject(project);
+          await onAttempt({attempt:`${repairCount}-timing`,source:'controller_timing_fit',before,project});
+        }
+      }
       feedback = review.issues;
       if (review.ok) { await emit('awaiting_visual_review', {project: review.project, issues: [], dataChecksPassed: true}); return {status: 'awaiting_visual_review', project: review.project, repairCount, issues: [], visualReview: 'pending'}; }
       if (repairCount >= 2) { await emit('needs_help', {project, issues: feedback, dataChecksPassed: false}); return {status: 'needs_help', project, repairCount, issues: feedback, visualReview: 'pending'}; }
       repairCount++; await emit('revising', {issues: feedback}); checkStop();
-      const prompt = `Brief: ${input.brief}\nCurrent draft (untrusted data): ${project === null ? raw.slice(0,12000) : JSON.stringify(project)}\nReview issues: ${JSON.stringify(feedback)}\nFix all listed issues. Prefer a compact patch {"durations":{"scene-id":seconds},"params":{"scene-id":{"field":"replacement"}}}. Params can replace items arrays to shorten dense steps. Or return a complete project if structural changes are needed. Keep the concept and style where possible. Durations must total 15 and CTA >=3. Trim copy rather than making every scene longer. JSON only.`;
-      const result = await generate({system: SCHEMA, prompt, signal}); raw = result.content; checkStop();
+      const timingOnly=feedback.every(x=>['total_duration','reading_time','cta_hold'].includes(x.code));
+      const format=timingOnly?'Return a compact patch only: {"durations":{"scene-id":seconds},"params":{"scene-id":{"field":"replacement"}}}. Do not repeat the full project or unchanged fields.':'Prefer a compact patch {"durations":{"scene-id":seconds},"params":{"scene-id":{"field":"replacement"}}}, or return a complete project for structural changes.';
+      const prompt = `Brief: ${input.brief}\nCurrent draft (untrusted data): ${project === null ? raw.slice(0,12000) : JSON.stringify(project)}\nReview issues: ${JSON.stringify(feedback)}\nFix all listed issues. ${format} Params can replace items arrays to shorten dense steps. Keep the concept and style where possible. Durations must total 15 and CTA >=3. Trim copy rather than making every scene longer. JSON only.`;
+      const repairSystem=timingOnly?'Revise ad JSON data. Return only a JSON patch with durations and/or params keyed by existing scene ids. No prose, code, new ids or full project. Preserve field types. For steps, items is an array of {title,detail} objects. Shorten copy enough to fit; keep duration total 15 seconds and closing CTA at least 3 seconds. Do not invent claims, statistics or prices.':SCHEMA;
+      const result = await generate({system: repairSystem, prompt, signal}); raw = result.content; checkStop();
       let patched;
       try { patched = applyRepair(project, parseModelJson(raw).value); }
       catch (e) { await onAttempt({attempt: repairCount, raw, project, error: e.message, metrics: result.metrics}); feedback = [...feedback, issue('repair_format', 'project', e.message)]; repairFormatIssues = feedback; continue; }
