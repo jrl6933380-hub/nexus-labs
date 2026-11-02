@@ -24,3 +24,21 @@ Adds owner-only Nexus Workspace actions to existing connected Ally: status, scre
 **Not yet verified on the physical ROG Ally.** Do not merge this as a certified end-to-end control system without tests and owner approval.
 
 Future work: explicitly permissioned app allowlist, screenshot JPEG quality tuning, model server start/stop with owner control, storage cleanup candidates with per-file approval, signed installer, and more resilient transport.
+
+## v0.3.1 receipt and screenshot repair
+
+- The existing `complete_screen` path now registers the captured frame and
+  `read_nexus_ally_screen_result` returns its `frame_id`. Controls consume the
+  frame; request another screenshot after each input action. Reconnecting clears
+  pending work and frames from the previous session.
+- The companion serializes nested receipts with JSON depth 8 so drive arrays and
+  byte counts survive. Status reports `0.3.1`; connection messages describe the
+  bounded controls accurately.
+- The screenshot repair is server-side and works with the existing v0.3 companion.
+  Storage reporting needs the updated companion downloaded and Connect restarted;
+  the saved device pairing remains valid.
+- Regression checks: `node --test test/ally-bridge.test.mjs test/phone-bridge.test.mjs`.
+  On Windows, run `powershell -NoProfile -File ./scripts/ally/test-receipt-json.ps1`
+  to check actual nested JSON serialization without pairing or network calls.
+- Physical mouse/typing and Windows receipt verification remain required after
+  deployment; automated bridge tests are not physical-device certification.

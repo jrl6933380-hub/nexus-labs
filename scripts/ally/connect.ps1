@@ -1,5 +1,5 @@
-# Nexus Ally v0.3 — interactive heartbeat and owner-requested screenshots.
-# No remote keyboard, mouse, shell, or auto-start.
+# Nexus Ally v0.3.1 — visible, owner-requested screenshots and bounded controls.
+# No arbitrary shell or auto-start.
 [CmdletBinding()]
 param(
  [ValidateSet('Pair','Connect','Disconnect')][string]$Action='Connect',
@@ -12,7 +12,7 @@ $credential=Join-Path $base 'device-token.xml'
 function Call-Nexus([string]$method,[hashtable]$data,[string]$token=''){
  $headers=@{}
  if ($token) {$headers.Authorization='Bearer '+$token}
- return Invoke-RestMethod -Uri ($Origin+'/api/ally') -Method POST -ContentType 'application/json' -Headers $headers -Body (@{action=$method}+$data | ConvertTo-Json -Compress) -TimeoutSec 12
+ return Invoke-RestMethod -Uri ($Origin+'/api/ally') -Method POST -ContentType 'application/json' -Headers $headers -Body (@{action=$method}+$data | ConvertTo-Json -Depth 8 -Compress) -TimeoutSec 12
 }
 if ($Action -eq 'Pair') {
  if (!(Test-Path -LiteralPath $base)) { New-Item -ItemType Directory -Path $base | Out-Null }
@@ -34,8 +34,8 @@ if ($Action -eq 'Disconnect') {
 }
 $session=[guid]::NewGuid().ToString()
 Call-Nexus 'start' @{session_id=$session} $token | Out-Null
-Write-Host 'Nexus Ally connected (read-only screen requests enabled). Keep this visible PowerShell window open.'
-Write-Host 'Press Ctrl+C to disconnect. Screen requests require this visible window; no keyboard/control actions.'
+Write-Host 'Nexus Ally connected (screenshots and bounded controls enabled). Keep this visible PowerShell window open.'
+Write-Host 'Press Ctrl+C to disconnect. Owner-requested clicks and typing require a fresh screenshot.'
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
@@ -81,7 +81,7 @@ try {
    try {
     if (-not [Environment]::UserInteractive) { throw 'Interactive desktop required.' }
     switch ($cmd.action) {
-     'status' { $receipt.data=@{host=$env:COMPUTERNAME;version='0.3';session='interactive'} }
+     'status' { $receipt.data=@{host=$env:COMPUTERNAME;version='0.3.1';session='interactive'} }
      'qwen_status' {
       try {$response=Invoke-WebRequest -Uri 'http://127.0.0.1:9931/health' -UseBasicParsing -TimeoutSec 3;$receipt.data=@{reachable=$true;status=[int]$response.StatusCode}}
       catch {$receipt.data=@{reachable=$false}} }
