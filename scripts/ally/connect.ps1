@@ -1,4 +1,4 @@
-# Nexus Ally v0.4.0 — visible, owner-requested screenshots and bounded controls.
+# Nexus Ally v0.5.0 — visible, owner-requested screenshots, bounded controls and an owner-started watch mode (about one frame per second, auto-off).
 # No arbitrary shell or auto-start.
 [CmdletBinding()]
 param(
@@ -33,7 +33,7 @@ if ($Action -eq 'Disconnect') {
  exit
 }
 $session=[guid]::NewGuid().ToString()
-Call-Nexus 'start' @{session_id=$session;capabilities=@('terminal','self_update')} $token | Out-Null
+Call-Nexus 'start' @{session_id=$session;capabilities=@('terminal','self_update','watch')} $token | Out-Null
 Write-Host 'Nexus Ally connected (screenshots and bounded controls enabled). Keep this visible PowerShell window open.'
 Write-Host 'Press Ctrl+C to disconnect. Owner terminal tools are enabled; commands run visibly as your Windows user.'
 Add-Type -AssemblyName System.Windows.Forms
@@ -157,12 +157,17 @@ function Stage-NexusCompanion([string]$revision,[string]$sha256) {
 
 $restartPath=$null
 $failures=0
+$pause=3000
+$watchShown=$false
 try {
  while ($true) {
-  Start-Sleep -Seconds 3
+  Start-Sleep -Milliseconds $pause
   try { $result=Call-Nexus 'poll' @{session_id=$session} $token; $failures=0 }
   catch { $failures++;Write-Warning ('Nexus response failed '+$failures+'/3; retrying.');if($failures -ge 3){throw 'Connection interrupted. Restart Connect to resume.'};Start-Sleep -Seconds ([Math]::Min(5,$failures*2));continue }
   if (-not $result.active) { break }
+  if ($result.watch) { $pause=350 } else { $pause=3000 }
+  if ($result.watch -and -not $watchShown) { Write-Host 'WATCH MODE ON: sending about one screen frame per second until it times out or the owner stops it.' -ForegroundColor Yellow;$watchShown=$true }
+  elseif (-not $result.watch -and $watchShown) { Write-Host 'Watch mode off.';$watchShown=$false }
   if ($result.command -and $result.command.action -eq 'screen') {
    try {
     $image=Capture-Jpeg
@@ -175,7 +180,7 @@ try {
    try {
     if (-not [Environment]::UserInteractive) { throw 'Interactive desktop required.' }
     switch ($cmd.action) {
-     'status' { $receipt.data=@{host=$env:COMPUTERNAME;version='0.4.0';session='interactive'} }
+     'status' { $receipt.data=@{host=$env:COMPUTERNAME;version='0.5.0';session='interactive'} }
      'qwen_status' {
       try {$response=Invoke-WebRequest -Uri 'http://127.0.0.1:9931/health' -UseBasicParsing -TimeoutSec 3;$receipt.data=@{reachable=$true;status=[int]$response.StatusCode}}
       catch {$receipt.data=@{reachable=$false}} }
@@ -195,6 +200,12 @@ try {
    } catch {$receipt=@{ok=$false;error='Action failed or refused on Ally.'}}
    try { Call-Nexus 'complete_command' @{session_id=$session;command_id=$cmd.command_id;result=$receipt} $token | Out-Null;if($restartPath) {break} }
    catch {$restartPath=$null;Write-Warning 'Receipt could not be delivered; do not blindly replay.'}
+  }
+  if ($result.watch -and -not $restartPath) {
+   try {
+    $frame=Capture-Jpeg
+    if ($frame.Length -le 450000) { Call-Nexus 'complete_frame' @{session_id=$session;image_base64=$frame} $token | Out-Null }
+   } catch { Write-Warning 'Watch frame failed; will try again.' }
   }
  }
 } finally {
