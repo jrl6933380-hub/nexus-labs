@@ -59,3 +59,32 @@ test('screenshot completion rejects non-screen commands and results stay owner s
  const r=await screen(f,p);
  await assert.rejects(f.bridge.screenResult('other',r.command_id),/stopped/);
 });
+
+test('terminal requires declared companion capability and is delivered at most once with bounded result',async()=>{
+ const f=fixture(),p=await connected(f);
+ const input={action:'terminal',script:'Write-Output "Nexus ready"',timeout_seconds:20};
+ await assert.rejects(f.bridge.enqueue('justin',input),/Update the Ally companion/);
+ await f.bridge.start(p.token,p.session,['terminal','self_update']);
+ assert.deepEqual((await f.bridge.status('justin')).capabilities,['terminal','self_update']);
+ const q=await f.bridge.enqueue('justin',input);
+ const polls=await Promise.all([f.bridge.poll(p.token,p.session),f.bridge.poll(p.token,p.session)]);
+ assert.equal(polls.filter(p=>p.command).length,1);
+ assert.equal(polls.find(p=>p.command).command.script,input.script);
+ await f.bridge.completeCommand(p.token,p.session,q.command_id,{ok:true,data:{exit_code:0,output:'Nexus ready',timed_out:false}});
+ assert.equal((await f.bridge.commandResult('justin',q.command_id)).data.output,'Nexus ready');
+ await assert.rejects(f.bridge.commandResult('other',q.command_id),/stopped/);
+ await f.bridge.start(p.token,randomUUID(),['terminal']);
+ await assert.rejects(f.bridge.commandResult('justin',q.command_id),/Expired session/);
+});
+test('terminal and updater reject invalid input before queueing; restart receipt remains readable after update',async()=>{
+ const f=fixture(),p=await connected(f);
+ await f.bridge.start(p.token,p.session,['terminal','self_update']);
+ for(const input of [{action:'terminal',script:'',timeout_seconds:20},{action:'terminal',script:'x'.repeat(4001),timeout_seconds:20},{action:'terminal',script:'x',timeout_seconds:21},{action:'terminal',script:'x',timeout_seconds:0},{action:'terminal',script:'x',timeout_seconds:1.5},{action:'self_update',revision:'main',sha256:'a'.repeat(64)},{action:'self_update',revision:'b'.repeat(40),sha256:'bad'}]) await assert.rejects(f.bridge.enqueue('justin',input));
+ const q=await f.bridge.enqueue('justin',{action:'self_update',revision:'b'.repeat(40),sha256:'a'.repeat(64)});
+ await f.bridge.poll(p.token,p.session);
+ await f.bridge.completeCommand(p.token,p.session,q.command_id,{ok:true,data:{staged:true,restart_scheduled:true}});
+ await f.bridge.start(p.token,randomUUID(),['terminal','self_update']);
+ assert.equal((await f.bridge.commandResult('justin',q.command_id)).data.staged,true);
+ await f.bridge.stop('justin');
+ await assert.rejects(f.bridge.commandResult('justin',q.command_id),/stopped/);
+});

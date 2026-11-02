@@ -79,6 +79,10 @@
   ],
   "rewrites": [
     {
+      "source": "/ally.ps1",
+      "destination": "https://raw.githubusercontent.com/jrl6933380-hub/nexus-labs/main/scripts/ally/connect.ps1"
+    },
+    {
       "source": "/p/:id",
       "destination": "/api/waitlist?preview=:id"
     },
@@ -226,4 +230,3 @@
     }
   ]
 }
-
