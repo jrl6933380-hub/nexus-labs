@@ -62,7 +62,7 @@ export function createConsoleServer({root=ROOT,fetchImpl=fetch,panelPath=PANEL,d
    if(req.headers.host!==`${HOST}:${PORT}`){bad(res,403,'Localhost only');return;}
    const u=new URL(req.url,ORIGIN);if(u.search||u.hash){bad(res,404,'Not found');return;}
    if(req.method==='GET'&&(u.pathname==='/'||u.pathname==='/deck')){
-    const html=await readFile(u.pathname==='/deck'?deckPath:panelPath);res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','content-security-policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'"});res.end(html);return;
+    const html=await readFile(u.pathname==='/deck'?deckPath:panelPath);res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','x-frame-options':'SAMEORIGIN','content-security-policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; frame-src 'self'; frame-ancestors 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'"});res.end(html);return;
    }
    if(req.method==='GET'&&u.pathname==='/api/status'){const [qwen,jobs]=await Promise.all([qwenStatus(fetchImpl),listJobs(root)]);reply(res,200,{qwen,jobs,capabilities:['chat','guarded_tasks','activity','stop']});return;}
    if(req.method==='POST'&&!validOrigin(req.headers)){bad(res,403,'Request must come from the local console');return;}
