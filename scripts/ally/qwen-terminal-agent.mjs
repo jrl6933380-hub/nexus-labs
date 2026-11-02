@@ -68,7 +68,8 @@ export async function executeTool(action,{workspace,commandRunner=execFileAsync}
  }
  if(tool==='read_file') {
   exactArgs(args,['path']);const path=await safePath(workspace,args.path);
-  if(!(await lstat(path)).isFile())throw new Error('Not a file.');
+  const info=await lstat(path);
+  if(!info.isFile()||info.size>64000)throw new Error('Not a supported text file (64KB max).');
   const text=await readFile(path,'utf8');return {content:snippet(text),truncated:text.length>MAX_OUTPUT};
  }
  if(tool==='write_file') {
@@ -87,7 +88,8 @@ export async function executeTool(action,{workspace,commandRunner=execFileAsync}
   exactArgs(args,['path','old_text','new_text']);
   if(typeof args.old_text!=='string'||!args.old_text||args.old_text.length>6000||typeof args.new_text!=='string'||args.new_text.includes('\0')||args.new_text.length>12000)throw new Error('Supply a bounded exact edit.');
   const path=await safePath(workspace,args.path);
-  if(!(await lstat(path)).isFile())throw new Error('Not a file.');
+  const info=await lstat(path);
+  if(!info.isFile()||info.size>48000)throw new Error('Large files require owner review.');
   const text=await readFile(path,'utf8');
   if(text.length>24000)throw new Error('Large files require owner review.');
   const index=text.indexOf(args.old_text);
