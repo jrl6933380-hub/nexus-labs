@@ -231,11 +231,26 @@
     });
   }
 
+  // /ads.html?ad=<campaign_id> opens that ad's sheet once the list and videos have loaded,
+  // so a person (or an agent driving the browser) can jump to one ad without scrolling the grid.
+  var deepLinkDone = false;
+  function openDeepLink() {
+    if (deepLinkDone) return;
+    deepLinkDone = true;
+    var id = '';
+    try { id = new URLSearchParams(location.search).get('ad') || ''; } catch (e) { id = ''; }
+    if (!id) return;
+    for (var i = 0; i < ads.length; i++) {
+      if (ads[i].campaign_id === id) { openSheet(ads[i], null); return; }
+    }
+  }
+
   // Which ads have a finished video. A failure just means no video buttons.
   function loadRenders() {
     api('renders').then(function (data) {
       renders = (data && data.renders) || {};
       render();
+      openDeepLink();
     }).catch(function () {});
   }
 
