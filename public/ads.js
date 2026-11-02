@@ -704,6 +704,11 @@
     });
   }
 
+  // Phones and tablets have a share sheet that lists TikTok. Desktop browsers (Windows, Mac) do not:
+  // their share sheet has no TikTok target, so there we save the MP4 and open TikTok Studio's upload page.
+  var canUseShareSheet = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+  function shareLabel() { return canUseShareSheet ? 'Share to TikTok' : 'Save for TikTok'; }
+
   function b64ToBytes(b64) {
     var bin = atob(b64), bytes = new Uint8Array(bin.length);
     for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
@@ -718,7 +723,7 @@
     if (videoUrl) { URL.revokeObjectURL(videoUrl); videoUrl = null; }
     videoFile = null;
     var share = $('sheet-share');
-    share.textContent = 'Share to TikTok';
+    share.textContent = shareLabel();
     share.disabled = false;
   }
 
@@ -747,7 +752,7 @@
       videoFile = new File(parts, name, { type: 'video/mp4' });
       videoUrl = URL.createObjectURL(videoFile);
       $('sheet-share').disabled = false;
-      $('sheet-share').textContent = 'Share to TikTok';
+      $('sheet-share').textContent = shareLabel();
       var box = $('sheet-video');
       var v = document.createElement('video');
       v.src = videoUrl;
@@ -789,13 +794,19 @@
       return;
     }
     try {
-      if (navigator.canShare && navigator.canShare({ files: [videoFile] })) {
+      if (canUseShareSheet && navigator.canShare && navigator.canShare({ files: [videoFile] })) {
         await navigator.share({ files: [videoFile], title: ad.name || 'Nexus ad' });
       } else {
         var link = document.createElement('a');
         link.href = videoUrl; link.download = videoFile.name;
         document.body.appendChild(link); link.click(); link.remove();
-        postMsg('Sharing is unavailable here. Video saved; import it in TikTok.');
+        if (canUseShareSheet) {
+          postMsg('Sharing is unavailable here. Video saved; import it in TikTok.');
+        } else {
+          // Same tap, so the browser allows the new tab. Nothing is posted: the owner picks the file and taps Post.
+          window.open('https://www.tiktok.com/tiktokstudio/upload', '_blank', 'noopener');
+          postMsg('Video saved to Downloads. TikTok Studio opened: choose that file to upload.');
+        }
       }
     } catch (err) {
       if (err.name !== 'AbortError') postMsg(err.message || 'Could not share this video.', true);
