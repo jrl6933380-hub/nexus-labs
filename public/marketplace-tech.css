@@ -1,0 +1,46 @@
+/* Techno theme for the actor marketplace. Loaded after marketplace.css.
+   Layout is untouched; this only recolors and adds slow, low-intensity pulses. */
+:root,:root{color-scheme:dark;--bg:#040b12;--surface:#08141d;--soft:#0c1f2b;--text:#e4f5f1;--mute:#8fb0b3;--line:#15384a;--ink:#d6f2ee;--gold:#3ee6c4;--gold-ink:#4fe3d0;--green:#34f5a8;--blue:#3aa8ff;--error:#ff8f8f;--serif:'Segoe UI',system-ui,-apple-system,sans-serif;--mono:ui-monospace,SFMono-Regular,Consolas,monospace}
+@property --pulse{syntax:'<number>';inherits:true;initial-value:0}
+@keyframes breathe{0%,100%{--pulse:0}50%{--pulse:1}}
+@keyframes drift{0%{background-position:0 0,0 0,0% 0%}100%{background-position:0 0,0 0,100% 100%}}
+@keyframes glowline{0%,100%{opacity:.25}50%{opacity:.9}}
+@keyframes blip{0%,100%{box-shadow:0 0 0 0 rgba(52,245,168,.0);opacity:.55}50%{box-shadow:0 0 12px 3px rgba(52,245,168,.55);opacity:1}}
+@keyframes sweep{0%{transform:translateY(-100%)}100%{transform:translateY(100vh)}}
+@keyframes edge{0%,100%{border-color:rgba(58,168,255,.28)}50%{border-color:rgba(52,245,168,.6)}}
+@keyframes halo{0%,100%{box-shadow:0 0 0 1px rgba(58,168,255,.15),0 0 18px rgba(58,168,255,.08)}50%{box-shadow:0 0 0 1px rgba(52,245,168,.4),0 0 30px rgba(52,245,168,.22)}}
+body{background:radial-gradient(1200px 700px at 12% -10%,rgba(58,168,255,calc(.10 + var(--pulse)*.08)),transparent 60%),radial-gradient(1000px 640px at 95% 20%,rgba(52,245,168,calc(.07 + var(--pulse)*.08)),transparent 60%),linear-gradient(rgba(58,168,255,.045) 1px,transparent 1px) 0 0/48px 48px,linear-gradient(90deg,rgba(58,168,255,.045) 1px,transparent 1px) 0 0/48px 48px,var(--bg);background-attachment:fixed;animation:breathe 9s ease-in-out infinite;font-family:var(--serif)}
+body:before{content:'';position:fixed;left:0;right:0;top:0;height:140px;pointer-events:none;z-index:0;background:linear-gradient(180deg,transparent,rgba(52,245,168,.05),transparent);animation:sweep 14s linear infinite}
+main,.site-header,.promise-strip{position:relative;z-index:1}
+h1,h2,h3,.featured-report h3{font-family:var(--serif);font-weight:600;letter-spacing:-.03em}
+h1{background:linear-gradient(100deg,#e4f5f1 0%,#7ff3da 45%,#58b8ff 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+h1 em{color:transparent;background:linear-gradient(100deg,#34f5a8,#3aa8ff);-webkit-background-clip:text;background-clip:text;font-style:normal;filter:drop-shadow(0 0 calc(6px + var(--pulse)*10px) rgba(52,245,168,.45))}
+.eyebrow,.report-type,.sample-stamp,.promise-strip span{font-family:var(--mono);color:var(--green)}
+.brand-mark{border-color:var(--green);color:var(--green);font-family:var(--mono);animation:halo 7s ease-in-out infinite;border-radius:6px}
+.site-header{border-bottom:1px solid transparent;border-image:linear-gradient(90deg,transparent,var(--blue),var(--green),transparent) 1;animation:glowline 8s ease-in-out infinite}
+.wallet-link{border-color:rgba(58,168,255,.4);animation:edge 7s ease-in-out infinite}
+.wallet-link:hover{background:rgba(52,245,168,.1)}
+.signal{background:var(--green);animation:blip 4.5s ease-in-out infinite}
+.primary{background:linear-gradient(100deg,#1fd6a0,#2f9cff);color:#02121a;box-shadow:0 0 22px rgba(52,245,168,.28)}
+.primary:hover{background:linear-gradient(100deg,#5bffc6,#5cb6ff);color:#02121a}
+.secondary{background:rgba(8,20,29,.7);border-color:rgba(58,168,255,.4);color:var(--text)}
+.secondary:hover{border-color:var(--green)}
+.filter.active{background:linear-gradient(100deg,#1fd6a0,#2f9cff);color:#02121a}
+.filter:hover{background:rgba(58,168,255,.12)}
+.search{background:rgba(8,20,29,.8);border-color:rgba(58,168,255,.35)}
+.search:focus-within{outline-color:var(--green)}
+.card,.grid>*,.actor-card,.wallet-panel,.featured-report,.report-sheet,.packs button,.steps li{background:rgba(8,20,29,.78);color:var(--text);border-color:rgba(58,168,255,.28);backdrop-filter:blur(6px)}
+.grid>*{animation:edge 8s ease-in-out infinite}
+.grid>*:nth-child(3n+2){animation-delay:-2.7s}.grid>*:nth-child(3n){animation-delay:-5.3s}
+.grid>*:hover{border-color:var(--green);animation:halo 3s ease-in-out infinite}
+.featured-report{transform:none;box-shadow:none;animation:halo 8s ease-in-out infinite;background:#08202a}
+.report-sheet{background:#0b2530;color:#d6f2ee}
+.report-top{border-bottom-color:rgba(58,168,255,.35)}
+.sheet-heading{border-bottom-color:rgba(58,168,255,.3)}
+.finding p,.finding-number,.report-caption,.hero-description,.hero-note{color:var(--mute)}
+.wallet-panel{animation:halo 9s ease-in-out infinite}
+.packs button:hover{border-color:var(--green);box-shadow:0 0 22px rgba(52,245,168,.25)}
+.promise-strip,.how-section{border-color:rgba(58,168,255,.2)}
+.promise-strip{background:rgba(8,20,29,.5)}
+::selection{background:rgba(52,245,168,.35)}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important}}
