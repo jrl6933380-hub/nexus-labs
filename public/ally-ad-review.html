@@ -16,7 +16,7 @@ button:disabled{opacity:.55;cursor:wait}button:focus-visible,a:focus-visible,tex
 .card{border:1px solid #38475b;background:#182433;border-radius:18px;margin:16px 0;padding:16px}
 .head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .status{display:inline-block;font-size:.78rem;border:1px solid #64758a;border-radius:20px;padding:4px 9px;text-transform:capitalize}
-.status.approved{color:#c7eebd;border-color:#7bba8d}.status.rejected{color:#ffd2b4;border-color:#cb9267}
+.status.approved{color:#c7eebd;border-color:#7bba8d}.status.rejected{color:#ffd2b4;border-color:#cb9267}.revision{font-size:.85rem;color:#a9c7e7}.revision a{font-weight:650}
 video{display:block;max-height:480px;max-width:100%;width:min(100%,270px);aspect-ratio:9/16;background:#070b13;border-radius:12px;margin:16px auto}
 .actions{display:flex;gap:10px;flex-wrap:wrap}textarea{display:block;width:100%;background:#0e1929;border:1px solid #53657c;border-radius:12px;color:#fff;padding:10px;font:inherit;min-height:75px;margin:12px 0}
 .help{border-left:3px solid #a8d3a1;padding:0 12px}#notice[hidden]{display:none}
@@ -43,7 +43,7 @@ async function decide(review,decision,review_note=''){
  const data=await res.json();if(!res.ok)throw Error(data.error||'Could not save your decision');await render();
 }
 function item(review){
- const clone=by('card').content.cloneNode(true),root=clone.querySelector('article');
+ const clone=by('card').content.cloneNode(true),root=clone.querySelector('article');root.id='review-'+review.id;
  root.querySelector('.name').textContent=review.title;
  root.querySelector('.details').textContent=review.project_id+' · '+new Date(review.created_at).toLocaleString()+' · '+Math.ceil(review.bytes/1024)+' KB';
  const status=root.querySelector('.status');status.textContent=review.status.replaceAll('_',' ');status.classList.add(review.status);
@@ -53,6 +53,14 @@ function item(review){
   video.src='/api/ally-ad-review?action=video&id='+encodeURIComponent(review.id);player.append(video);
  }
  const note=root.querySelector('.note');if(review.review_note)note.textContent='Review note: '+review.review_note;else note.remove();
+ if(review.revision_of){const p=el('p');p.className='revision';p.append('Revision of ');const a=el('a','earlier review');a.href='#review-'+review.revision_of;p.append(a);root.querySelector('.head').after(p);}
+ if(review.status==='rejected'&&review.revision_state){
+  const progress=el('p');progress.className='revision';const labels={queued:'Feedback queued for Qwen on the Ally',claimed:'Qwen is working on your changes',submitted:'New version sent for your approval',failed:'Revision needs attention'};
+  progress.textContent=labels[review.revision_state]||review.revision_state;
+  if(review.revision_error)progress.append(' — '+review.revision_error);
+  if(review.revision_child_id){progress.append(' · ');const a=el('a','View revised ad');a.href='#review-'+review.revision_child_id;progress.append(a);}
+  root.querySelector('.actions').before(progress);
+ }
  const actions=root.querySelector('.actions');
  if(review.status==='pending_review'){
   const approve=el('button','Approve for handoff');approve.className='primary';
@@ -60,11 +68,15 @@ function item(review){
   approve.addEventListener('click',()=>{approve.disabled=change.disabled=true;decide(review,'approved').then(ok=>{if(!ok)approve.disabled=change.disabled=false;}).catch(e=>{notice.textContent=e.message;approve.disabled=change.disabled=false;});});
   change.addEventListener('click',()=>{
     if(actions.querySelector('textarea'))return;
-    const field=el('textarea');field.maxLength=500;field.placeholder='What should Qwen change? (optional)';field.setAttribute('aria-label','Changes requested');
-    const send=el('button','Send feedback');send.addEventListener('click',()=>{send.disabled=true;decide(review,'rejected',field.value).then(ok=>{if(!ok)send.disabled=false;}).catch(e=>{notice.textContent=e.message;send.disabled=false;});});
+    const field=el('textarea');field.maxLength=500;field.minLength=3;field.required=true;field.placeholder='Tell Qwen what to improve (required)';field.setAttribute('aria-label','Changes requested');
+    const send=el('button','Send to Qwen');send.addEventListener('click',()=>{if(field.value.trim().length<3){notice.textContent='Tell Qwen what you want changed (at least 3 characters).';field.focus();return;}send.disabled=true;decide(review,'rejected',field.value).then(ok=>{if(!ok)send.disabled=false;}).catch(e=>{notice.textContent=e.message;send.disabled=false;});});
     actions.append(field,send);field.focus();
   });
   actions.append(approve,change);
+ }else if(review.status==='rejected'&&review.revision_state==='failed'){
+  const retry=el('button','Retry Qwen revision');
+  retry.addEventListener('click',async()=>{if(!confirm('Retry this revision on the Ally? This does not publish.'))return;retry.disabled=true;try{const r=await fetch('/api/ally-ad-review',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({action:'retry_revision',input:{id:review.id}})});const data=await r.json();if(!r.ok)throw Error(data.error||'Could not retry');await render();}catch(e){notice.textContent=e.message;retry.disabled=false;}});
+  actions.append(retry);
  }
  return clone;
 }
@@ -73,5 +85,5 @@ async function render(){
   const data=await fetchReviews();list.replaceChildren(...data.map(item));count.textContent=data.filter(x=>x.status==='pending_review').length+' awaiting your review';notice.textContent=data.length?'':'No ads submitted yet. Qwen can submit a completed MP4 from the connected Ally.';
  }catch(e){notice.textContent=e.message;}
 }
-by('reload').addEventListener('click',render);render();
+by('reload').addEventListener('click',render);render();setInterval(()=>{if(!document.hidden&&[...document.querySelectorAll('video')].every(v=>v.paused))render();},20000);
 </script></body></html>

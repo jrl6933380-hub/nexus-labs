@@ -124,3 +124,48 @@ test('Qwen submit_ad stays on a fixed PowerShell uploader with no model-provided
  await assert.rejects(()=>executeTool({tool:'ad_macro',args:{action:'submit_ad',project_id:'../secret'}},{workspace:process.cwd(),commandRunner:run}));
  assert.equal(calls.length,1);
 });
+
+test('requested changes queue is owner-controlled and claimed by paired device only',async()=>{
+ const q=createAllyAdReviewQueue({command:memory(),now:()=>25000});
+ const id=await uploaded(q);
+ await assert.rejects(()=>q.decide('justin',id,'rejected',''),{status:400});
+ const row=await q.decide('justin',id,'rejected','Make the hook more direct');
+ assert.equal(row.revision_state,'queued');
+ assert.equal(await q.claimRevision('justin','other-device'),null);
+ const job=await q.claimRevision('justin','ally-A');
+ assert.equal(job.id,id);assert.equal(job.project_id,'Test-Project-0123');
+ assert.equal(job.review_note,'Make the hook more direct');
+ assert.equal(await q.claimRevision('justin','ally-A'),null);
+ await assert.rejects(()=>q.revisionResult('justin','other-device',{id,claim_id:job.claim_id,status:'failed',reason:'no'}),{status:403});
+ await assert.rejects(()=>q.revisionResult('justin','ally-A',{id,claim_id:job.claim_id,status:'submitted',child_id:'c'.repeat(32)}),{status:404});
+ const child=await q.begin('justin','ally-A',{project_id:'Test-Project-0123',title:'Revised',bytes:150,sha256:sha(fakeVideo(150)),duration_ms:15000,revision_of:id});
+ assert.equal(child.status,'uploading');
+ const v=fakeVideo(150);
+ await q.part('justin','ally-A',{id:child.id,index:0,data:v.toString('base64')});
+ await q.finish('justin','ally-A',child.id);
+ const done=await q.revisionResult('justin','ally-A',{id,claim_id:job.claim_id,status:'submitted',child_id:child.id});
+ assert.equal(done.revision_state,'submitted');assert.equal(done.revision_child_id,child.id);
+ assert.equal((await q.list('justin'))[0].revision_of,id);
+ assert.equal((await q.decide('justin',child.id,'approved')).status,'approved');
+});
+test('failed revisions can be retried by owner without overwriting the original review decision',async()=>{
+ const q=createAllyAdReviewQueue({command:memory(),now:()=>25000});
+ const id=await uploaded(q);await q.decide('justin',id,'rejected','Change the CTA');
+ const job=await q.claimRevision('justin','ally-A');
+ const failed=await q.revisionResult('justin','ally-A',{id,claim_id:job.claim_id,status:'failed',reason:'Model temporarily unavailable'});
+ assert.equal(failed.revision_state,'failed');
+ assert.equal((await q.retryRevision('justin',id)).revision_state,'queued');
+ const newJob=await q.claimRevision('justin','ally-A');
+ assert.notEqual(newJob.claim_id,job.claim_id);
+ assert.equal((await q.read('justin',id)).status,'rejected');
+ await assert.rejects(()=>q.revisionResult('justin','ally-A',{id,claim_id:job.claim_id,status:'failed',reason:'late'}),{status:409});
+});
+test('device revision routes reject unpaired tokens while owner can request a revision',async()=>{
+ const q=createAllyAdReviewQueue({command:memory()});
+ const id=await uploaded(q);
+ const handler=createAllyAdReviewHandler({queue:q,bridge:{authorizeActiveDevice:async token=>{if(token!=='valid')throw Object.assign(Error('Not paired'),{status:401});return {owner:'justin',device_id:'ally-A'};}},resolveAccount:async()=>({owner:true,id:'justin'})});
+ const req=(action,token,input)=>({method:'POST',headers:{host:'nexus.example',origin:'https://nexus.example','content-type':'application/json',authorization:'Bearer '+token},body:{action,input}});
+ let res=response();await handler(req('decide','',{id,decision:'rejected',review_note:'Better opening'}),res);assert.equal(res.code,200);
+ res=response();await handler(req('revision_claim','bad',{}),res);assert.equal(res.code,401);
+ res=response();await handler(req('revision_claim','valid',{}),res);assert.equal(res.code,200);assert.equal(res.data.job.id,id);
+});
