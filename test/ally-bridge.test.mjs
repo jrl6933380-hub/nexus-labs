@@ -88,3 +88,11 @@ test('terminal and updater reject invalid input before queueing; restart receipt
  await f.bridge.stop('justin');
  await assert.rejects(f.bridge.commandResult('justin',q.command_id),/stopped/);
 });
+
+test('paired Ally upload identity is limited to live session',async()=>{
+ const f=fixture(),p=await connected(f);
+ assert.deepEqual(await f.bridge.authorizeActiveDevice(p.token),{owner:'justin',device_id:p.device_id});
+ await assert.rejects(f.bridge.authorizeActiveDevice('bad'),{status:401});
+ f.advance(30001);
+ await assert.rejects(f.bridge.authorizeActiveDevice(p.token),{status:401});
+});
