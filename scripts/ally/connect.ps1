@@ -94,6 +94,7 @@ $output=New-Object Text.StringBuilder
 $truncated=$false
 $exitCode=0
 $global:LASTEXITCODE=0
+$script:NexusTerminalLastSucceeded=$true
 Write-Host 'Nexus Ally terminal command (owner session)'
 function Append-Output($value) {
  $line=[string]$value
@@ -106,8 +107,13 @@ function Append-Output($value) {
  } else {$script:truncated=$true}
 }
 try {
- & ([scriptblock]::Create($script)) *>&1 | ForEach-Object { Append-Output $_ }
- $exitCode=$global:LASTEXITCODE
+ # Capture the final statement's success inside the scriptblock. In Windows
+ # PowerShell 5.1, LASTEXITCODE persists after a later successful PS command.
+ $guardedScript=$script+[Environment]::NewLine+'$script:NexusTerminalLastSucceeded=$?'
+ & ([scriptblock]::Create($guardedScript)) *>&1 | ForEach-Object { Append-Output $_ }
+ if(-not $script:NexusTerminalLastSucceeded) {
+  $exitCode=if($global:LASTEXITCODE -is [int] -and $global:LASTEXITCODE -ne 0) {[int]$global:LASTEXITCODE} else {1}
+ }
 } catch { $exitCode=1;Append-Output ($_ | Out-String) }
 @{exit_code=$exitCode;output=$output.ToString();truncated=$truncated} | ConvertTo-Json -Depth 4 -Compress | Set-Content -LiteralPath $path -Encoding UTF8
 '@
