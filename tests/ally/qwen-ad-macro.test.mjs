@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtemp, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {executeTool} from '../../scripts/ally/qwen-terminal-agent.mjs';
+import {executeTool, INSTRUCTIONS} from '../../scripts/ally/qwen-terminal-agent.mjs';
 async function fixture(run){
  const workspace=await mkdtemp(join(tmpdir(),'qwen-macros-'));
  const old=process.env.USERPROFILE;process.env.USERPROFILE='C:\\Users\\test';
@@ -32,4 +32,15 @@ test('final rendering is approval-gated',async()=>{
   let called=false;const r=await executeTool({tool:'ad_macro',args:{action:'render_ad',project_id:'good-project'}},{workspace,commandRunner:async()=>{called=true;}});
   assert.equal(r.approval_required,true);assert.equal(called,false);
  });
+});
+test('macro argument errors tell Qwen precisely which field to remove',async()=>{
+ await fixture(async workspace=>{
+  await assert.rejects(()=>executeTool({tool:'ad_macro',args:{action:'start_ad',name:'My New Ad',project_id:'duplicate'}},{workspace}),/start_ad accepts name only; remove project_id/);
+  await assert.rejects(()=>executeTool({tool:'ad_macro',args:{action:'preview_ad',project_id:'valid-project',name:'duplicate'}},{workspace}),/preview_ad accepts project_id only; remove name/);
+ });
+});
+test('Qwen macro prompt includes exact argument examples',()=>{
+ assert.match(INSTRUCTIONS,/"action":"start_ad","name":"My New Ad"/);
+ assert.match(INSTRUCTIONS,/NEVER include project_id on start_ad/);
+ assert.match(INSTRUCTIONS,/NEVER include name on preview_ad/);
 });
