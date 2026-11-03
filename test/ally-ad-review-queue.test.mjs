@@ -1,6 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
+import {readFile} from 'node:fs/promises';
 import {createAllyAdReviewQueue,AD_REVIEW_CHUNK_BYTES} from '../lib/allyAdReviewQueue.js';
 import {createAllyAdReviewHandler} from '../api/ally-ad-review.js';
 import {executeTool,INSTRUCTIONS} from '../scripts/ally/qwen-terminal-agent.mjs';
@@ -102,6 +103,12 @@ test('owner-only video endpoint produces RFC byte ranges',async()=>{
  assert.equal(r.code,206);
  assert.equal(r.headers['Content-Range'],'bytes 0-9/'+bytes.length);
  assert.deepEqual(r.body,bytes.subarray(0,10));
+});
+test('PowerShell review helper does not bind the reserved automatic input variable',async()=>{
+ const uploader=await readFile(new URL('../scripts/ally/submit-ad-review.ps1',import.meta.url),'utf8');
+ assert.match(uploader,/function Call-Review\(\[string\]\$action,\[hashtable\]\$reviewFields\)/);
+ assert.match(uploader,/\$payload=@\{action=\$action;input=\$reviewFields\}\|ConvertTo-Json/);
+ assert.doesNotMatch(uploader,/function Call-Review\([^\n]*\[hashtable\]\$input\)/);
 });
 test('Qwen submit_ad stays on a fixed PowerShell uploader with no model-provided command',async()=>{
  const calls=[];
