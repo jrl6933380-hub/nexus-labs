@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111924">
+<title>Qwen Ad Reviews · Nexus Labs</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#101722;color:#e8edf5}
+*{box-sizing:border-box}body{margin:0;padding:max(16px,env(safe-area-inset-top)) 16px max(28px,env(safe-area-inset-bottom))}
+main{max-width:800px;margin:auto}header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px}
+a{color:#9acbff;text-decoration:none}h1{font-size:clamp(1.4rem,5vw,2rem);margin:.25rem 0}h2{font-size:1.12rem;margin:0}p{color:#b1becd;line-height:1.5}
+.eyebrow{color:#b9d8f2;letter-spacing:.08em;font-size:.77rem;text-transform:uppercase}.small{font-size:.87rem}
+button{appearance:none;border:1px solid #53657c;color:#f3f5fb;background:#202e41;border-radius:12px;padding:11px 14px;font:inherit;font-weight:600;cursor:pointer}
+button:disabled{opacity:.55;cursor:wait}button:focus-visible,a:focus-visible,textarea:focus-visible{outline:3px solid #f7d089;outline-offset:2px}
+.primary{background:#a8d3a1;color:#122318;border-color:#a8d3a1}
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.card{border:1px solid #38475b;background:#182433;border-radius:18px;margin:16px 0;padding:16px}
+.head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.status{display:inline-block;font-size:.78rem;border:1px solid #64758a;border-radius:20px;padding:4px 9px;text-transform:capitalize}
+.status.approved{color:#c7eebd;border-color:#7bba8d}.status.rejected{color:#ffd2b4;border-color:#cb9267}
+video{display:block;max-height:480px;max-width:100%;width:min(100%,270px);aspect-ratio:9/16;background:#070b13;border-radius:12px;margin:16px auto}
+.actions{display:flex;gap:10px;flex-wrap:wrap}textarea{display:block;width:100%;background:#0e1929;border:1px solid #53657c;border-radius:12px;color:#fff;padding:10px;font:inherit;min-height:75px;margin:12px 0}
+.help{border-left:3px solid #a8d3a1;padding:0 12px}#notice[hidden]{display:none}
+</style></head>
+<body><main>
+<header><div><div class="eyebrow">Nexus Labs · Owner</div><h1>Qwen Ad Reviews</h1></div><a href="/nexus.html">← Nexus Home</a></header>
+<p class="help">Qwen submits finished local videos here for your review. Approving marks an ad as approved <strong>inside Nexus only</strong>—it does not publish or post anywhere.</p>
+<div class="toolbar"><button id="reload" type="button">Refresh reviews</button><span id="count" class="small" aria-live="polite"></span></div>
+<p id="notice" role="status" aria-live="polite"></p><section id="reviews" aria-label="Submitted ads"></section>
+<template id="card"><article class="card"><div class="head"><div><h2 class="name"></h2><p class="details small"></p></div><span class="status"></span></div><div class="player"></div><p class="note"></p><div class="actions"></div></article></template>
+</main>
+<script>
+'use strict';
+const by=id=>document.getElementById(id),list=by('reviews'),notice=by('notice'),count=by('count');
+const el=(tag,text)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;return e;};
+async function fetchReviews(){
+ const res=await fetch('/api/ally-ad-review?action=list',{credentials:'same-origin',cache:'no-store'});
+ const data=await res.json();if(!res.ok)throw Error(data.error||'Could not load reviews');return data.reviews||[];
+}
+async function decide(review,decision,review_note=''){
+ if(!confirm(decision==='approved'?'Approve this ad for Nexus internal handoff? This will NOT publish it.':'Send this ad back for changes?'))return false;
+ notice.textContent='Saving your decision…';
+ const res=await fetch('/api/ally-ad-review',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({action:'decide',input:{id:review.id,decision,review_note}})});
+ const data=await res.json();if(!res.ok)throw Error(data.error||'Could not save your decision');await render();
+}
+function item(review){
+ const clone=by('card').content.cloneNode(true),root=clone.querySelector('article');
+ root.querySelector('.name').textContent=review.title;
+ root.querySelector('.details').textContent=review.project_id+' · '+new Date(review.created_at).toLocaleString()+' · '+Math.ceil(review.bytes/1024)+' KB';
+ const status=root.querySelector('.status');status.textContent=review.status.replaceAll('_',' ');status.classList.add(review.status);
+ const player=root.querySelector('.player');
+ if(review.status==='uploading'){player.append(el('p','Uploading from Ally…'));}else{
+  const video=el('video');video.controls=true;video.playsInline=true;video.preload='metadata';video.setAttribute('aria-label','Video preview for '+review.title);
+  video.src='/api/ally-ad-review?action=video&id='+encodeURIComponent(review.id);player.append(video);
+ }
+ const note=root.querySelector('.note');if(review.review_note)note.textContent='Review note: '+review.review_note;else note.remove();
+ const actions=root.querySelector('.actions');
+ if(review.status==='pending_review'){
+  const approve=el('button','Approve for handoff');approve.className='primary';
+  const change=el('button','Request changes');
+  approve.addEventListener('click',()=>{approve.disabled=change.disabled=true;decide(review,'approved').then(ok=>{if(!ok)approve.disabled=change.disabled=false;}).catch(e=>{notice.textContent=e.message;approve.disabled=change.disabled=false;});});
+  change.addEventListener('click',()=>{
+    if(actions.querySelector('textarea'))return;
+    const field=el('textarea');field.maxLength=500;field.placeholder='What should Qwen change? (optional)';field.setAttribute('aria-label','Changes requested');
+    const send=el('button','Send feedback');send.addEventListener('click',()=>{send.disabled=true;decide(review,'rejected',field.value).then(ok=>{if(!ok)send.disabled=false;}).catch(e=>{notice.textContent=e.message;send.disabled=false;});});
+    actions.append(field,send);field.focus();
+  });
+  actions.append(approve,change);
+ }
+ return clone;
+}
+async function render(){
+ notice.textContent='Loading reviews…';try{
+  const data=await fetchReviews();list.replaceChildren(...data.map(item));count.textContent=data.filter(x=>x.status==='pending_review').length+' awaiting your review';notice.textContent=data.length?'':'No ads submitted yet. Qwen can submit a completed MP4 from the connected Ally.';
+ }catch(e){notice.textContent=e.message;}
+}
+by('reload').addEventListener('click',render);render();
+</script></body></html>
