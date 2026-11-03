@@ -43,8 +43,9 @@ $ptr=[Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
 try{$token=[Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr)}
 finally{[Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr)}
 $headers=@{Authorization='Bearer '+$token}
-function Call-Review([string]$action,[hashtable]$input){
- $payload=@{action=$action;input=$input}|ConvertTo-Json -Depth 5 -Compress
+function Call-Review([string]$action,[hashtable]$reviewFields){
+ # $input is PowerShell's automatic pipeline enumerator, not a safe parameter name.
+ $payload=@{action=$action;input=$reviewFields}|ConvertTo-Json -Depth 5 -Compress
  return Invoke-RestMethod -Uri ($origin+'/api/ally-ad-review') -Method POST -ContentType 'application/json' -Headers $headers -Body $payload -TimeoutSec 25
 }
 $reply=Call-Review 'upload_begin' @{project_id=$ProjectId;title=$title;bytes=$bytes.Length;sha256=$sha;duration_ms=$chosen.duration_ms}
