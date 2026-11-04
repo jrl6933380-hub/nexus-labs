@@ -1,0 +1,67 @@
+name: Nexus Macro Controller Queue
+on:
+  pull_request:
+    paths:
+      - 'lib/macroJobQueue.js'
+      - 'api/macro-jobs.js'
+      - 'scripts/ally/macro-job-*.mjs'
+      - 'scripts/ally/macro-job-*.ps1'
+      - 'scripts/ally/qwen-console.mjs'
+      - 'scripts/ally/install-qwen-console.ps1'
+      - 'public/nexus-macro-controller.*'
+      - 'public/nexus-macro-jobs-ui.js'
+      - 'test/macro-job-queue.test.mjs'
+      - 'test/macro-jobs-api.test.mjs'
+      - 'e2e/nexus-macro-jobs.spec.mjs'
+      - '.github/workflows/nexus-macro-queue.yml'
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Validate source syntax
+        run: |
+          node --check lib/macroJobQueue.js
+          node --check api/macro-jobs.js
+          node --check scripts/ally/macro-job-watcher.mjs
+          node --check scripts/ally/qwen-console.mjs
+          node --check public/nexus-macro-jobs-ui.js
+          node --check public/nexus-macro-controller.js
+          node --check test/macro-job-queue.test.mjs
+          node --check test/macro-jobs-api.test.mjs
+      - name: Queue permissions, claims, idempotency and receipt tests
+        run: node --test test/macro-job-queue.test.mjs test/macro-jobs-api.test.mjs test/nexus-macro-controller.test.mjs
+  mobile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npx playwright install --with-deps chromium
+      - name: Owner queue, phone and desktop tests
+        run: npx playwright test e2e/nexus-macro-jobs.spec.mjs e2e/nexus-macro-controller.spec.mjs
+  powershell-syntax:
+    runs-on: windows-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse fixed-origin transport and pinned installer
+        shell: pwsh
+        run: |
+          $paths = @('scripts/ally/macro-job-transport.ps1', 'scripts/ally/install-qwen-console.ps1')
+          foreach ($path in $paths) {
+            $tokens = $null; $errorsFound = $null
+            [void][Management.Automation.Language.Parser]::ParseFile((Resolve-Path $path), [ref]$tokens, [ref]$errorsFound)
+            if ($errorsFound.Count -gt 0) { throw ($path+': '+($errorsFound|Out-String)) }
+            Write-Output ('PARSE_OK '+$path)
+          }
