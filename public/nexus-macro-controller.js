@@ -65,7 +65,7 @@ function renderMacros(){
   steps.type='button';
   steps.addEventListener('click',()=>{
    const plain=card.querySelector('.instructions');plain.open=!plain.open;
-   if(plain.open)plain.scrollIntoView({behavior:'instant',block:'nearest'});
+   if(plain.open)plain.scrollIntoView({behavior:'auto',block:'nearest'});
   });
   actions.append(steps);card.append(actions);root.append(card);
  }
