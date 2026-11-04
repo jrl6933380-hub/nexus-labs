@@ -1,5 +1,5 @@
 # Upgrade the existing Nexus Ally Launcher with a local-only Qwen console.
-# Downloads three pinned files, verifies SHA-256, and installs a user-launched shortcut.
+# Downloads five pinned files, verifies SHA-256, and installs a user-launched shortcut.
 [CmdletBinding()]
 param(
  [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{40}$')][string]$Revision,
@@ -33,6 +33,7 @@ foreach($item in $files){
  $actual=(Get-FileHash -LiteralPath $temp -Algorithm SHA256).Hash.ToLowerInvariant()
  if($actual -ne $item.hash){Remove-Item $temp -Force;throw ('SHA-256 mismatch: '+$rel)}
  if($rel.EndsWith('.mjs')){& $node --check $temp;if($LASTEXITCODE -ne 0){throw 'Console syntax failed'}}
+ if($rel.EndsWith('.ps1')){$tokens=$null;$errors=$null;[void][Management.Automation.Language.Parser]::ParseFile($temp,[ref]$tokens,[ref]$errors);if($errors.Count -gt 0){throw 'Revision transport syntax failed'}}
  if($rel.EndsWith('.html')){$head=[IO.File]::ReadAllText($temp);if(!$head.StartsWith('<!doctype html>',[StringComparison]::OrdinalIgnoreCase)){throw 'Invalid HTML'}}
  Move-Item -LiteralPath $temp -Destination $dest -Force
 }
