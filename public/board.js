@@ -135,6 +135,23 @@ function drawSelbar(){
     const {sceneControlsHtml}=await import('./board-scene-render.js?v=20261030-scene1');
     addItem({kind:'visual',title:'Scene controls',scene_target_id:it.id,html:sceneControlsHtml(it.id,it.scene.duration),w:320,h:240,x:it.x+it.w+24,y:it.y});
   }));
+  if(it.kind==='video')add(btn('Share to TikTok',async()=>{
+    try{
+      const url=await mediaUrl(it.media_id);
+      const response=await fetch(url);
+      if(!response.ok)throw Error('Could not load this video.');
+      const blob=await response.blob();
+      const ext=blob.type==='video/quicktime'?'mov':blob.type==='video/webm'?'webm':'mp4';
+      const file=new File([blob],(it.title||'nexus-video').replace(/[^a-z0-9_-]+/gi,'-').slice(0,60)+'.'+ext,{type:blob.type||'video/mp4'});
+      if(navigator.canShare?.({files:[file]})){
+        await navigator.share({files:[file],title:it.title||'Nexus video'});
+      }else{
+        const a=h('a',{href:url,download:file.name});
+        document.body.append(a);a.click();a.remove();
+        toast('Video downloaded. Open TikTok to import it.');
+      }
+    }catch(e){if(e.name!=='AbortError')toast(e.message||'Video sharing failed.',true);}
+  }));
   if(it.kind==='video'||it.kind==='audio')add(btn('Controls',()=>{liveId=liveId===it.id?null:it.id;render();},'',liveId===it.id));
   if(it.kind==='sketch')add(btn('Undo stroke',()=>{it.strokes.pop();render();touch();}));
   if(it.kind!=='sketch')add(btn('Rename',()=>renameSheet(it)));
