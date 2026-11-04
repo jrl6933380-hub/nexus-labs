@@ -20,6 +20,7 @@ button,a,input{font:inherit}a{color:var(--mint)}button{cursor:pointer}button:dis
 </style></head>
 <body><div class="shell">
 <header class="top"><div class="brand"><span class="brandmark" aria-hidden="true">N</span><div><small>Nexus Labs · owner</small><strong>Macro Controller</strong></div></div><a href="/nexus.html">← Home</a></header>
+<main id="main">
 <section class="hero"><span class="kicker">One home for your tools</span><h1>Macros, explained like a friend.</h1><p>Tell Nexus what you're trying to do, or pick a tool below. Each macro explains what you need, what it does, and what happens next—no coding knowledge needed.</p><div class="pillbox"><span class="pill">Existing macros stay untouched</span><span class="pill">You control approvals</span><span class="pill">Nothing posts publicly by itself</span></div></section>
 <section id="gate" role="status" aria-live="polite">Checking your Nexus owner access…</section>
 <div id="app" hidden>
@@ -28,5 +29,5 @@ button,a,input{font:inherit}a{color:var(--mint)}button{cursor:pointer}button:dis
  <section aria-labelledby="controllers-title"><div class="sectionline"><h2 id="controllers-title">Pick a controller</h2><p>Small teams of tools, all in one place</p></div><div id="controllers" class="controllers" role="group" aria-label="Macro controller categories"></div></section>
  <section aria-labelledby="macro-title"><div class="sectionline"><h2 id="macro-title">Your macro library</h2><p id="shown" aria-live="polite"></p></div><div class="toolbar"><label class="search">⌕ <input id="search" type="search" placeholder="Try “make an ad” or “save to board”" aria-label="Search macros"></label><button id="clear" type="button" class="utility">Show all</button></div><div id="macros" class="macros"></div></section>
  <aside class="notice"><strong>How this version works:</strong> Tap a card to see simple steps, or open a real Nexus screen. Macros that run on your Ally still run there. This library doesn't secretly run Windows scripts from your phone. We can add a durable, approval-gated job queue as the next stage.</aside>
-</div><footer class="foot">Nexus Macro Controller · A central guide to verified workflows · Safe manual shortcuts still work independently.</footer>
+</div></main><footer class="foot">Nexus Macro Controller · A central guide to verified workflows · Safe manual shortcuts still work independently.</footer>
 </div><script type="module" src="/nexus-macro-controller.js"></script></body></html>
