@@ -154,6 +154,7 @@ export async function renderMessages(ctx){
         {name:'Templates',copy:'Reusable service site starters',icon:'T',tone:'forge',run:()=>window.location.assign('/forge-hub.html#templates')},
         {name:'Agent Board',copy:'Tasks, claims, and checkpoints',icon:'A',tone:'operations',run:()=>ctx.go('deck')},
         {name:'Ad Maker',copy:'Create and review campaigns',icon:'A',tone:'more',run:()=>window.location.assign('/ads.html')},
+        {name:'Macro Controller',copy:'All your macros in simple English',icon:'M',tone:'operations',run:()=>window.location.assign('/nexus-macro-controller.html')},
         {name:'Qwen Ad Reviews',copy:'Approve local Ally ad videos on your phone',icon:'Q',tone:'more',run:()=>window.location.assign('/ally-ad-review.html')},
         {name:'Image Board',copy:'Images, layers, and motion',icon:'B',tone:'more',run:()=>window.location.assign('/board.html')},
         {name:'Story Studio',copy:'Stories, scenes, and characters',icon:'S',tone:'story',run:()=>ctx.go('story')},
