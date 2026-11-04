@@ -16,14 +16,14 @@ button:disabled{opacity:.55;cursor:wait}button:focus-visible,a:focus-visible,tex
 .card{border:1px solid #38475b;background:#182433;border-radius:18px;margin:16px 0;padding:16px}
 .head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .status{display:inline-block;font-size:.78rem;border:1px solid #64758a;border-radius:20px;padding:4px 9px;text-transform:capitalize}
-.status.approved{color:#c7eebd;border-color:#7bba8d}.status.rejected{color:#ffd2b4;border-color:#cb9267}
+.status.approved{color:#c7eebd;border-color:#7bba8d}.status.rejected{color:#ffd2b4;border-color:#cb9267}.revision{margin-top:10px;color:#b9d8f2;font-size:.9rem}.revision.warn{color:#ffd2b4}
 video{display:block;max-height:480px;max-width:100%;width:min(100%,270px);aspect-ratio:9/16;background:#070b13;border-radius:12px;margin:16px auto}
 .actions{display:flex;gap:10px;flex-wrap:wrap}textarea{display:block;width:100%;background:#0e1929;border:1px solid #53657c;border-radius:12px;color:#fff;padding:10px;font:inherit;min-height:75px;margin:12px 0}
 .help{border-left:3px solid #a8d3a1;padding:0 12px}#notice[hidden]{display:none}
 </style></head>
 <body><main>
 <header><div><div class="eyebrow">Nexus Labs · Owner</div><h1>Qwen Ad Reviews</h1></div><a href="/nexus.html">← Nexus Home</a></header>
-<p class="help">Qwen submits finished local videos here for your review. Approving marks an ad as approved <strong>inside Nexus only</strong>—it does not publish or post anywhere.</p>
+<p class="help">Qwen submits finished local videos here for your review. <strong>Request changes</strong> queues a local Qwen revision on the connected Ally; the new MP4 returns here for another decision. Approve is <strong>internal only</strong>—nothing posts or publishes automatically.</p>
 <div class="toolbar"><button id="reload" type="button">Refresh reviews</button><span id="count" class="small" aria-live="polite"></span></div>
 <p id="notice" role="status" aria-live="polite"></p><section id="reviews" aria-label="Submitted ads"></section>
 <template id="card"><article class="card"><div class="head"><div><h2 class="name"></h2><p class="details small"></p></div><span class="status"></span></div><div class="player"></div><p class="note"></p><div class="actions"></div></article></template>
@@ -43,7 +43,7 @@ async function decide(review,decision,review_note=''){
  const data=await res.json();if(!res.ok)throw Error(data.error||'Could not save your decision');await render();
 }
 function item(review){
- const clone=by('card').content.cloneNode(true),root=clone.querySelector('article');
+ const clone=by('card').content.cloneNode(true),root=clone.querySelector('article');root.id='review-'+review.id;
  root.querySelector('.name').textContent=review.title;
  root.querySelector('.details').textContent=review.project_id+' · '+new Date(review.created_at).toLocaleString()+' · '+Math.ceil(review.bytes/1024)+' KB';
  const status=root.querySelector('.status');status.textContent=review.status.replaceAll('_',' ');status.classList.add(review.status);
@@ -52,7 +52,18 @@ function item(review){
   const video=el('video');video.controls=true;video.playsInline=true;video.preload='metadata';video.setAttribute('aria-label','Video preview for '+review.title);
   video.src='/api/ally-ad-review?action=video&id='+encodeURIComponent(review.id);player.append(video);
  }
- const note=root.querySelector('.note');if(review.review_note)note.textContent='Review note: '+review.review_note;else note.remove();
+ const note=root.querySelector('.note');if(review.review_note)note.textContent='Requested changes: '+review.review_note;else note.remove();
+ if(review.revision_of){
+  const related=el('p','Revision '+review.revision_generation+' · ');
+  const parent=el('a','View previous version');parent.href='#review-'+review.revision_of;related.append(parent);root.querySelector('.player').after(related);
+ }
+ if(review.status==='rejected'){
+  const state=review.revision_status||'not queued';
+  const info=el('p',state==='queued'?'Queued for the local Ally to pick up.':state==='processing'?'Qwen is improving and rendering this ad on the Ally…':state==='ready'?'A new version is ready for your review.':state==='needs_help'?'Revision needs attention: '+(review.revision_error||'check the Ally'):state==='limit_reached'?'Maximum five revisions reached.':'Feedback recorded.');
+  info.className='revision'+(state==='needs_help'?' warn':'');
+  if(review.revised_review_id){const link=el('a',' Open new version');link.href='#review-'+review.revised_review_id;info.append(link);}
+  root.querySelector('.player').after(info);
+ }
  const actions=root.querySelector('.actions');
  if(review.status==='pending_review'){
   const approve=el('button','Approve for handoff');approve.className='primary';
@@ -60,11 +71,19 @@ function item(review){
   approve.addEventListener('click',()=>{approve.disabled=change.disabled=true;decide(review,'approved').then(ok=>{if(!ok)approve.disabled=change.disabled=false;}).catch(e=>{notice.textContent=e.message;approve.disabled=change.disabled=false;});});
   change.addEventListener('click',()=>{
     if(actions.querySelector('textarea'))return;
-    const field=el('textarea');field.maxLength=500;field.placeholder='What should Qwen change? (optional)';field.setAttribute('aria-label','Changes requested');
-    const send=el('button','Send feedback');send.addEventListener('click',()=>{send.disabled=true;decide(review,'rejected',field.value).then(ok=>{if(!ok)send.disabled=false;}).catch(e=>{notice.textContent=e.message;send.disabled=false;});});
+    const field=el('textarea');field.maxLength=500;field.required=true;field.placeholder='Tell Qwen what to change (required). Example: shorter headline, brighter colors, stronger CTA.';field.setAttribute('aria-label','Changes requested');
+    const send=el('button','Send to Qwen');send.addEventListener('click',()=>{if(!field.value.trim()){notice.textContent='Describe the changes you want Qwen to make.';field.focus();return;}send.disabled=true;decide(review,'rejected',field.value).then(ok=>{if(!ok)send.disabled=false;}).catch(e=>{notice.textContent=e.message;send.disabled=false;});});
     actions.append(field,send);field.focus();
   });
   actions.append(approve,change);
+ }
+ if(review.status==='rejected'&&review.revision_status==='needs_help'){
+   const retry=el('button','Retry local revision');
+   retry.addEventListener('click',async()=>{retry.disabled=true;try{
+    const res=await fetch('/api/ally-ad-review',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({action:'revision_retry',input:{id:review.id}})});
+    const data=await res.json();if(!res.ok)throw Error(data.error||'Could not retry');await render();
+   }catch(e){notice.textContent=e.message;retry.disabled=false;}});
+   actions.append(retry);
  }
  return clone;
 }
