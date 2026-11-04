@@ -1,9 +1,15 @@
 # Send only a verified, completed local NexusAds H.264 render to the private owner review queue.
 # No posting, publishing, arbitrary URL, arbitrary file paths, or credentials in output.
 [CmdletBinding()]
-param([Parameter(Mandatory=$true)][string]$ProjectId)
+param(
+ [Parameter(Mandatory=$true)][string]$ProjectId,
+ [string]$RevisionOf='',
+ [string]$RevisionToken=''
+)
 $ErrorActionPreference='Stop'
 if($ProjectId -notmatch '^[a-zA-Z0-9][a-zA-Z0-9_-]{1,79}$'){throw 'Invalid project ID'}
+if([bool]$RevisionOf -ne [bool]$RevisionToken){throw 'Revision ID and token must be supplied together'}
+if($RevisionOf -and ($RevisionOf -notmatch '^[a-f0-9]{32}$' -or $RevisionToken -notmatch '^[a-f0-9-]{36}$')){throw 'Invalid revision authorization'}
 $origin='https://nexus-labs-sigma.vercel.app'
 $root=Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'NexusAds'
 $project=Join-Path $root $ProjectId
@@ -48,7 +54,9 @@ function Call-Review([string]$action,[hashtable]$reviewFields){
  $payload=@{action=$action;input=$reviewFields}|ConvertTo-Json -Depth 5 -Compress
  return Invoke-RestMethod -Uri ($origin+'/api/ally-ad-review') -Method POST -ContentType 'application/json' -Headers $headers -Body $payload -TimeoutSec 25
 }
-$reply=Call-Review 'upload_begin' @{project_id=$ProjectId;title=$title;bytes=$bytes.Length;sha256=$sha;duration_ms=$chosen.duration_ms}
+$details=@{project_id=$ProjectId;title=$title;bytes=$bytes.Length;sha256=$sha;duration_ms=$chosen.duration_ms}
+if($RevisionOf){$details.revision_of=$RevisionOf;$details.revision_token=$RevisionToken}
+$reply=Call-Review 'upload_begin' $details
 if($reply.status -ne 'uploading'){
  Write-Output ('NEXUS_REVIEW_EXISTS '+$reply.id+' '+$reply.status)
  exit 0

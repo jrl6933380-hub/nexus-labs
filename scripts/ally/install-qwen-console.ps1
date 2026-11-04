@@ -1,11 +1,13 @@
 # Upgrade the existing Nexus Ally Launcher with a local-only Qwen console.
-# Downloads three pinned files, verifies SHA-256, and installs a user-launched shortcut.
+# Downloads five pinned files, verifies SHA-256, and installs a user-launched shortcut.
 [CmdletBinding()]
 param(
  [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{40}$')][string]$Revision,
  [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$ServerSha256,
  [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$PanelSha256,
  [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$LauncherSha256,
+ [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$WatcherSha256,
+ [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$RevisionTransportSha256,
  [switch]$Launch
 )
 $ErrorActionPreference='Stop'
@@ -16,6 +18,8 @@ $node=Join-Path $root 'runtime\node.exe'
 if(!(Test-Path -LiteralPath $node)){throw 'Portable Node runtime is missing.'}
 $files=@(
  @{path='scripts/ally/qwen-console.mjs';hash=$ServerSha256;min=2000;max=35000},
+ @{path='scripts/ally/qwen-revision-watcher.mjs';hash=$WatcherSha256;min=2000;max=35000},
+ @{path='scripts/ally/revision-transport.ps1';hash=$RevisionTransportSha256;min=1000;max=10000},
  @{path='public/ally-qwen-console.html';hash=$PanelSha256;min=2000;max=50000},
  @{path='public/ally-launcher.html';hash=$LauncherSha256;min=3000;max=80000}
 )
@@ -31,6 +35,7 @@ foreach($item in $files){
  $actual=(Get-FileHash -LiteralPath $temp -Algorithm SHA256).Hash.ToLowerInvariant()
  if($actual -ne $item.hash){Remove-Item $temp -Force;throw ('SHA-256 mismatch: '+$rel)}
  if($rel.EndsWith('.mjs')){& $node --check $temp;if($LASTEXITCODE -ne 0){throw 'Console syntax failed'}}
+ if($rel.EndsWith('.ps1')){$tokens=$null;$errors=$null;[void][Management.Automation.Language.Parser]::ParseFile($temp,[ref]$tokens,[ref]$errors);if($errors.Count -gt 0){throw 'Revision transport syntax failed'}}
  if($rel.EndsWith('.html')){$head=[IO.File]::ReadAllText($temp);if(!$head.StartsWith('<!doctype html>',[StringComparison]::OrdinalIgnoreCase)){throw 'Invalid HTML'}}
  Move-Item -LiteralPath $temp -Destination $dest -Force
 }

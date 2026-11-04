@@ -37,10 +37,14 @@ export function createAllyAdReviewHandler({queue=allyAdReviewQueue,bridge=allyBr
       if(!/^application\/json(?:;|$)/i.test(req.headers?.['content-type']||''))return res.status(415).json({error:'JSON required.'});
       const body=req.body||{},action=body.action;
       if(typeof body!=='object'||Array.isArray(body)||Buffer.byteLength(JSON.stringify(body))>205000)throw error('Upload part too large.',413);
-      const deviceActions=['upload_begin','upload_part','upload_finish'];
+      const deviceActions=['upload_begin','upload_part','upload_finish','revision_claim','revision_renew','revision_complete','revision_fail'];
       if(deviceActions.includes(action)){
         const auth=String(req.headers?.authorization||'').replace(/^Bearer /,'');
         const {owner,device_id}=await bridge.authorizeActiveDevice(auth);
+        if(action==='revision_claim')return res.status(200).json({job:await queue.claimRevision(owner,device_id)});
+        if(action==='revision_renew')return res.status(200).json(await queue.renewRevision(owner,device_id,body.input));
+        if(action==='revision_complete')return res.status(200).json({review:await queue.completeRevision(owner,device_id,body.input)});
+        if(action==='revision_fail')return res.status(200).json({review:await queue.failRevision(owner,device_id,body.input)});
         if(action==='upload_begin')return res.status(200).json(await queue.begin(owner,device_id,body.input));
         if(action==='upload_part')return res.status(200).json(await queue.part(owner,device_id,body.input));
         return res.status(200).json({review:await queue.finish(owner,device_id,body.input?.id)});
@@ -52,6 +56,7 @@ export function createAllyAdReviewHandler({queue=allyAdReviewQueue,bridge=allyBr
         if(!body.input||typeof body.input!=='object'||Array.isArray(body.input))throw error('Invalid decision.',400);
         return res.status(200).json({review:await queue.decide(account.id,body.input.id,body.input.decision,body.input.review_note)});
       }
+      if(action==='revision_retry')return res.status(200).json({review:await queue.retryRevision(account.id,body.input?.id)});
       throw error('Unsupported action.',400);
     }catch(e){return res.status(e.status||503).json({error:e.status?e.message:'Review queue temporarily unavailable.'});}
   };
