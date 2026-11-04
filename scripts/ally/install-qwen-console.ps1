@@ -11,6 +11,8 @@ param(
  [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$RevisionTransportSha256,
  [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$BoardWatcherSha256,
  [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$BoardTransportSha256,
+ [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$MacroWatcherSha256,
+ [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$MacroTransportSha256,
  [switch]$Launch
 )
 $ErrorActionPreference='Stop'
@@ -25,6 +27,8 @@ $files=@(
  @{path='scripts/ally/revision-transport.ps1';hash=$RevisionTransportSha256;min=1000;max=10000},
  @{path='scripts/ally/approved-board-watcher.mjs';hash=$BoardWatcherSha256;min=3000;max=18000},
  @{path='scripts/ally/approved-board-transport.ps1';hash=$BoardTransportSha256;min=1000;max=10000},
+ @{path='scripts/ally/macro-job-watcher.mjs';hash=$MacroWatcherSha256;min=5000;max=18000},
+ @{path='scripts/ally/macro-job-transport.ps1';hash=$MacroTransportSha256;min=1000;max=10000},
  @{path='public/ally-qwen-console.html';hash=$PanelSha256;min=2000;max=50000},
  @{path='public/ally-launcher.html';hash=$LauncherSha256;min=3000;max=80000}
 )
