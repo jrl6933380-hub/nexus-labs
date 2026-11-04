@@ -43,10 +43,9 @@ for(const [name,size] of [['phone',{width:393,height:852}],['narrow-phone',{widt
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   const violations=(await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze()).violations;
   expect(violations).toEqual([]);
-  await page.getByRole('button',{name:'Cancel job'}).click();
-  await page.getByRole('button',{name:'OK'}).count().catch(()=>{});
   page.once('dialog',dialog=>dialog.accept());
-  await page.getByRole('button',{name:'Cancel job'}).click().catch(()=>{});
+  await page.getByRole('button',{name:'Cancel job'}).click();
+  await expect(page.locator('#jobs')).toContainText('Canceled');
   expect(errors).toEqual([]);
  });
 }
