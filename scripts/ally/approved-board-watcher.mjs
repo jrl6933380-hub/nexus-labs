@@ -111,6 +111,12 @@ export async function deliver(job,{root=ROOT,scriptDir=dirname(fileURLToPath(imp
  // Do not collide with a manual upload or re-run a possibly submitted upload.
  try{await access(join(macroDir,'pending-upload.json'));throw Error('Video to Board has an upload awaiting inspection');}
  catch(e){if(e.code!=='ENOENT')throw e;}
+ // This first-generation manual macro opens the board and stops if no Edge board
+ // window exists. Prepare that *fixed*, owner-controlled Nexus board beforehand.
+ // Sign-in and final Saved status are still validated by the original macro.
+ const prepare="$b=Get-Process -Name msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -like '*Nexus Board*' } | Select-Object -First 1; if(-not $b){Start-Process 'https://nexus-labs-sigma.vercel.app/board.html?id=a5eb3e3e438f403185de';Start-Sleep -Seconds 5}";
+ await runner('powershell.exe',['-NoProfile','-NonInteractive','-Command',prepare],
+  {shell:false,windowsHide:true,timeout:15000,maxBuffer:2000});
  const title=job.title.trim();
  // The original macro has its own named mutex and only reports Saved after board confirmation.
  // -STA is necessary for its Windows file-picker UI automation.
