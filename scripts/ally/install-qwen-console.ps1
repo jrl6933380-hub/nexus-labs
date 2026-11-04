@@ -1,5 +1,6 @@
 # Upgrade the existing Nexus Ally Launcher with a local-only Qwen console.
-# Downloads five pinned files, verifies SHA-256, and installs a user-launched shortcut.
+# Downloads SHA-256-pinned files, verifies them, and installs a user-launched shortcut.
+# The separate Video to Board macro and its desktop shortcut are never edited.
 [CmdletBinding()]
 param(
  [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{40}$')][string]$Revision,
@@ -8,6 +9,8 @@ param(
  [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$LauncherSha256,
  [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$WatcherSha256,
  [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$RevisionTransportSha256,
+ [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$BoardWatcherSha256,
+ [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$BoardTransportSha256,
  [switch]$Launch
 )
 $ErrorActionPreference='Stop'
@@ -20,6 +23,8 @@ $files=@(
  @{path='scripts/ally/qwen-console.mjs';hash=$ServerSha256;min=2000;max=35000},
  @{path='scripts/ally/qwen-revision-watcher.mjs';hash=$WatcherSha256;min=2000;max=35000},
  @{path='scripts/ally/revision-transport.ps1';hash=$RevisionTransportSha256;min=1000;max=10000},
+ @{path='scripts/ally/approved-board-watcher.mjs';hash=$BoardWatcherSha256;min=3000;max=18000},
+ @{path='scripts/ally/approved-board-transport.ps1';hash=$BoardTransportSha256;min=1000;max=10000},
  @{path='public/ally-qwen-console.html';hash=$PanelSha256;min=2000;max=50000},
  @{path='public/ally-launcher.html';hash=$LauncherSha256;min=3000;max=80000}
 )
