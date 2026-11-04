@@ -61,6 +61,10 @@ function renderMacros(){
   if(macro.link){
    const link=create('a',{text:macro.linkLabel});link.href=macro.link;actions.append(link);
   }
+  if(macro.technical?.tool==='ad_macro'){
+   const local=create('a',{className:'secondary',text:'Qwen Console (Ally only)',title:'This opens the console only on your paired Windows Ally, not on an iPhone.'});
+   local.href='http://127.0.0.1:9942/deck';actions.append(local);
+  }
   const steps=create('button',{className:'secondary',text:'Explain this to me'});
   steps.type='button';
   steps.addEventListener('click',()=>{
