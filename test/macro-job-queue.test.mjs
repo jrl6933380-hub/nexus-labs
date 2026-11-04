@@ -85,9 +85,9 @@ test('worker only accepts strict data-only ad copy and genuine macro receipts',(
  assert.deepEqual(validCopy(JSON.stringify(copy)),copy);
  for(const bad of [JSON.stringify({...copy,command:'whoami'}),JSON.stringify({...copy,headline:'<script>alert(1)</script>'}),'not json'])
   assert.throws(()=>validCopy(bad));
- const docs='C:\\Users\\owner\\Documents';
- assert.equal(createdProject('CREATED C:\\Users\\owner\\Documents\\NexusAds\\barber-abcdef\\project.json\r\n',docs),'barber-abcdef');
- assert.throws(()=>createdProject('CREATED C:\\Users\\owner\\Downloads\\barber\\project.json',docs));
+ const docs='/home/owner/Documents';
+ assert.equal(createdProject('CREATED /home/owner/Documents/NexusAds/barber-abcdef/project.json\r\n',docs),'barber-abcdef');
+ assert.throws(()=>createdProject('CREATED /home/owner/Downloads/barber/project.json',docs));
  assert.equal(reviewReceipt('NEXUS_REVIEW_SUBMITTED '+id+'\r\n'),id);
  assert.equal(reviewReceipt('NEXUS_REVIEW_EXISTS '+id+' pending_review\r\n'),id);
  assert.throws(()=>reviewReceipt('UPLOAD OK'));
