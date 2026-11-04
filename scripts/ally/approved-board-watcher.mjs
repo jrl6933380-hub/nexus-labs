@@ -114,7 +114,7 @@ export async function deliver(job,{root=ROOT,scriptDir=dirname(fileURLToPath(imp
  // This first-generation manual macro opens the board and stops if no Edge board
  // window exists. Prepare that *fixed*, owner-controlled Nexus board beforehand.
  // Sign-in and final Saved status are still validated by the original macro.
- const prepare="$b=Get-Process -Name msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -like '*Nexus Board*' } | Select-Object -First 1; if(-not $b){Start-Process 'https://nexus-labs-sigma.vercel.app/board.html?id=a5eb3e3e438f403185de';Start-Sleep -Seconds 5}";
+ const prepare="$m=New-Object Threading.Mutex($false,'Local\\NexusVideoToBoardMacro');$ready=$false;try{$ready=$m.WaitOne(0);if(-not $ready){throw 'Manual Video to Board macro is already running'};$b=Get-Process -Name msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -like '*Nexus Board*' } | Select-Object -First 1;if(-not $b){Start-Process 'https://nexus-labs-sigma.vercel.app/board.html?id=a5eb3e3e438f403185de';Start-Sleep -Seconds 5}}finally{if($ready){$m.ReleaseMutex()};$m.Dispose()}";
  await runner('powershell.exe',['-NoProfile','-NonInteractive','-Command',prepare],
   {shell:false,windowsHide:true,timeout:15000,maxBuffer:2000});
  const title=job.title.trim();
