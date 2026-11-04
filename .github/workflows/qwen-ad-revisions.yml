@@ -1,0 +1,35 @@
+name: Qwen Ally Ad Review Revisions
+on:
+  pull_request:
+    paths:
+      - 'api/ally-ad-review.js'
+      - 'lib/allyAdReviewQueue.js'
+      - 'scripts/ally/**'
+      - 'public/ally-ad-review.html'
+      - 'test/ally-ad-review-queue.test.mjs'
+      - 'test/ally-ad-revision.test.mjs'
+      - 'tests/ally/qwen-ad-macro.test.mjs'
+      - 'test/ally-qwen-console.test.mjs'
+      - '.github/workflows/qwen-ad-revisions.yml'
+  push:
+    branches: ['feat/qwen-phone-ad-auto-revisions-20261103']
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - run: npm ci --ignore-scripts
+      - name: Check JavaScript syntax
+        run: |
+          node --check api/ally-ad-review.js
+          node --check lib/allyAdReviewQueue.js
+          node --check scripts/ally/qwen-revision-watcher.mjs
+          node --check scripts/ally/qwen-console.mjs
+          node --check test/ally-ad-revision.test.mjs
+      - name: Run targeted regression tests
+        run: node --test test/ally-ad-review-queue.test.mjs test/ally-ad-revision.test.mjs test/ally-qwen-console.test.mjs test/ally-bridge.test.mjs tests/ally/qwen-ad-macro.test.mjs test/ally-qwen-terminal.test.mjs
