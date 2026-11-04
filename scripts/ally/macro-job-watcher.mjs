@@ -14,7 +14,8 @@ const clean=(s,n)=>typeof s==='string'&&s.trim()&&s.length<=n&&!/[\x00-\x1f<>]/.
 const error=e=>/Bearer|Command failed|powershell\.exe|ClaimToken/i.test(String(e?.message||e))?
  'Local macro failed; inspect Ally.':String(e?.message||e).replace(/[\x00-\x1f]/g,' ').slice(0,160);
 const valid=j=>j&&ID.test(j.id)&&CLAIM.test(j.token)&&clean(j.title,72)&&
- /^[\p{L}\p{N} _-]+$/u.test(j.title)&&clean(j.brief,800);
+ /^[\p{L}\p{N} _-]+$/u.test(j.title)&&typeof j.brief==='string'&&j.brief.trim().length>=12&&
+ j.brief.length<=800&&!/[\x00-\x08\x0e-\x1f<>]/.test(j.brief);
 async function safeFile(path,max){
  const st=await lstat(path);if(!st.isFile()||st.isSymbolicLink()||st.size<2||st.size>max)throw Error('Unsafe local ad file');
  return readFile(path,'utf8');
