@@ -1,4 +1,5 @@
 import {MACRO_CONTROLLERS,VERIFIED_MACROS,MACRO_MODES,filterMacros,reviewSummary} from './nexus-macro-registry.js';
+import {mountMacroJobs} from './nexus-macro-jobs-ui.js';
 
 const by=id=>document.getElementById(id);
 const create=(tag,{className='',text='',title=''}={})=>{
@@ -98,7 +99,7 @@ async function load(){
   if(response.status===401||response.status===403){showGate('This space is for the signed-in Nexus owner. Open Nexus Home and sign in with your owner account.');return;}
   if(!response.ok||!Array.isArray(data.reviews)){showGate('Could not check your private Nexus review queue. No status information was loaded.',{retry:true});return;}
   by('gate').hidden=true;by('app').hidden=false;
-  renderReviewStatus(data.reviews);renderControllers();renderMacros();
+  renderReviewStatus(data.reviews);renderControllers();renderMacros();mountMacroJobs();
   by('ally-state').textContent='Checking paired Ally connection…';
   try{
    const status=await fetch('/api/ally',{method:'POST',credentials:'same-origin',
