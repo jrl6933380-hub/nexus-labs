@@ -53,17 +53,14 @@ async function safeCopyAsset(src,dest,budget){
  if(st.isDirectory()){
   await mkdir(dest);for(const ent of await readdir(src)){if(ent.startsWith('.'))throw Error('Hidden asset refused');await safeCopyAsset(join(src,ent),join(dest,ent),budget);}
  }else{
-  if(!/\.(png|jpg|jpeg|webp|gif|svg|mp4|webm|woff2|css|js)$/i.test(src))throw Error('Unsupported asset type');
+  if(!/\.(png|jpg|jpeg|webp|gif|svg|mp4|webm|woff2|css|js|txt|csv)$/i.test(src))throw Error('Unsupported asset type');
   budget.files++;budget.bytes+=st.size;
   if(budget.files>LIMIT_FILES||budget.bytes>MAX_COPY_BYTES)throw Error('Assets exceed revision budget');
-  await copyFile(src,dest,2); // COPYFILE_EXCL: do not overwrite an existing revision
+  await copyFile(src,dest,1); // COPYFILE_EXCL: do not overwrite an existing revision
  }
 }
 function safeConfig(cfg){
- if(!isObject(cfg)||typeof cfg.source!=='string'||!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,80}\.html$/.test(cfg.source)||!ID.test(cfg.name?.replace(/ /g,'_')?.slice(0,80)||'none')) {
-  // The name is display-only; check source separately below instead.
-  if(!isObject(cfg)||typeof cfg.source!=='string'||!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,80}\.html$/.test(cfg.source))throw Error('Unsafe ad manifest');
- }
+ if(!isObject(cfg)||typeof cfg.source!=='string'||!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,80}\.html$/.test(cfg.source))throw Error('Unsafe ad manifest');
  for(const key of Object.keys(CAPS)){if(!safeText(cfg[key],CAPS[key]))throw Error('Unsupported project copy');}
  if(!hex(cfg.accent)||!hex(cfg.background))throw Error('Unsupported project palette');
  if(!Number.isInteger(cfg.durationMs)||cfg.durationMs<500||cfg.durationMs>120000)throw Error('Invalid ad length');
@@ -113,7 +110,7 @@ async function getDocuments(runner){
  const {stdout}=await runner('powershell.exe',['-NoProfile','-NonInteractive','-Command','[Environment]::GetFolderPath("MyDocuments")'],
   {shell:false,windowsHide:true,timeout:6000,maxBuffer:2000});
  const docs=String(stdout).trim();
- if(!docs||docs.includes('\n')||!resolve(docs).startsWith(resolve(process.env.USERPROFILE||docs)))throw Error('Unexpected Documents folder');
+ if(!docs||docs.includes('\n')||!resolve(docs).toLowerCase().startsWith(resolve(process.env.USERPROFILE||docs).toLowerCase()))throw Error('Unexpected Documents folder');
  return docs;
 }
 async function revise(job,{root=ROOT,scriptDir=dirname(fileURLToPath(import.meta.url)),fetchImpl=fetch,runner=execFileAsync}={}){

@@ -7,6 +7,7 @@ import {join,resolve} from 'node:path';
 import {spawn} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
+import {startRevisionWatcher} from './qwen-revision-watcher.mjs';
 
 export const HOST='127.0.0.1';
 export const PORT=9942;
@@ -79,5 +80,12 @@ export function createConsoleServer({root=ROOT,fetchImpl=fetch,panelPath=PANEL,d
  });
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
- const server=createConsoleServer();server.on('error',e=>{console.error('Console bind failed:',e.message);process.exitCode=1;});server.listen(PORT,HOST,()=>console.log(`Nexus local Qwen Console at ${ORIGIN} (loopback only)`));
+ const server=createConsoleServer();server.on('error',e=>{console.error('Console bind failed:',e.message);process.exitCode=1;});
+ server.listen(PORT,HOST,()=>{
+  // Safe background poll only while this user-started local console is open.
+  // The watcher never starts Qwen work unless the owner rejected an ad with feedback.
+  const revisions=startRevisionWatcher({root:ROOT});
+  server.on('close',()=>revisions.stop());
+  console.log('Nexus local Qwen Console ready (revision watcher enabled)');
+ });
 }
