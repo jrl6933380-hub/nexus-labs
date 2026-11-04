@@ -83,6 +83,7 @@ test('cancel queued or request safe stop of already-processing render',async()=>
 test('worker only accepts strict data-only ad copy and genuine macro receipts',()=>{
  const copy={brand:'Lopez Cuts',headline:'Fresh cuts. Easy booking.',offer:'A welcoming neighborhood barber shop.',cta:'Book a visit'};
  assert.deepEqual(validCopy(JSON.stringify(copy)),copy);
+ assert.deepEqual(validCopy(String.fromCharCode(96).repeat(3)+'json\n'+JSON.stringify(copy)+'\n'+String.fromCharCode(96).repeat(3)),copy);
  for(const bad of [JSON.stringify({...copy,command:'whoami'}),JSON.stringify({...copy,headline:'<script>alert(1)</script>'}),'not json'])
   assert.throws(()=>validCopy(bad));
  const docs='/home/owner/Documents';
