@@ -7,7 +7,7 @@
 3. The uploader decrypts the paired Ally's existing DPAPI-protected token internally; the token is never displayed to Qwen. Upload destination is fixed to the official Nexus production origin and only an active paired Ally session can submit.
 4. Video goes to a private, owner-scoped queue in 128 KiB parts, max 8 MiB, with SHA-256 and MP4 validation. A deterministic project+checksum ID permits safe replay from the same paired device. No public media URLs.
 5. In Nexus owner Home open Qwen Ad Reviews (ally-ad-review.html) on iPhone. Owner sign-in is required and Safari can use byte-range playback.
-6. Approve marks the review approved internally, and Request changes marks it rejected with an optional note. Neither button posts, publishes, emails, or starts follow-up agents. Later automation requires a separate explicit owner-approved process.
+6. Approve marks the review approved internally. Request changes requires a note and queues it for the paired Ally's opt-in local revision worker. Local Qwen changes a bounded set of ad fields, the existing trusted macro renders the revised ad, and the paired uploader submits a new linked private review card. Neither button publishes.
 
 ## Security and operating boundaries
 
@@ -17,7 +17,7 @@
 - The source HTML and editable project stay on the Ally; only the verified MP4 and metadata are uploaded.
 - The fixed uploader uses Windows DPAPI locally. Qwen never handles the token and cannot choose a network destination.
 - Rendering and checksum success do not establish visual approval. Review the video before approving.
-- Request changes stores feedback; it does not automatically restart Qwen.
+- Request changes queues feedback. Qwen picks it up only while the separately installed and owner-started local revision worker is running. The queue waits safely if the Ally is offline. Publishing remains separate and owner-gated.
 - After review and merge, stage BOTH scripts/ally/qwen-terminal-agent.mjs and scripts/ally/submit-ad-review.ps1 from the exact pinned commit into the same NexusAlly/qwen-terminal/versions/<sha>/scripts/ally/ directory. Verify hashes and syntax before switching installed.json; keep a rollback manifest.
 - This workflow requires merging and deploying the API/UI change, installing both local files and a live phone + Ally upload smoke test. Prior to those checks it is not live.
 
