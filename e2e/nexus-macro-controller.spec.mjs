@@ -42,6 +42,7 @@ for(const [label,size] of [['phone',{width:393,height:852}],['narrow-phone',{wid
   await expect(card.getByText('Pick a video from Downloads and choose the Nexus board.')).toBeVisible();
   await expect(card.getByRole('link',{name:'Open Nexus Board'})).toHaveAttribute('href','/board.html');
   await page.getByRole('button',{name:'Show all'}).click();
+  await expect(page.locator('#macro-start-ad').getByRole('link',{name:'Qwen Console (Ally only)'})).toHaveAttribute('href','http://127.0.0.1:9942/deck');
   await page.getByRole('searchbox',{name:'Search macros'}).fill('fix an ad');
   await expect(page.locator('#macros .macro')).toHaveCount(1);
   await expect(page.getByRole('heading',{name:'Fix an ad I don’t like'})).toBeVisible();
