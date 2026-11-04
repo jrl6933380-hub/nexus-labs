@@ -78,6 +78,11 @@ test('failure stays private and owner can request a retry',async()=>{
  time+=31*60*1000;
  const after=await q.claimRevision('justin','ally-A');assert.equal(after.attempt,3);assert.notEqual(after.token,again.token);
  assert.equal(await q.claimRevision('justin','ally-A'),null);
+ time+=31*60*1000;
+ assert.equal(await q.claimRevision('justin','ally-A'),null);
+ assert.equal((await q.list('justin'))[0].revision_status,'needs_help');
+ assert.equal((await q.list('justin'))[0].revision_attempts,3);
+ await assert.rejects(()=>q.retryRevision('justin',id),{status:409});
 });
 test('revision manifest generation accepts only bounded safe copy and palette',()=>{
  const current={headline:'Old headline',offer:'Old offer',cta:'Visit',brand:'Nexus',accent:'#34f5a8',background:'#040b12'};

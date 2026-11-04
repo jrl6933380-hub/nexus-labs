@@ -77,7 +77,7 @@ function item(review){
   });
   actions.append(approve,change);
  }
- if(review.status==='rejected'&&review.revision_status==='needs_help'){
+ if(review.status==='rejected'&&review.revision_status==='needs_help'&&(review.revision_attempts||0)<3){
    const retry=el('button','Retry local revision');
    retry.addEventListener('click',async()=>{retry.disabled=true;try{
     const res=await fetch('/api/ally-ad-review',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({action:'revision_retry',input:{id:review.id}})});
