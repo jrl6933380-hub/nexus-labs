@@ -65,6 +65,26 @@ function item(review){
   root.querySelector('.player').after(info);
  }
  const actions=root.querySelector('.actions');
+ if(review.status==='approved'){
+   const labels={queued:'Waiting for the paired Ally to move the approved video to Nexus board.',processing:'Ally is checking the MP4 and using Video to Board…',saved:'Saved on the Nexus board.',needs_help:'Board handoff needs attention: '+(review.board_error||'inspect the Ally and Nexus board')};
+   if(review.board_status){
+     const info=el('p',labels[review.board_status]||'Board handoff state: '+review.board_status);
+     info.className='revision'+(review.board_status==='needs_help'?' warn':'');
+     root.querySelector('.player').after(info);
+   }else{
+     const send=el('button','Send approved video to board');
+     send.addEventListener('click',async()=>{
+       if(!confirm('Queue this previously approved ad for your Nexus board? Nothing will publish to social media.'))return;
+       send.disabled=true;
+       try{
+         const res=await fetch('/api/ally-ad-review',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},
+           body:JSON.stringify({action:'board_enqueue',input:{id:review.id}})});
+         const data=await res.json();if(!res.ok)throw Error(data.error||'Could not queue board transfer');await render();
+       }catch(e){notice.textContent=e.message;send.disabled=false;}
+     });
+     actions.append(send);
+   }
+ }
  if(review.status==='pending_review'){
   const approve=el('button','Approve for handoff');approve.className='primary';
   const change=el('button','Request changes');
