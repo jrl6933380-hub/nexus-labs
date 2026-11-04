@@ -8,6 +8,7 @@ import {spawn} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {startRevisionWatcher} from './qwen-revision-watcher.mjs';
+import {startApprovedBoardWatcher} from './approved-board-watcher.mjs';
 
 export const HOST='127.0.0.1';
 export const PORT=9942;
@@ -85,7 +86,8 @@ if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
   // Safe background poll only while this user-started local console is open.
   // The watcher never starts Qwen work unless the owner rejected an ad with feedback.
   const revisions=startRevisionWatcher({root:ROOT});
-  server.on('close',()=>revisions.stop());
-  console.log('Nexus local Qwen Console ready (revision watcher enabled)');
+  const board=startApprovedBoardWatcher({root:ROOT});
+  server.on('close',()=>{revisions.stop();board.stop();});
+  console.log('Nexus local Qwen Console ready (revision + approved board handoff enabled)');
  });
 }
