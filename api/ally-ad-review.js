@@ -37,10 +37,13 @@ export function createAllyAdReviewHandler({queue=allyAdReviewQueue,bridge=allyBr
       if(!/^application\/json(?:;|$)/i.test(req.headers?.['content-type']||''))return res.status(415).json({error:'JSON required.'});
       const body=req.body||{},action=body.action;
       if(typeof body!=='object'||Array.isArray(body)||Buffer.byteLength(JSON.stringify(body))>205000)throw error('Upload part too large.',413);
-      const deviceActions=['upload_begin','upload_part','upload_finish','revision_claim','revision_renew','revision_complete','revision_fail'];
+      const deviceActions=['upload_begin','upload_part','upload_finish','revision_claim','revision_renew','revision_complete','revision_fail','board_claim','board_complete','board_fail'];
       if(deviceActions.includes(action)){
         const auth=String(req.headers?.authorization||'').replace(/^Bearer /,'');
         const {owner,device_id}=await bridge.authorizeActiveDevice(auth);
+        if(action==='board_claim')return res.status(200).json({job:await queue.claimBoard(owner,device_id)});
+        if(action==='board_complete')return res.status(200).json({review:await queue.completeBoard(owner,device_id,body.input)});
+        if(action==='board_fail')return res.status(200).json({review:await queue.failBoard(owner,device_id,body.input)});
         if(action==='revision_claim')return res.status(200).json({job:await queue.claimRevision(owner,device_id)});
         if(action==='revision_renew')return res.status(200).json(await queue.renewRevision(owner,device_id,body.input));
         if(action==='revision_complete')return res.status(200).json({review:await queue.completeRevision(owner,device_id,body.input)});
@@ -56,6 +59,7 @@ export function createAllyAdReviewHandler({queue=allyAdReviewQueue,bridge=allyBr
         if(!body.input||typeof body.input!=='object'||Array.isArray(body.input))throw error('Invalid decision.',400);
         return res.status(200).json({review:await queue.decide(account.id,body.input.id,body.input.decision,body.input.review_note)});
       }
+      if(action==='board_enqueue')return res.status(200).json({review:await queue.enqueueBoard(account.id,body.input?.id)});
       if(action==='revision_retry')return res.status(200).json({review:await queue.retryRevision(account.id,body.input?.id)});
       throw error('Unsupported action.',400);
     }catch(e){return res.status(e.status||503).json({error:e.status?e.message:'Review queue temporarily unavailable.'});}
