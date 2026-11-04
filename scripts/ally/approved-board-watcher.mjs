@@ -3,7 +3,7 @@
 // Never edits the owner's macro, replaces the original MP4, or posts to social media.
 import {createHash} from 'node:crypto';
 import {createReadStream} from 'node:fs';
-import {readFile,readdir,lstat,copyFile,access} from 'node:fs/promises';
+import {readFile,readdir,lstat,copyFile,access,writeFile} from 'node:fs/promises';
 import {join,dirname,resolve,basename} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {execFile} from 'node:child_process';
@@ -16,7 +16,7 @@ const REVIEW=/^[a-f0-9]{32}$/;
 const TOKEN=/^[a-f0-9-]{36}$/;
 const SHA=/^[a-f0-9]{64}$/;
 const BOARD_RECEIPT=/^[a-f0-9]{32}$/;
-const short=e=>String(e?.message||e||'Local handoff failed').replace(/[\x00-\x1f]/g,' ').slice(0,160);
+const short=e=>{const s=String(e?.message||e||'Local handoff failed');return /Command failed|Bearer|BoardToken|powershell\.exe/i.test(s)?'Local board command failed; inspect Ally and board':s.replace(/[\x00-\x1f]/g,' ').slice(0,160);};
 const valid=x=>Boolean(x&&REVIEW.test(x.id)&&ID.test(x.project_id)&&TOKEN.test(x.token)&&SHA.test(x.sha256)&&
  Number.isSafeInteger(x.bytes)&&x.bytes>=128&&x.bytes<=8*1024*1024&&
  typeof x.title==='string'&&x.title.trim()&&x.title.length<=120&&!/[\x00-\x1f]/.test(x.title));
@@ -135,7 +135,6 @@ export function startApprovedBoardWatcher({root=ROOT,scriptDir=dirname(fileURLTo
    // If the original UI macro may have submitted, mark needs_help; NEVER auto-resubmit.
    if(job&&valid(job))await ps(transport,'fail',['-ReviewId',job.id,'-BoardToken',job.token,'-Message',short(e)],runner).catch(()=>{});
    const state=join(root,'approved-board-watcher.json');
-   const {writeFile}=await import('node:fs/promises');
    await writeFile(state,JSON.stringify({updated_at:new Date().toISOString(),review_id:job?.id||null,
     status:job?'needs_help':'idle',message:short(e)})).catch(()=>{});
   }finally{busy=false;}
