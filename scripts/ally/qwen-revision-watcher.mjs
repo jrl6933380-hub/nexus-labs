@@ -95,7 +95,7 @@ async function transport(script,action,args=[],runner=execFileAsync){
  return JSON.parse(String(stdout).trim());
 }
 async function ensurePinned(root,dir){
- const json=JSON.parse(await safeFile(join(root,'installed.json'),2000));
+ const json=JSON.parse((await safeFile(join(root,'installed.json'),2000)).replace(/^\uFEFF/,''));
  const revision=dirname(dirname(dir)).split(/[\\/]/).pop();
  if(!/^[a-f0-9]{40}$/.test(revision)||json.revision!==revision)throw Error('Launcher and Qwen runner versions differ; update both first');
  const prefix=resolve(join(root,'versions'))+(/win32/.test(process.platform)?'\\':'/');

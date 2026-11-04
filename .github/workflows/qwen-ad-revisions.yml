@@ -8,6 +8,7 @@ on:
       - 'public/ally-ad-review.html'
       - 'test/ally-ad-review-queue.test.mjs'
       - 'test/ally-ad-revision.test.mjs'
+      - 'test/approved-ad-board-handoff.test.mjs'
       - 'tests/ally/qwen-ad-macro.test.mjs'
       - 'test/ally-qwen-console.test.mjs'
       - '.github/workflows/qwen-ad-revisions.yml'
@@ -30,9 +31,11 @@ jobs:
           node --check lib/allyAdReviewQueue.js
           node --check scripts/ally/qwen-revision-watcher.mjs
           node --check scripts/ally/qwen-console.mjs
+          node --check scripts/ally/approved-board-watcher.mjs
+          node --check test/approved-ad-board-handoff.test.mjs
           node --check test/ally-ad-revision.test.mjs
       - name: Run targeted regression tests
-        run: node --test test/ally-ad-review-queue.test.mjs test/ally-ad-revision.test.mjs test/ally-qwen-console.test.mjs test/ally-bridge.test.mjs tests/ally/qwen-ad-macro.test.mjs test/ally-qwen-terminal.test.mjs
+        run: node --test test/ally-ad-review-queue.test.mjs test/ally-ad-revision.test.mjs test/approved-ad-board-handoff.test.mjs test/ally-qwen-console.test.mjs test/ally-bridge.test.mjs tests/ally/qwen-ad-macro.test.mjs test/ally-qwen-terminal.test.mjs
 
   powershell-syntax:
     runs-on: windows-latest
@@ -42,7 +45,7 @@ jobs:
       - name: Parse Ally PowerShell scripts without executing them
         shell: pwsh
         run: |
-          $paths = @('scripts/ally/install-qwen-console.ps1', 'scripts/ally/submit-ad-review.ps1', 'scripts/ally/revision-transport.ps1')
+          $paths = @('scripts/ally/install-qwen-console.ps1', 'scripts/ally/submit-ad-review.ps1', 'scripts/ally/revision-transport.ps1', 'scripts/ally/approved-board-transport.ps1')
           foreach ($path in $paths) {
             $tokens = $null
             $errorsFound = $null
