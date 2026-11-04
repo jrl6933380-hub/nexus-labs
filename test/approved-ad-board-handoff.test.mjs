@@ -45,7 +45,7 @@ test('only an owner-approved review is queued for the original paired Ally',asyn
  const listed=(await q.list('justin'))[0];
  assert.equal(listed.board_status,'processing');
  assert.equal(JSON.stringify(listed).includes(claim.token),false);
- await assert.rejects(()=>q.completeBoard('justin','ally-B',{id:ad.id,token:claim.token,run_id:'a'.repeat(32)}),{status:409});
+ await assert.rejects(()=>q.completeBoard('justin','ally-B',{id:ad.id,token:claim.token,run_id:'a'.repeat(32)}),{status:403});
  await assert.rejects(()=>q.completeBoard('justin','ally-A',{id:ad.id,token:'a'.repeat(36),run_id:'a'.repeat(32)}),{status:409});
  const complete=await q.completeBoard('justin','ally-A',{id:ad.id,token:claim.token,run_id:'b'.repeat(32)});
  assert.equal(complete.board_status,'saved');
