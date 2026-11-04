@@ -82,9 +82,7 @@ test('failure stays private and owner can request a retry',async()=>{
 test('revision manifest generation accepts only bounded safe copy and palette',()=>{
  const current={headline:'Old headline',offer:'Old offer',cta:'Visit',brand:'Nexus',accent:'#34f5a8',background:'#040b12'};
  assert.deepEqual(validateRevisionPlan('{"headline":"New headline","accent":"#FFAA00"}',current),{headline:'New headline',accent:'#FFAA00'});
- assert.deepEqual(validateRevisionPlan('```json
-{"cta":"Get started"}
-```',current),{cta:'Get started'});
+ assert.deepEqual(validateRevisionPlan([String.fromCharCode(96).repeat(3)+'json','{"cta":"Get started"}',String.fromCharCode(96).repeat(3)].join('\n'),current),{cta:'Get started'});
  for(const invalid of ['{"path":"C:\\\\secret"}','{"headline":"<script>"}','{"accent":"red"}','{"cta":"Visit","shell":"powershell"}','{"headline":"Old headline"}','{not json}']){
   assert.throws(()=>validateRevisionPlan(invalid,current));
  }
