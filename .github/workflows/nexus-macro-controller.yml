@@ -1,0 +1,43 @@
+name: Nexus Macro Controller
+on:
+  pull_request:
+    paths:
+      - 'public/nexus-macro-controller.html'
+      - 'public/nexus-macro-controller.js'
+      - 'public/nexus-macro-registry.js'
+      - 'public/nexus-messages.js'
+      - 'test/nexus-macro-controller.test.mjs'
+      - 'e2e/nexus-macro-controller.spec.mjs'
+      - '.github/workflows/nexus-macro-controller.yml'
+jobs:
+  registry-and-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Parse new browser modules and tests
+        run: |
+          node --check public/nexus-macro-registry.js
+          node --check public/nexus-macro-controller.js
+          node --check test/nexus-macro-controller.test.mjs
+          node --check e2e/nexus-macro-controller.spec.mjs
+      - name: Registry and owner access contracts
+        run: node --test test/nexus-macro-controller.test.mjs
+  owner-dashboard-mobile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npx playwright install --with-deps chromium
+      - name: Mobile, desktop, private owner gate and accessibility
+        run: npx playwright test e2e/nexus-macro-controller.spec.mjs
