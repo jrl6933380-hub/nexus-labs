@@ -51,7 +51,18 @@ export function reviewReceipt(output){
  return match[1];
 }
 export function validCopy(value){
- const obj=typeof value==='string'?JSON.parse(value.trim()):value;
+ let parsed=value;
+ if(typeof value==='string'){
+  let raw=value.trim();
+  const fence=String.fromCharCode(96).repeat(3);
+  if(raw.startsWith(fence)){
+   const line=raw.indexOf('\n');
+   if(line<0||!raw.endsWith(fence))throw Error('Invalid fenced Qwen output');
+   raw=raw.slice(line+1,-fence.length).trim();
+  }
+  parsed=JSON.parse(raw);
+ }
+ const obj=parsed;
  if(!obj||typeof obj!=='object'||Array.isArray(obj)||Object.keys(obj).length!==4||
   Object.keys(obj).some(k=>!['brand','headline','offer','cta'].includes(k)))throw Error('Invalid Qwen copy fields');
  for(const [k,max] of Object.entries({brand:90,headline:110,offer:220,cta:55}))
