@@ -33,6 +33,7 @@ for(const viewport of [{width:1280,height:900},{width:390,height:844}]){
 test('unauthorized view is gated; untrusted text cannot inject markup; duplicates are disabled',async({page})=>{
  await page.route('**/api/forge-research',route=>route.fulfill({status:403,json:{error:'Owner only'}}));
  await page.goto(url(batch));await expect(page.locator('#review')).toBeHidden();await expect(page.getByRole('link',{name:'Open owner sign-in'})).toBeVisible();
+ await expect(page.getByRole('link',{name:'Open owner sign-in'})).toHaveAttribute('href','/nexus-login.html?next=%2Fforge-research-review.html');
  await page.unroute('**/api/forge-research');await page.route('**/api/forge-research',route=>route.fulfill({json:{ready:true}}));
  await page.goto(url({...batch,candidates:[{...candidate,name:'<img src=x onerror=alert(1)>',duplicate:true}]}));
  await expect(page.getByText('<img src=x onerror=alert(1)>',{exact:false})).toBeVisible();await expect(page.locator('#candidates img')).toHaveCount(0);

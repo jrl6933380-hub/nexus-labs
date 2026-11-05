@@ -80,7 +80,7 @@ async function init(){
    history.replaceState(null,'',location.pathname);cleanPackage(pending);sessionStorage.setItem('forge-review-pending',JSON.stringify(pending));
   }else{const saved=sessionStorage.getItem('forge-review-pending');if(saved)pending=JSON.parse(saved);}
   const response=await fetch('/api/forge-research',{credentials:'include'});
-  if(!response.ok){$('gate').replaceChildren(document.createTextNode('Sign in as the Nexus owner to review and import leads. '));const a=el('a','Open owner sign-in');a.href='/nexus-login.html';$('gate').append(a);return;}
+  if(!response.ok){$('gate').replaceChildren(document.createTextNode('Sign in as the Nexus owner to review and import leads. '));const a=el('a','Open owner sign-in');a.href='/nexus-login.html?next=%2Fforge-research-review.html';$('gate').append(a);return;}
   ownerReady=true;ready=true;$('gate').hidden=true;$('review').hidden=false;if(pending)show(pending);
  }catch(e){tell(e.message,true);$('gate').textContent='Review access is unavailable. Keep this page open and try again.';}
 }
