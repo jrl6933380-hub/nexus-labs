@@ -1,0 +1,48 @@
+name: Forge Reviewed Leads
+on:
+  pull_request:
+    paths:
+      - 'api/forge-research.js'
+      - 'lib/forgeResearchImport.js'
+      - 'lib/forgeLeads.js'
+      - 'public/forge-research-*'
+      - 'scripts/ally/forge-*.mjs'
+      - 'scripts/ally/install-forge-leads.ps1'
+      - 'test/forge-research-import.test.mjs'
+      - 'test/ally-forge-*.test.mjs'
+      - 'e2e/forge-research-review.spec.mjs'
+      - '.github/workflows/forge-research.yml'
+permissions:
+  contents: read
+concurrency:
+  group: forge-reviewed-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  research-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      NEXUS_TEST_BROWSER_PATH: /usr/bin/google-chrome
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: node --test test/forge-research-import.test.mjs test/ally-forge-recovery.test.mjs test/ally-forge-leads.test.mjs
+      - run: test -x "$NEXUS_TEST_BROWSER_PATH"
+      - run: npx playwright test e2e/forge-research-review.spec.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: forge-research-review
+          path: test-results/
+  installer-syntax:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - shell: powershell
+        run: |
+          $tokens=$null; $errors=$null
+          [void][Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD 'scripts/ally/install-forge-leads.ps1'),[ref]$tokens,[ref]$errors)
+          if($errors.Count){throw ($errors|Out-String)}
