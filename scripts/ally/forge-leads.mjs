@@ -57,9 +57,10 @@ export function classification(raw,search,maps){
  const observed=new Set([...evidenceLinks(search),...evidenceLinks(maps||{})].map(l=>l.url));
  const urls=Array.isArray(data.evidence_urls)?data.evidence_urls.filter(x=>observed.has(safeUrl(x))).map(safeUrl):[];
  // Google/Qwen's assertion alone cannot establish a business-owned site or absence of one.
- // Negative findings require both searches to have been captured and cited evidence.
+ // Every definitive classification requires a matching Maps capture and cited evidence.
+ // A similarly named website in Search alone cannot establish the candidate's identity.
  let status=data.status;
- if(!urls.length||(status!=='has_website'&&!maps?.text))status='needs_checking';
+ if(!urls.length||!maps?.text)status='needs_checking';
  let website=null;
  if(status==='has_website'){
   website=safeUrl(data.website);
@@ -67,7 +68,10 @@ export function classification(raw,search,maps){
    website=null;status='needs_checking';
   }
  }
- return {status,notes:data.notes,evidence_urls:[...new Set(urls)],website,
+ const notes=status==='needs_checking'&&data.status!=='needs_checking'
+  ? 'Unconfirmed model suggestion ('+LABELS[data.status]+'). Business identity, Maps or source evidence is incomplete. '+data.notes
+  :data.notes;
+ return {status,notes,evidence_urls:[...new Set(urls)],website,
   map_checked:Boolean(maps?.text),checked_at:new Date().toISOString(),human_review_required:true};
 }
 async function atomic(path,data){const temp=path+'.tmp';await writeFile(temp,JSON.stringify(data,null,2),'utf8');await rename(temp,path);}

@@ -24,9 +24,17 @@ test('classification needs observed source links and both searches for negative 
  assert.equal(classification(verify(),page,null).status,'needs_checking');
  assert.equal(classification(verify('no_dedicated_site_found',['https://invented.example/']),page,page).status,'needs_checking');
  assert.equal(classification(verify(),page,page).status,'no_dedicated_site_found');
- assert.equal(classification(verify('has_website'),page,null).status,'has_website');
+ assert.equal(classification(verify('has_website'),page,page).status,'has_website');
  const social={...page,links:[{url:'https://booksy.com/',name:'Book'}]};
  assert.equal(classification(JSON.stringify({status:'has_website',notes:'Booksy',website:'https://booksy.com/',evidence_urls:['https://booksy.com/']}),social,social).status,'needs_checking');
+});
+test('similar-name website cannot exclude a lead without a matching Maps identity',()=>{
+ const raw=JSON.stringify({status:'has_website',notes:'Search suggests a similarly named shop.',website:site,evidence_urls:[site]});
+ const result=classification(raw,page,null);
+ assert.equal(result.status,'needs_checking');
+ assert.equal(result.website,null);
+ assert.match(result.notes,/Unconfirmed model suggestion/);
+ assert.equal(result.human_review_required,true);
 });
 test('capture ignores wrong windows, waits for completion, and pauses at verification',async()=>{
  let calls=0;
