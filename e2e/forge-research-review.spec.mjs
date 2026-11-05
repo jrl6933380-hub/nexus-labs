@@ -25,7 +25,9 @@ for(const viewport of [{width:1280,height:900},{width:390,height:844}]){
   await page.getByRole('button',{name:'Approve and add to Forge'}).click();await expect(page.getByRole('heading',{name:'Import saved'})).toBeVisible();
   expect(requests[0]).toEqual(requests[1]);expect(requests[0].candidates[0].phone_confirmed).toBe(true);
   await expect(page.getByRole('link',{name:'Open caller queue'})).toBeVisible();
-  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.screenshot({path:'test-results/forge-research-'+viewport.width+'.png',fullPage:true});
+  const overflow=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth,nodes:[...document.querySelectorAll('body *')].filter(e=>e.getBoundingClientRect().right>innerWidth+1).slice(0,8).map(e=>({tag:e.tagName,id:e.id,class:e.className,right:e.getBoundingClientRect().right}))}));
+  expect(overflow.scroll,JSON.stringify(overflow)).toBeLessThanOrEqual(overflow.width);
   const violations=(await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa']).analyze()).violations.filter(v=>['serious','critical'].includes(v.impact));expect(violations).toEqual([]);
   await page.screenshot({path:'test-results/forge-research-'+viewport.width+'.png',fullPage:true});
  });
