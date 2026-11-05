@@ -4,7 +4,7 @@
 
 Run `start-forge-leads.ps1` (or the **Find Forge Leads** Windows shortcut). Enter a business type and city; target count defaults to ten and is bounded to 1–10. The visible finite worker opens Google AI Mode, waits for its completed answer, reads only the matching Google browser document through Windows UI Automation, and asks the existing local Qwen endpoint to extract candidate names. Names must occur in the captured answer.
 
-For each new candidate it opens ordinary Google Search and Maps, captures available evidence, and asks local Qwen to classify the result. Maps place redirects require a matching business name in the URL and requested city in the document. Unmatched redirects remain **Needs checking** for negative findings. Site ownership and business identity still require human review. This is a research shortlist, not a guarantee that a business has no website.
+For each new candidate it opens ordinary Google Search and Maps, captures available evidence, and asks local Qwen to classify the result. Maps place redirects require a matching business name in the URL and requested city in the document. Unmatched redirects remain **Needs checking** for every classification, including a model suggestion that a website exists. Site ownership and business identity still require human review. This is a research shortlist, not a guarantee that a business has no website.
 
 The fixed worker drives the browser; Qwen returns bounded JSON data only. No model-generated command, URL, script or HTML is executed. No Places API, new cloud model, credentials, scheduled service or paid resources are required. Browser access may still require the owner's Google sign-in. Captchas/verification are not bypassed.
 
