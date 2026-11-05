@@ -15,19 +15,20 @@ Each batch saves privately under `%LOCALAPPDATA%\NexusAlly\forge-leads\batches\b
 - `review.html`: local, script-free review table with Maps search links and captured source links.
 - `shortlist.csv`: names, location, website status, notes, review links, duplicate flag and check date.
 - `batch.json`: input, stage, candidates, classification, uncertainty, source URLs and timestamps.
+- `forge-review.json`: bounded data package for the signed-in owner review page, with unverified phone suggestions when a matching Maps capture contains one.
 - `discovery.json`, `search-N.json`, and successful `maps-N.json`: bounded captured page text and accessible source links. Account header/email text is redacted.
 
 States: **No dedicated website found**, **Social / booking only**, **Has a website** (exclude), **Needs checking**. Every row requires human review. Missing captured source URLs, incomplete Maps verification, invalid model responses or conflicting identity never qualify as proven absence.
 
 Duplicate matching uses normalized business name + requested area against candidates with a completed check timestamp in earlier local batches. Duplicates remain visible with a flag and skip fresh verification; candidates interrupted before classification may be checked again. This does not deduplicate against remote Forge leads. Older completed but uncertain results require manual review rather than an automatic re-check.
 
-Nothing is imported into Forge's caller queue. No phone/email is guessed, previews built, messages sent, or content published. The batch is ready for a future approved import after review.
+The research macro itself never imports into the caller queue. **Open Forge review** carries the completed package to the owner review page, where selected businesses require verified identity, phone/source and website status before import. See `docs/forge-reviewed-import.md`. No phone/email is guessed, previews built, messages sent, or content published.
 
 ## Recovery and limits
 
 - The macro is user-started, visible, and finite; keep its browser windows open. No auto-start or wake behavior.
 - Ctrl+C requests cancellation. The last completed stage and evidence stay on disk. Interrupted stages are never automatically replayed.
-- A per-output-root `active.lock` blocks parallel workers. Normal completion/cancellation clears it. After a crash/power loss, inspect the last batch and confirm no worker is running before manually removing that stale lock.
+- A per-output-root `active.lock` records the worker PID and ownership token. Live workers block another run; a dead/legacy lock is archived only after process inspection. Unfinished batches are preserved as Needs attention before a fresh search starts. Unknown locks require inspection; no uncertain step is replayed. Release removes only the current worker's own lock.
 - Sign-in/verification walls stop with **Needs attention**. Resolve them in Google, then start another batch. The browser reader waits at most 90 seconds for AI/Search and 18 seconds for Maps. Local model requests have a 150-second deadline.
 - Browser UI, readiness text, accessible link support and Google layout can change. The exact query and AI-vs-regular-search mode must match before reading. A wall without an accessible matching page times out rather than reading another window.
 - Up to 21 search windows for ten new candidates; the macro never closes the owner's windows. Google may return fewer candidates than requested. Large runs take several minutes on the Ally.
@@ -35,7 +36,7 @@ Nothing is imported into Forge's caller queue. No phone/email is guessed, previe
 
 ## Install / verify
 
-Keep the three scripts together in a versioned local directory: `forge-leads.mjs`, `forge-browser.ps1`, `start-forge-leads.ps1`. Use the existing `%LOCALAPPDATA%\NexusAlly\runtime\node.exe`. Pin downloads to the reviewed immutable Git commit and independently verify SHA-256 before installing a shortcut. The launcher uses a normal PowerShell process with no admin privileges.
+Keep the four scripts together in a versioned local directory: `forge-leads.mjs`, `forge-recovery.mjs`, `forge-browser.ps1`, `start-forge-leads.ps1`. Use the existing `%LOCALAPPDATA%\NexusAlly\runtime\node.exe`. The pinned `install-forge-leads.ps1` supports staging without activation and verifies all four source hashes before installing a shortcut. Deploy the review page/API before activation. The launcher uses a normal PowerShell process with no admin privileges.
 
 Read-only install check: `start-forge-leads.ps1 -Check` prints hashes and checks the local runtime without opening Google or invoking Qwen.
 

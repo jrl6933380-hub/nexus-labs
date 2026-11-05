@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 // Local-only research batches. Browser and model content are DATA, never executable actions.
-import {readFile,writeFile,mkdir,readdir,rename,open,unlink,lstat} from 'node:fs/promises';
+import {readFile,writeFile,mkdir,readdir,rename,lstat} from 'node:fs/promises';
 import {join,dirname,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {randomUUID,createHash} from 'node:crypto';
+import {acquireResearchLock} from './forge-recovery.mjs';
 const exec=promisify(execFile), HERE=dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT=join(process.env.LOCALAPPDATA||process.cwd(),'NexusAlly','forge-leads','batches');
 const LABELS={no_dedicated_site_found:'No dedicated website found',social_booking_only:'Social / booking only',has_website:'Has a website',needs_checking:'Needs checking'};
@@ -115,21 +116,71 @@ export async function priorKeys(root){
  return keys;
 }
 export function renderReport(batch){
+ const review=reviewPackage(batch);
+ const handoff=batch.status==='ready_for_review'&&batch.candidates.length
+  ? '<p><a href="https://nexus-labs-sigma.vercel.app/forge-research-review.html#batch='+Buffer.from(JSON.stringify(review)).toString('base64url')+'">Open Forge review → select and approve leads</a></p><p>Or choose <strong>forge-review.json</strong> on the Forge review page. Phone suggestions still need your verification.</p>' : '';
  const rows=batch.candidates.map(c=>`<tr><td><strong>${escape(c.name)}</strong><br>${escape(c.location)}${c.duplicate?' <b>Previously found</b>':''}</td><td>${escape(LABELS[c.status])}<br>${escape(c.notes)}</td><td><a href="${escape(c.map_url)}" rel="noreferrer">Check Maps</a><br>${(c.evidence_urls||[]).map(u=>`<a href="${escape(u)}" rel="noreferrer">${escape(new URL(u).hostname)}</a>`).join('<br>')}</td></tr>`).join('');
- return `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><title>Forge lead review</title><style>body{font:17px/1.5 system-ui;background:#111722;color:#eef3ff;max-width:1100px;margin:30px auto;padding:20px}h1{margin-bottom:8px}a{color:#a5efbe}table{width:100%;border-collapse:collapse}td,th{text-align:left;vertical-align:top;padding:16px 12px;border-bottom:1px solid #455064}p{color:#c7d1e1}strong{color:#fff}@media(max-width:650px){table,tbody,tr,td{display:block}thead{display:none}td{padding:10px}tr{border-bottom:2px solid #455064}}</style><h1>Forge lead review</h1><p>${escape(batch.spec.business)} · ${escape(batch.spec.city)} · ${escape(batch.created_at)}</p><p>Status: <strong>${escape(batch.status)}</strong> · ${batch.candidates.filter(c=>!c.duplicate&&c.status!=='has_website').length} new candidates for review.</p><p>Research suggestions only. “No dedicated website found” is not proof that no website exists. Verify business identity, area and sources before building or contacting. Nothing has been added to the caller queue.</p>${batch.error?`<p>${escape(batch.error)}</p>`:''}<table><thead><tr><th>Business</th><th>Website check</th><th>Sources</th></tr></thead><tbody>${rows}</tbody></table><p>JSON and CSV evidence are saved beside this report. Ctrl+C cancels a running batch; completed checks remain saved.</p></html>`;
+ return `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><title>Forge lead review</title><style>body{font:17px/1.5 system-ui;background:#111722;color:#eef3ff;max-width:1100px;margin:30px auto;padding:20px}h1{margin-bottom:8px}a{color:#a5efbe}table{width:100%;border-collapse:collapse}td,th{text-align:left;vertical-align:top;padding:16px 12px;border-bottom:1px solid #455064}p{color:#c7d1e1}strong{color:#fff}@media(max-width:650px){table,tbody,tr,td{display:block}thead{display:none}td{padding:10px}tr{border-bottom:2px solid #455064}}</style><h1>Forge lead review</h1><p>${escape(batch.spec.business)} · ${escape(batch.spec.city)} · ${escape(batch.created_at)}</p><p>Status: <strong>${escape(batch.status)}</strong> · ${batch.candidates.filter(c=>!c.duplicate&&c.status!=='has_website').length} new candidates for review.</p><p>Research suggestions only. “No dedicated website found” is not proof that no website exists. Verify business identity, area and sources before building or contacting. Nothing has been added to the caller queue.</p>${handoff}${batch.error?`<p>${escape(batch.error)}</p>`:''}<table><thead><tr><th>Business</th><th>Website check</th><th>Sources</th></tr></thead><tbody>${rows}</tbody></table><p>JSON and CSV evidence are saved beside this report. Ctrl+C cancels a running batch; completed checks remain saved.</p></html>`;
+}
+export function reviewPackage(batch){
+ const id=value=>createHash('sha256').update(value).digest('hex').slice(0,32);
+ return {version:1,batch_id:'research-'+id(JSON.stringify({at:batch.created_at,spec:batch.spec})),
+  business:batch.spec.business,city:batch.spec.city,created_at:batch.created_at,
+  candidates:batch.candidates.slice(0,10).map(c=>({candidate_id:id(c.key||c.name+'|'+batch.spec.city),name:c.name,
+   location:c.location,status:c.status,duplicate:Boolean(c.duplicate),notes:String(c.notes||'').slice(0,600),
+   checked_at:c.checked_at||batch.created_at,map_url:c.map_url,source_urls:(c.evidence_urls||[]).slice(0,4),
+   phone_suggestion:c.phone_suggestion||'',phone_source_url:c.phone_source_url||c.map_url}))};
 }
 async function saveBatch(dir,batch){
  await atomic(join(dir,'batch.json'),batch);
+ await atomic(join(dir,'forge-review.json'),reviewPackage(batch));
  await writeFile(join(dir,'review.html'),renderReport(batch),'utf8');
  const rows=[['business','location','website_status','website','notes','maps_search','duplicate','checked_at'],...batch.candidates.map(c=>[c.name,c.location,c.status,c.website||'',c.notes,c.map_url,c.duplicate?'yes':'no',c.checked_at||''])];
  await writeFile(join(dir,'shortlist.csv'),'\uFEFF'+rows.map(r=>r.map(csv).join(',')).join('\r\n'),'utf8');
 }
-export async function run(input,{root=DEFAULT_ROOT,capturePage=capture,generate=qwen,signal,progress=console.log}={}){
+export async function refreshReviews(root=DEFAULT_ROOT){
+ await mkdir(root,{recursive:true});
+ try{await lstat(join(root,'active.lock'));throw Error('Finish or recover the active research run before refreshing old reviews.');}
+ catch(e){if(e.code!=='ENOENT')throw e;}
+ let count=0;
+ for(const name of await readdir(root)){
+  if(!/^batch-[0-9a-f-]+$/.test(name))continue;
+  const dir=join(root,name),file=join(dir,'batch.json');let info;
+  try{info=await lstat(file);}catch(e){if(e.code==='ENOENT')continue;throw e;}
+  if(!info.isFile()||info.isSymbolicLink()||info.size>1000000)throw Error('Unexpected review batch file.');
+  const batch=JSON.parse(await readFile(file,'utf8'));if(batch.status!=='ready_for_review')continue;
+  for(let i=0;i<batch.candidates.length;i++){
+   const c=batch.candidates[i];if(!c.map_checked||c.phone_suggestion)continue;
+   try{
+    const mapFile=join(dir,`maps-${i+1}.json`),st=await lstat(mapFile);if(!st.isFile()||st.isSymbolicLink()||st.size>150000)continue;
+    const maps=JSON.parse(await readFile(mapFile,'utf8'));
+    const phone=maps.text?.match(/(?:\+1[ .-]?)?\(?\d{3}\)?[ .-]\d{3}[ .-]\d{4}/)?.[0];
+    if(phone){c.phone_suggestion=phone;c.phone_source_url=maps.actual_url||maps.url||c.map_url;}
+   }catch(e){if(e.code!=='ENOENT')throw e;}
+  }
+  await saveBatch(dir,batch);count++;
+ }
+ return count;
+}
+export async function run(input,{root=DEFAULT_ROOT,capturePage=capture,generate=qwen,signal,progress=console.log,lockOptions}={}){
  const s=spec(input);await mkdir(root,{recursive:true});
- let lock;try{lock=await open(join(root,'active.lock'),'wx');}catch(e){if(e.code==='EEXIST')throw Error('A research batch is already running, or an interrupted batch needs inspection (active.lock).');throw e;}
+ const lock=await acquireResearchLock(root,lockOptions);
  const dir=join(root,'batch-'+randomUUID()),batch={version:1,spec:s,created_at:new Date().toISOString(),status:'starting',candidates:[]};
  try{
-  await mkdir(dir);await saveBatch(dir,batch);const previous=await priorKeys(root);
+  await mkdir(dir);await saveBatch(dir,batch);
+  if(lock.recovered){
+   progress('Recovered an interrupted worker. Its batch is preserved; starting a fresh search.');
+   for(const name of await readdir(root)){
+    if(!/^batch-[0-9a-f-]+$/.test(name)||join(root,name)===dir)continue;
+    const file=join(root,name,'batch.json');let prior;
+    try{const info=await lstat(file);if(!info.isFile()||info.isSymbolicLink()||info.size>1000000)throw Error('Inspect the interrupted batch file before recovery.');prior=JSON.parse(await readFile(file,'utf8'));}catch(e){if(e.code==='ENOENT')continue;throw e;}
+    if(!['ready_for_review','needs_attention','canceled'].includes(prior.status)){
+     prior.status='needs_attention';prior.error='The previous research worker stopped. Findings preserved; no uncertain step replayed.';
+     await saveBatch(join(root,name),prior);
+    }
+   }
+  }
+  const previous=await priorKeys(root);
   const checkpoint=async status=>{batch.status=status;await saveBatch(dir,batch);progress(status);signal?.throwIfAborted();};
   await checkpoint('searching_google');const discovery=await capturePage(googleUrl(discoveryPrompt(s),'ai'),{signal});
   await atomic(join(dir,'discovery.json'),discovery);await checkpoint('organizing_candidates');
@@ -144,16 +195,21 @@ export async function run(input,{root=DEFAULT_ROOT,capturePage=capture,generate=
    // is not evidence; retain a human-check flag instead of reading another window.
    let maps=null;try{maps=await capturePage(candidate.map_url,{signal,timeout:18000});await atomic(join(dir,`maps-${i+1}.json`),maps);}
    catch(e){signal?.throwIfAborted();if(/sign-in|verification/i.test(e.message))throw e;candidate.map_capture_note=e.message;}
+   if(maps){
+    const phone=maps.text.match(/(?:\+1[ .-]?)?\(?\d{3}\)?[ .-]\d{3}[ .-]\d{4}/)?.[0];
+    if(phone){candidate.phone_suggestion=phone;candidate.phone_source_url=maps.actual_url||maps.url||candidate.map_url;}
+   }
    const verification=await generate('Classify this candidate from the captured search and Maps evidence. Return {"status":"no_dedicated_site_found|social_booking_only|has_website|needs_checking","notes":"brief factual explanation including uncertainty","website":null,"evidence_urls":[]}. Use has_website only for a clearly business-owned dedicated site with matching business identity. Facebook, Instagram, Booksy, Fresha, Yelp and directories are not dedicated sites. Use only exact URLs from supplied links. Negative findings require both search and Maps evidence; conflicting, outside-area or incomplete identity matches must be needs_checking. Absence can never be guaranteed.',{candidate:{name:candidate.name,city:s.city},search:{text:search.text.slice(0,4000),links:evidenceLinks(search).slice(0,4)},maps:maps?{text:maps.text.slice(0,2200),links:evidenceLinks(maps).slice(0,2)}:null},{signal,maxTokens:700});
    Object.assign(candidate,classification(verification,search,maps));await saveBatch(dir,batch);
   }
   await checkpoint('ready_for_review');return {dir,batch};
  }catch(e){batch.status=signal?.aborted?'canceled':'needs_attention';batch.error=noSecrets(String(e.message||e)).slice(0,400);await saveBatch(dir,batch);progress(batch.status+': '+batch.error);return {dir,batch};}
- finally{await lock.close();await unlink(join(root,'active.lock'));}
+ finally{await lock.release();}
 }
 async function cli(args){
+ if(args.length===1&&args[0]==='--refresh-reviews'){console.log('Refreshed '+await refreshReviews()+' saved reviews. No browser, model or import was invoked.');return;}
  if(args.length===1&&args[0]==='--check'){
-  for(const name of ['forge-leads.mjs','forge-browser.ps1','start-forge-leads.ps1'])console.log(name+' '+createHash('sha256').update(await readFile(join(HERE,name))).digest('hex'));
+  for(const name of ['forge-leads.mjs','forge-browser.ps1','start-forge-leads.ps1','forge-recovery.mjs'])console.log(name+' '+createHash('sha256').update(await readFile(join(HERE,name))).digest('hex'));
   console.log('Local research macro files readable. No browser or model invoked.');return;
  }
  const input={};for(let i=0;i<args.length;i+=2){if(!['--business','--city','--count'].includes(args[i])||!args[i+1])throw Error('Usage: --business TYPE --city CITY --count 1-10');input[args[i].slice(2)]=args[i+1];}

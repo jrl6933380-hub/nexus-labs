@@ -1,9 +1,9 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,readFile,writeFile,rm,readdir} from 'node:fs/promises';
+import {mkdtemp,readFile,writeFile,rm,readdir,mkdir} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {spec,googleUrl,candidates,classification,renderReport,run,capture} from '../scripts/ally/forge-leads.mjs';
+import {spec,googleUrl,candidates,classification,renderReport,run,capture,reviewPackage} from '../scripts/ally/forge-leads.mjs';
 const site='https://example.com/';
 const page={found:true,text:'Google results: Baghdad Barber Shop Des Moines. AI Mode response is ready. '.repeat(4),links:[{name:'Shop website',url:site}]};
 const extraction=JSON.stringify({candidates:[{name:'Baghdad Barber Shop',location:'Des Moines',claim:'No website found by Google'}]});
@@ -64,10 +64,27 @@ test('interruption leaves useful checkpoint, lock refuses overlapping batches',a
   assert.equal(result.batch.status,'needs_attention');
   assert.match(await readFile(join(result.dir,'batch.json'),'utf8'),/Local Qwen offline/);
   await writeFile(join(root,'active.lock'),'interrupted');
-  await assert.rejects(run({business:'barbers',city:'DSM'},{root}),/interrupted batch/);
+  await assert.rejects(run({business:'barbers',city:'DSM'},{root}),/Unrecognized lock/);
  }finally{await rm(root,{recursive:true,force:true});}
 });
 test('review report escapes browser/model HTML and active links',()=>{
  const html=renderReport({spec:{business:'<script>',city:'DSM'},created_at:'now',status:'ready_for_review',candidates:[]});
  assert.ok(html.includes('&lt;script&gt;'));assert.ok(!html.includes('<script>'));assert.ok(html.includes("default-src 'none'"));
+});
+test('review handoff is data only, retains identity and never grants import approval',()=>{
+ const b={spec:{business:'barbers',city:'DSM'},created_at:'2026-11-05T10:00:00Z',status:'ready_for_review',candidates:[{key:'barber|dsm',name:'Example',location:'DSM',status:'needs_checking',map_url:googleUrl('Example DSM','maps'),notes:'Check the identity.'}]};
+ const p=reviewPackage(b),same=reviewPackage(b);assert.deepEqual(p,same);assert.match(p.batch_id,/^research-[a-f0-9]{32}$/);
+ assert.equal(p.candidates[0].identity_confirmed,undefined);assert.equal(p.candidates[0].phone_suggestion,'');
+ const report=renderReport(b);assert.match(report,/forge-research-review.html#batch=/);assert.ok(!report.includes('<script'));
+});
+test('dead worker recovery preserves interrupted evidence and never replays its steps',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'forge-prior-'));
+ try{
+  const old=join(root,'batch-abcdef');await mkdir(old);const prior={version:1,spec:{business:'barbers',city:'DSM',count:1},created_at:'2026-11-05T09:00:00Z',status:'checking_1_of_1',candidates:[]};
+  await writeFile(join(old,'batch.json'),JSON.stringify(prior));await writeFile(join(old,'discovery.json'),'original evidence');
+  await writeFile(join(root,'active.lock'),JSON.stringify({version:2,pid:1234,token:'dead'}));let opened=0;
+  await run({business:'barbers',city:'DSM',count:1},{root,lockOptions:{isAlive:()=>false,hasOtherWorkers:async()=>false},progress:()=>{},capturePage:async()=>{opened++;throw Error('Stop new test search');}});
+  assert.equal(opened,1);assert.equal(JSON.parse(await readFile(join(old,'batch.json'),'utf8')).status,'needs_attention');
+  assert.equal(await readFile(join(old,'discovery.json'),'utf8'),'original evidence');assert.ok(!(await readdir(root)).includes('active.lock'));
+ }finally{await rm(root,{recursive:true,force:true});}
 });
