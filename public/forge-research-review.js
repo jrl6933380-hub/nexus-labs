@@ -35,6 +35,7 @@ function show(raw){
   const phone=field(grid,'Verified business phone',c.phone_suggestion||'','tel');phone.maxLength=40;
   const phoneSource=field(grid,'Phone source link',c.phone_source_url||c.map_url||'','url');
   const statusLabel=el('label','Website check'),status=el('select');
+  status.setAttribute('aria-label','Website check');
   for(const [value,label] of [['','Choose after checking'],['no_dedicated_site_found','No dedicated website found'],['social_booking_only','Social / booking only']]){const option=el('option',label);option.value=value;status.append(option);}
   status.value=['no_dedicated_site_found','social_booking_only'].includes(c.status)?c.status:'';statusLabel.append(status);grid.append(statusLabel);fields.append(grid);
   const noteLabel=el('label','Research notes');noteLabel.className='notes-label';const notes=el('textarea');notes.maxLength=1000;notes.value=String(c.notes||'').slice(0,1000);noteLabel.append(notes);fields.append(noteLabel);
@@ -70,6 +71,7 @@ $('approve').addEventListener('click',async()=>{
 });
 $('package-file').addEventListener('change',async event=>{try{const file=event.target.files?.[0];if(!file)return;if(file.size>40000)throw Error('Review package is too large.');show(JSON.parse(await file.text()));}catch(e){tell(e.message,true);}});
 async function init(){
+ ready=false;ownerReady=false;$('gate').hidden=false;$('review').hidden=true;$('result').hidden=true;update();
  let pending=null;
  try{
   if(location.hash.startsWith('#batch=')){
@@ -82,4 +84,5 @@ async function init(){
   ownerReady=true;ready=true;$('gate').hidden=true;$('review').hidden=false;if(pending)show(pending);
  }catch(e){tell(e.message,true);$('gate').textContent='Review access is unavailable. Keep this page open and try again.';}
 }
+window.addEventListener('hashchange',()=>{if(!busy&&location.hash.startsWith('#batch='))init();});
 init();
