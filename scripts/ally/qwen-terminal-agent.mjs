@@ -197,7 +197,16 @@ export async function runAgent({task,workspace,generate=localModel(),execute=exe
   let action;
   try {action=parseAction(await generate(messages,{signal}));}
   catch(e){const msg=issue(e.message);history.push({step:i+1,error:msg});messages.push({role:'user',content:'Invalid JSON tool request: '+msg+'. Respond only with a valid JSON tool action.'});continue;}
-  if(action.tool==='finish'){const result=await execute(action,{workspace,planState});await onEvent({status:'done',step:i+1,maxSteps,history,plan:planState.steps,answer:result.final});return {status:'done',answer:result.final,history,plan:planState.steps};}
+  if(action.tool==='finish'){
+   const result=await execute(action,{workspace,planState});
+   if(planState.steps.length&&planState.steps.some(x=>x.status!=='done')){
+    const reason='Qwen stopped with unfinished plan steps. Inspect progress and approve a new job for remaining work.';
+    await onEvent({status:'needs_help',step:i+1,maxSteps,history,plan:planState.steps,reason});
+    return {status:'needs_help',history,plan:planState.steps,reason};
+   }
+   await onEvent({status:'done',step:i+1,maxSteps,history,plan:planState.steps,answer:result.final});
+   return {status:'done',answer:result.final,history,plan:planState.steps};
+  }
   let result;
   try {result=await execute(action,{workspace,planState});}catch(e){result={error:issue(e.message)};}
   history.push({step:i+1,tool:action.tool,args:action.tool==='write_file'?{path:action.args.path,bytes:action.args.content?.length}:action.args,result});
