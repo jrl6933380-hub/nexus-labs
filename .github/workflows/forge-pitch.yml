@@ -1,0 +1,36 @@
+name: Forge Caller Pitch
+on:
+  pull_request:
+    paths:
+      - 'lib/forgePitch.js'
+      - 'lib/forgeProgram.js'
+      - 'public/forge-pitch.js'
+      - 'public/forge-caller.html'
+      - 'test/forge-pitch.test.mjs'
+      - 'e2e/forge-pitch.spec.mjs'
+      - '.github/workflows/forge-pitch.yml'
+permissions:
+  contents: read
+concurrency:
+  group: forge-pitch-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  caller-pitch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      NEXUS_TEST_BROWSER_PATH: /usr/bin/google-chrome
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: node --test test/forge-pitch.test.mjs test/forgeProgram.test.mjs
+      - run: test -x "$NEXUS_TEST_BROWSER_PATH"
+      - run: npx playwright test e2e/forge-pitch.spec.mjs e2e/forge-navigation.spec.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: forge-caller-pitch
+          path: test-results/
