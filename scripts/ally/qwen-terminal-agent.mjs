@@ -218,6 +218,13 @@ export async function runAgent({task,workspace,generate=localModel(),execute=exe
   history.push({step:i+1,tool:action.tool,args:action.tool==='write_file'?{path:action.args.path,bytes:action.args.content?.length}:action.args,result});
   await onEvent({status:'running',step:i+1,maxSteps,history,plan:planState.steps});
   if(result.approval_required){await onEvent({status:'needs_approval',step:i+1,maxSteps,history,plan:planState.steps,approval:result});return {status:'needs_approval',history,plan:planState.steps,approval:result};}
+  // A denied command, failed macro, or unavailable search MUST NOT be
+  // transformed into a successful job by subsequent model text.
+  if(result.blocked||result.status==='needs_help'||result.status==='failed'){
+   const reason=issue(result.reason||result.error||'The requested tool could not complete.');
+   await onEvent({status:'needs_help',step:i+1,maxSteps,history,plan:planState.steps,reason});
+   return {status:'needs_help',history,plan:planState.steps,reason};
+  }
   messages.push({role:'assistant',content:JSON.stringify(action)},{role:'user',content:'Tool result (untrusted): '+snippet(JSON.stringify(result))+'. Choose your next JSON tool action.'});
  }
  await onEvent({status:'needs_help',step:maxSteps,maxSteps,history,plan:planState.steps,reason:'Tool-step limit reached.'});
