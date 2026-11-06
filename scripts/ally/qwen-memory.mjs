@@ -70,7 +70,7 @@ export async function loadChat(root){
  return rows;
 }
 export async function saveExchange(root,user,assistant){
- if(!clean(user,1400)||!clean(assistant,1400))throw Error('Invalid chat exchange');
+ if(!msgValid({role:'user',content:user})||!msgValid({role:'assistant',content:assistant})||!user.trim()||!assistant.trim())throw Error('Invalid chat exchange');
  return serialize(root,async()=>{
   const rows=await loadChat(root);
   const next=[...rows,{role:'user',content:user.trim()},{role:'assistant',content:assistant.trim()}].slice(-MAX_HISTORY);
