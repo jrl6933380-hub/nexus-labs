@@ -405,7 +405,7 @@ document.getElementById('import-go').addEventListener('click', async function ()
 <script>
 // Caller Program (operator). Self-contained; talks only to /api/forge-clients.
 (function () {
-  const PRICE = { basic: 2900, standard: 4900, plus: 7900 };
+  const PRICE = { launch:1000, basic: 2900, standard: 4900, plus: 7900 };
   const STATUS_LABEL = { pending_payment: 'Waiting to pay', active: 'Active', canceling: 'Canceling (grace)', placeholder: 'Placeholder', churned: 'Churned' };
   let cpClients = [];
   let cpCallers = [];

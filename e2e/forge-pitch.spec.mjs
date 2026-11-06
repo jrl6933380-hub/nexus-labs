@@ -1,5 +1,6 @@
 import {test,expect} from '@playwright/test';
 import {generatePitchScript} from '../lib/forgePitch.js';
+process.env.FORGE_LAUNCH_ENABLED='true';
 for(const width of [390,1280])test('answered opens workspace; only explicit build creates previews; pitch refreshes '+width,async({page})=>{
  await page.setViewportSize({width,height:900});
  let lead={id:'lead-pitch-test',businessName:'Hickman Barber Shop',category:'barbers',phone:'5155550199',location:'Des Moines, Iowa',websiteStatus:'no_dedicated_site_found',siteStatus:'none',siteVariants:[],notes:''};
@@ -8,12 +9,17 @@ for(const width of [390,1280])test('answered opens workspace; only explicit buil
  await page.route('**/api/forge-leads',r=>r.fulfill({json:{leads:[{...lead,pitch:generatePitchScript(lead)}]}}));
  await page.route('**/api/forge-site',async r=>{actions.push(r.request().postDataJSON());await new Promise(resolve=>{finishBuild=resolve;});lead={...lead,siteStatus:'ready',siteHtml:'<!doctype html><h1>Fictional test concept</h1>'};await r.fulfill({json:{lead}});});
  await page.goto('/forge-caller.html');await page.locator('#menu-btn').click();await page.getByRole('button',{name:/Hickman Barber Shop/}).click();
- await expect(page.locator('#panel-script')).toContainText('local barbershops');await expect(page.locator('#panel-script')).toContainText('couldn’t find');await expect(page.locator('#panel-script')).not.toContainText('no_dedicated_site_found');await expect(page.locator('#panel-script')).toContainText('Basic: $29/month');
+ await expect(page.locator('#panel-script')).toContainText('local barbershops');await expect(page.locator('#panel-script')).toContainText('couldn’t find');await expect(page.locator('#panel-script')).not.toContainText('no_dedicated_site_found');await expect(page.locator('#panel-script')).toContainText('Launch: $20 total at signup');
  await page.getByRole('button',{name:'They answered — open call workspace'}).click();
  await expect(page.locator('#call-session-note')).toBeVisible();await expect(page.locator('#panel-log')).toHaveClass(/open/);await expect(page.getByRole('button',{name:'Build previews',exact:true})).toBeVisible();expect(actions).toHaveLength(0);
  await page.getByRole('button',{name:'Build previews',exact:true}).click();
  await expect(page.locator('#panel-script')).toContainText('still being prepared');await expect(page.locator('#panel-script')).not.toContainText('ready here');await expect.poll(()=>actions.length).toBe(1);expect(actions[0].action).toBe('templates');finishBuild();
- await expect(page.locator('#panel-script')).toContainText('ready here');await expect(page.locator('#site-frame')).toBeVisible();await expect(page.locator('#panel-script')).toContainText('Plus: $79/month');
+ await expect(page.locator('#panel-script')).toContainText('ready here');await expect(page.locator('#site-frame')).toBeVisible();await expect(page.locator('#panel-script')).toContainText('then $10/month');
+ await page.getByText("They're in: sign them up").click();
+ await expect(page.locator('#signup-btn')).toHaveText('Sign them up: Launch');
+ await expect(page.locator('.tier-opt')).toHaveCount(1);
+ await expect(page.locator('.tier-opt')).toContainText('$20.00 today');
+ await expect(page.locator('#tier-note')).toContainText('Unlimited website edits during launch');
  await page.getByRole('button',{name:'Rebuild 3 looks'}).click();await expect(page.locator('#panel-script')).toContainText('still being prepared');await expect.poll(()=>actions.length).toBe(2);finishBuild();await expect(page.locator('#panel-script')).toContainText('ready here');
  await expect(page.locator('#panel-script')).not.toContainText('last time the website was updated');await expect(page.locator('#panel-script')).not.toContainText('A lot of owners');
  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);

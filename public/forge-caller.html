@@ -160,6 +160,9 @@ let signedLeads = {}; // Redis lead id -> Stripe payment link, this session
 let TIERS = [];
 function approvedTiers(offer) {
   return (offer?.tiers || []).map(function (tier) {
+    if (tier.signUpCents) return {key:tier.key,name:tier.name,
+      price:money(tier.signUpCents)+' today · then '+money(tier.priceCents)+'/mo',
+      note:'Website and hosting. First month included in signup price. Unlimited website edits during launch.'};
     return { key: tier.key, name: tier.name, price: money(tier.priceCents) + '/mo',
       note: 'Site + hosting, ' + (tier.editsPerMonth === null ? 'unlimited minor edits' : tier.editsPerMonth + ' edit' + (tier.editsPerMonth === 1 ? '' : 's') + ' a month') + (tier.aiAssistant ? ', AI assistant included.' : '.') };
   });
@@ -211,6 +214,10 @@ async function startPayoutSetup() {
   }
 }
 
+function defaultSignupTier() {
+  return TIERS.find(t=>t.key==='launch') || TIERS.find(t=>t.key==='standard') || TIERS[0];
+}
+
 function closeDealHtml(lead) {
   if (signedLeads[lead.id]) {
     const url = signedLeads[lead.id];
@@ -221,16 +228,17 @@ function closeDealHtml(lead) {
     return '<div class="signed-banner">Signed! Now send them the payment link while you are still on the phone.</div>' +
       '<a class="call-btn" style="margin-top:10px" href="sms:' + escapeHtml(lead.phone) + '?&body=' + smsBody + '">Text them the payment link</a>' +
       '<button type="button" class="answered-btn" id="copy-pay-link" data-url="' + escapeHtml(url) + '">Copy link</button>' +
-      '<div class="tier-note">Your bonus kicks in the moment they pay.</div>';
+      '<div class="tier-note">Commissions are recorded only after payment clears.</div>';
   }
   if (!TIERS.length) return '<p>Approved offer unavailable. Reload before quoting a price or signing up.</p>';
+  const firstChoice = defaultSignupTier();
   return '' +
     '<div class="tier-row">' + TIERS.map(function (t) {
-      return '<button type="button" class="tier-opt' + (t.key === 'standard' ? ' selected' : '') + '" data-tier="' + t.key + '">' +
+      return '<button type="button" class="tier-opt' + (t.key === firstChoice.key ? ' selected' : '') + '" data-tier="' + t.key + '">' +
         '<div class="name">' + t.name + '</div><div class="price">' + t.price + '</div></button>';
     }).join('') + '</div>' +
-    '<div class="tier-note" id="tier-note">' + TIERS[1].note + '</div>' +
-    '<button type="button" class="signup-btn" id="signup-btn">Sign them up: Standard</button>';
+    '<div class="tier-note" id="tier-note">' + firstChoice.note + '</div>' +
+    '<button type="button" class="signup-btn" id="signup-btn">Sign them up: ' + firstChoice.name + '</button>';
 }
 
 function escapeHtml(s) {
@@ -383,7 +391,7 @@ function renderLead(id) {
     box.append(close, frame);dialog.append(box);document.body.append(dialog);dialog.showModal();
   });
 
-  let chosenTier = 'standard';
+  let chosenTier = defaultSignupTier()?.key || '';
   view.querySelectorAll('.tier-opt').forEach(function (opt) {
     opt.addEventListener('click', function () {
       chosenTier = opt.dataset.tier;
