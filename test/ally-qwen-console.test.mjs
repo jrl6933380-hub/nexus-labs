@@ -120,3 +120,41 @@ test('unified Qwen console never runs work without explicit one-use owner approv
   await rm(root,{recursive:true,force:true});
  }
 });
+
+
+test('saved memories and chat survive local server requests, with explicit opt-in and delete',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'ally-console-memory-'));
+ let modelMessages=[];
+ const localFetch=async(url,options)=>{
+  if(String(url).endsWith('/health'))return ok;
+  if(String(url).endsWith('/models'))return {ok:true,json:async()=>({data:[{id:'Qwen 9B'}]})};
+  modelMessages=JSON.parse(options.body).messages;
+  return {ok:true,json:async()=>({choices:[{message:{content:'{"kind":"reply","answer":"I can help with that."}'}}]})};
+ };
+ const s=createConsoleServer({root,fetchImpl:localFetch});
+ const req=(path,data)=>fetch('http://'+HOST+':'+PORT+path,{method:'POST',headers:commandHeaders,body:JSON.stringify(data)});
+ try{
+  await new Promise((resolve,reject)=>{s.once('error',reject);s.listen(PORT,HOST,resolve);});
+  assert.deepEqual((await (await fetch('http://'+HOST+':'+PORT+'/api/memories')).json()).items,[]);
+  const call=await req('/api/chat',{message:'Remember that I prefer purple website themes',history:[]});
+  const reply=await call.json();
+  assert.deepEqual(reply.memoryProposal,{text:'I prefer purple website themes'});
+  assert.equal(reply.proposal,undefined);
+  const before=await fetch('http://'+HOST+':'+PORT+'/api/memories');
+  assert.equal((await before.json()).items.length,0,'Qwen must not save memory without click');
+  const denied=await req('/api/memories',{text:reply.memoryProposal.text});
+  assert.equal(denied.status,400);
+  const saved=await req('/api/memories',{confirmed:true,text:reply.memoryProposal.text});
+  assert.equal(saved.status,201);
+  const item=(await saved.json()).item;
+  const next=await req('/api/chat',{message:'What do you remember about my theme?',history:[]});
+  assert.equal(next.status,200);
+  assert.ok(modelMessages.some(x=>/purple website themes/.test(x.content)),'owner approved memory reaches model as data');
+  assert.equal((await (await fetch('http://'+HOST+':'+PORT+'/api/history')).json()).messages.length,4);
+  assert.equal((await req('/api/memories/'+item.id+'/delete',{confirmed:false})).status,400);
+  assert.equal((await req('/api/memories/'+item.id+'/delete',{confirmed:true})).status,200);
+  assert.equal((await (await fetch('http://'+HOST+':'+PORT+'/api/memories')).json()).items.length,0);
+  assert.equal((await req('/api/history/clear',{confirmed:true})).status,200);
+  assert.deepEqual((await (await fetch('http://'+HOST+':'+PORT+'/api/history')).json()).messages,[]);
+ }finally{await new Promise(resolve=>s.close(resolve));await rm(root,{recursive:true,force:true});}
+});
