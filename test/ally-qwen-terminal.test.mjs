@@ -110,3 +110,14 @@ test('Qwen work runner persists a step-by-step plan and truthful completed steps
   assert.equal(await readFile(join(root,'ad-notes.txt'),'utf8'),'Draft ad idea');
  }finally{await rm(root,{recursive:true,force:true});}
 });
+
+test('unfinished Qwen task plan ends as needs_help, never falsely done',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'qwen-incomplete-'));
+ try{
+  const actions=[act('set_plan',{steps:['Write file','Verify file']}),act('write_file',{path:'draft.txt',content:'in progress'}),act('finish',{message:'Everything finished'})];
+  const result=await runAgent({workspace:root,task:'Make and verify file',generate:async()=>reply(actions.shift())});
+  assert.equal(result.status,'needs_help');
+  assert.deepEqual(result.plan.map(x=>x.status),['pending','pending']);
+  assert.match(result.reason,/unfinished plan/);
+ }finally{await rm(root,{recursive:true,force:true});}
+});
