@@ -26,7 +26,10 @@ test('preview language follows actual usable preview state, including rebuilds a
 });
 test('approved offer uses billing tiers and survives browser updates without a model',()=>{
  const server=generatePitchScript(base);for(const [key,tier] of Object.entries(TIERS)){const offer=server.offer.tiers.find(t=>t.key===key);assert.equal(offer.priceCents,tier.priceCents);assert.equal(offer.aiAssistant,tier.aiAssistant);assert.match(server.pricingLine,new RegExp('\\$'+tier.priceCents/100+'/month'));}
- assert.deepEqual(clientPitch(base,server.offer),server);assert.match(server.pricingLine,/unlimited minor edits/);
+ assert.deepEqual(clientPitch(base,server.offer),server);assert.match(server.pricingLine,/unlimited website edits/);
+ assert.deepEqual(server.offer.tiers.map(t=>t.key),['launch']);
+ assert.match(server.pricingLine,/\$20 total at signup including the first month, then \$10\/month/);
+ assert.doesNotMatch(server.pricingLine,/Basic:|Standard:|Plus:/);
  assert.match(server.objections.find(x=>x.objection==='We already have a website.').response,/website address.*update our notes/);
  const declined=server.objections.find(x=>x.objection==='We’re not interested.').response;assert.doesNotMatch(declined,/send|anyway/);assert.match(declined,/no further calls/);
  assert.match(clientPitch(base).pricingLine,/Check the approved Forge offer/);
