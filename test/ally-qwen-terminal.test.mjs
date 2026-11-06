@@ -70,6 +70,20 @@ test('localhost-only Qwen invocation never passes tools or shell output as a com
  assert.equal(calls.length,2);assert.ok(calls.every(x=>x.url.startsWith('http://127.0.0.1:9931/')));
  const body=JSON.parse(calls[1].options.body);assert.equal(body.tools,undefined);assert.equal(body.chat_template_kwargs.enable_thinking,false);
 });
+test('Qwen local website actions have enough JSON output budget without granting tools',async()=>{
+ const calls=[];
+ const g=localModel({fetchImpl:async(url,options)=>{
+  calls.push({url,options});
+  if(url.endsWith('/models'))return {ok:true,json:async()=>({data:[{id:'qwen-local'}]})};
+  return {ok:true,json:async()=>({choices:[{message:{content:'{"tool":"finish","args":{"message":"ok"}}'}}]})};
+ }});
+ await g([{role:'system',content:'test'}]);
+ const sent=JSON.parse(calls[1].options.body);
+ assert.equal(sent.max_tokens,650);
+ assert.deepEqual(sent.response_format,{type:'json_object'});
+ assert.equal(sent.chat_template_kwargs.enable_thinking,false);
+ assert.equal(sent.tools,undefined);
+});
 test('owner bridge quotes task, enforces job-id shape and returns command receipt',async()=>{
  const id='11111111-1111-4111-8111-111111111111';const calls=[];const t=createAllyQwenTerminal({uuid:()=>id,ally:{enqueue:async(...args)=>{calls.push(args);return {command_id:'receipt',status:'queued'};}}});
  const started=await t.start('justin',{task:"Make a file ' ; Write-Output NOPE"});assert.equal(started.job_id,id);assert.equal(started.requires_result_read,true);
