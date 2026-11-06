@@ -71,3 +71,42 @@ test('owner bridge quotes task, enforces job-id shape and returns command receip
  await t.status('justin',{job_id:id});await t.stop('justin',{job_id:id});assert.equal(calls.length,3);
  await assert.rejects(t.status('justin',{job_id:'../../other'}),/job_id/);
 });
+
+
+test('guarded task plans checkpoint progress without granting additional privileges',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'qwen-plan-'));
+ const planState={steps:[]};
+ try{
+  await assert.rejects(executeTool(act('set_plan',{steps:[]}),{workspace:root,planState}),/Plan needs/);
+  const plan=await executeTool(act('set_plan',{steps:['Create a safe note','Check what was written']}),{workspace:root,planState});
+  assert.equal(plan.plan.length,2);
+  await assert.rejects(executeTool(act('set_plan',{steps:['Overwrite prior plan']}),{workspace:root,planState}),/already exists/);
+  await executeTool(act('update_step',{id:1,status:'in_progress'}),{workspace:root,planState});
+  assert.equal((await executeTool(act('get_plan',{}),{workspace:root,planState})).plan[0].status,'in_progress');
+  await executeTool(act('update_step',{id:1,status:'done'}),{workspace:root,planState});
+  await assert.rejects(executeTool(act('update_step',{id:1,status:'blocked'}),{workspace:root,planState}),/cannot be reopened/);
+  await assert.rejects(executeTool(act('update_step',{id:99,status:'done'}),{workspace:root,planState}),/existing plan step/);
+  assert.equal(planState.steps[0].status,'done');
+ }finally{await rm(root,{recursive:true,force:true});}
+});
+test('Qwen work runner persists a step-by-step plan and truthful completed steps',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'qwen-plan-runner-'));const states=[];
+ try{
+  const steps=[
+   act('set_plan',{steps:['Write the note','Verify the note']}),
+   act('update_step',{id:1,status:'in_progress'}),
+   act('write_file',{path:'ad-notes.txt',content:'Draft ad idea'}),
+   act('update_step',{id:1,status:'done'}),
+   act('update_step',{id:2,status:'in_progress'}),
+   act('read_file',{path:'ad-notes.txt'}),
+   act('update_step',{id:2,status:'done'}),
+   act('finish',{message:'Saved and verified ad-notes.txt'})
+  ];
+  const result=await runAgent({task:'Write and verify an ad note',workspace:root,generate:async()=>reply(steps.shift()),onEvent:async e=>states.push(JSON.parse(JSON.stringify(e)))});
+  assert.equal(result.status,'done');assert.equal(result.plan.length,2);
+  assert.deepEqual(result.plan.map(s=>s.status),['done','done']);
+  assert.ok(states.some(s=>s.plan?.some(t=>t.status==='in_progress')),'progress checkpoints emitted before completion');
+  assert.ok(states.some(s=>s.plan?.every(t=>t.status==='done')),'completion checkpoint emitted');
+  assert.equal(await readFile(join(root,'ad-notes.txt'),'utf8'),'Draft ad idea');
+ }finally{await rm(root,{recursive:true,force:true});}
+});
