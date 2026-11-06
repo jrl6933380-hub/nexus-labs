@@ -1,5 +1,6 @@
 import {test,expect} from '@playwright/test';
 import {generatePitchScript} from '../lib/forgePitch.js';
+process.env.FORGE_LAUNCH_ENABLED='true';
 for(const width of [390,1280])test('answered opens workspace; only explicit build creates previews; pitch refreshes '+width,async({page})=>{
  await page.setViewportSize({width,height:900});
  let lead={id:'lead-pitch-test',businessName:'Hickman Barber Shop',category:'barbers',phone:'5155550199',location:'Des Moines, Iowa',websiteStatus:'no_dedicated_site_found',siteStatus:'none',siteVariants:[],notes:''};
