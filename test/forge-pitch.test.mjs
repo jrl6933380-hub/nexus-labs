@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {generatePitchScript, websiteFinding} from '../lib/forgePitch.js';
 import {generatePitchScript as clientPitch} from '../public/forge-pitch.js';
 import {TIERS} from '../lib/forgeProgram.js';
+process.env.FORGE_LAUNCH_ENABLED = 'true';
 const base={businessName:'Hickman Barber Shop',category:'barbers',websiteStatus:'no_dedicated_site_found',siteStatus:'none',research:{identity_confirmed:true,website_confirmed:true,checked_at:'2026-11-05T11:00:00Z'}};
 test('no-site pitch describes dated findings without assuming an existing site',()=>{
  const p=generatePitchScript(base),text=JSON.stringify(p);
@@ -24,6 +25,18 @@ test('preview language follows actual usable preview state, including rebuilds a
  const ready=generatePitchScript({...base,siteStatus:'ready',siteHtml:'<h1>Concept</h1>'});assert.match(ready.demoLine,/preview.*ready here/);assert.match(ready.nextStep,/preview is a fit/);
  const rebuilding=generatePitchScript({...base,siteStatus:'generating',siteHtml:'<h1>Old preview</h1>'});assert.match(rebuilding.demoLine,/still being prepared/);assert.doesNotMatch(rebuilding.demoLine,/ready here/);
 });
+test('default-safe rollout displays legacy pricing until enabled',()=>{
+ const prior=process.env.FORGE_LAUNCH_ENABLED;
+ try {
+  process.env.FORGE_LAUNCH_ENABLED='false';
+  const old=generatePitchScript(base);
+  assert.deepEqual(old.offer.tiers.map(t=>t.key),['basic','standard','plus']);
+  assert.match(old.pricingLine,/Basic: \$29\/month/);
+  assert.match(old.pricingLine,/Standard: \$49\/month/);
+  assert.doesNotMatch(old.pricingLine,/Launch:|\$20 total/);
+ } finally {process.env.FORGE_LAUNCH_ENABLED=prior;}
+});
+
 test('approved offer uses billing tiers and survives browser updates without a model',()=>{
  const server=generatePitchScript(base);const tier=TIERS.launch;const offer=server.offer.tiers[0];assert.equal(offer.priceCents,tier.priceCents);assert.equal(offer.aiAssistant,tier.aiAssistant);
  assert.deepEqual(clientPitch(base,server.offer),server);assert.match(server.pricingLine,/unlimited website edits/);
