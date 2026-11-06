@@ -25,7 +25,7 @@ test('preview language follows actual usable preview state, including rebuilds a
  const rebuilding=generatePitchScript({...base,siteStatus:'generating',siteHtml:'<h1>Old preview</h1>'});assert.match(rebuilding.demoLine,/still being prepared/);assert.doesNotMatch(rebuilding.demoLine,/ready here/);
 });
 test('approved offer uses billing tiers and survives browser updates without a model',()=>{
- const server=generatePitchScript(base);for(const [key,tier] of Object.entries(TIERS)){const offer=server.offer.tiers.find(t=>t.key===key);assert.equal(offer.priceCents,tier.priceCents);assert.equal(offer.aiAssistant,tier.aiAssistant);assert.match(server.pricingLine,new RegExp('\\$'+tier.priceCents/100+'/month'));}
+ const server=generatePitchScript(base);const tier=TIERS.launch;const offer=server.offer.tiers[0];assert.equal(offer.priceCents,tier.priceCents);assert.equal(offer.aiAssistant,tier.aiAssistant);
  assert.deepEqual(clientPitch(base,server.offer),server);assert.match(server.pricingLine,/unlimited website edits/);
  assert.deepEqual(server.offer.tiers.map(t=>t.key),['launch']);
  assert.match(server.pricingLine,/\$20 total at signup including the first month, then \$10\/month/);
