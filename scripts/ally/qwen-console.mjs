@@ -10,6 +10,8 @@ import {fileURLToPath} from 'node:url';
 import {startRevisionWatcher} from './qwen-revision-watcher.mjs';
 import {startApprovedBoardWatcher} from './approved-board-watcher.mjs';
 import {startMacroJobWatcher} from './macro-job-watcher.mjs';
+import {workCatalog} from './qwen-work-tools.mjs';
+import {safePath} from './qwen-terminal-agent.mjs';
 import {listMemories,addMemory,deleteMemory,loadChat,saveExchange,clearChat,memoryContext,suggestedMemory} from './qwen-memory.mjs';
 
 export const HOST='127.0.0.1';
@@ -19,6 +21,7 @@ const QWEN='http://127.0.0.1:9931';
 const TERMINAL=new Set(['done','needs_help','needs_approval','failed','canceled']);
 const MAX_BODY=12000;
 const ROOT=join(process.env.LOCALAPPDATA||process.cwd(),'NexusAlly','qwen-terminal');
+const WORKSPACE=join(process.env.LOCALAPPDATA||process.cwd(),'NexusAlly','qwen-workspace');
 const PANEL=new URL('../../public/ally-qwen-console.html',import.meta.url);
 const DECK=new URL('../../public/ally-launcher.html',import.meta.url);
 const short=(str,n=200)=>String(str??'').slice(0,n);
@@ -30,7 +33,7 @@ async function bodyJson(req){let bytes=0,chunks=[];for await(const chunk of req)
 async function jsonFile(path){try{const f=await stat(path);if(!f.isFile()||f.size>26000)return null;return JSON.parse(await readFile(path,'utf8'));}catch{return null;}}
 const jobDir=(root,id)=>join(root,'jobs',id);
 function jobId(id){return typeof id==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);}
-export async function listJobs(root=ROOT){const dir=join(root,'jobs');let entries=[];try{entries=await readdir(dir,{withFileTypes:true});}catch{return [];}const results=[];for(const e of entries.slice(-120)){if(!e.isDirectory()||!jobId(e.name))continue;const path=jobDir(root,e.name);const [state,request]=await Promise.all([jsonFile(join(path,'state.json')),jsonFile(join(path,'request.json'))]);const input=request||await jsonFile(join(path,'input.json'));const info=await stat(path).catch(()=>null);results.push({id:e.name,status:short(state?.status||'starting',30),step:state?.step||0,updatedAt:state?.updatedAt||info?.mtime?.toISOString()||null,task:short(input?.task,180),answer:short(state?.answer,400),error:short(state?.error,300),plan:Array.isArray(state?.plan)?state.plan.slice(0,8).map(s=>({id:s.id,title:short(s.title,130),status:short(s.status,20)})):[],history:Array.isArray(state?.history)?state.history.slice(-6).map(h=>({step:h.step,tool:short(h.tool||'error',30),error:short(h.error,160),result:h.result?.error?short(h.result.error,160):null})):[]});}results.sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt)));return results.slice(0,10);}
+export async function listJobs(root=ROOT){const dir=join(root,'jobs');let entries=[];try{entries=await readdir(dir,{withFileTypes:true});}catch{return [];}const results=[];for(const e of entries.slice(-120)){if(!e.isDirectory()||!jobId(e.name))continue;const path=jobDir(root,e.name);const [state,request]=await Promise.all([jsonFile(join(path,'state.json')),jsonFile(join(path,'request.json'))]);const input=request||await jsonFile(join(path,'input.json'));const info=await stat(path).catch(()=>null);results.push({id:e.name,status:short(state?.status||'starting',30),step:state?.step||0,updatedAt:state?.updatedAt||info?.mtime?.toISOString()||null,task:short(input?.task,180),answer:short(state?.answer,400),error:short(state?.error,300),plan:Array.isArray(state?.plan)?state.plan.slice(0,8).map(s=>({id:s.id,title:short(s.title,130),status:short(s.status,20)})):[],previewPaths:state?.status==='done'&&Array.isArray(state.history)?[...new Set(state.history.filter(h=>['write_file','edit_file'].includes(h.tool)&&typeof h.args?.path==='string'&&/\.html?$/i.test(h.args.path)&&h.args.path.length<=240).map(h=>h.args.path))].slice(0,3):[],history:Array.isArray(state?.history)?state.history.slice(-6).map(h=>({step:h.step,tool:short(h.tool||'error',30),error:short(h.error,160),result:h.result?.error?short(h.result.error,160):null})):[]});}results.sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt)));return results.slice(0,10);}
 async function qwenStatus(fetchImpl=fetch){try{const r=await fetchImpl(`${QWEN}/health`,{signal:AbortSignal.timeout(2800)});if(!r.ok)return {online:false};const data=await r.json().catch(()=>({}));return {online:true,state:short(data.status||'ready',24)};}catch{return {online:false};}}
 async function selectedModel(fetchImpl=fetch){const r=await fetchImpl(`${QWEN}/v1/models`,{signal:AbortSignal.timeout(4000)});if(!r.ok)throw Error('Local model unavailable');const j=await r.json();const model=j?.data?.[0]?.id;if(typeof model!=='string'||!model)throw Error('No local Qwen model');return model;}
 export function parseQwenTurn(raw) {
@@ -82,7 +85,18 @@ export async function startTask(input,{root=ROOT,node=process.execPath,spawnImpl
  return {id,status:'starting'};
 }
 export async function stopTask(id,{root=ROOT}={}){if(!jobId(id))throw Error('Invalid job ID');const dir=jobDir(root,id);const state=await jsonFile(join(dir,'state.json'));if(!state)return {id,status:'not_started_or_missing',stopRequested:false};if(TERMINAL.has(state.status))return {id,status:state.status,stopRequested:false};await writeFile(join(dir,'stop'),'owner stop\n',{flag:'w'});return {id,status:state.status,stopRequested:true};}
-export function createConsoleServer({root=ROOT,fetchImpl=fetch,panelPath=PANEL,deckPath=DECK,node=process.execPath,spawnImpl=spawn}={}) {
+export async function previewSiteHtml(path,{workspace=WORKSPACE}={}){
+ if(typeof path!=='string'||!path.trim()||path.length>240||!/\.html?$/i.test(path))throw Error('Specify a local HTML file in the Qwen workspace.');
+ const file=await safePath(workspace,path);
+ const info=await stat(file);
+ if(!info.isFile()||info.size>64000)throw Error('Preview requires a local HTML file under 64KB.');
+ const html=await readFile(file,'utf8');
+ if(html.length>64000)throw Error('HTML preview too large.');
+ // srcdoc is further isolated with an iframe sandbox that has NO permissions.
+ const csp=`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; script-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'">`;
+ return {path,html:csp+html,notice:'Static preview only. Scripts, forms, external assets and network access are disabled; this does not publish the site.'};
+}
+export function createConsoleServer({root=ROOT,workspace=WORKSPACE,fetchImpl=fetch,panelPath=PANEL,deckPath=DECK,node=process.execPath,spawnImpl=spawn}={}) {
  let starting=false,chatBusy=false;
  const proposals=new Map(), PROPOSAL_TTL_MS=15*60*1000;
  function makeProposal(task){
@@ -96,6 +110,7 @@ export function createConsoleServer({root=ROOT,fetchImpl=fetch,panelPath=PANEL,d
    if(req.method==='GET'&&(u.pathname==='/'||u.pathname==='/deck')){
     const html=await readFile(u.pathname==='/deck'?deckPath:panelPath);res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','content-security-policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; frame-src 'self'; frame-ancestors 'self' https://nexus-labs-sigma.vercel.app; img-src 'self' data:; base-uri 'none'; form-action 'none'"});res.end(html);return;
    }
+   if(req.method==='GET'&&u.pathname==='/api/tools'){reply(res,200,workCatalog());return;}
    if(req.method==='GET'&&u.pathname==='/api/history'){reply(res,200,{messages:await loadChat(root)});return;}
    if(req.method==='GET'&&u.pathname==='/api/memories'){reply(res,200,{items:await listMemories(root)});return;}
    if(req.method==='GET'&&u.pathname==='/api/status'){const [qwen,jobs]=await Promise.all([qwenStatus(fetchImpl),listJobs(root)]);reply(res,200,{qwen,jobs,capabilities:['chat','work_proposals','approval','activity','stop']});return;}
@@ -115,6 +130,10 @@ export function createConsoleServer({root=ROOT,fetchImpl=fetch,panelPath=PANEL,d
      reply(res,200,result);
     }finally{chatBusy=false;}
     return;
+   }
+   if(req.method==='POST'&&u.pathname==='/api/site-preview'){
+    const payload=await bodyJson(req);
+    reply(res,200,await previewSiteHtml(payload.path,{workspace}));return;
    }
    if(req.method==='POST'&&u.pathname==='/api/memories'){
     const payload=await bodyJson(req);
