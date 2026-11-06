@@ -171,7 +171,7 @@ export function createConsoleServer({root=ROOT,workspace=WORKSPACE,fetchImpl=fet
    const match=/^\/api\/tasks\/([0-9a-f-]{36})\/stop$/i.exec(u.pathname);
    if(req.method==='POST'&&match){await bodyJson(req);reply(res,200,await stopTask(match[1],{root}));return;}
    bad(res,404,'Not found');
-  }catch(e){const status=e.status||(/JSON|body|Message|Task|Invalid|conversation/.test(e.message)?400:503);bad(res,status,status===503?'Local Qwen console unavailable: '+short(e.message,120):short(e.message,150));}
+  }catch(e){const status=e.status||(/JSON|body|Message|Task|Invalid|conversation|workspace path|Path|local HTML|HTML preview/.test(e.message)?400:503);bad(res,status,status===503?'Local Qwen console unavailable: '+short(e.message,120):short(e.message,150));}
  });
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
