@@ -79,7 +79,7 @@ foreach($copy in $copies){
 }
 $terminalManifest=Join-Path $terminalRoot 'installed.json'
 $terminalStaging=$terminalManifest+'.staging'
-[IO.File]::WriteAllText($terminalStaging,(@{revision=$Revision;root=$terminalVersion}|ConvertTo-Json -Compress),[Text.Encoding]::UTF8)
+[IO.File]::WriteAllText($terminalStaging,(@{revision=$Revision;root=$terminalVersion}|ConvertTo-Json -Compress),(New-Object Text.UTF8Encoding($false)))
 Move-Item -LiteralPath $terminalStaging -Destination $terminalManifest -Force
 
 $server=Join-Path $version 'scripts\ally\qwen-console.mjs'
@@ -113,7 +113,7 @@ $startText=$startText.Replace('__NODE__',(& $quote $node)).Replace('__SERVER__',
 $tokens=$null;$errors=$null
 [void][Management.Automation.Language.Parser]::ParseInput($startText,[ref]$tokens,[ref]$errors)
 if($errors.Count -gt 0){throw 'Generated launcher failed syntax validation.'}
-[IO.File]::WriteAllText($start,$startText,[Text.Encoding]::UTF8)
+[IO.File]::WriteAllText($start,$startText,(New-Object Text.UTF8Encoding($false)))
 $desktop=[Environment]::GetFolderPath('Desktop')
 $shortcut=Join-Path $desktop 'Nexus Ally Launcher.lnk'
 $ps=Join-Path $PSHOME 'powershell.exe'
