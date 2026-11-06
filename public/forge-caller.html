@@ -143,7 +143,8 @@
     <div id="lead-view" hidden></div>
   </main>
 
-<script>
+<script type="module">
+import {generatePitchScript} from "./forge-pitch.js";
 const DISPOSITIONS = [
   ['', 'Log outcome…'], ['no_answer', 'No answer'], ['voicemail_left', 'Voicemail left'],
   ['follow_up', 'Follow up'], ['interested', 'Interested'], ['demo_requested', 'Demo requested'],
@@ -155,13 +156,14 @@ let leads = [];
 let selectedId = null;
 let signedLeads = {}; // Redis lead id -> Stripe payment link, this session
 
-// Mirrors lib/forgeProgram.js TIERS; the server is the source of truth for money.
-// (\x24 is a dollar sign.)
-const TIERS = [
-  { key: 'basic', name: 'Basic', price: '\x2429/mo', note: 'Site + hosting, 1 edit a month.' },
-  { key: 'standard', name: 'Standard', price: '\x2449/mo', note: 'Most people pick this: 3 edits a month, contact/booking form, local SEO.' },
-  { key: 'plus', name: 'Plus', price: '\x2479/mo', note: 'Unlimited small edits, priority turnaround, AI assistant on their site.' },
-];
+// Filled from the server's approved offer, shared with the pitch and billing rules.
+let TIERS = [];
+function approvedTiers(offer) {
+  return (offer?.tiers || []).map(function (tier) {
+    return { key: tier.key, name: tier.name, price: money(tier.priceCents) + '/mo',
+      note: 'Site + hosting, ' + (tier.editsPerMonth === null ? 'unlimited minor edits' : tier.editsPerMonth + ' edit' + (tier.editsPerMonth === 1 ? '' : 's') + ' a month') + (tier.aiAssistant ? ', AI assistant included.' : '.') };
+  });
+}
 
 function money(cents) { return '\x24' + ((cents || 0) / 100).toFixed(2); }
 
@@ -221,6 +223,7 @@ function closeDealHtml(lead) {
       '<button type="button" class="answered-btn" id="copy-pay-link" data-url="' + escapeHtml(url) + '">Copy link</button>' +
       '<div class="tier-note">Your bonus kicks in the moment they pay.</div>';
   }
+  if (!TIERS.length) return '<p>Approved offer unavailable. Reload before quoting a price or signing up.</p>';
   return '' +
     '<div class="tier-row">' + TIERS.map(function (t) {
       return '<button type="button" class="tier-opt' + (t.key === 'standard' ? ' selected' : '') + '" data-tier="' + t.key + '">' +
@@ -292,16 +295,17 @@ function scriptBodyHtml(pitch) {
     '<div class="script-line"><div class="script-label">Opener</div>' + escapeHtml(pitch.opener) + '</div>' +
     '<div class="script-line"><div class="script-label">Why you called</div>' + weaknesses + '</div>' +
     '<div class="script-line"><div class="script-label">Discovery questions</div>' + questions + '</div>' +
-    '<div class="script-line"><div class="script-label">Show the demo</div>' + escapeHtml(pitch.demoLine) + '</div>' +
+    '<div class="script-line"><div class="script-label">' + escapeHtml(pitch.demoLabel) + '</div>' + escapeHtml(pitch.demoLine) + '</div>' +
+    '<div class="script-line"><div class="script-label">Approved offer</div>' + escapeHtml(pitch.pricingLine) + '</div>' +
     '<div class="script-line"><div class="script-label">Objections</div>' + objections + '</div>' +
-    '<div class="script-line"><div class="script-label">Upsell</div>' + escapeHtml(pitch.upsell) + '</div>' +
+    '<div class="script-line"><div class="script-label">Optional features</div>' + escapeHtml(pitch.upsell) + '</div>' +
     '<div class="script-line"><div class="script-label">Next step</div>' + escapeHtml(pitch.nextStep) + '</div>';
 }
 
 function siteBodyHtml(lead) {
   let statusLine = '';
   let frame = '';
-  let showGenerate = lead.siteStatus === 'none' || lead.siteStatus === 'error';
+  let showGenerate = !lead.siteStatus || lead.siteStatus === 'none' || lead.siteStatus === 'error' || (lead.siteStatus === 'ready' && !lead.siteHtml);
   if (lead.siteStatus === 'generating') statusLine = 'Building the preview… this can take up to a minute.';
   if (lead.siteStatus === 'error') statusLine = 'Something went wrong generating this one — try again.';
   if (lead.siteStatus === 'ready' && lead.siteHtml) {
@@ -311,7 +315,7 @@ function siteBodyHtml(lead) {
   const choices = variants.length ? '<div class="template-choices" role="group" aria-label="Website direction">' + variants.map(function (v) { return '<button type="button" data-template="' + escapeHtml(v.id) + '" aria-pressed="' + String(v.id === lead.siteTemplateId) + '">' + escapeHtml(v.label) + '</button>'; }).join('') + '</div>' : '';
   return choices +
     '<div class="site-actions"><a class="secondary" href="/forge-templates.html" target="_blank" rel="noopener">Browse starters ↗</a>' +
-      (showGenerate ? '<button type="button" id="generate-site-btn">Generate 3 looks</button>' : '') +
+      (showGenerate ? '<button type="button" id="generate-site-btn">Build previews</button>' : '') +
       (lead.siteStatus === 'ready' ? '<button type="button" class="secondary" id="regen-site-btn">Rebuild 3 looks</button><button type="button" class="secondary" id="expand-site-btn">Full screen ↗</button>' : '') +
     '</div>' +
     (statusLine ? '<div class="site-status">' + statusLine + '</div>' : '') +
@@ -325,6 +329,8 @@ function renderLead(id) {
   const view = document.getElementById('lead-view');
   view.hidden = false;
   if (!lead) { view.innerHTML = ''; return; }
+  lead.pitch = generatePitchScript(lead, lead.pitch?.offer);
+  TIERS = approvedTiers(lead.pitch.offer);
 
   const options = DISPOSITIONS.map(function (pair) {
     return '<option value="' + pair[0] + '"' + (lead.lastDisposition === pair[0] ? ' selected' : '') + '>' + pair[1] + '</option>';
@@ -335,7 +341,8 @@ function renderLead(id) {
       '<div class="meta">' + escapeHtml(lead.category || '') + (lead.location ? ' · ' + escapeHtml(lead.location) : '') + '</div>' +
     '</div>' +
     '<a class="call-btn" href="tel:' + escapeHtml(lead.phone) + '">Call ' + escapeHtml(lead.phone) + '</a>' +
-    '<button type="button" class="answered-btn" id="answered-btn">' + (lead.siteStatus === 'ready' && lead.siteHtml ? 'They answered — show the previews' : 'They answered — build the site now') + '</button>' +
+    '<button type="button" class="answered-btn" id="answered-btn">They answered — open call workspace</button>' +
+    '<p id="call-session-note" role="status" hidden></p>' +
     panelHtml('panel-script', 'Pitch script', scriptBodyHtml(lead.pitch), true) +
     panelHtml('panel-site', 'Site preview', siteBodyHtml(lead), lead.siteStatus !== 'none') +
     panelHtml('panel-close', "They're in: sign them up", closeDealHtml(lead), Boolean(signedLeads[lead.id])) +
@@ -419,13 +426,15 @@ function renderLead(id) {
 
   const answeredBtn = document.getElementById('answered-btn');
   if (answeredBtn) {
-    // No way to detect a real answer through a tel: link — this is the
-    // one-tap trigger for the moment the worker hears "hello", so a
-    // generation only ever happens for a call that actually connected.
+    // Answering a call only opens the workspace. Preview builds need a separate action.
     answeredBtn.addEventListener('click', function () {
+      document.getElementById('panel-script').classList.add('open');
+      document.getElementById('panel-log').classList.add('open');
       document.getElementById('panel-site').classList.add('open');
-      if (lead.siteStatus === 'ready' && lead.siteHtml) return;
-      runSiteAction(lead.id, 'templates');
+      const note = document.getElementById('call-session-note');
+      note.hidden = false;
+      note.textContent = 'Call workspace open. Use Build previews when you and the business are ready.';
+      answeredBtn.disabled = true;
     });
   }
 
