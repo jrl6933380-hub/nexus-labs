@@ -128,7 +128,7 @@ $link.IconLocation=$edge+',0'
 $link.Save()
 $manifest=Join-Path $launcherRoot 'installed.json'
 $staging=$manifest+'.staging'
-[IO.File]::WriteAllText($staging,(@{revision=$Revision;file=$launcher;shortcut=$shortcut;sha256=$LauncherSha256;console=$server;panel=(Join-Path $version 'public\ally-qwen-console.html')}|ConvertTo-Json -Compress),[Text.Encoding]::UTF8)
+[IO.File]::WriteAllText($staging,(@{revision=$Revision;file=$launcher;shortcut=$shortcut;sha256=$LauncherSha256;console=$server;panel=(Join-Path $version 'public\ally-qwen-console.html')}|ConvertTo-Json -Compress),(New-Object Text.UTF8Encoding($false)))
 Move-Item -LiteralPath $staging -Destination $manifest -Force
 Write-Output ('INSTALLED Qwen Console at localhost:9942; launcher shortcut updated; revision '+$Revision)
 Write-Output ('SERVER '+$server)
