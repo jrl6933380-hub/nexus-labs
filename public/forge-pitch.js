@@ -15,9 +15,11 @@ function researchDate(lead) {
 }
 function pricing(offer) {
   if (!Array.isArray(offer?.tiers) || !offer.tiers.length) return 'Check the approved Forge offer before quoting a price.';
-  return offer.tiers.map(t => t.name + ': ' + money(t.priceCents) + '/month, website and hosting, ' +
-    (t.editsPerMonth === null ? 'unlimited minor edits' : t.editsPerMonth + ' edit' + (t.editsPerMonth === 1 ? '' : 's') + ' per month') +
-    (t.aiAssistant ? ', AI assistant included' : '')).join('. ') + '. Confirm the scope and plan before signup.';
+  return offer.tiers.map(t => t.signUpCents
+    ? t.name + ': ' + money(t.signUpCents) + ' total at signup including the first month, then ' + money(t.priceCents) + '/month for website and hosting, with unlimited website edits during the launch promotion'
+    : t.name + ': ' + money(t.priceCents) + '/month, website and hosting, ' +
+      (t.editsPerMonth === null ? 'unlimited minor edits' : t.editsPerMonth + ' edit' + (t.editsPerMonth === 1 ? '' : 's') + ' per month') +
+      (t.aiAssistant ? ', AI assistant included' : '')).join('. ') + '. Confirm the scope and offer before signup.';
 }
 export function generatePitchScript(lead, offer = null) {
   const name = lead.businessName || 'your business';
