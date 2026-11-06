@@ -59,3 +59,11 @@ test('bounded memory and chat file sizes, with correct last-entry retention',asy
   assert.equal(h[0].content,'Message 4');
  }finally{await rm(root,{recursive:true,force:true});}
 });
+
+test('multi-line Qwen answers persist without losing chat history',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'qwen-memory-'));
+ try{
+  await saveExchange(root,'Please plan a landing page','Plan:\n1. Choose colors\n2. Make a mockup');
+  const rows=await loadChat(root);
+  assert.match(rows[1].content,/2\. Make a mockup/);
+ }finally{await rm(root,{recursive:true,force:true});}
