@@ -15,6 +15,25 @@
 3. Reopen `http://127.0.0.1:9942/deck` on the Ally and live-test: normal conversation, workflow shortcut (prefill only), work proposal (not started), cancel, proposal approval, job progress, and Stop. Confirm the Qwen service at port 9931 is online.
 4. If Qwen returns plain text instead of valid structured output, it stays a conversation and *does not start any job*. Retry/rephrase or roll back to the previous pinned local version; never auto-start failed proposal parsing.
 
+## V4 — Local memory, task plans, and existing tools
+
+**Local memory & chat continuity**
+- The single chat saves up to **24 recent conversation messages** in the local NexusAlly/qwen-terminal/chat-history.json file under the current Windows user's LOCALAPPDATA, so reopening the console restores context. **New chat** clears local history but leaves approved memories.
+- Say **"Remember that I prefer ..."**: a **Save memory / Not now** card appears. Nothing is stored until **Save memory** is tapped. View notes under **Saved memories** and use **Forget** to delete one. Up to 32 short owner-approved notes are stored in LOCALAPPDATA/NexusAlly/qwen-terminal/memory.json. No remote sync is added.
+- Saved notes are sent to local Qwen as conversational facts, labeled **data only**, not instructions or tool permissions. Do **not** store credentials or API keys in chat memories.
+- **Remember** and **Tools** shortcut chips prefill the same chat bar; they never start a job.
+
+**Tracked jobs and existing tools**
+- The guarded runner supports set_plan (1–6 steps), update_step (in_progress/done/blocked), and get_plan. Updates are checkpointed to the existing local job state.json file and displayed under **Work activity and recent jobs**.
+- Bounded model/tool steps increase from 8 to **18**, with a 20-minute job deadline. If Qwen finishes while plan steps are incomplete, the job is **needs_help**, not done. Additional work needs a fresh owner-approved job.
+- Safe local tools remain: isolated file creation/edits, code checks, and the fixed ad_macro catalog/start/preview/variants/package/private-review actions. Rendering, arbitrary shell, purchases, public publishing and network scraping are still unavailable or approval-gated. This does not add unrestricted PowerShell.
+
+**Pinned installation after PR review**
+- The existing installer scripts/ally/install-qwen-console.ps1 gains required **-MemorySha256** and **-AgentSha256** parameters alongside the previous SHA parameters. Calculate all hashes from the **exact reviewed merged commit**.
+- Installer verifies and stages scripts/ally/qwen-memory.mjs with the console and scripts/ally/qwen-terminal-agent.mjs under its separate guarded-runner version directory. Both installed.json manifests are updated to the same revision.
+- **Close the previous Qwen Console and reopen the Nexus Ally Launcher** after installation so the newly pinned server and model runner actually load. Older versions are left available to restore.
+- Acceptance test on the physical Ally: chat, approve a memory, reopen and recall it, forget it, approve a harmless two-step file job, inspect plan progress and Stop, run an approved ad_macro catalog and verify no unapproved renders or publishing. Mock tests alone don't establish live Qwen JSON reliability.
+
 ## Previous console implementation
 
 
