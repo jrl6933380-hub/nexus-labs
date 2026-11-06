@@ -13,6 +13,7 @@ on:
       - 'scripts/ally/install-qwen-console.ps1'
       - 'public/ally-qwen-console.html'
       - 'test/ally-qwen-console.test.mjs'
+      - 'test/ally-qwen-nextgen.test.mjs'
       - 'test/ally-qwen-memory.test.mjs'
       - 'test/ally-qwen-terminal.test.mjs'
       - 'tests/ally/qwen-ad-macro.test.mjs'
@@ -30,6 +31,7 @@ on:
       - 'scripts/ally/install-qwen-console.ps1'
       - 'public/ally-qwen-console.html'
       - 'test/ally-qwen-console.test.mjs'
+      - 'test/ally-qwen-nextgen.test.mjs'
       - 'test/ally-qwen-memory.test.mjs'
       - 'test/ally-qwen-terminal.test.mjs'
       - 'tests/ally/qwen-ad-macro.test.mjs'
@@ -53,6 +55,7 @@ jobs:
         run: |
           for test_file in \
             test/ally-qwen-console.test.mjs \
+            test/ally-qwen-nextgen.test.mjs \
             test/ally-qwen-memory.test.mjs \
             test/ally-qwen-terminal.test.mjs \
             test/ally-qwen-creative-tools.test.mjs \

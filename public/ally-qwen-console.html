@@ -7,7 +7,7 @@
 :root{color-scheme:dark;--bg:#080f1b;--surface:#101c2d;--soft:#18283c;--stroke:rgba(198,223,244,.18);--mint:#a1f2b5;--text:#ecf6ff;--dim:#a5b8cb}
 *{box-sizing:border-box}
 body{margin:0;background:#080f1b;color:var(--text);font:14px/1.5 system-ui,'Segoe UI',sans-serif}
-button,textarea{font:inherit}
+button,textarea,input{font:inherit}
 button{border:1px solid var(--stroke);border-radius:10px;background:#1a2c41;color:var(--text);padding:9px 12px;cursor:pointer;min-height:39px}
 button:hover{filter:brightness(1.14)}button:disabled{opacity:.58;cursor:not-allowed}
 button:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid var(--mint);outline-offset:2px}
@@ -28,7 +28,7 @@ h1,h2,p{margin:0}h1{font-size:23px;letter-spacing:-.04em}h2{font-size:13px;lette
 .actions{display:flex;gap:7px;flex-wrap:wrap}
 .primary{background:var(--mint);border-color:var(--mint);color:#081b10;font-weight:750}
 .composer{border-top:1px solid var(--stroke);padding:13px;background:rgba(7,16,27,.62);display:grid;gap:10px}
-.shortcuts{display:flex;flex-wrap:wrap;gap:7px}
+.shortcuts{display:flex;flex-wrap:wrap;gap:7px}.model-options{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:12px;color:var(--dim)}.model-options label{display:inline-flex;gap:6px;align-items:center}.model-options input[type=file]{max-width:230px;font-size:11px}
 .chip{border-radius:100px;background:#183044;font-size:12px;padding:7px 11px;min-height:34px}
 .compose{display:flex;gap:8px;align-items:flex-end}
 .compose textarea{flex:1;min-width:0;min-height:46px;max-height:155px;resize:vertical;border-radius:13px;border:1px solid #3a5265;padding:12px;background:#0a1727;color:var(--text)}
@@ -68,11 +68,16 @@ summary{cursor:pointer;color:var(--dim);font-weight:650}
    <button type="button" class="chip" data-shortcut="remember">◈ Remember</button>
    <button type="button" class="chip" data-shortcut="tools">⚙ Tools</button>
   </nav>
+  <div class="model-options">
+   <label><input type="checkbox" id="thinkingToggle"> Thinking mode (slower, for complex plans)</label>
+   <label for="visionFile">Review selected image:</label><input type="file" id="visionFile" accept="image/png,image/jpeg,image/webp" aria-label="Select an image to review locally">
+   <button type="button" id="reviewVision">Analyze image</button>
+  </div>
   <form id="chatForm" class="compose">
    <textarea id="prompt" aria-label="Message Qwen" maxlength="1400" rows="1" placeholder="Message Qwen, or ask him to work…" required></textarea>
    <button id="send" class="primary" type="submit">Send</button>
   </form>
-  <p class="helper">Normal conversation needs no approval. Work starts only after you tap Approve. Saved memories and recent chat are local to this Ally. Shift+Enter for a new line.</p>
+  <p class="helper">Thinking only affects the next chat reply. Image analysis sends a file you explicitly choose to local Qwen; images are not saved in chat. Vision requires the local projector. Normal conversation needs no approval. Work starts only after you tap Approve. Saved memories and recent chat are local to this Ally. Shift+Enter for a new line.</p>
  </div>
 </section>
 <details><summary>Work activity and recent jobs</summary><div id="jobs" class="jobs"><div class="helper">No jobs yet.</div></div></details>
@@ -166,7 +171,7 @@ function memoryCard(memory){
 }
 function proposalCard(proposal,answer){
  const id=proposal.id,card=el('div','','proposal');
- card.append(el('div','Ready to work?','proposal-title'),el('div','Exact task Qwen will run:','helper'),el('div',proposal.task||'No task provided.','bubble'),el('div','Approve to run the guarded local workflow; no work has started.','helper'));
+ card.append(el('div','Ready to work?','proposal-title'),el('div','Exact task Qwen will run'+(proposal.thinking?' (Thinking mode: ON)':' (fast mode)')+':','helper'),el('div',proposal.task||'No task provided.','bubble'),el('div','Approve to run the guarded local workflow; no work has started.','helper'));
  const controls=el('div','','actions');
  const approve=el('button','✓ Approve & start','primary');
  const change=el('button','Change plan');
@@ -203,7 +208,7 @@ async function refresh(){
   if(!data.jobs?.length){jobsEl.append(el('div','No recent jobs.','helper'));return;}
   for(const job of data.jobs.slice(0,8)){
    const row=el('div','','job');
-   row.append(el('span',(job.task||'Task')+' · '+job.status+(job.step?' · tool step '+job.step:'')));
+   row.append(el('span',(job.task||'Task')+' · '+job.status+(job.step?' · tool step '+job.step:'')+(job.phase?' · '+job.phase.replaceAll('_',' '):'')));
    if(!terminal.has(job.status)){
     const stop=el('button','Stop');
     stop.type='button';stop.onclick=async()=>{stop.disabled=true;try{await api('/api/tasks/'+job.id+'/stop',{method:'POST',data:{}});say('info','Stop requested for '+job.id.slice(0,8)+'.');}catch(error){say('info','Stop failed: '+error.message);}finally{await refresh();}};
@@ -231,7 +236,7 @@ async function refresh(){
    if(tracked.has(job.id)){
     const prev=tracked.get(job.id);
     if(job.status!==prev.status||job.step!==prev.step){
-     let note='Job '+job.id.slice(0,8)+': '+job.status.replace(/_/g,' ')+(job.step?' · tool step '+job.step:'')+'.';
+     let note='Job '+job.id.slice(0,8)+': '+job.status.replace(/_/g,' ')+(job.step?' · tool step '+job.step:'')+(job.phase?' · '+job.phase.replaceAll('_',' '):'')+'.';
      if(job.status==='done'&&job.answer)note+=' '+job.answer;
      if(job.error)note+=' '+job.error;
      if(job.status==='needs_approval')note+=' This tool action was not executed; review it before retrying.';
@@ -245,9 +250,9 @@ $('#chatForm').onsubmit=async event=>{
  event.preventDefault();if(busy)return;
  const message=prompt.value.trim();if(!message)return;
  const previous=history.slice(-12);busy=true;$('#send').disabled=true;prompt.value='';
- say('user',message);const waiting=say('info','Qwen is thinking…');
+ say('user',message);const waiting=say('info',$('#thinkingToggle').checked?'Qwen thinking (may be slower)…':'Qwen is generating…');
  try{
-  const reply=await api('/api/chat',{method:'POST',data:{message,history:previous}});
+  const reply=await api('/api/chat',{method:'POST',data:{message,history:previous,thinking:$('#thinkingToggle').checked}});
   waiting.remove();say('assistant',reply.answer);
   history.push({role:'user',content:message.slice(0,1400)},{role:'assistant',content:reply.answer.slice(0,1400)});
   history=history.slice(-12);
@@ -255,6 +260,26 @@ $('#chatForm').onsubmit=async event=>{
   if(reply.proposal?.id)proposalCard(reply.proposal,reply.answer);
  }catch(error){waiting.remove();say('info','Qwen could not reply: '+error.message);}
  finally{busy=false;$('#send').disabled=false;prompt.focus();}
+};
+const imageFile=$('#visionFile');
+const imageDataUrl=file=>new Promise((resolve,reject)=>{
+ const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('Could not read local image'));reader.readAsDataURL(file);
+});
+$('#reviewVision').onclick=async()=>{
+ if(busy)return;
+ const file=imageFile.files?.[0];
+ if(!file){say('info','Select a local PNG, JPG or WebP first.');return;}
+ if(!['image/png','image/jpeg','image/webp'].includes(file.type)||file.size>1500000){
+  say('info','Use a PNG, JPG or WebP under 1.5 MB (resize large screenshots first).');return;
+ }
+ busy=true;$('#reviewVision').disabled=true;$('#send').disabled=true;
+ const question=prompt.value.trim().slice(0,400)||'Describe the image and any visible website layout issues.';
+ const waiting=say('info','Reviewing your selected image locally; this may take longer on CPU…');
+ try{
+  const data=await api('/api/vision',{method:'POST',data:{prompt:question,image:await imageDataUrl(file)}});
+  waiting.remove();say('assistant',data.answer);
+ }catch(error){waiting.remove();say('info','Image review failed: '+error.message);}
+ finally{busy=false;$('#reviewVision').disabled=false;$('#send').disabled=false;imageFile.value='';}
 };
 prompt.addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();$('#chatForm').requestSubmit();}});
 document.querySelectorAll('[data-shortcut]').forEach(button=>{
