@@ -67,3 +67,4 @@ test('multi-line Qwen answers persist without losing chat history',async()=>{
   const rows=await loadChat(root);
   assert.match(rows[1].content,/2\. Make a mockup/);
  }finally{await rm(root,{recursive:true,force:true});}
+});
