@@ -53,3 +53,21 @@ jobs:
           new Script(match[1]);
           console.log('Qwen unified chat inline JS syntax valid');
           NODE
+
+  validate-windows-installer:
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse the checksum-pinned Qwen PowerShell installer
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          $path = (Resolve-Path 'scripts/ally/install-qwen-console.ps1').Path
+          [void][System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors)
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
+          Write-Output 'Qwen console installer PowerShell syntax valid'
