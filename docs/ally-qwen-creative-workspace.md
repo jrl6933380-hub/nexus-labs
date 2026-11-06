@@ -16,6 +16,9 @@ The local Qwen catalog imports the **same source registry** as the owner Macro C
 - Owner-controlled actions: Render video, Request changes, Approved video to board, and the manual Video to Board shortcut. They appear in Qwen's catalog with a handoff route, not uncontrolled shell execution.
 - Unregistered personal macros are **not** automatically callable. New macros need a reviewed name, fixed argument schema, vetted script and explicit approval rule before adding them.
 
+## Macro-first approved ad actions
+Only owner-visible, explicitly approved **start_ad**, **preview_ad**, **variants_ad** and **package_ad** instructions with exact safe name or existing project ID are routed directly to the matching verified macro before any Qwen generation. Ad rendering, submission to private review, review decisions, board uploads and public posting are never auto-routed. The approval card exposes the exact macro action first; a failed macro remains `needs_help` instead of being treated as success. Start and preview require their underlying script's verified CREATED/RESULT receipts, and submitting a finished MP4 to private owner review requires the authenticated `NEXUS_REVIEW_SUBMITTED/EXISTS` receipt. The checksum-pinned installer must include `submit-ad-review.ps1` for both the local runner and the owner macro queue.
+
 ## Bounded research
 `web_search` only creates a `https://www.google.com/search?q=...` URL (optional AI Mode flag) from a printable query capped at 140 characters. It calls a fixed, SHA-256-pinned `forge-browser.ps1` using typed `Open` and `Capture` operations; no model-supplied URLs or command lines are used. Capture returns limited snippets and public source links, redacts email addresses, and fails with a `needs_help` result if Google is still loading or requires manual verification. The browser is visible, and its Google UI capture is best effort rather than a general crawler.
 
@@ -33,8 +36,9 @@ The paired Ally must be online. Install only from the **exact reviewed merged co
 - `-ToolSha256` for `scripts/ally/qwen-work-tools.mjs`
 - `-ForgeBrowserSha256` for `scripts/ally/forge-browser.ps1`
 - `-MacroRegistrySha256` for `public/nexus-macro-registry.js`
+- `-SubmitReviewSha256` for the private, fixed-origin `scripts/ally/submit-ad-review.ps1` uploader (used by approved `submit_ad` and the owner macro queue)
 
-Installer stages and checksum-verifies all three alongside the existing server, memory module and task runner, then copies the browser adapter, tools and registry into the pinned guarded runner version. No Windows startup service, shell replacement, new device credentials, or arbitrary terminal permission is added.
+Installer stages and checksum-verifies the browser adapter, tools, macro registry and private review uploader alongside the existing server, memory module and task runner, then copies the review uploader and required tools into the pinned guarded runner version. The uploader still requires a verified local MP4 and private owner authentication; it cannot post publicly. No Windows startup service, shell replacement, new device credentials, or arbitrary terminal permission is added.
 
 After install, close the old local Qwen Console process and open **Nexus Ally Launcher**. Test in order: normal chat, memory recall, Tools drawer (nine verified macros), an approved harmless website file job, static preview, one public Google query and cited links, an approved ad macro catalog/preview, and one owner-only render handoff that does not execute. Verify the active runner and console manifests have the same commit SHA. No real customer outreach, public publishing, or production changes during acceptance.
 

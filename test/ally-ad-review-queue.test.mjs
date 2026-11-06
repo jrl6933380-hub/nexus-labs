@@ -112,7 +112,7 @@ test('PowerShell review helper does not bind the reserved automatic input variab
 });
 test('Qwen submit_ad stays on a fixed PowerShell uploader with no model-provided command',async()=>{
  const calls=[];
- const run=async(file,argv,opts)=>{calls.push({file,argv,opts});return {stdout:'NEXUS_REVIEW_SUBMITTED fake',stderr:''};};
+ const run=async(file,argv,opts)=>{calls.push({file,argv,opts});return {stdout:'NEXUS_REVIEW_SUBMITTED '+('a'.repeat(32)),stderr:''};};
  const result=await executeTool({tool:'ad_macro',args:{action:'submit_ad',project_id:'Safe-123'}},{workspace:process.cwd(),commandRunner:run});
  assert.equal(result.status,'succeeded');
  assert.equal(calls[0].file,'powershell.exe');
