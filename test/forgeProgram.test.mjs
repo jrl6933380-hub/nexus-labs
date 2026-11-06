@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   signupBonusCents, recurringCommissionCents, upgradeBonusCents,
-  editsRemaining, cancelTimeline, reactivationTiers, validateBatch,
+  editsRemaining, cancelTimeline, reactivationTiers, validateBatch, TIERS, LAUNCH_OFFER,
 } from '../lib/forgeProgram.js';
 
 // Shaped like a forge_callers row: Postgres numerics arrive as strings.
@@ -10,6 +10,18 @@ const james = {
   signup_bonus_basic: '10.00', signup_bonus_standard: '20.00', signup_bonus_plus: '35.00',
   recurring_pct: '0.1500', upgrade_bonus: '10.00',
 };
+
+test('launch offer is $20 all-in signup, $10 monthly and unlimited edits without an automatic expiration', () => {
+  assert.equal(LAUNCH_OFFER.signUpCents, 2000);
+  assert.equal(LAUNCH_OFFER.monthlyCents, 1000);
+  assert.equal(LAUNCH_OFFER.activationCents + LAUNCH_OFFER.monthlyCents, LAUNCH_OFFER.signUpCents);
+  assert.equal(TIERS.launch.priceCents, 1000);
+  assert.equal(editsRemaining({tier:'launch',allotmentUsedThisMonth:10000}), Infinity);
+  assert.equal(signupBonusCents(james,'launch'),0);
+  assert.equal(signupBonusCents({...james,signup_bonus_launch:'4.00'},'launch'),400);
+  assert.deepEqual(reactivationTiers('launch'),['launch']);
+  assert.deepEqual(reactivationTiers('standard'),['basic','standard']);
+});
 
 test('signup bonus scales with tier', () => {
   assert.equal(signupBonusCents(james, 'basic'), 1000);
