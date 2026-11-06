@@ -6,6 +6,8 @@ param(
  [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{40}$')][string]$Revision,
  [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$ServerSha256,
  [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$PanelSha256,
+ [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$MemorySha256,
+ [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$AgentSha256,
  [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$LauncherSha256,
  [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$WatcherSha256,
  [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$RevisionTransportSha256,
@@ -23,6 +25,8 @@ $node=Join-Path $root 'runtime\node.exe'
 if(!(Test-Path -LiteralPath $node)){throw 'Portable Node runtime is missing.'}
 $files=@(
  @{path='scripts/ally/qwen-console.mjs';hash=$ServerSha256;min=2000;max=35000},
+ @{path='scripts/ally/qwen-memory.mjs';hash=$MemorySha256;min=2000;max=15000},
+ @{path='scripts/ally/qwen-terminal-agent.mjs';hash=$AgentSha256;min=10000;max=40000},
  @{path='scripts/ally/qwen-revision-watcher.mjs';hash=$WatcherSha256;min=2000;max=35000},
  @{path='scripts/ally/revision-transport.ps1';hash=$RevisionTransportSha256;min=1000;max=10000},
  @{path='scripts/ally/approved-board-watcher.mjs';hash=$BoardWatcherSha256;min=3000;max=18000},
@@ -48,6 +52,21 @@ foreach($item in $files){
  if($rel.EndsWith('.html')){$head=[IO.File]::ReadAllText($temp);if(!$head.StartsWith('<!doctype html>',[StringComparison]::OrdinalIgnoreCase)){throw 'Invalid HTML'}}
  Move-Item -LiteralPath $temp -Destination $dest -Force
 }
+# Pin and activate the guarded task runner at the same reviewed Git
+# commit as the Qwen console; both version manifests must match.
+$terminalRoot=Join-Path $root 'qwen-terminal'
+$terminalVersion=Join-Path (Join-Path $terminalRoot 'versions') $Revision
+$agentSource=Join-Path $version 'scripts\ally\qwen-terminal-agent.mjs'
+$agentDestination=Join-Path $terminalVersion 'scripts\ally\qwen-terminal-agent.mjs'
+[void](New-Item -ItemType Directory -Path (Split-Path $agentDestination -Parent) -Force)
+Copy-Item -LiteralPath $agentSource -Destination $agentDestination -Force
+$agentHash=(Get-FileHash -LiteralPath $agentDestination -Algorithm SHA256).Hash.ToLowerInvariant()
+if($agentHash -ne $AgentSha256){throw 'Pinned Qwen task runner hash mismatch.'}
+$terminalManifest=Join-Path $terminalRoot 'installed.json'
+$terminalStaging=$terminalManifest+'.staging'
+[IO.File]::WriteAllText($terminalStaging,(@{revision=$Revision;root=$terminalVersion}|ConvertTo-Json -Compress),[Text.Encoding]::UTF8)
+Move-Item -LiteralPath $terminalStaging -Destination $terminalManifest -Force
+
 $server=Join-Path $version 'scripts\ally\qwen-console.mjs'
 $launcher=Join-Path $version 'public\ally-launcher.html'
 $edgeCandidates=@("${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe", "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe")
@@ -99,5 +118,7 @@ Move-Item -LiteralPath $staging -Destination $manifest -Force
 Write-Output ('INSTALLED Qwen Console at localhost:9942; launcher shortcut updated; revision '+$Revision)
 Write-Output ('SERVER '+$server)
 Write-Output ('DESKTOP '+$shortcut)
+Write-Output 'Qwen chat, local memory and guarded work runner pinned to the same revision.'
+Write-Output 'Reopen the Qwen Console after closing its old local process.'
 Write-Output 'No auto-start, shell replacement, or new device pairing.'
 if($Launch){& $start}

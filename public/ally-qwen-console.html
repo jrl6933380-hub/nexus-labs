@@ -39,6 +39,10 @@ summary{cursor:pointer;color:var(--dim);font-weight:650}
 .jobs{display:grid;gap:7px;margin-top:10px}
 .job{border:1px solid var(--stroke);background:#152439;border-radius:10px;padding:8px 10px;display:flex;align-items:center;gap:10px;justify-content:space-between}
 .job span{overflow-wrap:anywhere}.job button{min-height:29px;font-size:11px;padding:4px 9px}
+.plan{display:grid;gap:3px;padding:6px 8px;margin:6px 0;border-left:2px solid #59796c;font-size:12px}
+.plan-row{color:var(--dim)}.plan-row.done{color:var(--mint)}.plan-row.blocked{color:#ffc4b6}
+.memory-list{display:grid;gap:7px;margin-top:8px}
+.memory-note{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px;border:1px solid var(--stroke);border-radius:9px;overflow-wrap:anywhere;font-size:12px}.memory-note button{flex-shrink:0;min-height:29px;font-size:11px;padding:3px 8px}
 .error{color:#ffc4b6}
 @media(max-width:620px){.wrap{padding:9px;gap:8px}.chat{min-height:calc(100dvh - 170px)}.messages{max-height:calc(100dvh - 275px);padding:12px;gap:9px}.bubble{max-width:95%}.composer{padding:10px}.actions button{flex:1}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
@@ -60,21 +64,24 @@ summary{cursor:pointer;color:var(--dim);font-weight:650}
    <button type="button" class="chip" data-shortcut="ad">▶ Make Ad</button>
    <button type="button" class="chip" data-shortcut="leads">⌕ Find Leads</button>
    <button type="button" class="chip" data-shortcut="files">⌘ Work on Files</button>
+   <button type="button" class="chip" data-shortcut="remember">◈ Remember</button>
+   <button type="button" class="chip" data-shortcut="tools">⚙ Tools</button>
   </nav>
   <form id="chatForm" class="compose">
    <textarea id="prompt" aria-label="Message Qwen" maxlength="1400" rows="1" placeholder="Message Qwen, or ask him to work…" required></textarea>
    <button id="send" class="primary" type="submit">Send</button>
   </form>
-  <p class="helper">Normal conversation needs no approval. Work starts only after you tap Approve. Shift+Enter for a new line.</p>
+  <p class="helper">Normal conversation needs no approval. Work starts only after you tap Approve. Saved memories and recent chat are local to this Ally. Shift+Enter for a new line.</p>
  </div>
 </section>
 <details><summary>Work activity and recent jobs</summary><div id="jobs" class="jobs"><div class="helper">No jobs yet.</div></div></details>
+<details id="savedMemory"><summary>Saved memories (on this Ally only)</summary><p class="helper">Only memories you explicitly approve are saved. Do not store passwords or API keys here.</p><div id="memories" class="memory-list"><div class="helper">No saved memories.</div></div></details>
 </main>
 <script>
 (()=>{
 'use strict';
 const $=s=>document.querySelector(s);
-const messages=$('#messages'),jobsEl=$('#jobs'),prompt=$('#prompt');
+const messages=$('#messages'),jobsEl=$('#jobs'),prompt=$('#prompt'),memoriesEl=$('#memories');
 let history=[],busy=false,approving=false;
 const tracked=new Map();
 const terminal=new Set(['done','failed','canceled','needs_help','needs_approval']);
@@ -82,7 +89,9 @@ const shortcuts={
  website:'Help me build a website. First ask for the business name, products, style and pages, then propose a small first task for your local workspace. Do not start yet.',
  ad:'Help me make an ad. First ask what it promotes and the style and length. When the brief is ready, propose the available approved ad-macro workflow. Do not start yet.',
  leads:'Help me prepare a Forge lead research workflow. Explain which local tools you have and what would still need a connected research tool. Ask which business type and city; do not claim you searched the web.',
- files:'Help me work on files in your isolated Qwen workspace. Ask which file and what change, then propose a small guarded task for my approval.'
+ files:'Help me work on files in your isolated Qwen workspace. Ask which file and what change, then propose a small guarded task for my approval.',
+ remember:'Remember that ',
+ tools:'What local tools and ad macros can you actually use right now? Explain which ones require my approval, then ask what I want to try.'
 };
 const el=(tag,content,cls='')=>{const node=document.createElement(tag);node.className=cls;node.textContent=content;return node;};
 function append(node){messages.append(node);messages.scrollTop=messages.scrollHeight;}
@@ -96,6 +105,26 @@ async function api(path,{method='GET',data}={}){
  return payload;
 }
 function disableActions(box){box.querySelectorAll('button').forEach(b=>b.disabled=true);}
+async function refreshMemories(){
+ try{
+  const data=await api('/api/memories');memoriesEl.replaceChildren();
+  if(!data.items?.length){memoriesEl.append(el('div','No saved memories yet.','helper'));return;}
+  for(const memory of data.items){
+   const line=el('div','','memory-note'),forget=el('button','Forget');forget.type='button';
+   line.append(el('span',memory.text));
+   forget.onclick=async()=>{forget.disabled=true;try{await api('/api/memories/'+memory.id+'/delete',{method:'POST',data:{confirmed:true}});say('info','Forgot that local memory.');await refreshMemories();}catch(e){say('info','Could not forget: '+e.message);forget.disabled=false;}};
+   line.append(forget);memoriesEl.append(line);
+  }
+ }catch(err){memoriesEl.replaceChildren(el('div','Could not load memories: '+err.message,'helper error'));}
+}
+function memoryCard(memory){
+ const box=el('div','','proposal'),controls=el('div','','actions');
+ box.append(el('div','Save to Qwen memory?','proposal-title'),el('div',memory.text,'bubble'),el('div','This will be stored locally on this Ally and shown to Qwen in later chats.','helper'));
+ const save=el('button','Save memory','primary'),cancel=el('button','Not now');save.type=cancel.type='button';
+ save.onclick=async()=>{disableActions(controls);try{await api('/api/memories',{method:'POST',data:{confirmed:true,text:memory.text}});say('info','Saved on this Ally. You can forget it under Saved memories.');await refreshMemories();}catch(err){say('info','Memory was not saved: '+err.message);}};
+ cancel.onclick=()=>{disableActions(controls);say('info','Not saved.');};
+ controls.append(save,cancel);box.append(controls);append(box);
+}
 function proposalCard(proposal,answer){
  const id=proposal.id,card=el('div','','proposal');
  card.append(el('div','Ready to work?','proposal-title'),el('div','Exact task Qwen will run:','helper'),el('div',proposal.task||'No task provided.','bubble'),el('div','Approve to run the guarded local workflow; no work has started.','helper'));
@@ -109,7 +138,7 @@ function proposalCard(proposal,answer){
   try{
    const job=await api('/api/proposals/'+id+'/approve',{method:'POST',data:{approved:true}});
    disableActions(controls);say('info','Approved. Started guarded job '+job.id.slice(0,8)+'. Progress will appear in this chat.');
-   tracked.set(job.id,{status:'starting',shown:true});await refresh();
+   tracked.set(job.id,{status:'starting',step:0,shown:true});await refresh();
   }catch(error){say('info','Work did not start: '+error.message);disableActions(controls);}
   finally{approving=false;}
  };
@@ -135,21 +164,36 @@ async function refresh(){
   if(!data.jobs?.length){jobsEl.append(el('div','No recent jobs.','helper'));return;}
   for(const job of data.jobs.slice(0,8)){
    const row=el('div','','job');
-   row.append(el('span',(job.task||'Task')+' · '+job.status));
+   row.append(el('span',(job.task||'Task')+' · '+job.status+(job.step?' · tool step '+job.step:'')));
    if(!terminal.has(job.status)){
     const stop=el('button','Stop');
     stop.type='button';stop.onclick=async()=>{stop.disabled=true;try{await api('/api/tasks/'+job.id+'/stop',{method:'POST',data:{}});say('info','Stop requested for '+job.id.slice(0,8)+'.');}catch(error){say('info','Stop failed: '+error.message);}finally{await refresh();}};
     row.append(stop);
+   }else if(job.status==='needs_help'){
+    const resume=el('button','Continue');
+    resume.type='button';resume.onclick=()=>{
+     const remain=(job.plan||[]).filter(s=>s.status!=='done').map(s=>s.title).slice(0,5).join('; ');
+     prompt.value=('Help me continue this unfinished local Qwen job: '+job.task+'. Remaining steps: '+(remain||'Review the previous saved progress')+'. First explain the new plan; do not start work without my approval.').slice(0,1350);
+     prompt.focus();say('info','Continue request prepared. Sending it will ask Qwen for a new plan, not start work.');
+    };
+    row.append(resume);
    }
    jobsEl.append(row);
+   if(Array.isArray(job.plan)&&job.plan.length){
+    const plan=el('div','','plan');
+    for(const step of job.plan){const cls=step.status==='done'?'done':step.status==='blocked'?'blocked':'';
+     plan.append(el('div',(step.status==='done'?'✓ ':step.status==='in_progress'?'● ':step.status==='blocked'?'! ':'○ ')+step.title,'plan-row '+cls));
+    }
+    jobsEl.append(plan);
+   }
    if(tracked.has(job.id)){
     const prev=tracked.get(job.id);
-    if(job.status!==prev.status){
-     let note='Job '+job.id.slice(0,8)+': '+job.status.replace(/_/g,' ')+'.';
+    if(job.status!==prev.status||job.step!==prev.step){
+     let note='Job '+job.id.slice(0,8)+': '+job.status.replace(/_/g,' ')+(job.step?' · tool step '+job.step:'')+'.';
      if(job.status==='done'&&job.answer)note+=' '+job.answer;
      if(job.error)note+=' '+job.error;
      if(job.status==='needs_approval')note+=' This tool action was not executed; review it before retrying.';
-     say('info',note);tracked.set(job.id,{status:job.status,shown:true});
+     say('info',note);tracked.set(job.id,{status:job.status,step:job.step,shown:true});
     }
    }
   }
@@ -165,6 +209,7 @@ $('#chatForm').onsubmit=async event=>{
   waiting.remove();say('assistant',reply.answer);
   history.push({role:'user',content:message.slice(0,1400)},{role:'assistant',content:reply.answer.slice(0,1400)});
   history=history.slice(-12);
+  if(reply.memoryProposal?.text)memoryCard(reply.memoryProposal);
   if(reply.proposal?.id)proposalCard(reply.proposal,reply.answer);
  }catch(error){waiting.remove();say('info','Qwen could not reply: '+error.message);}
  finally{busy=false;$('#send').disabled=false;prompt.focus();}
@@ -173,8 +218,13 @@ prompt.addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.shiftKe
 document.querySelectorAll('[data-shortcut]').forEach(button=>{
  button.onclick=()=>{prompt.value=shortcuts[button.dataset.shortcut]||'';prompt.focus();prompt.setSelectionRange(prompt.value.length,prompt.value.length);};
 });
-$('#newChat').onclick=()=>{history=[];messages.replaceChildren(el('div','New conversation. Ask anything or pick a workflow shortcut.','bubble info'));prompt.focus();};
-refresh();setInterval(refresh,5000);
+$('#newChat').onclick=async()=>{try{await api('/api/history/clear',{method:'POST',data:{confirmed:true}});history=[];messages.replaceChildren(el('div','New conversation. Your approved memories are still saved on this Ally.','bubble info'));prompt.focus();}catch(err){say('info','Could not clear the conversation: '+err.message);}};
+async function restoreChat(){try{
+ const data=await api('/api/history');if(!Array.isArray(data.messages)||!data.messages.length)return;
+ history=data.messages.slice(-12);
+ messages.replaceChildren();for(const m of data.messages)if(m.role==='user'||m.role==='assistant')say(m.role,m.content);
+}catch(err){say('info','Could not restore local conversation: '+err.message);}}
+restoreChat();refreshMemories();refresh();setInterval(refresh,5000);
 })();
 </script>
 </body></html>

@@ -1,0 +1,73 @@
+name: Ally Qwen Memory, Task Plans and Macros
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/ally/qwen-console.mjs'
+      - 'scripts/ally/qwen-memory.mjs'
+      - 'scripts/ally/qwen-terminal-agent.mjs'
+      - 'scripts/ally/install-qwen-console.ps1'
+      - 'public/ally-qwen-console.html'
+      - 'test/ally-qwen-console.test.mjs'
+      - 'test/ally-qwen-memory.test.mjs'
+      - 'test/ally-qwen-terminal.test.mjs'
+      - 'tests/ally/qwen-ad-macro.test.mjs'
+      - '.github/workflows/ally-qwen-unified-work.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/ally/qwen-console.mjs'
+      - 'scripts/ally/qwen-memory.mjs'
+      - 'scripts/ally/qwen-terminal-agent.mjs'
+      - 'scripts/ally/install-qwen-console.ps1'
+      - 'public/ally-qwen-console.html'
+      - 'test/ally-qwen-console.test.mjs'
+      - 'test/ally-qwen-memory.test.mjs'
+      - 'test/ally-qwen-terminal.test.mjs'
+      - 'tests/ally/qwen-ad-macro.test.mjs'
+
+jobs:
+  test-local-guardrails:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check local Qwen runner and console
+        run: |
+          node --check scripts/ally/qwen-console.mjs
+          node --check scripts/ally/qwen-terminal-agent.mjs
+          node --check scripts/ally/qwen-memory.mjs
+      - name: Validate consent, private memory, plan state and existing macro permission tests
+        run: node --test test/ally-qwen-console.test.mjs test/ally-qwen-memory.test.mjs test/ally-qwen-terminal.test.mjs tests/ally/qwen-ad-macro.test.mjs
+      - name: Check unified chat inline script syntax
+        run: |
+          node --input-type=module - <<'NODE'
+          import {readFileSync} from 'node:fs';
+          import {Script} from 'node:vm';
+          const page=readFileSync('public/ally-qwen-console.html','utf8');
+          const match=page.match(/<script>([\s\S]*?)<\/script>/);
+          if(!match)throw Error('Unified chat inline script missing');
+          new Script(match[1]);
+          console.log('Qwen unified chat inline JS syntax valid');
+          NODE
+
+  validate-windows-installer:
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse the checksum-pinned Qwen PowerShell installer
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          $path = (Resolve-Path 'scripts/ally/install-qwen-console.ps1').Path
+          [void][System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors)
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
+          Write-Output 'Qwen console installer PowerShell syntax valid'
