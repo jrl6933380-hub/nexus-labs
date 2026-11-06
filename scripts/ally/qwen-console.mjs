@@ -10,7 +10,7 @@ import {fileURLToPath} from 'node:url';
 import {startRevisionWatcher} from './qwen-revision-watcher.mjs';
 import {startApprovedBoardWatcher} from './approved-board-watcher.mjs';
 import {startMacroJobWatcher} from './macro-job-watcher.mjs';
-import {workCatalog,approvedStarterRoute} from './qwen-work-tools.mjs';
+import {workCatalog,approvedStarterRoute,approvedAdMacroRoute} from './qwen-work-tools.mjs';
 import {safePath} from './qwen-terminal-agent.mjs';
 import {listMemories,addMemory,deleteMemory,loadChat,saveExchange,clearChat,memoryContext,suggestedMemory} from './qwen-memory.mjs';
 
@@ -136,7 +136,7 @@ export function createConsoleServer({root=ROOT,workspace=WORKSPACE,fetchImpl=fet
  const proposals=new Map(), PROPOSAL_TTL_MS=15*60*1000;
  function makeProposal(task,thinking=false){
   for(const [key,entry] of proposals)if(Date.now()-entry.createdAt>PROPOSAL_TTL_MS)proposals.delete(key);
-  const id=randomUUID(),starter=approvedStarterRoute(task);proposals.set(id,{task,thinking,createdAt:Date.now()});return {id,task,thinking,starter:starter?{template:starter.template,path:starter.path}:null};
+  const id=randomUUID(),starter=approvedStarterRoute(task),macro=!starter?approvedAdMacroRoute(task):null;proposals.set(id,{task,thinking,createdAt:Date.now()});return {id,task,thinking,starter:starter?{template:starter.template,path:starter.path}:null,macro};
  }
  return createServer(async(req,res)=>{
   try{

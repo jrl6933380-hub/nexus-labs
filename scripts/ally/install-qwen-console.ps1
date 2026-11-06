@@ -11,6 +11,7 @@ param(
  [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$ToolSha256,
  [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$ForgeBrowserSha256,
  [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$MacroRegistrySha256,
+ [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$SubmitReviewSha256,
  [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$LauncherSha256,
  [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$WatcherSha256,
  [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$RevisionTransportSha256,
@@ -33,6 +34,7 @@ $files=@(
  @{path='scripts/ally/qwen-work-tools.mjs';hash=$ToolSha256;min=2000;max=16000},
  @{path='scripts/ally/forge-browser.ps1';hash=$ForgeBrowserSha256;min=2000;max=35000},
  @{path='public/nexus-macro-registry.js';hash=$MacroRegistrySha256;min=3000;max=30000},
+ @{path='scripts/ally/submit-ad-review.ps1';hash=$SubmitReviewSha256;min=3500;max=9000},
  @{path='scripts/ally/qwen-revision-watcher.mjs';hash=$WatcherSha256;min=2000;max=35000},
  @{path='scripts/ally/revision-transport.ps1';hash=$RevisionTransportSha256;min=1000;max=10000},
  @{path='scripts/ally/approved-board-watcher.mjs';hash=$BoardWatcherSha256;min=3000;max=18000},
@@ -67,7 +69,8 @@ $copies=@(
  @{from='scripts\ally\qwen-terminal-agent.mjs';hash=$AgentSha256},
  @{from='scripts\ally\qwen-work-tools.mjs';hash=$ToolSha256},
  @{from='scripts\ally\forge-browser.ps1';hash=$ForgeBrowserSha256},
- @{from='public\nexus-macro-registry.js';hash=$MacroRegistrySha256}
+ @{from='public\nexus-macro-registry.js';hash=$MacroRegistrySha256},
+ @{from='scripts\ally\submit-ad-review.ps1';hash=$SubmitReviewSha256}
 )
 foreach($copy in $copies){
  $source=Join-Path $version $copy.from

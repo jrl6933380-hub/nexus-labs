@@ -120,3 +120,21 @@ export function approvedStarterRoute(task){
  const name=label&&!/[<>\x00-\x1f]/.test(label)?label:cases[template].fallback;
  return {template,path,name};
 }
+
+// Optional deterministic ad-macro route. Only narrowly worded, explicitly
+// approved work requests qualify; all other ad tasks stay model-planned.
+// Final renders, review decisions, uploads and public posting never auto-route.
+export function approvedAdMacroRoute(task){
+ if(typeof task!=='string'||task.length>1000||/[\x00-\x1f]/.test(task))return null;
+ const t=task.trim();
+ if(/\b(?:do not|don't|never|without|not yet|don't start)\b/i.test(t))return null;
+ const start=t.match(/^(?:please\s+)?(?:start|create)\s+(?:(?:a|the)\s+)?(?:new\s+)?ad\s+project\s+named\s+(["'])([^"']{1,72})\1(?=\s|[.!?,;]|$)/i);
+ if(start){const name=start[2].trim();return /^[\p{L}\p{N} _-]{1,72}$/u.test(name)?{action:'start_ad',name}:null;}
+ const fixed=[
+  [/^(?:please\s+)?preview\s+(?:the\s+)?ad\s+project\s+(?:id\s+)?([a-zA-Z0-9][a-zA-Z0-9_-]{1,79})(?=\s|[.!?,;]|$)/i,'preview_ad'],
+  [/^(?:please\s+)?(?:make|create)\s+(?:ad\s+)?variations\s+for\s+(?:the\s+)?ad\s+project\s+(?:id\s+)?([a-zA-Z0-9][a-zA-Z0-9_-]{1,79})(?=\s|[.!?,;]|$)/i,'variants_ad'],
+  [/^(?:please\s+)?package\s+(?:the\s+)?ad\s+project\s+(?:id\s+)?([a-zA-Z0-9][a-zA-Z0-9_-]{1,79})(?=\s|[.!?,;]|$)/i,'package_ad']
+ ];
+ for(const [expression,action] of fixed){const m=t.match(expression);if(m)return {action,project_id:m[1]};}
+ return null;
+}

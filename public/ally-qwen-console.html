@@ -187,6 +187,7 @@ function proposalCard(proposal,answer){
  const id=proposal.id,card=el('div','','proposal');
  card.append(el('div','Ready to work?','proposal-title'),el('div','Exact task Qwen will run'+(proposal.thinking?' (Thinking mode: ON)':' (fast mode)')+':','helper'),el('div',proposal.task||'No task provided.','bubble'),el('div','Approve to run the guarded local workflow; no work has started.','helper'));
  if(proposal.starter)card.append(el('div','Macro-first after approval: '+proposal.starter.template+' website starter → '+proposal.starter.path+'. Qwen will customize the created local file; no publishing.','helper'));
+ if(proposal.macro)card.append(el('div','Verified ad macro after approval: '+proposal.macro.action+' '+(proposal.macro.project_id||proposal.macro.name||'')+'. Separate render/review/publishing rules still apply.','helper'));
  const controls=el('div','','actions');
  const approve=el('button','✓ Approve & start','primary');
  const change=el('button','Change plan');

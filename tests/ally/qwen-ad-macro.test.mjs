@@ -12,7 +12,7 @@ async function fixture(run){
 test('ad catalog and start use argv not a shell',async()=>{
  await fixture(async workspace=>{
   const calls=[];
-  const commandRunner=async(file,argv,opts)=>{calls.push({file,argv,opts});return {stdout:'ok',stderr:''};};
+  const commandRunner=async(file,argv,opts)=>{calls.push({file,argv,opts});return {stdout:argv.includes('start_ad')?'CREATED C:\\Users\\test\\Documents\\NexusAds\\demo-abc\\project.json':'RESULT {\"status\":\"ok\"}',stderr:''};};
   const a=await executeTool({tool:'ad_macro',args:{action:'catalog'}},{workspace,commandRunner});
   const b=await executeTool({tool:'ad_macro',args:{action:'start_ad',name:'Barber Preview'}},{workspace,commandRunner});
   assert.equal(a.status,'succeeded');assert.equal(b.status,'succeeded');
