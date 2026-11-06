@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtemp,mkdir,writeFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {executeTool,INSTRUCTIONS} from '../scripts/ally/qwen-terminal-agent.mjs';
+import {executeTool,runAgent,INSTRUCTIONS} from '../scripts/ally/qwen-terminal-agent.mjs';
 import {workCatalog,macroHandoff,googleSearchUrl,searchPublicGoogle} from '../scripts/ally/qwen-work-tools.mjs';
 import {previewSiteHtml,createConsoleServer,HOST,PORT} from '../scripts/ally/qwen-console.mjs';
 
@@ -124,4 +124,29 @@ test('local-only console exposes tools and serves script-disabled site preview t
   const blocked=await fetch('http://'+HOST+':'+PORT+'/api/site-preview',{method:'POST',headers,body:JSON.stringify({path:'../bad.html'})});
   assert.equal(blocked.status,400);
  }finally{await new Promise(resolve=>server.close(resolve));await rm(root,{recursive:true,force:true});}
+});
+
+
+test('Qwen cannot claim a completed search when the visible Google browser is unavailable',async()=>{
+ const workspace=await mkdtemp(join(tmpdir(),'qwen-search-fail-'));
+ const queue=[
+  {tool:'set_plan',args:{steps:['Find reliable public results']}},
+  {tool:'web_search',args:{query:'nearby business opportunities',mode:'search'}},
+  {tool:'update_step',args:{id:1,status:'done'}},
+  {tool:'finish',args:{message:'Results found'}}
+ ];
+ const runner=async(file,args)=>{
+  const action=args[args.indexOf('-Action')+1];
+  return {stdout:JSON.stringify(action==='Open'?{opened:true}:{found:false})};
+ };
+ try{
+  const result=await runAgent({
+   task:'Research public business opportunities',workspace,
+   generate:async()=>JSON.stringify(queue.shift()),
+   execute:(action,ctx)=>executeTool(action,{...ctx,commandRunner:runner,sleep:async()=>{}})
+  });
+  assert.equal(result.status,'needs_help');
+  assert.equal(result.plan[0].status,'pending');
+  assert.equal(queue.length,2,'runner stops before model can falsely mark task done');
+ }finally{await rm(workspace,{recursive:true,force:true});}
 });
