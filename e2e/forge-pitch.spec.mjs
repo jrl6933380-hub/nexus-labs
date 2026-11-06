@@ -14,7 +14,7 @@ for(const width of [390,1280])test('answered opens workspace; only explicit buil
  await page.getByRole('button',{name:'Build previews',exact:true}).click();
  await expect(page.locator('#panel-script')).toContainText('still being prepared');await expect(page.locator('#panel-script')).not.toContainText('ready here');await expect.poll(()=>actions.length).toBe(1);expect(actions[0].action).toBe('templates');finishBuild();
  await expect(page.locator('#panel-script')).toContainText('ready here');await expect(page.locator('#site-frame')).toBeVisible();await expect(page.locator('#panel-script')).toContainText('then $10/month');
- await page.getByText('They’re in: sign them up').click();
+ await page.getByText("They're in: sign them up").click();
  await expect(page.locator('#signup-btn')).toHaveText('Sign them up: Launch');
  await expect(page.locator('.tier-opt')).toHaveCount(1);
  await expect(page.locator('.tier-opt')).toContainText('$20.00 today');
