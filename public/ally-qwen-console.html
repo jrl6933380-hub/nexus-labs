@@ -169,6 +169,14 @@ async function refresh(){
     const stop=el('button','Stop');
     stop.type='button';stop.onclick=async()=>{stop.disabled=true;try{await api('/api/tasks/'+job.id+'/stop',{method:'POST',data:{}});say('info','Stop requested for '+job.id.slice(0,8)+'.');}catch(error){say('info','Stop failed: '+error.message);}finally{await refresh();}};
     row.append(stop);
+   }else if(job.status==='needs_help'){
+    const resume=el('button','Continue');
+    resume.type='button';resume.onclick=()=>{
+     const remain=(job.plan||[]).filter(s=>s.status!=='done').map(s=>s.title).slice(0,5).join('; ');
+     prompt.value=('Help me continue this unfinished local Qwen job: '+job.task+'. Remaining steps: '+(remain||'Review the previous saved progress')+'. First explain the new plan; do not start work without my approval.').slice(0,1350);
+     prompt.focus();say('info','Continue request prepared. Sending it will ask Qwen for a new plan, not start work.');
+    };
+    row.append(resume);
    }
    jobsEl.append(row);
    if(Array.isArray(job.plan)&&job.plan.length){
