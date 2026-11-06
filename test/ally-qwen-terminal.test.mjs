@@ -34,7 +34,7 @@ test('Unrestricted shell and ALL git commands are blocked without invocation',as
   assert.equal(called,0);
   const actions=[act('run_command',{command:'git_status'}),act('finish',{message:'Git tools are not available'})];
   const r=await runAgent({task:'Try git',workspace:w,generate:async()=>reply(actions.shift())});
-  assert.equal(r.status,'done');assert.equal(actions.length,0);
+  assert.equal(r.status,'needs_help');assert.equal(actions.length,1,'the runner stops instead of asking the model to fake completion');
   assert.equal(r.history[0].result.blocked,true);
  }finally{await rm(w,{recursive:true,force:true});}
 });
