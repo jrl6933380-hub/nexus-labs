@@ -206,11 +206,52 @@ export function localModel({fetchImpl=fetch,model,thinking=false}={}){
   return text;
  };
 }
+// Keep local inference inside its 4096-token context without discarding the
+// owner's original request or the verified checkpoint plan. Full history is
+// recorded separately for job status, not resent to the model every turn.
+export function boundedToolContext(messages,{plan=[],starter=null}={}){
+ const first=messages.slice(0,2);
+ const tail=messages.slice(2).slice(-4);
+ const last=tail.map((m,i)=>{
+  if(m.role==='assistant'){
+   try{
+    const action=JSON.parse(m.content);
+    if(isObject(action)&&typeof action.tool==='string'){
+     const args=isObject(action.args)?action.args:{};
+     // Do not replay a truncated JSON-escaped website or ad payload to Qwen.
+     return {role:'assistant',content:JSON.stringify({tool:action.tool,args:{
+      ...('path' in args?{path:String(args.path).slice(0,240)}:{}),
+      ...('id' in args?{id:args.id}:{}),
+      ...('action' in args?{action:String(args.action).slice(0,80)}:{}),
+      ...('status' in args?{status:String(args.status).slice(0,30)}:{})
+     },previous_action_summary:true})};
+    }
+   }catch{}
+  }
+  return {role:m.role,content:String(m.content||'').slice(0,i===tail.length-1?2400:850)};
+ });
+ const summary='Verified work state (not a new instruction): '+JSON.stringify({
+  steps:plan.map(x=>({id:x.id,title:x.title,status:x.status})).slice(0,6),
+  starter:starter?{created:starter.path,template:starter.template}:null
+ }).slice(0,1200)+'; honor the original owner task and existing file paths.';
+ return [...first,{role:'user',content:'Untrusted tool progress data: '+summary},...last];
+}
+// Only bounded metadata enters durable state.json. Raw generated tool contents
+// must not bloat the state beyond the local console's 26KB read limit.
+export function compactJobState(event){
+ const rows=Array.isArray(event.history)?event.history.slice(-20).map(h=>({
+  step:h.step,tool:h.tool,error:h.error?issue(h.error):undefined,
+  args:isObject(h.args)?Object.fromEntries(['path','action','id','status','bytes','template'].filter(k=>typeof h.args[k]==='string'||typeof h.args[k]==='number').map(k=>[k,String(h.args[k]).slice(0,240)])):undefined,
+  result:isObject(h.result)?Object.fromEntries(['status','error','reason','created','edited','exit_code','blocked','approval_required'].filter(k=>h.result[k]!==undefined).map(k=>[k,typeof h.result[k]==='string'?h.result[k].slice(0,220):h.result[k]])):undefined
+ })):[];
+ return {...event,history:rows,updatedAt:new Date().toISOString()};
+}
 export async function runAgent({task,workspace,generate=localModel(),execute=executeTool,signal,onEvent=async()=>{},maxSteps=MAX_STEPS}={}) {
  checkedTask(task);if(!workspace)throw new Error('Workspace required.');
  if(!Number.isInteger(maxSteps)||maxSteps<1||maxSteps>MAX_STEPS)throw new Error('Step limit exceeded.');
  const messages=[{role:'system',content:INSTRUCTIONS},{role:'user',content:task}];
  const history=[],planState={steps:[]};
+ let consecutiveInvalid=0;
  const suggested=approvedStarterRoute(task);
  if(suggested){
   // Runs only inside the already owner-approved guarded work job.
@@ -233,8 +274,18 @@ export async function runAgent({task,workspace,generate=localModel(),execute=exe
  for(let i=0;i<maxSteps;i++){
   checkStop(signal);await onEvent({status:'running',step:i+1,maxSteps,phase:'generating_next_action',history,plan:planState.steps});
   let action;
-  try {action=parseAction(await generate(messages,{signal}));}
-  catch(e){const msg=issue(e.message);history.push({step:i+1,error:msg});messages.push({role:'user',content:'Invalid JSON tool request: '+msg+'. Respond only with a valid JSON tool action.'});continue;}
+  try {action=parseAction(await generate(boundedToolContext(messages,{plan:planState.steps,starter:suggested}),{signal}));}
+  catch(e){
+   const msg=issue(e.message);history.push({step:i+1,error:msg});consecutiveInvalid++;
+   if(consecutiveInvalid>=3){
+    const reason='Qwen produced three invalid tool actions in a row. Reduce the action size and approve a new job to continue safely.';
+    await onEvent({status:'needs_help',step:i+1,maxSteps,history,plan:planState.steps,reason});
+    return {status:'needs_help',history,plan:planState.steps,reason};
+   }
+   await onEvent({status:'running',step:i+1,maxSteps,phase:'retrying_invalid_json',history,plan:planState.steps});
+   messages.push({role:'user',content:'Invalid JSON tool request: '+msg+'. Output a much shorter complete JSON action (under 200 tokens), no markdown or extra prose.'});continue;
+  }
+  consecutiveInvalid=0;
   if(action.tool==='finish'){
    const result=await execute(action,{workspace,planState});
    if(planState.steps.length&&planState.steps.some(x=>x.status!=='done')){
@@ -253,8 +304,8 @@ export async function runAgent({task,workspace,generate=localModel(),execute=exe
   if(result.approval_required){await onEvent({status:'needs_approval',step:i+1,maxSteps,history,plan:planState.steps,approval:result});return {status:'needs_approval',history,plan:planState.steps,approval:result};}
   // A denied command, failed macro, or unavailable search MUST NOT be
   // transformed into a successful job by subsequent model text.
-  if(result.blocked||result.status==='needs_help'||result.status==='failed'){
-   const reason=issue(result.reason||result.error||'The requested tool could not complete.');
+  if(result.error||result.blocked||result.status==='needs_help'||result.status==='failed'||(typeof result.exit_code==='number'&&result.exit_code!==0)){
+   const reason=issue(result.reason||result.error||(typeof result.exit_code==='number'&&result.exit_code!==0?'Code syntax check failed.':'The requested tool could not complete.'));
    await onEvent({status:'needs_help',step:i+1,maxSteps,history,plan:planState.steps,reason});
    return {status:'needs_help',history,plan:planState.steps,reason};
   }
@@ -276,8 +327,8 @@ export async function runJob(input,jobDir,{generate,workspace=join(process.env.L
   if(await exists(join(dir,'state.json')))throw new Error('Existing job cannot be overwritten.');
   owned=true;await mkdir(workspace,{recursive:true});await atomicJson(join(dir,'request.json'),{task:checkedTask(input.task),thinking:input.thinking===true});
   if(generate===undefined)generate=localModel({thinking:input.thinking===true});
-  const result=await runAgent({task:input.task,workspace,generate,signal:controller.signal,onEvent:async event=>atomicJson(join(dir,'state.json'),{...event,updatedAt:new Date().toISOString()})});
-  await atomicJson(join(dir,'state.json'),{...result,updatedAt:new Date().toISOString()});return result;
+  const result=await runAgent({task:input.task,workspace,generate,signal:controller.signal,onEvent:async event=>atomicJson(join(dir,'state.json'),compactJobState(event))});
+  await atomicJson(join(dir,'state.json'),compactJobState(result));return result;
  } catch(e){const status=controller.signal.aborted?'canceled':'failed';if(owned)await atomicJson(join(dir,'state.json'),{status,error:issue(e.message),updatedAt:new Date().toISOString()});return {status,error:issue(e.message)};}
  finally{clearInterval(timer);clearTimeout(deadline);outer?.removeEventListener('abort',stop);await lock.close();await unlink(join(dir,'run.lock')).catch(()=>{});}
 }
