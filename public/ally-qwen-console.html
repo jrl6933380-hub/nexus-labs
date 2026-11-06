@@ -126,6 +126,20 @@ async function loadTools(){
   const catalog=await api('/api/tools');toolItems.replaceChildren();
   const perms=el('div','Available after approval: local website/code drafts, node syntax checks, bounded Google Search, ad macros, task plans. Protected: final renders, board uploads and public actions. Blocked: GitHub, Nexus production, payments and arbitrary commands.','tool-item');
   toolItems.append(perms);
+  const starters=catalog.site_starters||[];
+  if(starters.length){
+   toolItems.append(el('strong','Local website starter macros · Ready after approval'));
+   for(const starter of starters){
+    const item=el('div','','tool-item');item.append(el('strong',starter.name),el('div',starter.description,'helper'));
+    const use=el('button','Plan a site');use.type='button';
+    use.onclick=()=>{
+     const path='sites/'+starter.id+'-'+Date.now().toString(36)+'/index.html';
+     prompt.value=('Create a static one-page website for a fictional '+starter.id+' business in '+path+'. Use the approved local '+starter.id+' site starter macro, then customize and review it. No publishing or outside actions. First propose a plan and wait for approval.').slice(0,1370);
+     prompt.focus();
+    };
+    item.append(use);toolItems.append(item);
+   }
+  }
   for(const macro of catalog.macros||[]){
    const item=el('div','','tool-item');
    item.append(el('strong',macro.name),el('div',macro.summary,'helper'));
@@ -172,6 +186,7 @@ function memoryCard(memory){
 function proposalCard(proposal,answer){
  const id=proposal.id,card=el('div','','proposal');
  card.append(el('div','Ready to work?','proposal-title'),el('div','Exact task Qwen will run'+(proposal.thinking?' (Thinking mode: ON)':' (fast mode)')+':','helper'),el('div',proposal.task||'No task provided.','bubble'),el('div','Approve to run the guarded local workflow; no work has started.','helper'));
+ if(proposal.starter)card.append(el('div','Macro-first after approval: '+proposal.starter.template+' website starter → '+proposal.starter.path+'. Qwen will customize the created local file; no publishing.','helper'));
  const controls=el('div','','actions');
  const approve=el('button','✓ Approve & start','primary');
  const change=el('button','Change plan');

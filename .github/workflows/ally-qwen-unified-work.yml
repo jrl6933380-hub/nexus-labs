@@ -9,6 +9,7 @@ on:
       - 'scripts/ally/forge-browser.ps1'
       - 'public/nexus-macro-registry.js'
       - 'test/ally-qwen-creative-tools.test.mjs'
+      - 'test/ally-qwen-site-starter.test.mjs'
       - 'scripts/ally/qwen-terminal-agent.mjs'
       - 'scripts/ally/install-qwen-console.ps1'
       - 'public/ally-qwen-console.html'
@@ -27,6 +28,7 @@ on:
       - 'scripts/ally/forge-browser.ps1'
       - 'public/nexus-macro-registry.js'
       - 'test/ally-qwen-creative-tools.test.mjs'
+      - 'test/ally-qwen-site-starter.test.mjs'
       - 'scripts/ally/qwen-terminal-agent.mjs'
       - 'scripts/ally/install-qwen-console.ps1'
       - 'public/ally-qwen-console.html'
@@ -59,6 +61,7 @@ jobs:
             test/ally-qwen-memory.test.mjs \
             test/ally-qwen-terminal.test.mjs \
             test/ally-qwen-creative-tools.test.mjs \
+            test/ally-qwen-site-starter.test.mjs \
             tests/ally/qwen-ad-macro.test.mjs; do
             node --test "$test_file" || exit 1
           done
