@@ -98,7 +98,7 @@ async function api(path,{method='GET',data}={}){
 function disableActions(box){box.querySelectorAll('button').forEach(b=>b.disabled=true);}
 function proposalCard(proposal,answer){
  const id=proposal.id,card=el('div','','proposal');
- card.append(el('div','Ready to work?','proposal-title'),el('div','Qwen has proposed a task. Approve to run the guarded local workflow; no work has started.','helper'));
+ card.append(el('div','Ready to work?','proposal-title'),el('div','Exact task Qwen will run:','helper'),el('div',proposal.task||'No task provided.','bubble'),el('div','Approve to run the guarded local workflow; no work has started.','helper'));
  const controls=el('div','','actions');
  const approve=el('button','✓ Approve & start','primary');
  const change=el('button','Change plan');
