@@ -171,7 +171,7 @@ function memoryCard(memory){
 }
 function proposalCard(proposal,answer){
  const id=proposal.id,card=el('div','','proposal');
- card.append(el('div','Ready to work?','proposal-title'),el('div','Exact task Qwen will run:','helper'),el('div',proposal.task||'No task provided.','bubble'),el('div','Approve to run the guarded local workflow; no work has started.','helper'));
+ card.append(el('div','Ready to work?','proposal-title'),el('div','Exact task Qwen will run'+(proposal.thinking?' (Thinking mode: ON)':' (fast mode)')+':','helper'),el('div',proposal.task||'No task provided.','bubble'),el('div','Approve to run the guarded local workflow; no work has started.','helper'));
  const controls=el('div','','actions');
  const approve=el('button','✓ Approve & start','primary');
  const change=el('button','Change plan');
@@ -208,7 +208,7 @@ async function refresh(){
   if(!data.jobs?.length){jobsEl.append(el('div','No recent jobs.','helper'));return;}
   for(const job of data.jobs.slice(0,8)){
    const row=el('div','','job');
-   row.append(el('span',(job.task||'Task')+' · '+job.status+(job.step?' · tool step '+job.step:'')));
+   row.append(el('span',(job.task||'Task')+' · '+job.status+(job.step?' · tool step '+job.step:'')+(job.phase?' · '+job.phase.replaceAll('_',' '):'')));
    if(!terminal.has(job.status)){
     const stop=el('button','Stop');
     stop.type='button';stop.onclick=async()=>{stop.disabled=true;try{await api('/api/tasks/'+job.id+'/stop',{method:'POST',data:{}});say('info','Stop requested for '+job.id.slice(0,8)+'.');}catch(error){say('info','Stop failed: '+error.message);}finally{await refresh();}};
@@ -236,7 +236,7 @@ async function refresh(){
    if(tracked.has(job.id)){
     const prev=tracked.get(job.id);
     if(job.status!==prev.status||job.step!==prev.step){
-     let note='Job '+job.id.slice(0,8)+': '+job.status.replace(/_/g,' ')+(job.step?' · tool step '+job.step:'')+'.';
+     let note='Job '+job.id.slice(0,8)+': '+job.status.replace(/_/g,' ')+(job.step?' · tool step '+job.step:'')+(job.phase?' · '+job.phase.replaceAll('_',' '):'')+'.';
      if(job.status==='done'&&job.answer)note+=' '+job.answer;
      if(job.error)note+=' '+job.error;
      if(job.status==='needs_approval')note+=' This tool action was not executed; review it before retrying.';
