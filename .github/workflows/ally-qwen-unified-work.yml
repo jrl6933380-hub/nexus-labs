@@ -50,7 +50,7 @@ jobs:
           node --check scripts/ally/qwen-memory.mjs
           node --check scripts/ally/qwen-work-tools.mjs
       - name: Validate consent, private memory, plan state and existing macro permission tests
-        run: node --test test/ally-qwen-console.test.mjs test/ally-qwen-memory.test.mjs test/ally-qwen-terminal.test.mjs test/ally-qwen-creative-tools.test.mjs tests/ally/qwen-ad-macro.test.mjs
+        run: node --test --test-concurrency=1 test/ally-qwen-console.test.mjs test/ally-qwen-memory.test.mjs test/ally-qwen-terminal.test.mjs test/ally-qwen-creative-tools.test.mjs tests/ally/qwen-ad-macro.test.mjs
       - name: Check unified chat inline script syntax
         run: |
           node --input-type=module - <<'NODE'
