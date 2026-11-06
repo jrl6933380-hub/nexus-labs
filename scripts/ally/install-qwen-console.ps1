@@ -8,6 +8,9 @@ param(
  [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$PanelSha256,
  [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$MemorySha256,
  [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$AgentSha256,
+ [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$ToolSha256,
+ [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$ForgeBrowserSha256,
+ [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$MacroRegistrySha256,
  [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$LauncherSha256,
  [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$WatcherSha256,
  [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$RevisionTransportSha256,
@@ -27,6 +30,9 @@ $files=@(
  @{path='scripts/ally/qwen-console.mjs';hash=$ServerSha256;min=2000;max=35000},
  @{path='scripts/ally/qwen-memory.mjs';hash=$MemorySha256;min=2000;max=15000},
  @{path='scripts/ally/qwen-terminal-agent.mjs';hash=$AgentSha256;min=10000;max=40000},
+ @{path='scripts/ally/qwen-work-tools.mjs';hash=$ToolSha256;min=2000;max=16000},
+ @{path='scripts/ally/forge-browser.ps1';hash=$ForgeBrowserSha256;min=2000;max=35000},
+ @{path='public/nexus-macro-registry.js';hash=$MacroRegistrySha256;min=3000;max=30000},
  @{path='scripts/ally/qwen-revision-watcher.mjs';hash=$WatcherSha256;min=2000;max=35000},
  @{path='scripts/ally/revision-transport.ps1';hash=$RevisionTransportSha256;min=1000;max=10000},
  @{path='scripts/ally/approved-board-watcher.mjs';hash=$BoardWatcherSha256;min=3000;max=18000},
@@ -57,11 +63,20 @@ foreach($item in $files){
 $terminalRoot=Join-Path $root 'qwen-terminal'
 $terminalVersion=Join-Path (Join-Path $terminalRoot 'versions') $Revision
 $agentSource=Join-Path $version 'scripts\ally\qwen-terminal-agent.mjs'
-$agentDestination=Join-Path $terminalVersion 'scripts\ally\qwen-terminal-agent.mjs'
-[void](New-Item -ItemType Directory -Path (Split-Path $agentDestination -Parent) -Force)
-Copy-Item -LiteralPath $agentSource -Destination $agentDestination -Force
-$agentHash=(Get-FileHash -LiteralPath $agentDestination -Algorithm SHA256).Hash.ToLowerInvariant()
-if($agentHash -ne $AgentSha256){throw 'Pinned Qwen task runner hash mismatch.'}
+$copies=@(
+ @{from='scripts\ally\qwen-terminal-agent.mjs';hash=$AgentSha256},
+ @{from='scripts\ally\qwen-work-tools.mjs';hash=$ToolSha256},
+ @{from='scripts\ally\forge-browser.ps1';hash=$ForgeBrowserSha256},
+ @{from='public\nexus-macro-registry.js';hash=$MacroRegistrySha256}
+)
+foreach($copy in $copies){
+ $source=Join-Path $version $copy.from
+ $dest=Join-Path $terminalVersion $copy.from
+ [void](New-Item -ItemType Directory -Path (Split-Path $dest -Parent) -Force)
+ Copy-Item -LiteralPath $source -Destination $dest -Force
+ $actualHash=(Get-FileHash -LiteralPath $dest -Algorithm SHA256).Hash.ToLowerInvariant()
+ if($actualHash -ne $copy.hash){throw ('Pinned local Qwen tool hash mismatch: '+$copy.from)}
+}
 $terminalManifest=Join-Path $terminalRoot 'installed.json'
 $terminalStaging=$terminalManifest+'.staging'
 [IO.File]::WriteAllText($terminalStaging,(@{revision=$Revision;root=$terminalVersion}|ConvertTo-Json -Compress),[Text.Encoding]::UTF8)
@@ -118,7 +133,7 @@ Move-Item -LiteralPath $staging -Destination $manifest -Force
 Write-Output ('INSTALLED Qwen Console at localhost:9942; launcher shortcut updated; revision '+$Revision)
 Write-Output ('SERVER '+$server)
 Write-Output ('DESKTOP '+$shortcut)
-Write-Output 'Qwen chat, local memory and guarded work runner pinned to the same revision.'
+Write-Output 'Qwen chat, memory, browser search, Macro Controller and isolated work runner pinned to the same revision.'
 Write-Output 'Reopen the Qwen Console after closing its old local process.'
 Write-Output 'No auto-start, shell replacement, or new device pairing.'
 if($Launch){& $start}

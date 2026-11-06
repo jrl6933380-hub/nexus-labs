@@ -42,7 +42,7 @@ summary{cursor:pointer;color:var(--dim);font-weight:650}
 .plan{display:grid;gap:3px;padding:6px 8px;margin:6px 0;border-left:2px solid #59796c;font-size:12px}
 .plan-row{color:var(--dim)}.plan-row.done{color:var(--mint)}.plan-row.blocked{color:#ffc4b6}
 .memory-list{display:grid;gap:7px;margin-top:8px}
-.memory-note{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px;border:1px solid var(--stroke);border-radius:9px;overflow-wrap:anywhere;font-size:12px}.memory-note button{flex-shrink:0;min-height:29px;font-size:11px;padding:3px 8px}
+.tool-items{display:grid;gap:9px;margin-top:10px}.tool-item{border:1px solid var(--stroke);border-radius:10px;padding:9px;background:#132239;display:grid;gap:5px}.tool-item .helper{font-size:12px}.tool-item .tool-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.site-preview iframe{width:100%;height:420px;border:1px solid var(--stroke);background:#fff;border-radius:10px}.memory-note{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px;border:1px solid var(--stroke);border-radius:9px;overflow-wrap:anywhere;font-size:12px}.memory-note button{flex-shrink:0;min-height:29px;font-size:11px;padding:3px 8px}
 .error{color:#ffc4b6}
 @media(max-width:620px){.wrap{padding:9px;gap:8px}.chat{min-height:calc(100dvh - 170px)}.messages{max-height:calc(100dvh - 275px);padding:12px;gap:9px}.bubble{max-width:95%}.composer{padding:10px}.actions button{flex:1}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
@@ -51,7 +51,7 @@ summary{cursor:pointer;color:var(--dim);font-weight:650}
 <body>
 <main class="wrap">
 <header class="head">
- <div><div class="kicker">NEXUS ALLY / LOCAL AI</div><h1>Chat with Qwen</h1><p class="helper">One conversation for questions, plans, and approved work.</p></div>
+ <div><div class="kicker">NEXUS ALLY / CREATIVE WORKSPACE</div><h1>Chat with Qwen</h1><p class="helper">One conversation for questions, plans, and approved work.</p></div>
  <div class="status"><span class="dot" id="dot"></span><span id="health">Connecting to Qwen…</span><button type="button" id="newChat">New chat</button></div>
 </header>
 <section class="chat" aria-label="Qwen unified chat">
@@ -63,6 +63,7 @@ summary{cursor:pointer;color:var(--dim);font-weight:650}
    <button type="button" class="chip" data-shortcut="website">▣ Build Website</button>
    <button type="button" class="chip" data-shortcut="ad">▶ Make Ad</button>
    <button type="button" class="chip" data-shortcut="leads">⌕ Find Leads</button>
+   <button type="button" class="chip" data-shortcut="web">◎ Search Web</button>
    <button type="button" class="chip" data-shortcut="files">⌘ Work on Files</button>
    <button type="button" class="chip" data-shortcut="remember">◈ Remember</button>
    <button type="button" class="chip" data-shortcut="tools">⚙ Tools</button>
@@ -75,23 +76,33 @@ summary{cursor:pointer;color:var(--dim);font-weight:650}
  </div>
 </section>
 <details><summary>Work activity and recent jobs</summary><div id="jobs" class="jobs"><div class="helper">No jobs yet.</div></div></details>
-<details id="savedMemory"><summary>Saved memories (on this Ally only)</summary><p class="helper">Only memories you explicitly approve are saved. Do not store passwords or API keys here.</p><div id="memories" class="memory-list"><div class="helper">No saved memories.</div></div></details>
+<details id="toolDrawer"><summary>Tools & Macro Controller · What Qwen can do</summary>
+  <p class="helper">All verified macro workflows are listed below. Qwen can start approved local actions; rendering, public posting and protected owner workflows keep separate approvals. No GitHub or Nexus production access.</p>
+  <p><a href="https://nexus-labs-sigma.vercel.app/nexus-macro-controller.html" target="_blank" rel="noopener noreferrer">Open full Macro Controller</a></p>
+  <div id="toolItems" class="tool-items"><div class="helper">Loading approved tools…</div></div>
+ </details>
+ <details id="previewPane" class="site-preview" hidden><summary>Local website preview · scripts blocked</summary>
+  <p class="helper" id="previewNotice">This static preview is isolated from Nexus and cannot execute scripts or make network requests.</p>
+  <iframe id="siteFrame" title="Sandboxed Qwen website draft" sandbox="" referrerpolicy="no-referrer"></iframe>
+ </details>
+ <details id="savedMemory"><summary>Saved memories (on this Ally only)</summary><p class="helper">Only memories you explicitly approve are saved. Do not store passwords or API keys here.</p><div id="memories" class="memory-list"><div class="helper">No saved memories.</div></div></details>
 </main>
 <script>
 (()=>{
 'use strict';
 const $=s=>document.querySelector(s);
-const messages=$('#messages'),jobsEl=$('#jobs'),prompt=$('#prompt'),memoriesEl=$('#memories');
+const messages=$('#messages'),jobsEl=$('#jobs'),prompt=$('#prompt'),memoriesEl=$('#memories'),toolItems=$('#toolItems');
 let history=[],busy=false,approving=false;
 const tracked=new Map();
 const terminal=new Set(['done','failed','canceled','needs_help','needs_approval']);
 const shortcuts={
- website:'Help me build a website. First ask for the business name, products, style and pages, then propose a small first task for your local workspace. Do not start yet.',
+ website:'Help me create a standalone website draft under sites/project/index.html in your isolated Ally workspace. Ask for the business, content and style, then propose a task with inline HTML/CSS for my approval. Do not touch Nexus code or publish anything.',
  ad:'Help me make an ad. First ask what it promotes and the style and length. When the brief is ready, propose the available approved ad-macro workflow. Do not start yet.',
- leads:'Help me prepare a Forge lead research workflow. Explain which local tools you have and what would still need a connected research tool. Ask which business type and city; do not claim you searched the web.',
+ leads:'Help me find potential business leads with public Google Search evidence using the approved web_search tool. Ask which business type and city, then propose a small research task. Do not contact prospects or add them to Nexus without separate approval.',
+ web:'Help me search the public web using the Google search tool in your guarded workspace. Ask what I want to research, then propose an approved search task. Include source links and never invent results.',
  files:'Help me work on files in your isolated Qwen workspace. Ask which file and what change, then propose a small guarded task for my approval.',
  remember:'Remember that ',
- tools:'What local tools and ad macros can you actually use right now? Explain which ones require my approval, then ask what I want to try.'
+ tools:'Use your macro_catalog tool after proposing an approved job if you need exact verified macro details. Explain your local coding, Google search and ad capabilities, which actions require approval, and confirm you have no GitHub or Nexus production access.'
 };
 const el=(tag,content,cls='')=>{const node=document.createElement(tag);node.className=cls;node.textContent=content;return node;};
 function append(node){messages.append(node);messages.scrollTop=messages.scrollHeight;}
@@ -105,6 +116,34 @@ async function api(path,{method='GET',data}={}){
  return payload;
 }
 function disableActions(box){box.querySelectorAll('button').forEach(b=>b.disabled=true);}
+async function loadTools(){
+ try{
+  const catalog=await api('/api/tools');toolItems.replaceChildren();
+  const perms=el('div','Available after approval: local website/code drafts, node syntax checks, bounded Google Search, ad macros, task plans. Protected: final renders, board uploads and public actions. Blocked: GitHub, Nexus production, payments and arbitrary commands.','tool-item');
+  toolItems.append(perms);
+  for(const macro of catalog.macros||[]){
+   const item=el('div','','tool-item');
+   item.append(el('strong',macro.name),el('div',macro.summary,'helper'));
+   const actions=el('div','','tool-actions');
+   actions.append(el('span',macro.runLocally?'Guarded local macro':'Owner-controlled workflow','helper'));
+   const use=el('button','Discuss workflow');use.type='button';
+   use.onclick=()=>{
+    prompt.value=('Help me use the verified Macro Controller workflow "'+macro.name+'". We need '+macro.need+'; the result is '+macro.result+'. Explain the necessary approvals and next steps. Do not begin until I approve.').slice(0,1370);
+    prompt.focus();
+   };
+   actions.append(use);item.append(actions);toolItems.append(item);
+  }
+ }catch(err){toolItems.replaceChildren(el('div','Cannot load verified tools: '+err.message,'helper error'));}
+}
+async function previewSite(path){
+ try{
+  const data=await api('/api/site-preview',{method:'POST',data:{path}});
+  $('#siteFrame').srcdoc=data.html;
+  $('#previewNotice').textContent=path+' · '+data.notice;
+  $('#previewPane').hidden=false;$('#previewPane').open=true;
+  $('#previewPane').scrollIntoView({block:'nearest'});
+ }catch(err){say('info','Website preview unavailable: '+err.message);}
+}
 async function refreshMemories(){
  try{
   const data=await api('/api/memories');memoriesEl.replaceChildren();
@@ -178,6 +217,9 @@ async function refresh(){
     };
     row.append(resume);
    }
+   if(job.status==='done'&&job.previewPaths?.length){
+    const show=el('button','Preview site');show.type='button';show.onclick=()=>previewSite(job.previewPaths[0]);row.append(show);
+   }
    jobsEl.append(row);
    if(Array.isArray(job.plan)&&job.plan.length){
     const plan=el('div','','plan');
@@ -224,7 +266,7 @@ async function restoreChat(){try{
  history=data.messages.slice(-12);
  messages.replaceChildren();for(const m of data.messages)if(m.role==='user'||m.role==='assistant')say(m.role,m.content);
 }catch(err){say('info','Could not restore local conversation: '+err.message);}}
-restoreChat();refreshMemories();refresh();setInterval(refresh,5000);
+restoreChat();refreshMemories();loadTools();refresh();setInterval(refresh,5000);
 })();
 </script>
 </body></html>

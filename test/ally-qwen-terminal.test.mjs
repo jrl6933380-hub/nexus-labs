@@ -24,14 +24,18 @@ test('Qwen writes only new files inside workspace and parses its code safely',as
   try{await symlink(outside,join(w,'escape'),'dir');await assert.rejects(executeTool(act('write_file',{path:'escape/x',content:'bad'}),{workspace:w}),/Links/);}finally{await rm(outside,{recursive:true,force:true});}
  }finally{await rm(w,{recursive:true,force:true});}
 });
-test('Unapproved commands never run and return explicit approval request',async()=>{
+test('Unrestricted shell and ALL git commands are blocked without invocation',async()=>{
  const w=await mkdtemp(join(tmpdir(),'qwen-safe-'));let called=0;
  try{
-  const res=await executeTool(act('run_command',{command:'powershell -Command Remove-Item C:\\'}),{workspace:w,commandRunner:()=>{called++;}});
-  assert.equal(res.approval_required,true);assert.equal(called,0);
-  const actions=[act('run_command',{command:'cmd /c echo hello'}),act('finish',{message:'Blocked without running'})];
-  const r=await runAgent({task:'Try shell',workspace:w,generate:async()=>reply(actions.shift())});
-  assert.equal(r.status,'needs_approval');assert.equal(actions.length,1);
+  for(const command of ['powershell -Command Remove-Item C:\\','cmd /c echo hello','git_status','git_log','git_diff_stat','npm install']){
+   const res=await executeTool(act('run_command',{command}),{workspace:w,commandRunner:()=>{called++;}});
+   assert.equal(res.blocked,true,command);assert.equal(res.approval_required,undefined);
+  }
+  assert.equal(called,0);
+  const actions=[act('run_command',{command:'git_status'}),act('finish',{message:'Git tools are not available'})];
+  const r=await runAgent({task:'Try git',workspace:w,generate:async()=>reply(actions.shift())});
+  assert.equal(r.status,'needs_help');assert.equal(actions.length,1,'the runner stops instead of asking the model to fake completion');
+  assert.equal(r.history[0].result.blocked,true);
  }finally{await rm(w,{recursive:true,force:true});}
 });
 test('Qwen tool loop accepts only structured JSON, never code or instructions from files',async()=>{
@@ -42,11 +46,13 @@ test('Qwen tool loop accepts only structured JSON, never code or instructions fr
   assert.equal(r.status,'done');assert.equal(r.answer,'Created notes.txt');assert.equal(await readFile(join(w,'notes.txt'),'utf8'),'Hello Qwen');assert.ok(r.history.some(x=>x.error));assert.ok(states.includes('done'));
  }finally{await rm(w,{recursive:true,force:true});}
 });
-test('bounded command runner receives fixed argv and no shell',async()=>{
+test('the terminal allows only fixed Node syntax checks, never executes website scripts',async()=>{
  const w=await mkdtemp(join(tmpdir(),'qwen-safe-'));let received;
  try{
-  const r=await executeTool(act('run_command',{command:'git_status'}),{workspace:w,commandRunner:async(...x)=>{received=x;return {stdout:'ok',stderr:''};}});
-  assert.equal(r.exit_code,0);assert.equal(received[0],'git');assert.deepEqual(received[1],['status','--short','--untracked-files=no']);assert.equal(received[2].shell,false);
+  await writeFile(join(w,'site.mjs'),'export const answer=42;');
+  const r=await executeTool(act('run_command',{command:'node_check',path:'site.mjs'}),{workspace:w,commandRunner:async(...x)=>{received=x;return {stdout:'ok',stderr:''};}});
+  assert.equal(r.exit_code,0);assert.equal(received[0],process.execPath);
+  assert.deepEqual(received[1],['--check',join(w,'site.mjs')]);assert.equal(received[2].shell,false);
  }finally{await rm(w,{recursive:true,force:true});}
 });
 test('durable job is not overwritten, can fail closed and leaves private state',async()=>{

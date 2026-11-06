@@ -5,6 +5,10 @@ on:
     paths:
       - 'scripts/ally/qwen-console.mjs'
       - 'scripts/ally/qwen-memory.mjs'
+      - 'scripts/ally/qwen-work-tools.mjs'
+      - 'scripts/ally/forge-browser.ps1'
+      - 'public/nexus-macro-registry.js'
+      - 'test/ally-qwen-creative-tools.test.mjs'
       - 'scripts/ally/qwen-terminal-agent.mjs'
       - 'scripts/ally/install-qwen-console.ps1'
       - 'public/ally-qwen-console.html'
@@ -18,6 +22,10 @@ on:
     paths:
       - 'scripts/ally/qwen-console.mjs'
       - 'scripts/ally/qwen-memory.mjs'
+      - 'scripts/ally/qwen-work-tools.mjs'
+      - 'scripts/ally/forge-browser.ps1'
+      - 'public/nexus-macro-registry.js'
+      - 'test/ally-qwen-creative-tools.test.mjs'
       - 'scripts/ally/qwen-terminal-agent.mjs'
       - 'scripts/ally/install-qwen-console.ps1'
       - 'public/ally-qwen-console.html'
@@ -40,8 +48,17 @@ jobs:
           node --check scripts/ally/qwen-console.mjs
           node --check scripts/ally/qwen-terminal-agent.mjs
           node --check scripts/ally/qwen-memory.mjs
+          node --check scripts/ally/qwen-work-tools.mjs
       - name: Validate consent, private memory, plan state and existing macro permission tests
-        run: node --test test/ally-qwen-console.test.mjs test/ally-qwen-memory.test.mjs test/ally-qwen-terminal.test.mjs tests/ally/qwen-ad-macro.test.mjs
+        run: |
+          for test_file in \
+            test/ally-qwen-console.test.mjs \
+            test/ally-qwen-memory.test.mjs \
+            test/ally-qwen-terminal.test.mjs \
+            test/ally-qwen-creative-tools.test.mjs \
+            tests/ally/qwen-ad-macro.test.mjs; do
+            node --test "$test_file" || exit 1
+          done
       - name: Check unified chat inline script syntax
         run: |
           node --input-type=module - <<'NODE'

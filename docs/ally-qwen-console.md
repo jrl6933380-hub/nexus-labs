@@ -2,11 +2,11 @@
 
 ## Owner experience
 - One chat history and one composer for normal Qwen conversation and work requests, replacing the separate Chat and Guarded Task forms.
-- Shortcut chips for **Build Website**, **Make Ad**, **Find Leads** and **Work on Files** only **prefill the composer**. They don't start work or silently grant permissions.
+- Shortcut chips for **Build Website**, **Make Ad**, **Find Leads**, **Search Web**, **Work on Files**, **Remember**, and **Tools** only **prefill the composer**. They don't start work or silently grant permissions.
 - Local Qwen replies conversationally or returns a bounded structured proposal when explicitly asked to perform a task. The page displays **Approve & start**, **Change plan**, **Cancel** in that same thread. No tool runs on mere model output.
 - A proposal is held by the local console server only (not the browser), with an unguessable one-use ID and a 15-minute expiry. Starting work requires a separate same-origin POST with `approved:true`; the old direct `POST /api/tasks` route is rejected. A cancellation or successful approval consumes the proposal and cannot be replayed.
 - Work results appear back in the same chat, with recent jobs and Stop available in a collapsible activity section.
-- Current work capabilities are unchanged: pinned guarded Qwen runner, isolated workspace, fixed commands/ad macros, **eight tool steps maximum per job**. Chat cannot approve arbitrary PowerShell, posting, deployment, purchases or unpublished rendering. Any inner runner needs-approval response remains unexecuted.
+- The current work runner uses an isolated workspace, a maximum of **18 tool steps per job**, bounded public Google search, and the verified Macro Controller registry; Git commands have been removed. Chat cannot approve arbitrary PowerShell, posting, deployment, purchases or unpublished rendering. Any inner runner needs-approval response remains unexecuted.
 - The current launcher's page remains local to `127.0.0.1:9942`. No always-on background service or unrestricted shell is added.
 
 ## Rollout
@@ -26,7 +26,7 @@
 **Tracked jobs and existing tools**
 - The guarded runner supports set_plan (1–6 steps), update_step (in_progress/done/blocked), and get_plan. Updates are checkpointed to the existing local job state.json file and displayed under **Work activity and recent jobs**.
 - Bounded model/tool steps increase from 8 to **18**, with a 20-minute job deadline. If Qwen finishes while plan steps are incomplete, the job is **needs_help**, not done. Additional work needs a fresh owner-approved job.
-- Safe local tools remain: isolated file creation/edits, code checks, and the fixed ad_macro catalog/start/preview/variants/package/private-review actions. Rendering, arbitrary shell, purchases, public publishing and network scraping are still unavailable or approval-gated. This does not add unrestricted PowerShell.
+- Creative Workspace now supports isolated file creation/edits, JavaScript syntax checks, a bounded public Google Search adapter, safe local HTML previews, and the verified ad macro registry. Rendering, arbitrary shell, GitHub, purchases and public publishing are still blocked or approval-gated. See `docs/ally-qwen-creative-workspace.md`.
 
 **Pinned installation after PR review**
 - The existing installer scripts/ally/install-qwen-console.ps1 gains required **-MemorySha256** and **-AgentSha256** parameters alongside the previous SHA parameters. Calculate all hashes from the **exact reviewed merged commit**.
@@ -42,8 +42,8 @@ This adds a live chat, guarded task list, and tool-activity display directly to 
 ## Architecture
 
 - A **manually launched** Node service binds only to `127.0.0.1:9942`; it serves the local launcher at `/deck` and the embedded console at `/`. The launcher and iframe therefore share the same trusted origin. The owner desktop shortcut starts the service on demand; there is no Windows startup task or permanent service.
-- Chat still calls **only** local Qwen `127.0.0.1:9931/v1/chat/completions`, **without model tool calls**. Qwen returns a plain conversational answer or structured proposal; execution only happens from a separate approved server action. No cloud fallback. Conversation history is held only in the browser tab and can be cleared.
-- Owner-approved chat proposals launch the **existing pinned local runner** `scripts/ally/qwen-terminal-agent.mjs` via fixed Node arguments (`shell` is not used). The model can use workspace-confined file operations and approved read-only checks, not arbitrary PowerShell. A second active task is refused. Other commands result in `needs_approval` **without executing them**.
+- Chat still calls **only** local Qwen `127.0.0.1:9931/v1/chat/completions`, **without model tool calls**. Qwen returns a plain conversational answer or structured proposal; execution only happens from a separate approved server action. No cloud fallback. Recent conversation history is retained locally on the Ally and can be cleared from New chat.
+- Owner-approved chat proposals launch the **existing pinned local runner** `scripts/ally/qwen-terminal-agent.mjs` via fixed Node arguments (`shell` is not used). The model can use workspace-confined file operations and approved read-only checks, not arbitrary PowerShell. A second active task is refused. Unknown terminal or Git commands are blocked **without executing them**; owner-only macro actions retain separate approval routes.
 - Live status scans the last ten local job receipts (last six events per job) and Qwen health. The API strips tool output and file content rather than displaying it in the dashboard.
 - Only same-origin JSON POST requests with `X-Nexus-Panel: 1` are accepted. Exact localhost Host header is required. No CORS headers are sent. Server does not bind any LAN or WAN interface; it needs no API key or browser credentials.
 
