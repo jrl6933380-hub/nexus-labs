@@ -214,6 +214,10 @@ async function startPayoutSetup() {
   }
 }
 
+function defaultSignupTier() {
+  return TIERS.find(t=>t.key==='launch') || TIERS.find(t=>t.key==='standard') || TIERS[0];
+}
+
 function closeDealHtml(lead) {
   if (signedLeads[lead.id]) {
     const url = signedLeads[lead.id];
@@ -227,13 +231,14 @@ function closeDealHtml(lead) {
       '<div class="tier-note">Commissions are recorded only after payment clears.</div>';
   }
   if (!TIERS.length) return '<p>Approved offer unavailable. Reload before quoting a price or signing up.</p>';
+  const firstChoice = defaultSignupTier();
   return '' +
     '<div class="tier-row">' + TIERS.map(function (t) {
-      return '<button type="button" class="tier-opt' + (t.key === TIERS[0].key ? ' selected' : '') + '" data-tier="' + t.key + '">' +
+      return '<button type="button" class="tier-opt' + (t.key === firstChoice.key ? ' selected' : '') + '" data-tier="' + t.key + '">' +
         '<div class="name">' + t.name + '</div><div class="price">' + t.price + '</div></button>';
     }).join('') + '</div>' +
-    '<div class="tier-note" id="tier-note">' + TIERS[0].note + '</div>' +
-    '<button type="button" class="signup-btn" id="signup-btn">Sign them up: ' + TIERS[0].name + '</button>';
+    '<div class="tier-note" id="tier-note">' + firstChoice.note + '</div>' +
+    '<button type="button" class="signup-btn" id="signup-btn">Sign them up: ' + firstChoice.name + '</button>';
 }
 
 function escapeHtml(s) {
@@ -386,7 +391,7 @@ function renderLead(id) {
     box.append(close, frame);dialog.append(box);document.body.append(dialog);dialog.showModal();
   });
 
-  let chosenTier = TIERS[0]?.key || '';
+  let chosenTier = defaultSignupTier()?.key || '';
   view.querySelectorAll('.tier-opt').forEach(function (opt) {
     opt.addEventListener('click', function () {
       chosenTier = opt.dataset.tier;
