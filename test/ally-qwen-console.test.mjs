@@ -158,3 +158,18 @@ test('saved memories and chat survive local server requests, with explicit opt-i
   assert.deepEqual((await (await fetch('http://'+HOST+':'+PORT+'/api/history')).json()).messages,[]);
  }finally{await new Promise(resolve=>s.close(resolve));await rm(root,{recursive:true,force:true});}
 });
+
+test('BOM-prefixed runner manifest from old Windows installer is accepted',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'ally-console-bom-'));
+ try{
+  const rev='c'.repeat(40),version=join(root,'versions',rev),runner=join(version,'scripts','ally','qwen-terminal-agent.mjs');
+  await mkdir(join(version,'scripts','ally'),{recursive:true});
+  await writeFile(runner,'// reviewed test runner');
+  const manifest='\uFEFF'+JSON.stringify({revision:rev,root:version});
+  await writeFile(join(root,'installed.json'),manifest);
+  let launches=0;
+  const job=await startTask({task:'Write an isolated test note'}, {root,spawnImpl:()=>{launches++;return {unref(){}};}});
+  assert.equal(job.status,'starting');assert.equal(launches,1);
+  assert.equal((await listJobs(root))[0].id,job.id);
+ }finally{await rm(root,{recursive:true,force:true});}
+});
