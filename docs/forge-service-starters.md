@@ -4,7 +4,9 @@ Three layouts share one business content record: Editorial (warm studio journal)
 
 ## Use in Forge
 
-In Field, “They answered” and “Generate 3 looks” call the existing protected `/api/forge-site` route with `action: templates`. This saves three independent HTML documents in `siteVariants` and selects Editorial. Direction buttons call `select_template` with `templateId`; `siteHtml` remains the selected document for existing consumers. Full screen opens the selected document in a sandboxed dialog. The existing custom edit path updates the selected variant only. “Rebuild 3 looks” intentionally replaces all three variants. The original `generate` API action remains available for custom model generation and clears template variants.
+In Field, “They answered — open call workspace” opens the pitch, preview panel and call log without a request or build. The separate “Build previews” button calls the existing protected `/api/forge-site` route with `action: templates`. This saves three independent HTML documents in `siteVariants` and selects Editorial. Direction buttons call `select_template` with `templateId`; `siteHtml` remains the selected document for existing consumers. Full screen opens the selected document in a sandboxed dialog. The existing custom edit path updates the selected variant only. “Rebuild 3 looks” intentionally replaces all three variants. The original `generate` API action remains available for custom model generation and clears template variants.
+
+The caller pitch distinguishes a known website, a no-site research finding, social/booking-only pages and unresolved status. Reviewed findings show their research date. Preview wording reflects the current build state and only offers a ready preview when usable HTML is present. The approved offer and signup choices come from `lib/forgeProgram.js`; the API attaches that offer to the pitch, and the shared browser renderer updates copy after build/rebuild responses. The script does not initiate outreach or promise booking/follow-up automation.
 
 ## Business content
 
