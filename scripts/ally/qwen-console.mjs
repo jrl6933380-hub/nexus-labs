@@ -33,7 +33,7 @@ async function bodyJson(req,maxBody=MAX_BODY){let bytes=0,chunks=[];for await(co
 async function jsonFile(path){try{const f=await stat(path);if(!f.isFile()||f.size>26000)return null;return JSON.parse((await readFile(path,'utf8')).replace(/^\uFEFF/,''));}catch{return null;}}
 const jobDir=(root,id)=>join(root,'jobs',id);
 function jobId(id){return typeof id==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);}
-export async function listJobs(root=ROOT){const dir=join(root,'jobs');let entries=[];try{entries=await readdir(dir,{withFileTypes:true});}catch{return [];}const results=[];for(const e of entries.slice(-120)){if(!e.isDirectory()||!jobId(e.name))continue;const path=jobDir(root,e.name);const [state,request]=await Promise.all([jsonFile(join(path,'state.json')),jsonFile(join(path,'request.json'))]);const input=request||await jsonFile(join(path,'input.json'));const info=await stat(path).catch(()=>null);results.push({id:e.name,status:short(state?.status||'starting',30),step:state?.step||0,phase:short(state?.phase||'',40),updatedAt:state?.updatedAt||info?.mtime?.toISOString()||null,task:short(input?.task,180),answer:short(state?.answer,400),error:short(state?.error,300),plan:Array.isArray(state?.plan)?state.plan.slice(0,8).map(s=>({id:s.id,title:short(s.title,130),status:short(s.status,20)})):[],previewPaths:state?.status==='done'&&Array.isArray(state.history)?[...new Set(state.history.filter(h=>['write_file','edit_file'].includes(h.tool)&&typeof h.args?.path==='string'&&/\.html?$/i.test(h.args.path)&&h.args.path.length<=240).map(h=>h.args.path))].slice(0,3):[],history:Array.isArray(state?.history)?state.history.slice(-6).map(h=>({step:h.step,tool:short(h.tool||'error',30),error:short(h.error,160),result:h.result?.error?short(h.result.error,160):null})):[]});}results.sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt)));return results.slice(0,10);}
+export async function listJobs(root=ROOT){const dir=join(root,'jobs');let entries=[];try{entries=await readdir(dir,{withFileTypes:true});}catch{return [];}const results=[];for(const e of entries.slice(-120)){if(!e.isDirectory()||!jobId(e.name))continue;const path=jobDir(root,e.name);const [state,request]=await Promise.all([jsonFile(join(path,'state.json')),jsonFile(join(path,'request.json'))]);const input=request||await jsonFile(join(path,'input.json'));const info=await stat(path).catch(()=>null);results.push({id:e.name,status:short(state?.status||'starting',30),step:state?.step||0,phase:short(state?.phase||'',40),updatedAt:state?.updatedAt||info?.mtime?.toISOString()||null,task:short(input?.task,180),answer:short(state?.answer,400),error:short(state?.error,300),plan:Array.isArray(state?.plan)?state.plan.slice(0,8).map(s=>({id:s.id,title:short(s.title,130),status:short(s.status,20)})):[],previewPaths:state?.status==='done'&&Array.isArray(state.history)?[...new Set(state.history.filter(h=>['write_file','edit_file','site_starter'].includes(h.tool)&&typeof h.args?.path==='string'&&/\.html?$/i.test(h.args.path)&&h.args.path.length<=240).map(h=>h.args.path))].slice(0,3):[],history:Array.isArray(state?.history)?state.history.slice(-6).map(h=>({step:h.step,tool:short(h.tool||'error',30),error:short(h.error,160),result:h.result?.error?short(h.result.error,160):null})):[]});}results.sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt)));return results.slice(0,10);}
 async function qwenStatus(fetchImpl=fetch){try{const r=await fetchImpl(`${QWEN}/health`,{signal:AbortSignal.timeout(2800)});if(!r.ok)return {online:false};const data=await r.json().catch(()=>({}));return {online:true,state:short(data.status||'ready',24)};}catch{return {online:false};}}
 async function selectedModel(fetchImpl=fetch){const r=await fetchImpl(`${QWEN}/v1/models`,{signal:AbortSignal.timeout(4000)});if(!r.ok)throw Error('Local model unavailable');const j=await r.json();const model=j?.data?.[0]?.id;if(typeof model!=='string'||!model)throw Error('No local Qwen model');return model;}
 export function parseQwenTurn(raw) {
@@ -62,7 +62,8 @@ export async function chat(input,{fetchImpl=fetch,memories=[]}={}){
  if(typeof input.message!=='string'||!input.message.trim()||input.message.length>1400)throw Error('Message must be 1–1400 characters');
  const history=Array.isArray(input.history)?input.history:[];
  if(history.length>12)throw Error('Conversation history too long');
- const prior=history.map(x=>{if(!x||!['user','assistant'].includes(x.role)||typeof x.content!=='string'||x.content.length>1400)throw Error('Invalid conversation');return {role:x.role,content:x.content};});
+ const validated=history.map(x=>{if(!x||!['user','assistant'].includes(x.role)||typeof x.content!=='string'||x.content.length>1400)throw Error('Invalid conversation');return {role:x.role,content:x.content};});
+ const prior=validated.slice(-6).map(x=>({...x,content:x.content.slice(0,600)}));
  if(input.thinking!==undefined&&typeof input.thinking!=='boolean')throw Error('Invalid thinking setting');
  const thinking=input.thinking===true;
  const model=await selectedModel(fetchImpl);
@@ -150,6 +151,7 @@ export function createConsoleServer({root=ROOT,workspace=WORKSPACE,fetchImpl=fet
    if(req.method==='GET'&&u.pathname==='/api/status'){const [qwen,jobs]=await Promise.all([qwenStatus(fetchImpl),listJobs(root)]);reply(res,200,{qwen,jobs,capabilities:['chat','work_proposals','approval','activity','stop']});return;}
    if(req.method==='POST'&&!validOrigin(req.headers)){bad(res,403,'Request must come from the local console');return;}
    if(req.method==='POST'&&u.pathname==='/api/chat'){
+    if((await listJobs(root)).some(j=>!TERMINAL.has(j.status))){bad(res,409,'An approved local job is using the single Qwen model slot. Check its progress or stop it before chatting.');return;}
     if(chatBusy){bad(res,409,'Chat request already running');return;}
     chatBusy=true;
     try{
@@ -166,6 +168,7 @@ export function createConsoleServer({root=ROOT,workspace=WORKSPACE,fetchImpl=fet
     return;
    }
    if(req.method==='POST'&&u.pathname==='/api/vision'){
+    if((await listJobs(root)).some(j=>!TERMINAL.has(j.status))){bad(res,409,'Qwen is running an approved job. Let it finish before analyzing images with the single model slot.');return;}
     if(chatBusy){bad(res,409,'A model request is already running.');return;}
     chatBusy=true;
     try{const payload=await bodyJson(req,2200000);reply(res,200,await reviewImage(payload,{fetchImpl}));}
