@@ -94,6 +94,7 @@ test('unified Qwen console never runs work without explicit one-use owner approv
   assert.equal(first.status,200);
   const proposal=(await first.json()).proposal;
   assert.match(proposal.id,/^[0-9a-f-]{36}$/);
+  assert.equal(proposal.task,'Create a sample welcome HTML in the Qwen workspace');
   assert.equal(spawns.length,0,'Qwen may only propose, never execute from chat');
   const denied=await post('/api/proposals/'+proposal.id+'/approve',{approved:false});
   assert.equal(denied.status,400);
