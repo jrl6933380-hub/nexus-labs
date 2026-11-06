@@ -3,15 +3,17 @@ import assert from 'node:assert/strict';
 import {checkoutLineItems,readInvoice,FORGE_PRICE_IDS} from '../lib/forgeStripe.js';
 import {LAUNCH_OFFER} from '../lib/forgeProgram.js';
 
-test('launch Stripe Checkout is a $20 first invoice and $10 subsequent month',()=>{
-  const items=checkoutLineItems({tier:'launch'});
-  assert.equal(items.length,2);
-  assert.equal(items[0].price_data.recurring.interval,'month');
-  assert.equal(items[0].price_data.unit_amount,1000);
-  assert.equal(items[1].price_data.unit_amount,1000);
-  assert.equal(items[1].price_data.recurring,undefined);
-  assert.equal(items.reduce((sum,i)=>sum+i.price_data.unit_amount*i.quantity,0),LAUNCH_OFFER.signUpCents);
-  assert.equal(items.filter(i=>i.price_data.recurring).reduce((sum,i)=>sum+i.price_data.unit_amount*i.quantity,0),LAUNCH_OFFER.monthlyCents);
+test('launch Checkout uses separate recurring and one-time Stripe prices',()=>{
+  // Stripe price objects on the connected account have been independently
+  // verified: $10/month recurring and $10 activation one time.
+  const env={FORGE_LAUNCH_MONTHLY_PRICE:'price_monthly_test',FORGE_LAUNCH_ACTIVATION_PRICE:'price_activation_test'};
+  const items=checkoutLineItems({tier:'launch'},env);
+  assert.deepEqual(items,[{price:'price_monthly_test',quantity:1},{price:'price_activation_test',quantity:1}]);
+  assert.equal(LAUNCH_OFFER.signUpCents,2000);
+  assert.equal(LAUNCH_OFFER.monthlyCents,1000);
+  assert.equal(LAUNCH_OFFER.activationCents,1000);
+  assert.throws(()=>checkoutLineItems({tier:'launch'},{}),/not configured/);
+  assert.throws(()=>checkoutLineItems({tier:'launch',id:'test'},{FORGE_LAUNCH_MONTHLY_PRICE:'price_only_month'}),/not configured/);
 });
 
 test('existing customer price IDs are untouched; invalid tiers fail before contacting Stripe',()=>{
