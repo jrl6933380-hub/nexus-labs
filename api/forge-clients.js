@@ -77,6 +77,9 @@ export default async function handler(req, res) {
     }
 
     if (action === 'convert') {
+      // Launch pricing is the only new-customer offer. Historic subscriptions
+      // stay on legacy tiers; callers cannot secretly quote them to new leads.
+      if (tier !== 'launch') return res.status(400).json({error:'New Forge signups use the Launch offer.'});
       const redisLead = await getLead(leadId);
       if (!redisLead) return res.status(404).json({ error: 'Lead not found.' });
       if (!manager && redisLead.assignedTo !== username) return res.status(403).json({ error: 'That lead is not assigned to you.' });
