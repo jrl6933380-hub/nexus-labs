@@ -13,11 +13,16 @@
 - The existing 15% caller commission on paid invoice totals remains. The new launch signup bonus defaults to $0 until the owner sets `forge_callers.signup_bonus_launch`. Do not silently borrow legacy $10/$20/$35 bonus amounts.
 - Upgrading or downgrading between launch and legacy commercial terms is blocked; an explicit Stripe billing migration will be needed.
 
+## Safe rollout guard
+- `FORGE_LAUNCH_ENABLED` defaults to **off**. Merging is safe with the old 3-tier signup still shown and accepted.
+- Only set `FORGE_LAUNCH_ENABLED=true` after the production Neon migration is confirmed and Stripe test-mode charges are verified. Vercel redeploy is required for the environment variable to take effect.
+- The API rejects a new launch-tier signup while the flag is off. With it on, new leads may select only Launch. Older subscribers keep their plans.
+
 ## Required deployment sequence
 1. Apply `neon/migrations/0002_forge_launch_offer.sql` in the authenticated production Neon database, and separately in the test database if used. Verify the new check constraint accepts `launch`, previous tiers still work and the new commission column defaults to 0. **Merging code without this migration causes signup creation to fail**.
 2. Run `node --test test/forgeProgram.test.mjs test/forge-pitch.test.mjs test/forge-launch-checkout.test.mjs` and the caller Playwright tests for phone and desktop, then review CI.
 3. Confirm Stripe webhook `invoice.paid` updates the correct Forge client on both first and recurring invoices. Use **Stripe test mode only** to verify $20 upfront, $10 recurring, zero double charges on retries, and no unexpected setup-fee renewals.
-4. Deploy the changed API and caller UI only after migration and tests. Check live page shows **one Launch offer**, no retired tier pricing, and agrees with Stripe before sharing any payment link.
+4. Deploy changes with the launch flag **off**, which retains the legacy signup path. After migration and Stripe tests, enable `FORGE_LAUNCH_ENABLED=true` and redeploy. Check live page shows **one Launch offer**, no retired tier pricing, and agrees with Stripe before sharing any payment link.
 5. Verify existing subscriptions and MRR unchanged, and record the promotion's later end policy with the owner before any adjustment.
 
 This PR intentionally does **not** migrate existing paying customers, contact prospects, send payment links, create real Stripe subscriptions, or choose an end date for the offer.
