@@ -8,6 +8,10 @@ on:
       - 'public/forge-research-*'
       - 'scripts/ally/forge-*.mjs'
       - 'scripts/ally/install-forge-leads.ps1'
+      - 'scripts/ally/install-forge-preview.ps1'
+      - 'public/forge-service-templates.js'
+      - 'public/forge-pitch.js'
+      - 'lib/forgeProgram.js'
       - 'test/forge-research-import.test.mjs'
       - 'test/ally-forge-*.test.mjs'
       - 'e2e/forge-research-review.spec.mjs'
@@ -29,7 +33,7 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
-      - run: node --test test/forge-research-import.test.mjs test/ally-forge-recovery.test.mjs test/ally-forge-leads.test.mjs
+      - run: node --test test/forge-research-import.test.mjs test/ally-forge-recovery.test.mjs test/ally-forge-leads.test.mjs test/ally-forge-preview.test.mjs
       - run: test -x "$NEXUS_TEST_BROWSER_PATH"
       - run: npx playwright test e2e/forge-research-review.spec.mjs
       - uses: actions/upload-artifact@v4
@@ -45,4 +49,7 @@ jobs:
         run: |
           $tokens=$null; $errors=$null
           [void][Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD 'scripts/ally/install-forge-leads.ps1'),[ref]$tokens,[ref]$errors)
+          if($errors.Count){throw ($errors|Out-String)}
+          $tokens=$null; $errors=$null
+          [void][Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD 'scripts/ally/install-forge-preview.ps1'),[ref]$tokens,[ref]$errors)
           if($errors.Count){throw ($errors|Out-String)}
