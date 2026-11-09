@@ -14,7 +14,9 @@ test('plain requests start, read or extend a mission; anything odd is left to no
  assert.deepEqual(approvedMissionRoute('please find me hair salons across Iowa that have no website.'),{action:'start',business:'hair salons'});
  assert.deepEqual(approvedMissionRoute('how is the mission going'),{action:'status'});
  assert.deepEqual(approvedMissionRoute('add Boone to the mission'),{action:'add_cities',cities:['Boone']});
- for(const t of ["find barbers all over Iowa, don't search yet",'find barbers all over Iowa; rm -rf','find barbers in Des Moines','start a mission and email every owner','']) assert.equal(approvedMissionRoute(t),null);
+ assert.deepEqual(approvedMissionRoute('Find barbers in Iowa City'),{action:'start',business:'barbers',cities:['Iowa City'],max_cities:1});
+ assert.deepEqual(approvedMissionRoute('find barbers in Des Moines, Iowa with no sites'),{action:'start',business:'barbers',cities:['Des Moines'],max_cities:1});
+ for(const t of ["find barbers all over Iowa, don't search yet",'find barbers all over Iowa; rm -rf','start a mission and email every owner','']) assert.equal(approvedMissionRoute(t),null);
 });
 
 test('transport arguments are fixed, validated and never free text',()=>{
@@ -22,7 +24,8 @@ test('transport arguments are fixed, validated and never free text',()=>{
  assert.deepEqual(missionTransportArgs({action:'pause'}),['-Action','mission_control','-Control','pause']);
  assert.deepEqual(missionTransportArgs({action:'start',business:'barbers'}),['-Action','mission_start','-Business','barbers','-Count','5','-MaxCities','25']);
  assert.deepEqual(missionTransportArgs({action:'add_cities',cities:['Ames','Boone']}),['-Action','mission_add','-Cities','Ames,Boone']);
- for(const bad of [{action:'stop'},{action:'start',business:'x;calc'},{action:'start',business:'barbers',count:11},{action:'add_cities',cities:[]},
+ assert.deepEqual(missionTransportArgs({action:'start',business:'barbers',cities:['Iowa City'],max_cities:1}),['-Action','mission_start','-Business','barbers','-Count','5','-MaxCities','1','-Cities','Iowa City']);
+ for(const bad of [{action:'start',business:'barbers',cities:['a,b']},{action:'start',business:'barbers',cities:[]},{action:'stop'},{action:'start',business:'x;calc'},{action:'start',business:'barbers',count:11},{action:'add_cities',cities:[]},
   {action:'add_cities',cities:['a,b']},{action:'add_cities',cities:['1','2','3','4','5','6'].map(n=>'City'+n)},{action:'delete'}])
   assert.throws(()=>missionTransportArgs(bad));
 });
