@@ -5,7 +5,8 @@ Source audit of the current Forge entrypoints. These pages have different audien
 | Route | Responsibility | Decision |
 | --- | --- | --- |
 | /forge.html | Customer builder and project shell, using room auth | Preserve customer entrypoint |
-| /forge-hub.html | Owner hub with Ops, Field and Templates tabs | Canonical owner Forge hub |
+| /forge-hub.html | Owner hub with Ops, Field, Templates and Leads tabs | Canonical owner Forge hub |
+| /forge-leads.html | Owner Leads panel: build a find/pick request for Claude or Qwen, links to review, caller and macros. Submits nothing | Leads panel |
 | /forge-dashboard.html | Sales metrics, lead import and operator controls | Preserve as Ops panel |
 | /forge-admin.html | Create worker accounts or grant caller access | Preserve; return to hub #ops |
 | /forge-caller.html | Caller field workspace, lead queue and payouts | Preserve standalone worker access and Field panel |

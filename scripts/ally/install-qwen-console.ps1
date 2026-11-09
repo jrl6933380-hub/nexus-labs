@@ -19,6 +19,8 @@ param(
  [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$BoardTransportSha256,
  [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$MacroWatcherSha256,
  [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$MacroTransportSha256,
+ [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$LeadWatcherSha256,
+ [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$LeadTransportSha256,
  [switch]$Launch
 )
 $ErrorActionPreference='Stop'
@@ -41,6 +43,8 @@ $files=@(
  @{path='scripts/ally/approved-board-transport.ps1';hash=$BoardTransportSha256;min=1000;max=10000},
  @{path='scripts/ally/macro-job-watcher.mjs';hash=$MacroWatcherSha256;min=5000;max=18000},
  @{path='scripts/ally/macro-job-transport.ps1';hash=$MacroTransportSha256;min=1000;max=10000},
+ @{path='scripts/ally/forge-lead-watcher.mjs';hash=$LeadWatcherSha256;min=3000;max=30000},
+ @{path='scripts/ally/forge-lead-transport.ps1';hash=$LeadTransportSha256;min=800;max=10000},
  @{path='public/ally-qwen-console.html';hash=$PanelSha256;min=2000;max=50000},
  @{path='public/ally-launcher.html';hash=$LauncherSha256;min=3000;max=80000}
 )
