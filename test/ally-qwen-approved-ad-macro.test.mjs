@@ -25,15 +25,15 @@ test('approved ad macro dispatch selects only exact owner-visible, low-risk acti
  ])assert.equal(approvedAdMacroRoute(text),null,text);
 });
 
-test('verified ad macro runs before the first Qwen generation only inside an approved work runner',async()=>{
+test('verified ad macro runs before any Qwen generation and ends the job with its receipt',async()=>{
  const workspace=await mkdtemp(join(tmpdir(),'qwen-ad-macro-first-'));
- const sequence=[a('finish',{message:'Ad project started, owner can review it'})];
  let generateCalls=0;const seen=[];
  try{
   const result=await runAgent({task:'Start a new ad project named "Fall Sale" on the Ally.',workspace,
-   execute:async(action)=>{seen.push(action);if(action.tool==='ad_macro')return {action:'start_ad',status:'succeeded',output:'CREATED sample project'};if(action.tool==='finish')return {final:action.args.message};throw Error('Unexpected tool');},
-   generate:async(messages)=>{generateCalls++;assert.match(messages.at(-1).content,/ALREADY EXECUTED/);return sequence.shift();}});
-  assert.equal(result.status,'done');assert.equal(generateCalls,1);
+   execute:async(action)=>{seen.push(action);if(action.tool==='ad_macro')return {action:'start_ad',status:'succeeded',output:'CREATED sample project'};throw Error('Unexpected tool');},
+   generate:async()=>{generateCalls++;return a('finish',{message:'should never be asked'});}});
+  assert.equal(result.status,'done');assert.equal(generateCalls,0);assert.equal(seen.length,1);
+  assert.match(result.answer,/start_ad succeeded.*CREATED sample project/);
   assert.equal(seen[0].tool,'ad_macro');assert.equal(seen[0].args.name,'Fall Sale');
   assert.equal(result.history[0].step,0);assert.equal(result.history[0].result.status,'succeeded');
  }finally{await rm(workspace,{recursive:true,force:true});}
