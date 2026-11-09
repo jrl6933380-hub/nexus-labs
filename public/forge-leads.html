@@ -30,6 +30,10 @@ button:focus-visible,a.btn:focus-visible,input:focus-visible,select:focus-visibl
 .frame{width:100%;max-width:390px;margin:10px auto 0;border:1px solid #3a2c1c;border-radius:12px;overflow:hidden;background:#fff}
 iframe{display:block;width:100%;height:560px;border:0}
 pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:14px;background:#120d08;border:1px dashed #3a2c1c;border-radius:9px;padding:10px;margin:10px 0 0}
+.task{display:flex;gap:10px;align-items:flex-start;min-height:44px;padding:8px 0;border-top:1px solid #2c2216}
+.box{width:24px;height:24px;flex-shrink:0;border:2px solid #b3a58f;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:16px;line-height:1}
+.box.done{background:#1f4d33;border-color:#1f4d33}.box.doing{border-color:#d97b2f}.box.failed{border-color:#ff9d8a}
+.bar{height:8px;border-radius:99px;background:#3a2c1c;overflow:hidden;margin:8px 0}.bar>i{display:block;height:100%;background:#d97b2f}
 [hidden]{display:none!important}a{color:#f2b47f}
 </style>
 </head>
@@ -37,6 +41,27 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:14px;back
 <div id="state" class="card" role="status">Opening Leads…</div>
 <div id="app" class="wrap" hidden>
   <header><h1>Leads</h1><p class="muted">Find businesses with no website, pick the ones you want, get a site preview and a call pitch for each. Your Ally does the work. Nothing is sent, called or posted.</p></header>
+
+  <section class="card" aria-labelledby="h-mission">
+    <h2 id="h-mission">Mission · let the Ally work a list</h2>
+    <p class="muted">Give a goal once. The Ally works down a checklist city by city, ticks each task off, and builds previews for the finds. You and Qwen can add cities as it goes.</p>
+    <div id="mission-empty">
+      <label for="m-type">What kind of business?</label>
+      <input id="m-type" type="text" value="barbers" maxlength="80" autocomplete="off">
+      <div id="m-err" class="err" role="alert"></div>
+      <div class="row"><button class="primary" type="button" id="m-iowa">Start: all of Iowa (25 cities)</button><button type="button" id="m-top5">Start: top 5 Iowa cities</button></div>
+    </div>
+    <div id="mission-live" hidden>
+      <h3 id="m-goal"></h3>
+      <div class="bar" aria-hidden="true"><i id="m-bar"></i></div>
+      <p id="m-progress" class="muted"></p>
+      <p id="m-note" class="err"></p>
+      <div id="m-tasks"></div>
+      <label for="m-add">Add a city</label>
+      <input id="m-add" type="text" maxlength="60" autocomplete="off" placeholder="Ankeny">
+      <div class="row"><button type="button" id="m-addgo">Add to list</button><button type="button" id="m-toggle">Pause</button><button type="button" id="m-stop">Stop mission</button></div>
+    </div>
+  </section>
 
   <section class="card" aria-labelledby="h-find">
     <h2 id="h-find">1 · Find businesses</h2>
@@ -73,7 +98,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:14px;back
   var $ = function (id) { return document.getElementById(id); };
   var TEXT = /^[\p{L}\p{N} .,'&-]{2,100}$/u;
   var API = '/api/forge-lead-jobs';
-  var jobs = [], results = {}, timer = null, selected = {}, offers = {};
+  var jobs = [], mission = null, results = {}, timer = null, selected = {}, offers = {};
   var STATUS = { queued: 'Waiting for the Ally', processing: 'Working', done: 'Done', needs_help: 'Needs a look', canceled: 'Canceled' };
   var STAGE = { claimed: 'Starting', searching: 'Searching Google and Maps', building: 'Building previews', uploading: 'Sending to your phone', waiting_for_ally: 'Waiting for the Ally' };
   var LABEL = { no_dedicated_site_found: 'No website found', social_booking_only: 'Social / booking only', has_website: 'Has a website', needs_checking: 'Needs checking' };
@@ -92,11 +117,12 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:14px;back
     return fetch(API, { credentials: 'same-origin' }).then(function (r) {
       if (!r.ok) throw new Error('Could not load your jobs.');
       return r.json();
-    }).then(function (d) { jobs = d.jobs || []; render(); schedule(); }).catch(function (e) { $('find-err').textContent = e.message; });
+    }).then(function (d) { jobs = d.jobs || []; mission = d.mission || null; render(); renderMission(); schedule(); }).catch(function (e) { $('find-err').textContent = e.message; });
   }
   function schedule() {
     clearTimeout(timer);
     if (jobs.some(function (j) { return j.status === 'queued' || j.status === 'processing'; })) timer = setTimeout(load, 5000);
+    else if (mission && mission.status === 'active') timer = setTimeout(load, 15000);
   }
   function pill(job) {
     var cls = job.status === 'done' ? 'ok' : job.status === 'needs_help' ? 'bad' : job.status === 'canceled' ? '' : 'warn';
@@ -187,6 +213,56 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:14px;back
     $('find-err').textContent = '';
     api({ action: 'create', input: { request_id: requestId(), kind: 'search', business: business, city: city, count: Number($('count').value) } })
       .then(function () { return load(); }).catch(function (e) { $('find-err').textContent = e.message; });
+  });
+  function renderMission() {
+    var m = mission, live = !!m && (m.status === 'active' || m.status === 'paused' || m.status === 'done' || m.status === 'stopped');
+    $('mission-empty').hidden = live && (m.status === 'active' || m.status === 'paused');
+    $('mission-live').hidden = !live;
+    if (!live) return;
+    var done = m.progress.done, total = m.progress.total, running = m.status === 'active' || m.status === 'paused';
+    $('m-goal').textContent = m.goal;
+    $('m-bar').style.width = (total ? Math.round(done / total * 100) : 0) + '%';
+    $('m-progress').textContent = done + ' of ' + total + ' tasks done · ' + ({ active: 'Working', paused: 'Paused', done: 'Finished', stopped: 'Stopped' }[m.status] || m.status);
+    $('m-note').textContent = m.note || '';
+    $('m-toggle').hidden = !running; $('m-stop').hidden = !running; $('m-addgo').disabled = !running;
+    $('m-toggle').textContent = m.status === 'paused' ? 'Resume' : 'Pause';
+    var host = $('m-tasks'); host.replaceChildren();
+    m.tasks.forEach(function (t) {
+      var mark = t.status === 'done' ? '✓' : t.status === 'failed' ? '!' : t.status === 'skipped' ? '–' : t.status === 'doing' ? '…' : '';
+      var bits = [];
+      if (t.type === 'search' && t.status === 'done') bits.push(t.found + ' found, ' + t.eligible + ' with no site');
+      if (t.status === 'doing') bits.push('working now');
+      if (t.note) bits.push(t.note);
+      if (t.added_by !== 'plan' && t.added_by !== 'owner') bits.push('added by ' + t.added_by);
+      var box = el('div', { className: 'box ' + t.status, text: mark }); box.setAttribute('aria-hidden', 'true');
+      var body = el('div', { style: 'flex:1;min-width:0' }, [el('strong', { text: t.label }), el('div', { className: 'muted', text: [({ todo: 'Waiting', doing: 'In progress', done: 'Done', failed: 'Failed', skipped: 'Skipped' }[t.status])].concat(bits).join(' · ') })]);
+      var row = el('div', { className: 'task' }, [box, body]);
+      if (t.status === 'todo') {
+        var skip = el('button', { type: 'button', text: 'Skip' });
+        skip.addEventListener('click', function () { mAct({ action: 'mission_control', input: { control: 'skip', task_id: t.id } }); });
+        row.append(skip);
+      }
+      host.append(row);
+    });
+  }
+  function mAct(body) {
+    $('m-err').textContent = '';
+    return api(body).then(function () { return load(); }).catch(function (e) { $('m-err').textContent = e.message; $('m-note').textContent = e.message; });
+  }
+  function startMission(max) {
+    var business = $('m-type').value.trim().replace(/\s+/g, ' ');
+    if (!TEXT.test(business)) { $('m-err').textContent = 'Use plain letters and numbers for the business type.'; return; }
+    mAct({ action: 'mission_start', input: { request_id: requestId(), business: business, region: 'iowa', count: 5, max_cities: max, auto_build: true } });
+  }
+  $('m-iowa').addEventListener('click', function () { startMission(25); });
+  $('m-top5').addEventListener('click', function () { startMission(5); });
+  $('m-toggle').addEventListener('click', function () { mAct({ action: 'mission_control', input: { control: mission && mission.status === 'paused' ? 'resume' : 'pause' } }); });
+  $('m-stop').addEventListener('click', function () { mAct({ action: 'mission_control', input: { control: 'stop' } }); });
+  $('m-addgo').addEventListener('click', function () {
+    var c = $('m-add').value.trim().replace(/\s+/g, ' ');
+    if (!TEXT.test(c)) { $('m-note').textContent = 'Use a plain city name.'; return; }
+    $('m-add').value = '';
+    mAct({ action: 'mission_add', input: { cities: [c] } });
   });
   function deny(text) { $('state').textContent = text; }
   fetch('/api/room-history', { credentials: 'include' }).then(function (res) {
