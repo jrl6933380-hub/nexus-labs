@@ -4,17 +4,18 @@ import '../lib/store/installFetch.js';
 import {resolveWorkspaceAccount} from '../lib/workspaceConnector.js';
 import {allyBridge} from '../lib/allyBridge.js';
 import {forgeLeadJobQueue} from '../lib/forgeLeadJobs.js';
+import {forgeMissions} from '../lib/forgeMissions.js';
 
 export const config={api:{bodyParser:{sizeLimit:'1200kb'}}};
 const bad=(message,status)=>Object.assign(new Error(message),{status});
-const DEVICE=['device_claim','device_heartbeat','device_complete','device_fail'];
+const DEVICE=['device_claim','device_heartbeat','device_complete','device_fail','device_mission_add'];
 function sameOrigin(req){
  const origin=req.headers?.origin,host=req.headers?.host;
  if(req.headers?.['sec-fetch-site']==='cross-site')return false;
  if(!origin)return true;
  try{return Boolean(host&&new URL(origin).host===host);}catch{return false;}
 }
-export function createForgeLeadJobsHandler({queue=forgeLeadJobQueue,bridge=allyBridge,resolveAccount=resolveWorkspaceAccount}={}){
+export function createForgeLeadJobsHandler({queue=forgeLeadJobQueue,missions=forgeMissions,bridge=allyBridge,resolveAccount=resolveWorkspaceAccount}={}){
  return async(req,res)=>{
   res.setHeader('Cache-Control','private, no-store');
   res.setHeader('X-Content-Type-Options','nosniff');
@@ -25,7 +26,7 @@ export function createForgeLeadJobsHandler({queue=forgeLeadJobQueue,bridge=allyB
    if(req.method==='GET'){
     const owner=await resolveAccount(req);
     if(owner?.owner!==true)return res.status(403).json({error:'Owner only.'});
-    return res.status(200).json({jobs:await queue.list(owner.id)});
+    return res.status(200).json({jobs:await queue.list(owner.id),mission:await missions.get(owner.id).catch(()=>null)});
    }
    if(!/^application\/json(?:;|$)/i.test(req.headers?.['content-type']||''))return res.status(415).json({error:'JSON required.'});
    const body=req.body;
@@ -37,8 +38,13 @@ export function createForgeLeadJobsHandler({queue=forgeLeadJobQueue,bridge=allyB
     if(size>1000000)throw bad('Invalid job request.',400);
     const bearer=String(req.headers?.authorization||'').replace(/^Bearer /,'');
     const {owner,device_id}=await bridge.authorizeActiveDevice(bearer);
-    const handlers={device_claim:()=>queue.claim(owner,device_id),device_heartbeat:()=>queue.heartbeat(owner,device_id,input),
-     device_complete:()=>queue.complete(owner,device_id,input),device_fail:()=>queue.fail(owner,device_id,input)};
+    const settle=(job,outcome)=>missions.settle(owner,job.id,outcome).catch(()=>{});
+    const handlers={
+     device_claim:async()=>{await missions.advance(owner,device_id).catch(()=>{});return queue.claim(owner,device_id);},
+     device_heartbeat:()=>queue.heartbeat(owner,device_id,input),
+     device_complete:async()=>{const job=await queue.complete(owner,device_id,input);await settle(job,'done');return job;},
+     device_fail:async()=>{const job=await queue.fail(owner,device_id,input);await settle(job,job.status==='canceled'?'canceled':'failed');return job;},
+     device_mission_add:async()=>({mission:await missions.addTasks(owner,input.cities,'qwen')})};
     const result=await handlers[action]();
     return res.status(200).json(action==='device_claim'?{job:result}:{result});
    }
@@ -51,6 +57,13 @@ export function createForgeLeadJobsHandler({queue=forgeLeadJobQueue,bridge=allyB
     if(!status.paired||!status.device_id)throw bad('Pair the Ally before searching.',409);
     return res.status(200).json({job:await queue.create(owner.id,status.device_id,input)});
    }
+   if(action==='mission_start'){
+    const status=await bridge.status(owner.id);
+    if(!status.paired||!status.device_id)throw bad('Pair the Ally before starting a mission.',409);
+    return res.status(200).json({mission:await missions.start(owner.id,status.device_id,input)});
+   }
+   if(action==='mission_add')return res.status(200).json({mission:await missions.addTasks(owner.id,input.cities,'owner')});
+   if(action==='mission_control')return res.status(200).json({mission:await missions.control(owner.id,{action:input.control,task_id:input.task_id})});
    if(action==='cancel')return res.status(200).json({job:await queue.cancel(owner.id,input.id)});
    if(action==='result')return res.status(200).json({result:await queue.getResult(owner.id,input.id)});
    throw bad('Unsupported action.',400);
