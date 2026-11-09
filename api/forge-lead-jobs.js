@@ -8,7 +8,7 @@ import {forgeMissions} from '../lib/forgeMissions.js';
 
 export const config={api:{bodyParser:{sizeLimit:'1200kb'}}};
 const bad=(message,status)=>Object.assign(new Error(message),{status});
-const DEVICE=['device_claim','device_heartbeat','device_complete','device_fail','device_mission_add'];
+const DEVICE=['device_claim','device_heartbeat','device_complete','device_fail','device_mission_add','device_mission_get','device_mission_start','device_mission_control'];
 function sameOrigin(req){
  const origin=req.headers?.origin,host=req.headers?.host;
  if(req.headers?.['sec-fetch-site']==='cross-site')return false;
@@ -44,7 +44,14 @@ export function createForgeLeadJobsHandler({queue=forgeLeadJobQueue,missions=for
      device_heartbeat:()=>queue.heartbeat(owner,device_id,input),
      device_complete:async()=>{const job=await queue.complete(owner,device_id,input);await settle(job,'done');return job;},
      device_fail:async()=>{const job=await queue.fail(owner,device_id,input);await settle(job,job.status==='canceled'?'canceled':'failed');return job;},
-     device_mission_add:async()=>({mission:await missions.addTasks(owner,input.cities,'qwen')})};
+     device_mission_add:async()=>({mission:await missions.addTasks(owner,input.cities,'qwen')}),
+     device_mission_get:async()=>({mission:await missions.get(owner)}),
+     device_mission_start:async()=>({mission:await missions.start(owner,device_id,{request_id:input.request_id,business:input.business,region:'iowa',
+      count:input.count,max_cities:input.max_cities,auto_build:input.auto_build!==false})}),
+     device_mission_control:async()=>{
+      if(!['pause','resume'].includes(input.control))throw bad('Qwen can only pause or resume a mission.',403);
+      return {mission:await missions.control(owner,{action:input.control})};
+     }};
     const result=await handlers[action]();
     return res.status(200).json(action==='device_claim'?{job:result}:{result});
    }
