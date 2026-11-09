@@ -10,6 +10,7 @@ import {fileURLToPath} from 'node:url';
 import {startRevisionWatcher} from './qwen-revision-watcher.mjs';
 import {startApprovedBoardWatcher} from './approved-board-watcher.mjs';
 import {startMacroJobWatcher} from './macro-job-watcher.mjs';
+import {startForgeLeadWatcher} from './forge-lead-watcher.mjs';
 import {workCatalog,approvedStarterRoute,approvedAdMacroRoute} from './qwen-work-tools.mjs';
 import {safePath} from './qwen-terminal-agent.mjs';
 import {listMemories,addMemory,deleteMemory,loadChat,saveExchange,clearChat,memoryContext,suggestedMemory} from './qwen-memory.mjs';
@@ -226,7 +227,8 @@ if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
   const revisions=startRevisionWatcher({root:ROOT});
   const board=startApprovedBoardWatcher({root:ROOT});
   const macros=startMacroJobWatcher({root:ROOT});
-  server.on('close',()=>{revisions.stop();board.stop();macros.stop();});
-  console.log('Nexus local Qwen Console ready (revision, board and private macro job queue enabled)');
+  const leads=startForgeLeadWatcher({root:ROOT});
+  server.on('close',()=>{revisions.stop();board.stop();macros.stop();leads.stop();});
+  console.log('Nexus local Qwen Console ready (revision, board and private macro job and Forge lead queues enabled)');
  });
 }
