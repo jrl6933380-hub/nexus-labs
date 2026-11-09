@@ -9,108 +9,185 @@
 :root{color-scheme:dark;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#14100b;color:#f2e9dd}
 *{box-sizing:border-box}body{margin:0;padding:14px;padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right));line-height:1.5}
 .wrap{max-width:720px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
-h1{font-size:20px;margin:0}h2{font-size:16px;margin:0 0 6px}p{margin:4px 0}
+h1{font-size:20px;margin:0}h2{font-size:16px;margin:0 0 6px}h3{font-size:15px;margin:0}p{margin:4px 0}
 .card{background:#1c150d;border:1px solid #3a2c1c;border-radius:12px;padding:14px;min-width:0}
 .muted{color:#b3a58f;font-size:14px}
 label{display:block;font-size:13px;color:#b3a58f;margin:10px 0 4px}
-input,select{width:100%;min-height:44px;padding:9px 11px;border-radius:9px;border:1px solid #3a2c1c;background:#241a10;color:#f2e9dd;font:inherit;font-size:16px}
+input[type=text],select{width:100%;min-height:44px;padding:9px 11px;border-radius:9px;border:1px solid #3a2c1c;background:#241a10;color:#f2e9dd;font:inherit;font-size:16px}
 button,a.btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:9px 14px;border:1px solid #3a2c1c;border-radius:9px;background:#241a10;color:#f2e9dd;font:inherit;font-size:15px;text-decoration:none;cursor:pointer}
 button.primary{background:#d97b2f;border-color:#d97b2f;color:#14100b;font-weight:650}
+button[disabled]{opacity:.5;cursor:default}
+button[aria-pressed="true"]{background:#f2e9dd;color:#14100b}
 button:focus-visible,a.btn:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #f2e9dd;outline-offset:2px}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-.out{white-space:pre-wrap;overflow-wrap:anywhere;background:#120d08;border:1px dashed #3a2c1c;border-radius:9px;padding:10px;margin-top:10px;font-size:14px}
 .err{color:#ff9d8a;font-size:14px;min-height:20px}
-.check{display:flex;align-items:center;gap:10px;margin-top:10px;min-height:44px}.check input{width:24px;min-height:24px;height:24px}
-ul{margin:6px 0 0;padding-left:20px}[hidden]{display:none!important}a{color:#f2b47f}
+.job{border-top:1px solid #3a2c1c;padding-top:10px;margin-top:10px}
+.pill{display:inline-block;font-size:12px;padding:2px 9px;border-radius:99px;background:#3a2c1c;color:#f2e9dd}
+.pill.ok{background:#1f4d33}.pill.warn{background:#5a3a14}.pill.bad{background:#5a2218}
+.lead{display:flex;gap:10px;align-items:flex-start;min-height:44px;padding:8px 0;border-top:1px solid #2c2216}
+.lead input{width:24px;height:24px;margin-top:2px;flex-shrink:0}
+.check{display:flex;align-items:center;gap:10px;margin-top:10px;min-height:44px}.check input{width:24px;height:24px}
+.frame{width:100%;max-width:390px;margin:10px auto 0;border:1px solid #3a2c1c;border-radius:12px;overflow:hidden;background:#fff}
+iframe{display:block;width:100%;height:560px;border:0}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:14px;background:#120d08;border:1px dashed #3a2c1c;border-radius:9px;padding:10px;margin:10px 0 0}
+[hidden]{display:none!important}a{color:#f2b47f}
 </style>
 </head>
 <body>
 <div id="state" class="card" role="status">Opening Leads…</div>
 <div id="app" class="wrap" hidden>
-  <header><h1>Leads</h1><p class="muted">Find businesses with no website, pick the ones you want, get a site preview and a call pitch for each. Nothing is sent, called or posted.</p></header>
+  <header><h1>Leads</h1><p class="muted">Find businesses with no website, pick the ones you want, get a site preview and a call pitch for each. Your Ally does the work. Nothing is sent, called or posted.</p></header>
 
   <section class="card" aria-labelledby="h-find">
     <h2 id="h-find">1 · Find businesses</h2>
-    <p class="muted">Fill this in, copy the request, and give it to Claude or Qwen. They run the search on your Ally and bring back a numbered list.</p>
     <label for="type">What kind of business?</label>
-    <input id="type" value="barbers" maxlength="60" autocomplete="off">
+    <input id="type" type="text" value="barbers" maxlength="80" autocomplete="off">
     <label for="city">Which city?</label>
-    <input id="city" value="Des Moines, Iowa" maxlength="60" autocomplete="off">
+    <input id="city" type="text" value="Des Moines, Iowa" maxlength="100" autocomplete="off">
     <label for="count">How many?</label>
     <select id="count"><option>5</option><option selected>10</option></select>
     <div id="find-err" class="err" role="alert"></div>
-    <div class="row"><button class="primary" type="button" id="find-claude">Copy request for Claude</button><button type="button" id="find-qwen">Copy request for Qwen</button></div>
-    <div id="find-out" class="out" hidden></div>
+    <div class="row"><button class="primary" type="button" id="search">Search on my Ally</button></div>
+    <p class="muted">The Ally opens Google AI Mode and Maps on its screen. If Google asks you to verify, tap it there once and the search carries on.</p>
   </section>
 
-  <section class="card" aria-labelledby="h-pick">
-    <h2 id="h-pick">2 · Pick and build</h2>
-    <p class="muted">After the list comes back, type the numbers you want (like 1,3) or choose all eligible. Eligible means no website found, or only social pages, and not seen before.</p>
-    <label for="picks">Which numbers? (or leave empty for all eligible)</label>
-    <input id="picks" inputmode="numeric" placeholder="1,3" maxlength="40" autocomplete="off">
-    <label class="check"><input id="offer" type="checkbox"> Quote the approved launch offer in the pitch</label>
-    <div id="pick-err" class="err" role="alert"></div>
-    <div class="row"><button class="primary" type="button" id="pick-claude">Copy for Claude</button><button type="button" id="pick-qwen">Copy for Qwen</button></div>
-    <div id="pick-out" class="out" hidden></div>
+  <section class="card" aria-labelledby="h-jobs">
+    <h2 id="h-jobs">2 · Results</h2>
+    <p id="jobs-empty" class="muted">No searches yet.</p>
+    <div id="jobs"></div>
   </section>
 
-  <section class="card" aria-labelledby="h-use">
-    <h2 id="h-use">3 · Use it</h2>
-    <p class="muted">You get three looks for each site (Editorial, Bold, Fresh) and a call pitch you can copy. Previews are concepts with sample services, no invented reviews or prices. Confirm the business yourself before any call.</p>
+  <section class="card" aria-labelledby="h-more">
+    <h2 id="h-more">More in Forge</h2>
     <div class="row">
       <a class="btn" href="/forge-research-review.html" target="_top">Review leads</a>
       <a class="btn" href="/forge-caller.html" target="_top">Caller · Field</a>
       <a class="btn" href="/forge-templates.html" target="_top">Templates</a>
       <a class="btn" href="/nexus-macro-controller.html" target="_top">Macro Controller</a>
     </div>
-  </section>
-
-  <section class="card" aria-labelledby="h-rules">
-    <h2 id="h-rules">Rules</h2>
-    <ul class="muted">
-      <li>A business that already has a website is never built.</li>
-      <li>Listing phone numbers are suggestions and stay in the pitch notes, never on a preview site.</li>
-      <li>The search is visible on the Ally. Google may ask for one verification tap on its screen.</li>
-      <li>Sending, publishing, deleting and anything with money stays your tap only.</li>
-    </ul>
+    <p class="muted">Rules: a business that already has a website is never built. Listing phone numbers are suggestions and stay in the pitch notes, never on a preview site. Sending, publishing, deleting and anything with money stays your tap only. Claude and Qwen can run the same search from chat.</p>
   </section>
 </div>
 <script>
 (function () {
   var $ = function (id) { return document.getElementById(id); };
-  var TEXT = /^[\p{L}\p{N} .,'&-]{2,60}$/u;
-  var PICKS = /^[0-9]{1,2}(,[0-9]{1,2}){0,9}$/;
-  function show(out, text) { out.textContent = text; out.hidden = false; }
-  function copy(out, text, button) {
-    show(out, text);
-    var done = function () { button.dataset.label = button.dataset.label || button.textContent; button.textContent = 'Copied'; setTimeout(function () { button.textContent = button.dataset.label; }, 1500); };
-    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, function () {});
+  var TEXT = /^[\p{L}\p{N} .,'&-]{2,100}$/u;
+  var API = '/api/forge-lead-jobs';
+  var jobs = [], results = {}, timer = null, selected = {}, offers = {};
+  var STATUS = { queued: 'Waiting for the Ally', processing: 'Working', done: 'Done', needs_help: 'Needs a look', canceled: 'Canceled' };
+  var STAGE = { claimed: 'Starting', searching: 'Searching Google and Maps', building: 'Building previews', uploading: 'Sending to your phone', waiting_for_ally: 'Waiting for the Ally' };
+  var LABEL = { no_dedicated_site_found: 'No website found', social_booking_only: 'Social / booking only', has_website: 'Has a website', needs_checking: 'Needs checking' };
+  var requestId = function () { var a = new Uint8Array(12); crypto.getRandomValues(a); return 'fl' + Array.prototype.map.call(a, function (b) { return b.toString(16).padStart(2, '0'); }).join(''); };
+  function el(tag, props, kids) {
+    var n = document.createElement(tag);
+    Object.keys(props || {}).forEach(function (k) { if (k === 'text') n.textContent = props[k]; else n[k] = props[k]; });
+    (kids || []).forEach(function (c) { n.append(c); });
+    return n;
   }
-  function findText(agent) {
-    var type = $('type').value.trim().replace(/\s+/g, ' '), city = $('city').value.trim().replace(/\s+/g, ' ');
-    if (!TEXT.test(type) || !TEXT.test(city)) { $('find-err').textContent = 'Use plain letters and numbers for the business type and city.'; return null; }
+  function api(body) {
+    return fetch(API, { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { if (!r.ok) throw new Error(d.error || 'Something went wrong.'); return d; }); });
+  }
+  function load() {
+    return fetch(API, { credentials: 'same-origin' }).then(function (r) {
+      if (!r.ok) throw new Error('Could not load your jobs.');
+      return r.json();
+    }).then(function (d) { jobs = d.jobs || []; render(); schedule(); }).catch(function (e) { $('find-err').textContent = e.message; });
+  }
+  function schedule() {
+    clearTimeout(timer);
+    if (jobs.some(function (j) { return j.status === 'queued' || j.status === 'processing'; })) timer = setTimeout(load, 5000);
+  }
+  function pill(job) {
+    var cls = job.status === 'done' ? 'ok' : job.status === 'needs_help' ? 'bad' : job.status === 'canceled' ? '' : 'warn';
+    var text = job.status === 'processing' || job.status === 'queued' ? (STAGE[job.stage] || STATUS[job.status]) : STATUS[job.status];
+    return el('span', { className: 'pill ' + cls, text: text });
+  }
+  function title(job) {
+    var s = job.spec || {};
+    return job.kind === 'search' ? 'Search: ' + s.business + ' in ' + s.city : 'Build previews (' + (s.picks === 'eligible' ? 'all eligible' : 'leads ' + (s.picks || []).join(', ')) + ')';
+  }
+  function fetchResult(job) {
+    return api({ action: 'result', input: { id: job.id } }).then(function (d) { results[job.id] = d.result; render(); }).catch(function (e) { $('find-err').textContent = e.message; });
+  }
+  function searchView(job, res) {
+    var box = el('div', {});
+    var sel = selected[job.id] = selected[job.id] || {};
+    var eligible = 0;
+    res.leads.forEach(function (l) {
+      var can = l.status !== 'has_website' && !l.duplicate;
+      if (can && l.status !== 'needs_checking') eligible++;
+      var cb = el('input', { type: 'checkbox', disabled: !can, checked: !!sel[l.n] });
+      cb.setAttribute('aria-label', 'Pick ' + l.name);
+      cb.addEventListener('change', function () { sel[l.n] = cb.checked; render(); });
+      var line = l.n + '. ' + l.name;
+      var note = (LABEL[l.status] || l.status) + (l.duplicate ? ' · seen before' : '') + (l.phone ? ' · ' + l.phone + ' (listing, unverified)' : '');
+      box.append(el('label', { className: 'lead' }, [cb, el('div', {}, [el('strong', { text: line }), el('div', { className: 'muted', text: note })])]));
+    });
+    var picks = Object.keys(sel).filter(function (k) { return sel[k]; }).map(Number);
+    var offer = el('input', { type: 'checkbox', checked: !!offers[job.id] });
+    offer.addEventListener('change', function () { offers[job.id] = offer.checked; });
+    box.append(el('label', { className: 'check' }, [offer, el('span', { text: 'Quote the approved launch offer in the pitch' })]));
+    var one = el('button', { className: 'primary', type: 'button', text: picks.length ? 'Build for ' + picks.length + ' picked' : 'Pick leads above', disabled: !picks.length });
+    one.addEventListener('click', function () { build(job, picks); });
+    var all = el('button', { type: 'button', text: 'Build all eligible (' + eligible + ')', disabled: !eligible });
+    all.addEventListener('click', function () { build(job, 'eligible'); });
+    box.append(el('div', { className: 'row' }, [one, all]));
+    return box;
+  }
+  function build(job, picks) {
     $('find-err').textContent = '';
-    var count = $('count').value;
-    return agent === 'qwen'
-      ? 'Run the Find Forge Leads macro: business "' + type + '", city "' + city + '", count ' + count + '. When it finishes, list the numbered results.'
-      : 'Find ' + count + ' ' + type + ' in ' + city + ' that have no website. Use the Ally. When it finishes, show me the numbered list.';
+    api({ action: 'create', input: { request_id: requestId(), kind: 'build', source_id: job.id, picks: picks, offer: !!offers[job.id] } })
+      .then(function () { return load(); }).catch(function (e) { $('find-err').textContent = e.message; });
   }
-  function pickText(agent) {
-    var raw = $('picks').value.replace(/\s+/g, '');
-    if (raw && !PICKS.test(raw)) { $('pick-err').textContent = 'Use numbers separated by commas, like 1,3 (up to 10).'; return null; }
-    $('pick-err').textContent = '';
-    var which = raw ? raw : 'eligible', offer = $('offer').checked;
-    return agent === 'qwen'
-      ? 'Run forge-preview on the latest batch: --pick ' + which + (offer ? ' --launch-offer' : '') + '. Report the receipt line only.'
-      : 'Build site previews and call pitches for ' + (raw ? 'leads ' + raw : 'all eligible leads') + ' from the latest batch' + (offer ? ', quoting the approved launch offer' : '') + '. Then show me each pitch and previews on my phone.';
+  function buildView(res) {
+    var box = el('div', {});
+    res.packs.forEach(function (p) {
+      var frame = el('iframe', { title: 'Site preview for ' + p.name });
+      frame.setAttribute('sandbox', '');
+      var tabs = el('div', { className: 'row' }), pre = el('pre', { text: p.pitch });
+      var names = [['editorial', 'Editorial'], ['bold', 'Bold'], ['fresh', 'Fresh']].filter(function (x) { return p.previews[x[0]]; });
+      function show(k) { frame.srcdoc = p.previews[k]; tabs.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.k === k)); }); }
+      names.forEach(function (x) { var b = el('button', { type: 'button', text: x[1] }); b.dataset.k = x[0]; b.setAttribute('aria-pressed', 'false'); b.addEventListener('click', function () { show(x[0]); }); tabs.append(b); });
+      var copy = el('button', { type: 'button', text: 'Copy pitch' });
+      copy.addEventListener('click', function () { if (navigator.clipboard) navigator.clipboard.writeText(p.pitch).then(function () { copy.textContent = 'Copied'; setTimeout(function () { copy.textContent = 'Copy pitch'; }, 1500); }, function () {}); });
+      var section = el('div', { className: 'job' }, [el('h3', { text: p.name }), tabs]);
+      if (names.length) { section.append(el('div', { className: 'frame' }, [frame])); show(names[0][0]); } else section.append(el('p', { className: 'muted', text: 'Preview pages are on the Ally for this one.' }));
+      section.append(pre, el('div', { className: 'row' }, [copy]));
+      box.append(section);
+    });
+    return box;
   }
-  function wire(id, build, outId) {
-    $(id).addEventListener('click', function (e) { var t = build(); if (t) copy($(outId), t, e.currentTarget); });
+  function render() {
+    var host = $('jobs');
+    host.replaceChildren();
+    $('jobs-empty').hidden = jobs.length > 0;
+    jobs.forEach(function (job) {
+      var card = el('div', { className: 'job' }, [el('div', { className: 'row' }, [el('strong', { text: title(job) }), pill(job)])]);
+      if (job.error) card.append(el('p', { className: 'err', text: job.error }));
+      if (job.status === 'queued' || job.status === 'processing') {
+        var stop = el('button', { type: 'button', text: job.cancel_requested ? 'Stopping…' : 'Cancel', disabled: job.cancel_requested });
+        stop.addEventListener('click', function () { api({ action: 'cancel', input: { id: job.id } }).then(load).catch(function (e) { $('find-err').textContent = e.message; }); });
+        card.append(el('div', { className: 'row' }, [stop]));
+      }
+      if (job.status === 'done' && job.has_result) {
+        var res = results[job.id];
+        if (!res) {
+          var open = el('button', { className: 'primary', type: 'button', text: job.kind === 'search' ? 'Show the list' : 'Show previews and pitches' });
+          open.addEventListener('click', function () { open.disabled = true; fetchResult(job); });
+          card.append(el('div', { className: 'row' }, [open]));
+        } else card.append(job.kind === 'search' ? searchView(job, res) : buildView(res));
+      }
+      host.append(card);
+    });
   }
-  wire('find-claude', function () { return findText('claude'); }, 'find-out');
-  wire('find-qwen', function () { return findText('qwen'); }, 'find-out');
-  wire('pick-claude', function () { return pickText('claude'); }, 'pick-out');
-  wire('pick-qwen', function () { return pickText('qwen'); }, 'pick-out');
+  $('search').addEventListener('click', function () {
+    var business = $('type').value.trim().replace(/\s+/g, ' '), city = $('city').value.trim().replace(/\s+/g, ' ');
+    if (!TEXT.test(business) || !TEXT.test(city)) { $('find-err').textContent = 'Use plain letters and numbers for the business type and city.'; return; }
+    $('find-err').textContent = '';
+    api({ action: 'create', input: { request_id: requestId(), kind: 'search', business: business, city: city, count: Number($('count').value) } })
+      .then(function () { return load(); }).catch(function (e) { $('find-err').textContent = e.message; });
+  });
   function deny(text) { $('state').textContent = text; }
   fetch('/api/room-history', { credentials: 'include' }).then(function (res) {
     if (res.status === 401) { deny('Sign in with your owner account to open Leads.'); return null; }
@@ -119,7 +196,7 @@ ul{margin:6px 0 0;padding-left:20px}[hidden]{display:none!important}a{color:#f2b
   }).then(function (data) {
     if (!data) return;
     if (!data.workbench || !data.workbench.operator) { deny('Leads is for the Nexus owner.'); return; }
-    $('state').hidden = true; $('app').hidden = false;
+    $('state').hidden = true; $('app').hidden = false; load();
   }).catch(function () { deny('Could not open Leads. Refresh to try again.'); });
 })();
 </script>
