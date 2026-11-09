@@ -29,7 +29,8 @@ function setup(){
 const input={request_id:'mission-req-001',business:'barbers',region:'iowa',count:5,max_cities:3};
 const found=(eligibleCount)=>({batch:BATCH,leads:[
  ...Array.from({length:eligibleCount},(_,i)=>({name:'Shop '+i,status:'no_dedicated_site_found',duplicate:false,phone:'',notes:''})),
- {name:'Chain',status:'has_website',duplicate:false,phone:'',notes:''}]});
+ {name:'Chain',status:'has_website',duplicate:false,phone:'',notes:''},
+ {name:'Unsure',status:'needs_checking',duplicate:false,phone:'',notes:''}]});
 
 test('mission spec: Iowa preset or plain city names, capped counts',()=>{
  assert.equal(normalizeMission({business:'barbers',region:'iowa'}).cities.length,25);
@@ -53,7 +54,7 @@ test('mission runs itself: queues one task at a time, ticks it off, adds a previ
  const done=await queue.complete(OWNER,DEVICE,{id:job.id,token:job.token,result:{batch:BATCH,leads:found(2).leads}});
  await missions.settle(OWNER,done.id,'done');
  let now=await missions.get(OWNER);
- assert.equal(now.tasks[0].status,'done');assert.equal(now.tasks[0].found,3);assert.equal(now.tasks[0].eligible,2);
+ assert.equal(now.tasks[0].status,'done');assert.equal(now.tasks[0].found,4);assert.equal(now.tasks[0].eligible,2,'needs_checking leads are not buildable, so they are not counted');
  assert.equal(now.tasks[1].type,'build','preview task added right after the search');
  assert.equal(now.tasks.length,4);
  await missions.advance(OWNER,DEVICE);
