@@ -156,7 +156,11 @@ export function missionTransportArgs(args={}){
   const count=args.count===undefined?5:args.count,max=args.max_cities===undefined?25:args.max_cities;
   if(typeof args.business!=='string'||!PLAIN.test(args.business.trim())||!Number.isInteger(count)||count<1||count>10||!Number.isInteger(max)||max<1||max>25)
    throw Error('Start needs a plain business type, count 1-10 and max_cities 1-25. Region is Iowa.');
-  return ['-Action','mission_start','-Business',args.business.trim(),'-Count',String(count),'-MaxCities',String(max)];
+  const cities=args.cities;
+  if(cities!==undefined&&(!Array.isArray(cities)||cities.length<1||cities.length>5||cities.some(c=>typeof c!=='string'||!PLAIN.test(c.trim())||c.includes(','))))
+   throw Error('Start cities must be 1-5 plain city names.');
+  const base=['-Action','mission_start','-Business',args.business.trim(),'-Count',String(count),'-MaxCities',String(max)];
+  return cities?[...base,'-Cities',cities.map(c=>c.trim()).join(',')]:base;
  }
  throw Error('Use status, start, add_cities, pause or resume.');
 }
@@ -177,6 +181,8 @@ export function approvedMissionRoute(task){
  const start=t.match(/^(?:please\s+)?(?:find|search for|look for|get)\s+(?:me\s+)?([\p{L}][\p{L} &'-]{1,60}?)\s+(?:all over|across|throughout|in all of|in every city in)\s+iowa(?:\s+(?:that have|with|who have|having)\s+no\s+(?:web)?sites?)?$/iu);
  if(start&&PLAIN.test(start[1].trim()))return {action:'start',business:start[1].trim()};
  if(/^(?:please\s+)?(?:(?:show|check|what(?:'s| is)|how(?:'s| is))\s+(?:me\s+)?(?:the\s+)?(?:lead\s+)?mission(?:\s+(?:status|going|progress))?|mission\s+(?:status|progress))$/i.test(t))return {action:'status'};
+ const one=t.match(/^(?:please\s+)?(?:find|search for|look for|get)\s+(?:me\s+)?([\p{L}][\p{L} &'-]{1,60}?)\s+in\s+([\p{L}][\p{L} .'-]{1,58}?)(?:,?\s+iowa)?(?:\s+(?:that have|with|who have|having)\s+no\s+(?:web)?sites?)?$/iu);
+ if(one&&PLAIN.test(one[1].trim())&&PLAIN.test(one[2].trim())&&!/^(?:all of |every city in )?iowa$/i.test(one[2].trim()))return {action:'start',business:one[1].trim(),cities:[one[2].trim()],max_cities:1};
  const add=t.match(/^(?:please\s+)?add\s+([\p{L}][\p{L} .'-]{1,58})\s+to\s+(?:the\s+)?(?:lead\s+)?mission$/iu);
  if(add&&PLAIN.test(add[1].trim()))return {action:'add_cities',cities:[add[1].trim()]};
  return null;
