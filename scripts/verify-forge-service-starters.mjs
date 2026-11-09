@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { resolve, extname } from 'node:path';
-import { generateServiceVariants, renderServiceTemplate } from '../public/forge-service-templates.js';
+import { generateSiteVariants, renderSiteVariant } from '../public/site-compose.mjs';
 
 const browser = await chromium.launch({ headless:true, args:['--no-sandbox','--disable-dev-shm-usage','--disable-gpu','--no-zygote'], ...(process.env.NEXUS_TEST_BROWSER_PATH ? {executablePath:process.env.NEXUS_TEST_BROWSER_PATH} : {}) });
 const errors=[];
@@ -19,14 +19,14 @@ const server=createServer(async(req,res)=>{
 });
 try {
   for(const width of [393,1280])for(const id of ['editorial','bold','fresh']){
-    await page.setViewportSize({width,height:852});await page.setContent(renderServiceTemplate(sample,id));
+    await page.setViewportSize({width,height:852});await page.setContent(renderSiteVariant(sample,id));
     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));checks++;
-    await page.getByRole('button',{name:'Book a visit',exact:true}).click();
-    await page.getByLabel('Name (use sample details)').fill('Sample guest');await page.getByLabel('Preferred day').fill('2026-12-01');
+    await page.getByRole('button',{name:'Request a time',exact:true}).first().click();
+    await page.getByLabel('Your name').fill('Sample guest');await page.getByLabel('Preferred day and time').fill('2026-12-01');
     await page.getByRole('button',{name:'Preview request',exact:true}).click();
-    assert.match(await page.locator('#booking-feedback').textContent(),/No appointment was booked/);checks++;
+    assert.match(await page.locator('#bk .say').textContent(),/Nothing was sent/);checks++;
     await page.getByRole('button',{name:'Close',exact:true}).click();
-    assert.equal(await page.locator('#booking').evaluate(el=>el.open),false);checks++;
+    assert.equal(await page.locator('#booking-dialog').evaluate(el=>el.open),false);checks++;
   }
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const base='http://127.0.0.1:'+server.address().port;
   await page.route('**/api/**',async route=>{
@@ -35,7 +35,7 @@ try {
     if(path==='/api/forge-clients')json={clients:[],owedCents:0,paidCents:0};
     if(path==='/api/forge-site'){
       const body=route.request().postDataJSON();
-      if(body.action==='templates'){generated++;sample.siteVariants=generateServiceVariants(sample);sample.siteTemplateId='editorial';sample.siteHtml=sample.siteVariants[0].html;sample.siteStatus='ready';}
+      if(body.action==='templates'){generated++;sample.siteVariants=generateSiteVariants(sample);sample.siteTemplateId='editorial';sample.siteHtml=sample.siteVariants[0].html;sample.siteStatus='ready';}
       else if(body.action==='select_template'){const variant=sample.siteVariants.find(v=>v.id===body.templateId);assert(variant);sample.siteHtml=variant.html;sample.siteTemplateId=variant.id;}
       else throw new Error('Unexpected action: '+body.action);
       json={lead:sample};
@@ -51,8 +51,8 @@ try {
   await page.getByRole('button',{name:'They answered — show the previews',exact:true}).click();
   assert.equal(generated,1);assert.equal(sample.siteTemplateId,'bold');checks++;
   await page.getByRole('button',{name:'Full screen ↗',exact:true}).click();
-  const full=page.frameLocator('dialog iframe');await full.getByRole('button',{name:'Book a visit',exact:true}).click();
-  assert.equal(await full.locator('#booking').evaluate(el=>el.open),true);checks++;
+  const full=page.frameLocator('dialog iframe');await full.getByRole('button',{name:'Request a time',exact:true}).first().click();
+  assert.equal(await full.locator('#booking-dialog').evaluate(el=>el.open),true);checks++;
   await full.getByRole('button',{name:'Close',exact:true}).click();await page.getByRole('button',{name:'← Back to call',exact:true}).click();
   await page.locator('dialog').waitFor({state:'detached'});
   assert.equal(await page.locator('dialog').count(),0);checks++;

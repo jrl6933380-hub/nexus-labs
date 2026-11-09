@@ -1,4 +1,4 @@
-import { SERVICE_TEMPLATES, renderServiceTemplate } from './forge-service-templates.js';
+import { SITE_RECIPES, renderSiteVariant } from './site-compose.mjs';
 
 const EXAMPLES = {
   barber: { businessName: 'Marlow Barber Studio', category: 'Barber', location: 'Your neighborhood', siteContent: { headline: 'A good cut changes the day.', intro: 'A sample direction for a local barbershop. Put your own approach, services, and personality here.', services: [{name:'Signature cut',price:'$35',sample:true},{name:'Cut & beard',price:'$50',sample:true},{name:'Beard detail',price:'$20',sample:true},{name:'Full refresh',price:'$65',sample:true}] } },
@@ -11,9 +11,10 @@ function render() {
   business.businessName = el('business-name').value;
   business.siteContent.headline = el('headline').value;
   business.siteContent.intro = el('intro').value;
-  output = renderServiceTemplate(business, template);
+  try { output = renderSiteVariant(business, template); }
+  catch (e) { el('direction-description').textContent = 'Fix this: ' + String(e.message || e).replace(/^Invalid site: /, '').slice(0, 220); return; }
   el('preview').srcdoc = output;
-  el('direction-description').textContent = SERVICE_TEMPLATES.find(t => t.id === template).description;
+  el('direction-description').textContent = SITE_RECIPES.find(t => t.id === template).description;
 }
 function loadExample() {
   business = JSON.parse(JSON.stringify(EXAMPLES[el('business-kind').value]));
