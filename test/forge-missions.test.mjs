@@ -112,6 +112,12 @@ test('owner and Qwen can add cities (deduped, capped); skip and stop work',async
  await assert.rejects(()=>missions.addTasks(OWNER,['Ames'],'owner'),/finished/);
 });
 
+test('starting from a named city adds the state and skips the Iowa preset',async()=>{
+ const {missions}=setup();
+ const m=await missions.start(OWNER,DEVICE,{request_id:'mission-req-city1',business:'barbers',cities:['Iowa City'],state:'iowa',count:5,max_cities:1});
+ assert.deepEqual(m.tasks.map(t=>t.city),['Iowa City, Iowa']);
+});
+
 test('API and page expose the mission without new network paths or markup injection',async()=>{
  const api=await readFile(new URL('../api/forge-lead-jobs.js',import.meta.url),'utf8');
  for(const a of ['mission_start','mission_add','mission_control','device_mission_add'])assert.match(api,new RegExp(a));

@@ -21,6 +21,9 @@ if($Action -in 'heartbeat','complete','fail'){
 if($Action -eq 'heartbeat' -and $Stage -notmatch '^(claimed|searching|building|uploading)$'){throw 'Invalid stage'}
 if($Action -eq 'fail' -and $Message.Length -gt 180){throw 'Failure reason too long'}
 if($Action -eq 'mission_start'){
+ $startList=@($Cities -split ',' | ForEach-Object {$_.Trim()} | Where-Object {$_})
+ if($startList.Count -gt 5){throw 'Start with 1-5 cities'}
+ foreach($c in $startList){if($c -notmatch '^[\p{L}\p{N} .,''&-]{2,60}$'){throw 'Use plain city names'}}
  if($Business -notmatch '^[\p{L}\p{N} .,''&-]{2,80}$' -or $Count -lt 1 -or $Count -gt 10 -or $MaxCities -lt 1 -or $MaxCities -gt 25){throw 'Invalid mission'}
 }
 if($Action -eq 'mission_add'){
@@ -50,7 +53,9 @@ if($Action -eq 'complete'){
   'heartbeat' {$payload=@{action='device_heartbeat';input=@{id=$JobId;token=$ClaimToken;stage=$Stage}}}
   'fail' {$payload=@{action='device_fail';input=@{id=$JobId;token=$ClaimToken;message=$Message}}}
   'mission_get' {$payload=@{action='device_mission_get';input=@{}}}
-  'mission_start' {$payload=@{action='device_mission_start';input=@{request_id=('q'+[guid]::NewGuid().ToString('N'));business=$Business;region='iowa';count=$Count;max_cities=$MaxCities;auto_build=$true}}}
+  'mission_start' {$startInput=@{request_id=('q'+[guid]::NewGuid().ToString('N'));business=$Business;count=$Count;max_cities=$MaxCities;auto_build=$true}
+   if($startList.Count -gt 0){$startInput.cities=@($startList)}else{$startInput.region='iowa'}
+   $payload=@{action='device_mission_start';input=$startInput}}
   'mission_add' {$payload=@{action='device_mission_add';input=@{cities=@($list)}}}
   'mission_control' {$payload=@{action='device_mission_control';input=@{control=$Control}}}
  }
