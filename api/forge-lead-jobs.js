@@ -46,7 +46,8 @@ export function createForgeLeadJobsHandler({queue=forgeLeadJobQueue,missions=for
      device_fail:async()=>{const job=await queue.fail(owner,device_id,input);await settle(job,job.status==='canceled'?'canceled':'failed');return job;},
      device_mission_add:async()=>({mission:await missions.addTasks(owner,input.cities,'qwen')}),
      device_mission_get:async()=>({mission:await missions.get(owner)}),
-     device_mission_start:async()=>({mission:await missions.start(owner,device_id,{request_id:input.request_id,business:input.business,region:'iowa',
+     device_mission_start:async()=>({mission:await missions.start(owner,device_id,{request_id:input.request_id,business:input.business,
+      ...(Array.isArray(input.cities)&&input.cities.length>=1&&input.cities.length<=5?{cities:input.cities,state:'iowa'}:{region:'iowa'}),
       count:input.count,max_cities:input.max_cities,auto_build:input.auto_build!==false})}),
      device_mission_control:async()=>{
       if(!['pause','resume'].includes(input.control))throw bad('Qwen can only pause or resume a mission.',403);
