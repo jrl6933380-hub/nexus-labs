@@ -81,3 +81,9 @@ test('non-website work never auto-generates site content',async()=>{
   assert.equal(r.status,'done');assert.equal(r.history.length,0);
  }finally{await rm(root,{recursive:true,force:true});}
 });
+
+test('plural barbers and salons choose the matching starter instead of the generic one',()=>{
+ assert.equal(approvedStarterRoute("Create 'smoke-b/index.html' in the local workspace as a one-page site for 'Smoke Test Barbers', including Hero and Contact").template,'barbershop');
+ assert.equal(approvedStarterRoute("Build a landing page at 'nails/index.html' for 'Glow Salons'").template,'salon');
+ assert.equal(approvedStarterRoute("Build a landing page at 'plumb/index.html' for 'Pipe Pros'").template,'service');
+});
