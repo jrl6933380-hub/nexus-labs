@@ -98,6 +98,8 @@ test('owner and Qwen can add cities (deduped, capped); skip and stop work',async
  let m=await missions.addTasks(OWNER,['Ankeny','ankeny, iowa','Boone'],'qwen');
  assert.deepEqual(m.tasks.map(t=>t.city),['Des Moines, Iowa','Cedar Rapids, Iowa','Ankeny, Iowa','Boone, Iowa']);
  assert.equal(m.tasks[3].added_by,'qwen');
+ m=await missions.addTasks(OWNER,['Iowa City'],'qwen');
+ assert.equal(m.tasks[4].city,'Iowa City, Iowa','a city with Iowa in its name still gets the state added');
  await assert.rejects(()=>missions.addTasks(OWNER,['a<b>'],'qwen'),/plain city/);
  await assert.rejects(()=>missions.addTasks(OWNER,['A1','A2','A3','A4','A5','A6'],'qwen'),/1-5/);
  m=await missions.control(OWNER,{action:'skip',task_id:m.tasks[1].id});
