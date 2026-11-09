@@ -87,3 +87,10 @@ test('transport script validates every mission field before it uses the device t
  assert.match(ps,/\^\(pause\|resume\)\$/);
  assert.match(ps,/nexus-labs-sigma\.vercel\.app\/api\/forge-lead-jobs/);
 });
+
+test('the installer copies the hash-pinned lead transport next to the agent Qwen actually runs from',async()=>{
+ const installer=await readFile(new URL('../scripts/ally/install-qwen-console.ps1',import.meta.url),'utf8');
+ const copies=installer.slice(installer.indexOf('$copies=@('),installer.indexOf('foreach($copy in $copies)'));
+ assert.match(copies,/from='scripts\\ally\\forge-lead-transport\.ps1';hash=\$LeadTransportSha256/);
+ assert.match(copies,/from='scripts\\ally\\qwen-terminal-agent\.mjs'/);
+});

@@ -74,7 +74,8 @@ $copies=@(
  @{from='scripts\ally\qwen-work-tools.mjs';hash=$ToolSha256},
  @{from='scripts\ally\forge-browser.ps1';hash=$ForgeBrowserSha256},
  @{from='public\nexus-macro-registry.js';hash=$MacroRegistrySha256},
- @{from='scripts\ally\submit-ad-review.ps1';hash=$SubmitReviewSha256}
+ @{from='scripts\ally\submit-ad-review.ps1';hash=$SubmitReviewSha256},
+ @{from='scripts\ally\forge-lead-transport.ps1';hash=$LeadTransportSha256}
 )
 foreach($copy in $copies){
  $source=Join-Path $version $copy.from
