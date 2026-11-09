@@ -113,7 +113,7 @@ export function approvedStarterRoute(task){
   /\b(?:do not|don't|never|without)\s+(?:create|build|draft|make|generate|write|start|run)\b/i.test(task))return null;
  const path=task.match(/\b([a-zA-Z0-9][a-zA-Z0-9_.-]{0,55}(?:\/[a-zA-Z0-9][a-zA-Z0-9_.-]{0,55}){0,3}\/index\.html)\b/i)?.[1];
  if(!path)return null;
- const template=/\bbarber(?:shop)?\b/i.test(task)?'barbershop':/\bsalon\b/i.test(task)?'salon':'service';
+ const template=/\bbarber(?:s|shops?)?\b/i.test(task)?'barbershop':/\bsalons?\b/i.test(task)?'salon':'service';
  // Only use a name explicitly quoted in the approved task. Fall back to
  // clearly-labeled sample text otherwise, never invent real business details.
  const label=task.match(/\b(?:named|called|for)\s+['\"](.{2,72})['\"](?=\s*(?:[,.;]|$|including\b|with\b))/i)?.[1];
