@@ -93,13 +93,15 @@ export async function runLeadJob(job,{root,scriptDir=dirname(fileURLToPath(impor
  const appRoot=resolve(root,'..'),transport=join(scriptDir,'forge-lead-transport.ps1');
  const tools=await nodeAndTools(appRoot);
  const batchesRoot=join(appRoot,'forge-leads','batches'),previewsRoot=join(appRoot,'forge-leads','previews');
- let stage='claimed',stop=false,lease=false,pending=Promise.resolve();
+ let stage='claimed',stop=false,lease=false,misses=0,pending=Promise.resolve();
  const beat=next=>{stage=next;pending=pending.catch(()=>{}).then(async()=>{
   const r=await ps(transport,'heartbeat',['-JobId',job.id,'-ClaimToken',job.token,'-Stage',next],runner);
   if(r?.result?.cancel_requested)stop=true;});return pending;};
  const check=()=>{if(lease)throw Error('Lease renewal failed; look at the Ally');if(stop)throw Error('Owner requested stop');};
  await beat('claimed');
- const timer=setInterval(()=>void beat(stage).catch(()=>{lease=true;}),45000);timer.unref?.();
+ // A single slow or dropped heartbeat (the Ally is busy with Qwen/browser) must not fail a good search.
+ // The server lease is 30 min and beats run every 45 s, so three misses in a row is a real problem.
+ const timer=setInterval(()=>void beat(stage).then(()=>{misses=0;}).catch(()=>{if(++misses>=3)lease=true;}),45000);timer.unref?.();
  try{
   let result;
   if(job.kind==='search'){
