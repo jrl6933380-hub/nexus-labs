@@ -24,6 +24,7 @@ export function workCatalog(){
    site_starter:'approved_local_job_macro_first_no_network',
    google_search:'approved_job_public_google_only',
    macro_actions:'approved_job_allowlisted_actions_only',
+   lead_missions:'approved_job_start_add_cities_pause_resume_only_never_send_or_publish',
    render:'separate_owner_render_approval',
    publishing:'not_available',
    github:'not_available',
@@ -136,5 +137,47 @@ export function approvedAdMacroRoute(task){
   [/^(?:please\s+)?package\s+(?:the\s+)?ad\s+project\s+(?:id\s+)?([a-zA-Z0-9][a-zA-Z0-9_-]{1,79})(?=\s|[.!?,;]|$)/i,'package_ad']
  ];
  for(const [expression,action] of fixed){const m=t.match(expression);if(m)return {action,project_id:m[1]};}
+ return null;
+}
+
+// Forge lead missions: Qwen may start one, read it, add cities, pause or resume it. The paired-Ally
+// transport only reaches the owner's own lead queue. Stop, sending, calling and publishing stay owner-only.
+const PLAIN=/^[\p{L}\p{N} .,'&-]{2,80}$/u;
+export function missionTransportArgs(args={}){
+ const a=args.action;
+ if(a==='status')return ['-Action','mission_get'];
+ if(a==='pause'||a==='resume')return ['-Action','mission_control','-Control',a];
+ if(a==='add_cities'){
+  if(!Array.isArray(args.cities)||args.cities.length<1||args.cities.length>5||args.cities.some(c=>typeof c!=='string'||!PLAIN.test(c.trim())||c.includes(',')))
+   throw Error('Add 1-5 plain city names, one per entry.');
+  return ['-Action','mission_add','-Cities',args.cities.map(c=>c.trim()).join(',')];
+ }
+ if(a==='start'){
+  const count=args.count===undefined?5:args.count,max=args.max_cities===undefined?25:args.max_cities;
+  if(typeof args.business!=='string'||!PLAIN.test(args.business.trim())||!Number.isInteger(count)||count<1||count>10||!Number.isInteger(max)||max<1||max>25)
+   throw Error('Start needs a plain business type, count 1-10 and max_cities 1-25. Region is Iowa.');
+  return ['-Action','mission_start','-Business',args.business.trim(),'-Count',String(count),'-MaxCities',String(max)];
+ }
+ throw Error('Use status, start, add_cities, pause or resume.');
+}
+export function missionSummary(stdout){
+ const raw=JSON.parse(String(stdout||'').replace(/^﻿/,'').trim());
+ const m=raw?.result?.mission??raw?.mission;
+ if(!m)return {status:'none',note:'There is no mission yet. Start one with lead_mission start.'};
+ const tasks=(m.tasks||[]).slice(0,40).map(t=>({id:t.id,label:snippet(t.label,60),status:t.status,
+  ...(t.found!=null?{found:t.found,no_site:t.eligible}:{}) }));
+ return {status:m.status,goal:snippet(m.goal,120),progress:m.progress,note:snippet(m.note,120),
+  waiting:tasks.filter(t=>t.status==='todo').length,tasks:tasks.slice(0,25)};
+}
+// Narrow, explicitly worded owner requests start a mission without the small model planning it.
+export function approvedMissionRoute(task){
+ if(typeof task!=='string'||task.length>400||/[\u0000-\u001f]/.test(task))return null;
+ const t=task.trim().replace(/[.!?]+$/,'');
+ if(/\b(?:do not|don't|never|without|not yet)\b(?!\s+(?:web)?sites?\b)/i.test(t.replace(/\bwith(?:out)?\s+(?:a\s+|any\s+)?(?:web)?sites?\b/gi,'')))return null;
+ const start=t.match(/^(?:please\s+)?(?:find|search for|look for|get)\s+(?:me\s+)?([\p{L}][\p{L} &'-]{1,60}?)\s+(?:all over|across|throughout|in all of|in every city in)\s+iowa(?:\s+(?:that have|with|who have|having)\s+no\s+(?:web)?sites?)?$/iu);
+ if(start&&PLAIN.test(start[1].trim()))return {action:'start',business:start[1].trim()};
+ if(/^(?:please\s+)?(?:(?:show|check|what(?:'s| is)|how(?:'s| is))\s+(?:me\s+)?(?:the\s+)?(?:lead\s+)?mission(?:\s+(?:status|going|progress))?|mission\s+(?:status|progress))$/i.test(t))return {action:'status'};
+ const add=t.match(/^(?:please\s+)?add\s+([\p{L}][\p{L} .'-]{1,58})\s+to\s+(?:the\s+)?(?:lead\s+)?mission$/iu);
+ if(add&&PLAIN.test(add[1].trim()))return {action:'add_cities',cities:[add[1].trim()]};
  return null;
 }
