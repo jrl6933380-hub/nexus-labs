@@ -30,11 +30,11 @@ Manager-created leads can include `siteContent`. Its known fields are normalized
 }
 ```
 
-Only supply facts and photos approved for reuse. HTTPS image URLs are accepted; missing images are explicit photo slots. Missing services are marked sample services, missing prices say “Ask for pricing,” and missing hours/address are marked unconfirmed. No fake testimonials are generated. Imported ratings are only displayed with a numeric review count and a source/date confirmation note.
+Only supply facts and photos approved for reuse. HTTPS image URLs are accepted; missing images are explicit photo slots. Missing services are marked sample services, missing prices are simply left off, and missing hours/address are marked unconfirmed. No fake testimonials are generated. Imported ratings are only displayed with a numeric review count and a source/date confirmation note.
 
 ## Edit and reuse
 
-`public/forge-service-templates.js` is the shared Node/browser renderer. Use `generateServiceVariants(lead)` to get all three independent sources, or `renderServiceTemplate(lead, templateId)` for one. All CSS and behavior are inline in each result. Source can be edited or saved into separate Projects; generated instances do not modify the shared starter. Supplied photo URLs remain external assets.
+The Site Language (`public/site-compose.mjs` and friends, see `docs/site-language.md`) is the shared Node/browser renderer. Use `generateSiteVariants(lead)` to get all three independent sources, or `renderSiteVariant(lead, recipeId)` for one. All CSS and behavior are inline in each result. Source can be edited or saved into separate Projects; generated instances do not modify the shared starter. Supplied photo URLs remain external assets.
 
 `/forge-templates.html` is a public sample gallery with fictional business examples, editable name/headline/introduction/services, desktop/phone sizing, and an HTML download. Its edits are local and not persisted unless downloaded. No actual leads or private account data are loaded.
 

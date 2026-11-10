@@ -7,7 +7,7 @@ import { getRequestUser } from '../lib/roomAuth.js';
 import { isForgeWorker, isForgeManager } from '../lib/forgeRoles.js';
 import { getLead, updateLeadSite } from '../lib/forgeLeads.js';
 import { generateSiteHtml, editSiteHtml } from '../lib/forgeSitePreview.js';
-import { generateServiceVariants } from '../public/forge-service-templates.js';
+import { generateSiteVariants } from '../public/site-compose.mjs';
 
 async function canAccessLead(lead, username, manager) {
   return manager || lead.assignedTo === username;
@@ -38,7 +38,7 @@ export default async function handler(req, res) {
     }
 
     if (action === 'templates') {
-      const variants = generateServiceVariants(lead);
+      const variants = generateSiteVariants(lead);
       const updated = await updateLeadSite(leadId, {
         html: variants[0].html, status: 'ready', variants, templateId: variants[0].id,
       });

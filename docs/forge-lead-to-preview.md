@@ -12,7 +12,7 @@ Goal: choose businesses with no website, then get a concept site preview and a c
    Receipt: `FORGE_PREVIEW_READY leads=N files=N dir=...`.
 
 ## What it will and will not do
-- Uses the shared deterministic renderer (`public/forge-service-templates.js`) and pitch (`public/forge-pitch.js`). No model, browser, network or credentials.
+- Uses the shared deterministic renderer (the Site Language (`public/site-vocabulary.mjs`, `site-validate.mjs`, `site-render.mjs`, `site-compose.mjs`; see docs/site-language.md)) and pitch (`public/forge-pitch.js`). No model, browser, network or credentials.
 - `eligible` means "no dedicated site found" or "social / booking only", not a duplicate. A lead that already has a website is refused. A `needs_checking` lead is built only when picked by number, and is marked unverified.
 - Phone numbers from listings are suggestions: they appear in `pitch.json` and the index, never inside a preview site.
 - Previews show sample services marked as samples; no invented reviews, prices, hours or photos.

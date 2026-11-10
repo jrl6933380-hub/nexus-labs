@@ -5,7 +5,7 @@ import {readFile,writeFile,mkdir,readdir,lstat,rename} from 'node:fs/promises';
 import {join,dirname,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
-import {generateServiceVariants} from '../../public/forge-service-templates.js';
+import {generateSiteVariants} from '../../public/site-compose.mjs';
 import {generatePitchScript} from '../../public/forge-pitch.js';
 import {LAUNCH_OFFER,TIERS} from '../../lib/forgeProgram.js';
 
@@ -63,7 +63,7 @@ export function buildPack({batch,picks,offer=null}){
  for(const {position,candidate:c} of chosen){
   const folder=slug(c.name,position);
   const siteLead={businessName:c.name,category:batch.spec?.business,location:c.location};
-  const variants=generateServiceVariants(siteLead);
+  const variants=generateSiteVariants(siteLead);
   const pitchLead={...siteLead,websiteStatus:c.status,siteStatus:'ready',siteHtml:variants[0].html,
    research:{identity_confirmed:false,website_confirmed:false,checked_at:c.checked_at}};
   const pitch=generatePitchScript(pitchLead,offer);

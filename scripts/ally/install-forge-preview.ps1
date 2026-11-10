@@ -3,7 +3,10 @@
 param(
  [Parameter(Mandatory=$true)][ValidatePattern('^[a-f0-9]{40}$')][string]$Revision,
  [Parameter(Mandatory=$true)][ValidatePattern('^[a-f0-9]{64}$')][string]$PreviewSha256,
- [Parameter(Mandatory=$true)][ValidatePattern('^[a-f0-9]{64}$')][string]$TemplatesSha256,
+ [Parameter(Mandatory=$true)][ValidatePattern('^[a-f0-9]{64}$')][string]$VocabularySha256,
+ [Parameter(Mandatory=$true)][ValidatePattern('^[a-f0-9]{64}$')][string]$ValidateSha256,
+ [Parameter(Mandatory=$true)][ValidatePattern('^[a-f0-9]{64}$')][string]$RenderSha256,
+ [Parameter(Mandatory=$true)][ValidatePattern('^[a-f0-9]{64}$')][string]$ComposeSha256,
  [Parameter(Mandatory=$true)][ValidatePattern('^[a-f0-9]{64}$')][string]$PitchSha256,
  [Parameter(Mandatory=$true)][ValidatePattern('^[a-f0-9]{64}$')][string]$ProgramSha256,
  [switch]$StageOnly
@@ -14,7 +17,10 @@ $version=Join-Path $base ('preview-versions\'+$Revision)
 # repo path => expected hash. The layout under $version mirrors the repo so relative imports resolve.
 $files=@(
  @{path='scripts/ally/forge-preview.mjs';hash=$PreviewSha256},
- @{path='public/forge-service-templates.js';hash=$TemplatesSha256},
+ @{path='public/site-vocabulary.mjs';hash=$VocabularySha256},
+ @{path='public/site-validate.mjs';hash=$ValidateSha256},
+ @{path='public/site-render.mjs';hash=$RenderSha256},
+ @{path='public/site-compose.mjs';hash=$ComposeSha256},
  @{path='public/forge-pitch.js';hash=$PitchSha256},
  @{path='lib/forgeProgram.js';hash=$ProgramSha256}
 )
