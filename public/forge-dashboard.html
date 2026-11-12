@@ -40,7 +40,7 @@
   .ac-go.alt { background:#1d2230; color:#c7cad1; border:1px solid #333844; }
   .ac-msg { white-space:pre-wrap; background:#0f1218; border:1px solid #2e7d32; border-radius:8px; padding:10px; margin-top:10px; font-size:13px; }
   .ac-err { color:#e57373; font-size:13px; margin-top:8px; }
-  .cp-assign { background:#0b0d12; color:#e8eaed; border:1px solid #333844; border-radius:6px; padding:4px; font-size:12px; }
+  .ld-sel, .cp-assign { background:#0b0d12; color:#e8eaed; border:1px solid #333844; border-radius:6px; padding:4px; font-size:12px; }
   #cp-status-filter { background:#0b0d12; color:#e8eaed; border:1px solid #333844; border-radius:8px; padding:6px; font-size:12px; margin-bottom:8px; }
 </style>
 </head>
@@ -88,8 +88,8 @@
     <div class="card" style="background:#14171f;border:1px solid #262b36;border-radius:12px;padding:14px;margin-bottom:20px;">
       <p style="font-size:13px;color:#9aa0a6;margin:0 0 10px;">Every saved lead. Pass one to a caller and it shows up in their Field page. Callers are managed under Accounts.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
-        <select id="ld-filter" class="cp-assign" style="min-height:40px;"><option value="all">All leads</option><option value="unassigned" selected>Not passed yet</option><option value="assigned">Passed to a caller</option></select>
-        <select id="ld-bulk-to" class="cp-assign" style="min-height:40px;"><option value="">Pass all “not passed yet” to…</option></select>
+        <select id="ld-filter" class="ld-sel" style="min-height:40px;"><option value="all">All leads</option><option value="unassigned" selected>Not passed yet</option><option value="assigned">Passed to a caller</option></select>
+        <select id="ld-bulk-to" class="ld-sel" style="min-height:40px;"><option value="">Pass all “not passed yet” to…</option></select>
         <button id="ld-bulk" type="button" class="ac-go alt" style="min-height:40px;">Pass them</button>
       </div>
       <div id="ld-msg" class="ac-err" role="alert"></div>
@@ -723,7 +723,7 @@ document.getElementById('import-go').addEventListener('click', async function ()
         '<div style="font-size:12px;color:#9aa0a6;">' + esc(sub) + (l.assignedTo ? ' · with ' + esc(label(l.assignedTo)) : '') + ' · ' + esc(l.status || 'new') + '</div>' +
         '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px;">' +
         (l.phone ? '<a href="tel:' + esc(String(l.phone).replace(/[^0-9+]/g, '')) + '" style="color:#8ab4f8;min-height:40px;display:inline-flex;align-items:center;">' + esc(l.phone) + '</a>' : '') +
-        '<select class="cp-assign ld-pick" data-id="' + esc(l.id) + '" style="min-height:40px;" aria-label="Pass ' + esc(l.businessName) + ' to a caller">' + options(l.assignedTo) + '</select></div></div>';
+        '<select class="ld-sel ld-pick" data-id="' + esc(l.id) + '" style="min-height:40px;" aria-label="Pass ' + esc(l.businessName) + ' to a caller">' + options(l.assignedTo) + '</select></div></div>';
     }).join('');
   }
   function load() {
