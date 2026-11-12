@@ -36,6 +36,7 @@ $('f').addEventListener('submit', async ev => {
       if (l.phone) c.append(el('p', 'Phone: ' + l.phone));
       if (l.rating) c.append(el('p', `Rating ${l.rating} from ${l.reviewCount} reviews`));
       c.append(el('p', l.notes));
+      if (l.reason) c.append(el('p', `Rank ${d.leads.indexOf(l) + 1} (score ${l.score}): ${l.reason}`, 'note'));
       if (l.website) { const a = el('a', l.website); a.href = l.website; a.rel = 'noopener noreferrer'; const p = el('p'); p.append(a); c.append(p); }
       if (l.map_url) { const a = el('a', 'Open in Maps'); a.href = l.map_url; a.rel = 'noopener noreferrer'; const p = el('p'); p.append(a); c.append(p); }
       if (l.status !== 'has_website') addBuild(c, l, d.query);
