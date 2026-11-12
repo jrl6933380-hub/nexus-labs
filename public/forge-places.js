@@ -4,7 +4,7 @@ const el = (tag, text, cls) => { const e = document.createElement(tag); if (text
 $('f').addEventListener('submit', async ev => {
   ev.preventDefault(); $('go').disabled = true; $('msg').textContent = 'Searching…'; $('out').replaceChildren();
   try {
-    const r = await fetch('/api/forge-places', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ business: $('b').value, city: $('c').value, count: Number($('n').value) }) });
+    const r = await fetch('/api/forge-places', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ business: $('b').value, city: $('c').value, count: Number($('n').value) }), signal: AbortSignal.timeout(30000) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw Error(d.error || 'Search failed.');
     $('msg').textContent = `Google returned ${d.found} places; showing ${d.leads.length}.`;
@@ -18,6 +18,6 @@ $('f').addEventListener('submit', async ev => {
       if (l.map_url) { const a = el('a', 'Open in Maps'); a.href = l.map_url; a.rel = 'noopener noreferrer'; const p = el('p'); p.append(a); c.append(p); }
       $('out').append(c);
     }
-  } catch (e) { $('msg').textContent = String(e.message || e); }
+  } catch (e) { $('msg').textContent = e.name === 'TimeoutError' ? 'No answer from the server after 30 seconds.' : String(e.message || e); }
   finally { $('go').disabled = false; }
 });
