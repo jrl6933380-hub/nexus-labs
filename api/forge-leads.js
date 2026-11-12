@@ -13,6 +13,7 @@ import { getRequestUser } from '../lib/roomAuth.js';
 import { isForgeWorker, isForgeManager } from '../lib/forgeRoles.js';
 import { createLead, listLeads, assignLead, recordDisposition, updateLeadEnrichment } from '../lib/forgeLeads.js';
 import { generatePitchScript } from '../lib/forgePitch.js';
+import { getPricing } from '../lib/forgeLaunchPrice.js';
 import { fetchBusinessSignals } from '../lib/forgePlaces.js';
 
 export default async function handler(req, res) {
@@ -30,7 +31,8 @@ export default async function handler(req, res) {
       const wantsAll = req.query?.scope === 'all';
       if (wantsAll && !manager) return res.status(403).json({ error: 'Manager access required.' });
       const leads = await listLeads(wantsAll ? {} : { assignedTo: username });
-      const withPitch = leads.map((lead) => ({ ...lead, pitch: generatePitchScript(lead) }));
+      const pricing = await getPricing();
+      const withPitch = leads.map((lead) => ({ ...lead, pitch: generatePitchScript(lead, pricing) }));
       return res.status(200).json({ leads: withPitch });
     }
 

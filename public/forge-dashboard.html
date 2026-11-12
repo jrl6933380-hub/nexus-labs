@@ -55,6 +55,18 @@
     <a href="/forge-hub.html#templates" target="_top">Templates</a>
   </div>
 
+  <h2>Launch price</h2>
+  <div class="card" id="lp" style="background:#14171f;border:1px solid #262b36;border-radius:12px;padding:14px;max-width:460px;margin-bottom:20px;">
+    <label style="display:block;font-size:12px;color:#9aa0a6;margin-bottom:4px;">Charged today ($, includes the first month)</label>
+    <input id="lp-first" inputmode="decimal" style="width:100%;background:#0b0d12;color:#e8eaed;border:1px solid #333844;border-radius:8px;padding:9px;margin-bottom:10px;" />
+    <label style="display:block;font-size:12px;color:#9aa0a6;margin-bottom:4px;">Every month after ($)</label>
+    <input id="lp-monthly" inputmode="decimal" style="width:100%;background:#0b0d12;color:#e8eaed;border:1px solid #333844;border-radius:8px;padding:9px;margin-bottom:10px;" />
+    <div id="lp-sum" style="font-size:13px;color:#c7cad1;margin-bottom:10px;"></div>
+    <button id="lp-save" type="button" class="ac-go">Save price</button>
+    <div id="lp-msg" style="font-size:13px;color:#c7cad1;margin-top:8px;" role="status"></div>
+    <div style="font-size:12px;color:#9aa0a6;margin-top:6px;">New sign-ups only. Callers' pitch and the payment link use this right away. Clients already signed up keep what they agreed to.</div>
+  </div>
+
   <h2>Lead pipeline</h2>
   <div class="card" id="pipe" style="background:#14171f;border:1px solid #262b36;border-radius:12px;padding:14px;max-width:460px;margin-bottom:20px;">
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
@@ -787,6 +799,26 @@ document.getElementById('import-go').addEventListener('click', async function ()
   });
   load();
   setInterval(function () { if (!(document.activeElement && document.activeElement.classList.contains('ld-pick')) && !document.querySelector('#ld-list details[open]')) load(); }, 30000);
+})();
+
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var dollars = function (c) { return (c / 100).toFixed(2).replace(/\.00$/, ''); };
+  var cents = function (v) { var n = Number(String(v).replace(/[$,\s]/g, '')); return Number.isFinite(n) ? Math.round(n * 100) : NaN; };
+  function sum() { var f = cents($('lp-first').value), m = cents($('lp-monthly').value); $('lp-sum').textContent = (f >= m && m > 0) ? 'Setup $' + dollars(f - m) + ' + first month $' + dollars(m) + ' = $' + dollars(f) + ' today, then $' + dollars(m) + '/month.' : ''; }
+  fetch('/api/forge-launch-price', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+    if (!d.pricing) return; $('lp-first').value = dollars(d.pricing.firstChargeCents); $('lp-monthly').value = dollars(d.pricing.monthlyCents); sum();
+  }).catch(function () { $('lp-msg').textContent = 'Could not load the current price.'; });
+  $('lp-first').addEventListener('input', sum); $('lp-monthly').addEventListener('input', sum);
+  $('lp-save').addEventListener('click', function () {
+    var f = cents($('lp-first').value), m = cents($('lp-monthly').value);
+    if (!confirm('Charge $' + dollars(f) + ' today, then $' + dollars(m) + '/month for new sign-ups?')) return;
+    $('lp-save').disabled = true; $('lp-msg').textContent = 'Saving…';
+    fetch('/api/forge-launch-price', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ firstChargeCents: f, monthlyCents: m }) })
+      .then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.error || 'Could not save.'); return d; }); })
+      .then(function (d) { $('lp-msg').textContent = 'Saved. New price is live: $' + dollars(d.pricing.firstChargeCents) + ' today, then $' + dollars(d.pricing.monthlyCents) + '/month.'; })
+      .catch(function (e) { $('lp-msg').textContent = e.message; }).then(function () { $('lp-save').disabled = false; });
+  });
 })();
 </script>
 </body>
