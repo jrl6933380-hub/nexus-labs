@@ -84,6 +84,19 @@
   <div id="content" hidden>
     <div class="cards" id="cards"></div>
 
+    <h2>Lead desk</h2>
+    <div class="card" style="background:#14171f;border:1px solid #262b36;border-radius:12px;padding:14px;margin-bottom:20px;">
+      <p style="font-size:13px;color:#9aa0a6;margin:0 0 10px;">Every saved lead. Pass one to a caller and it shows up in their Field page. Callers are managed under Accounts.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
+        <select id="ld-filter" class="cp-assign" style="min-height:40px;"><option value="all">All leads</option><option value="unassigned" selected>Not passed yet</option><option value="assigned">Passed to a caller</option></select>
+        <select id="ld-bulk-to" class="cp-assign" style="min-height:40px;"><option value="">Pass all “not passed yet” to…</option></select>
+        <button id="ld-bulk" type="button" class="ac-go alt" style="min-height:40px;">Pass them</button>
+      </div>
+      <div id="ld-msg" class="ac-err" role="alert"></div>
+      <div id="ld-list"></div>
+      <div class="empty" id="ld-empty" hidden>No leads here. Build one on the Leads page and it lands in this list.</div>
+    </div>
+
     <h2>Funnel</h2>
     <div id="funnel"></div>
 
@@ -678,6 +691,67 @@ document.getElementById('import-go').addEventListener('click', async function ()
   document.getElementById('pipe-stop').addEventListener('click', function () { act('stop'); });
   refresh();
   setInterval(function () { refresh(); if (typeof load === 'function') load(); }, 15000);
+})();
+
+// Lead desk: every saved lead, pass to a caller (same assign call the API already had), or take it back.
+(function () {
+  var leads = [], callers = [];
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]; }); };
+  var label = function (n) { var c = callers.filter(function (x) { return x.forge_username === n; })[0]; return c ? c.display_name + ' (@' + n + ')' : '@' + n; };
+  function api(url, opts) {
+    return fetch(url, Object.assign({ credentials: 'include' }, opts || {})).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (d) { if (!r.ok) throw new Error(d.error || 'Something went wrong.'); return d; });
+    });
+  }
+  function options(selected) {
+    return '<option value="">Not passed yet</option>' + callers.filter(function (c) { return c.status !== 'removed'; }).map(function (c) {
+      return '<option value="' + esc(c.forge_username) + '"' + (c.forge_username === selected ? ' selected' : '') + '>' + esc(c.display_name) + ' (@' + esc(c.forge_username) + ')</option>';
+    }).join('');
+  }
+  function assign(id, to) {
+    return api('/api/forge-leads', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, assignedTo: to || null }) });
+  }
+  function render() {
+    var f = $('ld-filter').value;
+    var rows = leads.filter(function (l) { return f === 'all' || (f === 'unassigned' ? !l.assignedTo : !!l.assignedTo); });
+    $('ld-empty').hidden = rows.length > 0;
+    $('ld-list').innerHTML = rows.map(function (l) {
+      var sub = [l.category, l.location].filter(Boolean).join(' · ');
+      return '<div style="border-top:1px solid #262b36;padding:10px 0;">' +
+        '<div style="font-weight:600;">' + esc(l.businessName) + '</div>' +
+        '<div style="font-size:12px;color:#9aa0a6;">' + esc(sub) + (l.assignedTo ? ' · with ' + esc(label(l.assignedTo)) : '') + ' · ' + esc(l.status || 'new') + '</div>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px;">' +
+        (l.phone ? '<a href="tel:' + esc(String(l.phone).replace(/[^0-9+]/g, '')) + '" style="color:#8ab4f8;min-height:40px;display:inline-flex;align-items:center;">' + esc(l.phone) + '</a>' : '') +
+        '<select class="cp-assign ld-pick" data-id="' + esc(l.id) + '" style="min-height:40px;" aria-label="Pass ' + esc(l.businessName) + ' to a caller">' + options(l.assignedTo) + '</select></div></div>';
+    }).join('');
+  }
+  function load() {
+    return Promise.all([api('/api/forge-leads?scope=all'), api('/api/forge-clients?scope=callers')]).then(function (r) {
+      leads = (r[0].leads || []).slice().sort(function (a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
+      callers = r[1].callers || [];
+      $('ld-bulk-to').innerHTML = '<option value="">Pass all “not passed yet” to…</option>' + options('').replace('<option value="">Not passed yet</option>', '');
+      $('ld-msg').textContent = callers.length ? '' : 'No caller accounts yet. Add one under Accounts, then you can pass leads to them.';
+      render();
+    }).catch(function (e) { $('ld-msg').textContent = e.message; });
+  }
+  $('ld-filter').addEventListener('change', render);
+  $('ld-list').addEventListener('change', function (e) {
+    var sel = e.target.closest('.ld-pick'); if (!sel) return;
+    sel.disabled = true;
+    assign(sel.dataset.id, sel.value).then(load).catch(function (err) { $('ld-msg').textContent = err.message; sel.disabled = false; });
+  });
+  $('ld-bulk').addEventListener('click', function () {
+    var to = $('ld-bulk-to').value, todo = leads.filter(function (l) { return !l.assignedTo; });
+    if (!to) { $('ld-msg').textContent = 'Pick a caller first.'; return; }
+    if (!todo.length) { $('ld-msg').textContent = 'Nothing waiting to be passed.'; return; }
+    if (!confirm('Pass ' + todo.length + ' lead' + (todo.length === 1 ? '' : 's') + ' to ' + label(to) + '?')) return;
+    $('ld-bulk').disabled = true;
+    todo.reduce(function (p, l) { return p.then(function () { return assign(l.id, to); }); }, Promise.resolve())
+      .then(load).catch(function (err) { $('ld-msg').textContent = err.message; }).then(function () { $('ld-bulk').disabled = false; });
+  });
+  load();
+  setInterval(function () { if (!(document.activeElement && document.activeElement.classList.contains('ld-pick'))) load(); }, 30000);
 })();
 </script>
 </body>
