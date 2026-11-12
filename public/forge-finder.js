@@ -8,6 +8,7 @@
   var LABEL = { no_dedicated_site_found: ['No website listed', 'ok'], social_booking_only: ['Social / booking page only', 'warn'], needs_checking: ['Needs checking', ''], has_website: ['Has a website', 'bad'] };
   var TEXT = /^[\p{L}\p{N} .,'&-]{2,100}$/u;
   var source = 'google';
+  var LAST = 'forge-finder:last-search';
 
   function el(tag, props, kids) {
     var n = document.createElement(tag);
@@ -46,6 +47,13 @@
       el('label', { text: 'How many' }), count, el('label', { text: 'Search with' }), el('div', { className: 'row' }, [gBtn, aBtn]), note,
       el('div', { className: 'row' }, [go]), msg, out);
     chips(tr, TRADES, 'f-type'); chips(ci, CITIES, 'f-city'); setSource('google');
+    try {
+      var last = JSON.parse(localStorage.getItem(LAST) || 'null');
+      if (last && Array.isArray(last.leads) && last.query && Date.now() - last.at < 7 * 864e5) {
+        msg.textContent = 'Your last Google search (' + last.query.business + ' in ' + last.query.city + ') is back. Search again for fresh results.';
+        last.leads.forEach(function (l, i) { out.append(leadCard(l, last.query, i + 1)); });
+      }
+    } catch (e) { /* ignore bad saved data */ }
     go.addEventListener('click', function () {
       var b = type.value.trim().replace(/\s+/g, ' '), c = city.value.trim().replace(/\s+/g, ' ');
       if (!TEXT.test(b) || !TEXT.test(c)) { msg.textContent = 'Use plain letters and numbers for the business type and city.'; return; }
@@ -57,6 +65,7 @@
         : post('/api/forge-places', { business: b, city: c, count: Number(count.value) }).then(function (d) {
           msg.textContent = 'Google returned ' + d.found + ' places; showing ' + d.leads.length + '.';
           d.leads.forEach(function (l, i) { out.append(leadCard(l, d.query, i + 1)); });
+          try { localStorage.setItem(LAST, JSON.stringify({ at: Date.now(), found: d.found, query: d.query, leads: d.leads })); } catch (e) { /* storage unavailable */ }
         });
       run.catch(function (e) { msg.textContent = fail(e); }).then(function () { go.disabled = false; });
     });
