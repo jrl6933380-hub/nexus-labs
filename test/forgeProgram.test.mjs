@@ -11,11 +11,11 @@ const james = {
   recurring_pct: '0.1500', upgrade_bonus: '10.00',
 };
 
-test('launch offer is $20 all-in signup, $10 monthly and unlimited edits without an automatic expiration', () => {
-  assert.equal(LAUNCH_OFFER.signUpCents, 2000);
-  assert.equal(LAUNCH_OFFER.monthlyCents, 1000);
+test('launch offer is $50 all-in signup, $25 monthly and unlimited edits without an automatic expiration', () => {
+  assert.equal(LAUNCH_OFFER.signUpCents, 5000);
+  assert.equal(LAUNCH_OFFER.monthlyCents, 2500);
   assert.equal(LAUNCH_OFFER.activationCents + LAUNCH_OFFER.monthlyCents, LAUNCH_OFFER.signUpCents);
-  assert.equal(TIERS.launch.priceCents, 1000);
+  assert.equal(TIERS.launch.priceCents, 2500);
   assert.equal(editsRemaining({tier:'launch',allotmentUsedThisMonth:10000}), Infinity);
   assert.equal(signupBonusCents(james,'launch'),0);
   assert.equal(signupBonusCents({...james,signup_bonus_launch:'4.00'},'launch'),400);

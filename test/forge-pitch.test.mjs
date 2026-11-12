@@ -33,7 +33,7 @@ test('default-safe rollout displays legacy pricing until enabled',()=>{
   assert.deepEqual(old.offer.tiers.map(t=>t.key),['basic','standard','plus']);
   assert.match(old.pricingLine,/Basic: \$29\/month/);
   assert.match(old.pricingLine,/Standard: \$49\/month/);
-  assert.doesNotMatch(old.pricingLine,/Launch:|\$20 total/);
+  assert.doesNotMatch(old.pricingLine,/Launch:|\$50 total/);
  } finally {process.env.FORGE_LAUNCH_ENABLED=prior;}
 });
 
@@ -41,7 +41,7 @@ test('approved offer uses billing tiers and survives browser updates without a m
  const server=generatePitchScript(base);const tier=TIERS.launch;const offer=server.offer.tiers[0];assert.equal(offer.priceCents,tier.priceCents);assert.equal(offer.aiAssistant,tier.aiAssistant);
  assert.deepEqual(clientPitch(base,server.offer),server);assert.match(server.pricingLine,/unlimited website edits/);
  assert.deepEqual(server.offer.tiers.map(t=>t.key),['launch']);
- assert.match(server.pricingLine,/\$20 total at signup including the first month, then \$10\/month/);
+ assert.match(server.pricingLine,/\$50 total at signup including the first month, then \$25\/month/);
  assert.doesNotMatch(server.pricingLine,/Basic:|Standard:|Plus:/);
  assert.match(server.objections.find(x=>x.objection==='We already have a website.').response,/website address.*update our notes/);
  const declined=server.objections.find(x=>x.objection==='We’re not interested.').response;assert.doesNotMatch(declined,/send|anyway/);assert.match(declined,/no further calls/);
