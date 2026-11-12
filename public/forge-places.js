@@ -10,7 +10,7 @@ function addBuild(card, lead, query) {
       const r = await fetch('/api/forge-places-build', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ business: query.business, city: query.city, lead }), signal: AbortSignal.timeout(30000) });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw Error(d.error || 'Build failed.');
-      note.textContent = 'Built. These are sample previews and are not saved, so copy the pitch before you leave.';
+      note.textContent = 'Built. ' + (d.saved?.message || '') + (d.saved?.status === 'saved' || d.saved?.status === 'already' ? '' : ' Copy the pitch before you leave.');
       const row = el('p');
       for (const v of d.previews) {
         const a = el('a', v.label + ' preview'); a.href = URL.createObjectURL(new Blob([v.html], { type: 'text/html' })); a.target = '_blank'; a.rel = 'noopener noreferrer'; a.style.marginRight = '14px'; row.append(a);
