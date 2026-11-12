@@ -1,6 +1,16 @@
 const $ = id => document.getElementById(id);
 const LABEL = { no_dedicated_site_found: ['No website listed', 's0'], social_booking_only: ['Social / booking page only', 's1'], needs_checking: ['Needs checking', 's2'], has_website: ['Has a website', 's3'] };
 const el = (tag, text, cls) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (cls) e.className = cls; return e; };
+const TRADES = ['barber', 'nail salon', 'hair salon', 'tattoo shop', 'auto repair', 'plumber', 'electrician', 'lawn care', 'house cleaning', 'pet groomer', 'restaurant', 'gym'];
+const CITIES = ['Des Moines, Iowa', 'West Des Moines, Iowa', 'Ankeny, Iowa', 'Urbandale, Iowa', 'Cedar Rapids, Iowa', 'Iowa City, Iowa', 'Davenport, Iowa', 'Sioux City, Iowa', 'Ames, Iowa', 'Waterloo, Iowa', 'Council Bluffs, Iowa', 'Dubuque, Iowa'];
+function chips(host, items, input) {
+  for (const t of items) {
+    const b = el('button', t.replace(/, Iowa$/, '')); b.type = 'button'; b.setAttribute('aria-pressed', String($(input).value.toLowerCase() === t.toLowerCase()));
+    b.addEventListener('click', () => { $(input).value = t; for (const x of host.children) x.setAttribute('aria-pressed', String(x === b)); });
+    host.append(b);
+  }
+}
+chips($('tr'), TRADES, 'b'); chips($('ci'), CITIES, 'c');
 function addBuild(card, lead, query) {
   const btn = el('button', 'Build sites + pitch'), note = el('p', '', 'note'), box = el('div');
   btn.type = 'button'; btn.style.marginTop = '8px';
