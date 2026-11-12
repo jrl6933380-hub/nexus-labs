@@ -34,22 +34,46 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:14px;back
 .box{width:24px;height:24px;flex-shrink:0;border:2px solid #b3a58f;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:16px;line-height:1}
 .box.done{background:#1f4d33;border-color:#1f4d33}.box.doing{border-color:#d97b2f}.box.failed{border-color:#ff9d8a}
 .bar{height:8px;border-radius:99px;background:#3a2c1c;overflow:hidden;margin:8px 0}.bar>i{display:block;height:100%;background:#d97b2f}
+summary{cursor:pointer;min-height:44px;display:flex;align-items:center}.chips{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0}.chipbtn{min-height:44px;padding:6px 12px}
 [hidden]{display:none!important}a{color:#f2b47f}
 </style>
 </head>
 <body>
 <div id="state" class="card" role="status">Opening Leads…</div>
 <div id="app" class="wrap" hidden>
-  <header><h1>Leads</h1><p class="muted">Find businesses with no website, pick the ones you want, get a site preview and a call pitch for each. Your Ally does the work. Nothing is sent, called or posted.</p></header>
+  <header><h1>Leads</h1><p class="muted">Find businesses with no website, build site previews and a call pitch, and see everything you saved. All on this page. Nothing is sent, called or posted.</p></header>
+
+  <section class="card" aria-labelledby="h-find">
+    <h2 id="h-find">1 · Find businesses</h2>
+    <p class="muted">Tap a business type and a city, pick Google or your Ally, then Search. Searching never sends or posts anything.</p>
+    <div id="find-err" class="err" role="alert"></div>
+    <div id="finder-root"></div>
+  </section>
+
+  <section class="card" aria-labelledby="h-saved">
+    <h2 id="h-saved">2 · Saved leads</h2>
+    <p class="muted">Every lead you build lands here with its call pitch and three site previews. Tap a number to call.</p>
+    <div id="saved-root"></div>
+  </section>
+
+  <section class="card" aria-labelledby="h-jobs">
+    <h2 id="h-jobs">Ally results</h2>
+    <p id="jobs-empty" class="muted">No Ally searches yet.</p>
+    <div id="jobs"></div>
+  </section>
 
   <section class="card" aria-labelledby="h-mission">
-    <h2 id="h-mission">Mission · let the Ally work a list</h2>
+    <h2 id="h-mission">Advanced · big Ally mission</h2>
     <p class="muted">Give a goal once. The Ally works down a checklist city by city, ticks each task off, and builds previews for the finds. You and Qwen can add cities as it goes.</p>
     <div id="mission-empty">
-      <label for="m-type">What kind of business?</label>
-      <input id="m-type" type="text" value="barbers" maxlength="80" autocomplete="off">
+      <details>
+        <summary>Start a big mission (many cities, runs for a long time)</summary>
+        <label for="m-type">What kind of business?</label>
+        <input id="m-type" type="text" value="barbers" maxlength="80" autocomplete="off">
+        <p class="muted">This makes the Ally search many cities in a row. Use the finder above for a normal search.</p>
+        <div class="row"><button type="button" id="m-iowa">All of Iowa (25 cities)</button><button type="button" id="m-top5">Top 5 Iowa cities</button></div>
+      </details>
       <div id="m-err" class="err" role="alert"></div>
-      <div class="row"><button class="primary" type="button" id="m-iowa">Start: all of Iowa (25 cities)</button><button type="button" id="m-top5">Start: top 5 Iowa cities</button></div>
     </div>
     <div id="mission-live" hidden>
       <h3 id="m-goal"></h3>
@@ -63,25 +87,6 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:14px;back
     </div>
   </section>
 
-  <section class="card" aria-labelledby="h-find">
-    <h2 id="h-find">1 · Find businesses</h2>
-    <label for="type">What kind of business?</label>
-    <input id="type" type="text" value="barbers" maxlength="80" autocomplete="off">
-    <label for="city">Which city?</label>
-    <input id="city" type="text" value="Des Moines, Iowa" maxlength="100" autocomplete="off">
-    <label for="count">How many?</label>
-    <select id="count"><option>5</option><option selected>10</option></select>
-    <div id="find-err" class="err" role="alert"></div>
-    <div class="row"><button class="primary" type="button" id="search">Search on my Ally</button></div>
-    <p class="muted">The Ally opens Google AI Mode and Maps on its screen. If Google asks you to verify, tap it there once and the search carries on.</p>
-  </section>
-
-  <section class="card" aria-labelledby="h-jobs">
-    <h2 id="h-jobs">2 · Results</h2>
-    <p id="jobs-empty" class="muted">No searches yet.</p>
-    <div id="jobs"></div>
-  </section>
-
   <section class="card" aria-labelledby="h-more">
     <h2 id="h-more">More in Forge</h2>
     <div class="row">
@@ -93,6 +98,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:14px;back
     <p class="muted">Rules: a business that already has a website is never built. Listing phone numbers are suggestions and stay in the pitch notes, never on a preview site. Sending, publishing, deleting and anything with money stays your tap only. Claude and Qwen can run the same search from chat.</p>
   </section>
 </div>
+<script src="/forge-finder.js"></script>
 <script>
 (function () {
   var $ = function (id) { return document.getElementById(id); };
@@ -119,6 +125,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:14px;back
       return r.json();
     }).then(function (d) { jobs = d.jobs || []; mission = d.mission || null; render(); renderMission(); schedule(); }).catch(function (e) { $('find-err').textContent = e.message; });
   }
+  window.__leadsReload = function () { load(); };
   function schedule() {
     clearTimeout(timer);
     if (jobs.some(function (j) { return j.status === 'queued' || j.status === 'processing'; })) timer = setTimeout(load, 5000);
@@ -207,13 +214,6 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:14px;back
       host.append(card);
     });
   }
-  $('search').addEventListener('click', function () {
-    var business = $('type').value.trim().replace(/\s+/g, ' '), city = $('city').value.trim().replace(/\s+/g, ' ');
-    if (!TEXT.test(business) || !TEXT.test(city)) { $('find-err').textContent = 'Use plain letters and numbers for the business type and city.'; return; }
-    $('find-err').textContent = '';
-    api({ action: 'create', input: { request_id: requestId(), kind: 'search', business: business, city: city, count: Number($('count').value) } })
-      .then(function () { return load(); }).catch(function (e) { $('find-err').textContent = e.message; });
-  });
   function renderMission() {
     var m = mission, live = !!m && (m.status === 'active' || m.status === 'paused' || m.status === 'done' || m.status === 'stopped');
     $('mission-empty').hidden = live && (m.status === 'active' || m.status === 'paused');
