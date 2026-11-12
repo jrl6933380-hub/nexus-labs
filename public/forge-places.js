@@ -1,6 +1,28 @@
 const $ = id => document.getElementById(id);
 const LABEL = { no_dedicated_site_found: ['No website listed', 's0'], social_booking_only: ['Social / booking page only', 's1'], needs_checking: ['Needs checking', 's2'], has_website: ['Has a website', 's3'] };
 const el = (tag, text, cls) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (cls) e.className = cls; return e; };
+function addBuild(card, lead, query) {
+  const btn = el('button', 'Build sites + pitch'), note = el('p', '', 'note'), box = el('div');
+  btn.type = 'button'; btn.style.marginTop = '8px';
+  btn.addEventListener('click', async () => {
+    btn.disabled = true; note.textContent = 'Building…'; box.replaceChildren();
+    try {
+      const r = await fetch('/api/forge-places-build', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ business: query.business, city: query.city, lead }), signal: AbortSignal.timeout(30000) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw Error(d.error || 'Build failed.');
+      note.textContent = 'Built. These are sample previews and are not saved, so copy the pitch before you leave.';
+      const row = el('p');
+      for (const v of d.previews) {
+        const a = el('a', v.label + ' preview'); a.href = URL.createObjectURL(new Blob([v.html], { type: 'text/html' })); a.target = '_blank'; a.rel = 'noopener noreferrer'; a.style.marginRight = '14px'; row.append(a);
+      }
+      const pre = el('pre', d.pitch, 'pitch'), copy = el('button', 'Copy pitch'); copy.type = 'button';
+      copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(d.pitch); copy.textContent = 'Copied'; } catch { copy.textContent = 'Press and hold the text to copy'; } });
+      box.append(row, copy, pre);
+    } catch (e) { note.textContent = e.name === 'TimeoutError' ? 'No answer from the server after 30 seconds.' : String(e.message || e); }
+    finally { btn.disabled = false; }
+  });
+  card.append(btn, note, box);
+}
 $('f').addEventListener('submit', async ev => {
   ev.preventDefault(); $('go').disabled = true; $('msg').textContent = 'Searching…'; $('out').replaceChildren();
   try {
@@ -16,6 +38,7 @@ $('f').addEventListener('submit', async ev => {
       c.append(el('p', l.notes));
       if (l.website) { const a = el('a', l.website); a.href = l.website; a.rel = 'noopener noreferrer'; const p = el('p'); p.append(a); c.append(p); }
       if (l.map_url) { const a = el('a', 'Open in Maps'); a.href = l.map_url; a.rel = 'noopener noreferrer'; const p = el('p'); p.append(a); c.append(p); }
+      if (l.status !== 'has_website') addBuild(c, l, d.query);
       $('out').append(c);
     }
   } catch (e) { $('msg').textContent = e.name === 'TimeoutError' ? 'No answer from the server after 30 seconds.' : String(e.message || e); }
