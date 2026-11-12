@@ -26,6 +26,15 @@ function addBuild(card, lead, query) {
 $('f').addEventListener('submit', async ev => {
   ev.preventDefault(); $('go').disabled = true; $('msg').textContent = 'Searching…'; $('out').replaceChildren();
   try {
+    if ($('src').value === 'ally') {
+      const id = crypto.getRandomValues(new Uint8Array(12)); const requestId = 'fl' + Array.from(id, b => b.toString(16).padStart(2, '0')).join('');
+      const r = await fetch('/api/forge-lead-jobs', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'create', input: { request_id: requestId, kind: 'search', business: $('b').value, city: $('c').value, count: Number($('n').value) } }), signal: AbortSignal.timeout(30000) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw Error(d.error || 'Could not send the search to the Ally.');
+      const c = el('div', undefined, 'card'); const a = el('a', 'Open Forge Leads'); a.href = '/forge-leads.html';
+      c.append(el('h2', 'Sent to the Ally'), el('p', 'It searches Google and Maps on the Ally and takes a few minutes. Follow it, and pick leads to build, on Forge Leads.'), a);
+      $('out').append(c); $('msg').textContent = 'Search queued.'; return;
+    }
     const r = await fetch('/api/forge-places', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ business: $('b').value, city: $('c').value, count: Number($('n').value) }), signal: AbortSignal.timeout(30000) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw Error(d.error || 'Search failed.');

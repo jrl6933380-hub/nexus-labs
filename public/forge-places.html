@@ -17,9 +17,10 @@ a{color:#e0b04a}#msg{min-height:1.5em;font-weight:600}
 <main>
 <h1>Find leads</h1>
 <p class="sub">Searches Google Places for businesses and flags the ones with no website. Searching is read-only. Build saves the lead to Forge → Leads. Nothing is ever sent.</p>
-<form id="f"><label>Business type<input id="b" value="barber" maxlength="100" required></label><label>City<input id="c" value="Des Moines, Iowa" maxlength="100" required></label><label>How many<select id="n"><option>5</option><option selected>10</option></select></label><button id="go" type="submit">Search</button></form>
+<form id="f"><label>Business type<input id="b" value="barber" maxlength="100" required></label><label>City<input id="c" value="Des Moines, Iowa" maxlength="100" required></label><label>Search with<select id="src"><option value="google" selected>Google (fast, uses your Google credit)</option><option value="ally">Ally (free, slower)</option></select></label><label>How many<select id="n"><option>5</option><option selected>10</option></select></label><button id="go" type="submit">Search</button></form>
 <p id="msg" role="status" aria-live="polite"></p>
 <div id="out"></div>
+<p class="sub"><a href="/forge-leads.html">Open Forge Leads</a> to follow Ally searches and builds.</p>
 </main>
 <script type="module" src="/forge-places.js"></script>
 </body></html>
