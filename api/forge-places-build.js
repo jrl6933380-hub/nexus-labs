@@ -1,7 +1,8 @@
-// Owner-only: builds three concept previews and a call pitch from one Places lead. Nothing is saved or sent.
+// Owner-only: builds three concept previews and a call pitch from one Places lead, and saves it to Forge leads. Nothing is sent or published.
 import '../lib/store/installFetch.js';
 import { resolveWorkspaceAccount } from '../lib/workspaceConnector.js';
-import { buildFromPlace } from '../lib/placesBuild.js';
+import { buildFromPlace, readLead } from '../lib/placesBuild.js';
+import { saveBuiltLead } from '../lib/placesSave.js';
 
 function sameOrigin(req) {
   const origin = req.headers?.origin, host = req.headers?.host;
@@ -23,7 +24,11 @@ export function createForgePlacesBuildHandler({ resolveAccount = resolveWorkspac
       if (owner?.owner !== true) return res.status(403).json({ error: 'Owner only.' });
       const b = req.body;
       if (!b || typeof b !== 'object' || Array.isArray(b)) return res.status(400).json({ error: 'Invalid request.' });
-      return res.status(200).json(build(b));
+      const built = build(b);
+      let saved;
+      try { saved = await within(save({ lead: readLead(b), built, createdBy: owner.username || owner.name }), 15000, 'Saving the lead'); }
+      catch (e) { console.error('forge-places save failed:', String(e?.message || e).slice(0, 200)); saved = { status: 'failed', message: 'Built, but could not save to Forge leads.' }; }
+      return res.status(200).json({ ...built, saved });
     } catch (e) { console.error('forge-places-build failed:', String(e?.message || e).slice(0, 200)); return res.status(e.status || 503).json({ error: e.status ? e.message : 'Build unavailable.' }); }
   };
 }
