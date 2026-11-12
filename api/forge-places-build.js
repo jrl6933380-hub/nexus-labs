@@ -11,7 +11,7 @@ function sameOrigin(req) {
   try { return Boolean(host && new URL(origin).host === host); } catch { return false; }
 }
 const within = (promise, ms, what) => Promise.race([promise, new Promise((_, rej) => setTimeout(() => rej(Object.assign(new Error(what + ' timed out.'), { status: 504 })), ms))]);
-export function createForgePlacesBuildHandler({ resolveAccount = resolveWorkspaceAccount, build = buildFromPlace } = {}) {
+export function createForgePlacesBuildHandler({ resolveAccount = resolveWorkspaceAccount, build = buildFromPlace, save = saveBuiltLead } = {}) {
   return async (req, res) => {
     res.setHeader('Cache-Control', 'private, no-store');
     res.setHeader('X-Content-Type-Options', 'nosniff');
