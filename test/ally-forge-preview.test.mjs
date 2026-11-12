@@ -51,7 +51,7 @@ test('pitch is honest: no research date claim, no invented price unless the laun
  assert.match(text,/social or booking pages/);assert.doesNotMatch(text,/checked 2026/);
  assert.match(text,/Check the approved Forge offer/);assert.match(text,/Nothing has been sent/);
  const launch=buildPack({batch:sample(),picks:[1],offer:launchOffer()});
- assert.match(launch.files.find(f=>f.path.endsWith('pitch.txt')).content,/\$20 total at signup.*\$10\/month/);
+ assert.match(launch.files.find(f=>f.path.endsWith('pitch.txt')).content,/\$50 total at signup.*\$25\/month/);
 });
 
 test('writePack creates a new folder and never overwrites; run lists and builds from saved batches only',async()=>{
