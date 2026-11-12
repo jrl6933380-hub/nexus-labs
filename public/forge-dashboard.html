@@ -55,6 +55,20 @@
     <a href="/forge-hub.html#templates" target="_top">Templates</a>
   </div>
 
+  <h2>Lead pipeline</h2>
+  <div class="card" id="pipe" style="background:#14171f;border:1px solid #262b36;border-radius:12px;padding:14px;max-width:460px;margin-bottom:20px;">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+      <a href="/forge-leads.html" target="_top" style="background:#3b5bfd;color:#fff;border-radius:8px;padding:11px 14px;font-weight:600;text-decoration:none;">Find, build &amp; saved leads</a>
+    </div>
+    <div id="pipe-jobs" style="font-size:13px;color:#c7cad1;">Checking Ally searches…</div>
+    <div id="pipe-mission" style="font-size:13px;color:#c7cad1;margin-top:8px;"></div>
+    <div id="pipe-ctl" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;" hidden>
+      <button id="pipe-toggle" type="button" class="ac-go alt">Pause</button>
+      <button id="pipe-stop" type="button" class="ac-go alt">Stop mission</button>
+    </div>
+    <div id="pipe-err" class="ac-err" role="alert"></div>
+  </div>
+
   <h2>Import leads</h2>
   <div class="card" style="background:#14171f;border:1px solid #262b36;border-radius:12px;padding:14px;max-width:460px;margin-bottom:20px;">
     <label style="display:block;font-size:12px;color:#9aa0a6;margin-bottom:4px;">Category</label>
@@ -632,6 +646,38 @@ document.getElementById('import-go').addEventListener('click', async function ()
   });
 
   cpLoad();
+})();
+
+// Lead pipeline: live view of Ally searches and the big mission, with Pause/Stop. Same data the Leads page uses.
+(function () {
+  var jobsUrl = '/api/forge-lead-jobs', mission = null;
+  function post(body) {
+    return fetch(jobsUrl, { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { if (!r.ok) throw new Error(d.error || 'Something went wrong.'); return d; }); });
+  }
+  function refresh() {
+    fetch(jobsUrl, { credentials: 'include' }).then(function (r) {
+      if (!r.ok) throw new Error(r.status === 403 ? 'Ally searches are owner-only.' : 'Could not load Ally searches.');
+      return r.json();
+    }).then(function (d) {
+      var jobs = d.jobs || [], c = { queued: 0, processing: 0, done: 0, needs_help: 0 };
+      jobs.forEach(function (j) { if (c[j.status] !== undefined) c[j.status]++; });
+      document.getElementById('pipe-jobs').textContent = jobs.length ? 'Ally searches: ' + c.queued + ' waiting, ' + c.processing + ' working, ' + c.done + ' done, ' + c.needs_help + ' need a look.' : 'No Ally searches running.';
+      mission = d.mission || null;
+      var m = mission, running = !!m && (m.status === 'active' || m.status === 'paused');
+      document.getElementById('pipe-mission').textContent = m && m.goal ? 'Mission: ' + m.goal + ' · ' + m.progress.done + ' of ' + m.progress.total + ' tasks · ' + ({ active: 'Working', paused: 'Paused', done: 'Finished', stopped: 'Stopped' }[m.status] || m.status) : 'No big mission running.';
+      document.getElementById('pipe-ctl').hidden = !running;
+      document.getElementById('pipe-toggle').textContent = m && m.status === 'paused' ? 'Resume' : 'Pause';
+      document.getElementById('pipe-err').textContent = '';
+    }).catch(function (e) { document.getElementById('pipe-err').textContent = e.message; });
+  }
+  function act(control) {
+    post({ action: 'mission_control', input: { control: control } }).then(refresh).catch(function (e) { document.getElementById('pipe-err').textContent = e.message; });
+  }
+  document.getElementById('pipe-toggle').addEventListener('click', function () { act(mission && mission.status === 'paused' ? 'resume' : 'pause'); });
+  document.getElementById('pipe-stop').addEventListener('click', function () { act('stop'); });
+  refresh();
+  setInterval(function () { refresh(); if (typeof load === 'function') load(); }, 15000);
 })();
 </script>
 </body>
