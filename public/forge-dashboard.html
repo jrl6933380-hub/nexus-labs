@@ -88,7 +88,7 @@
     <div class="card" style="background:#14171f;border:1px solid #262b36;border-radius:12px;padding:14px;margin-bottom:20px;">
       <p style="font-size:13px;color:#9aa0a6;margin:0 0 10px;">Every saved lead. Pass one to a caller and it shows up in their Field page. Callers are managed under Accounts.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
-        <select id="ld-filter" class="ld-sel" style="min-height:40px;"><option value="all">All leads</option><option value="unassigned" selected>Not passed yet</option><option value="assigned">Passed to a caller</option></select>
+        <select id="ld-filter" class="ld-sel" style="min-height:40px;"><option value="all" selected>All leads</option><option value="unassigned">Not passed yet</option><option value="assigned">Passed to a caller</option></select>
         <select id="ld-bulk-to" class="ld-sel" style="min-height:40px;"><option value="">Pass all “not passed yet” to…</option></select>
         <button id="ld-bulk" type="button" class="ac-go alt" style="min-height:40px;">Pass them</button>
       </div>
@@ -712,6 +712,37 @@ document.getElementById('import-go').addEventListener('click', async function ()
   function assign(id, to) {
     return api('/api/forge-leads', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, assignedTo: to || null }) });
   }
+  function pitchText(p) {
+    if (!p || typeof p !== 'object') return '';
+    var list = function (a) { return (Array.isArray(a) ? a : []).map(function (x) { return '- ' + (typeof x === 'string' ? x : (x && x.objection ? '"' + x.objection + '" -> ' + x.response : '')); }); };
+    return [p.opener, '', 'WHAT WE FOUND'].concat(list(p.weaknesses), ['', 'DISCOVERY QUESTIONS'], list(p.discoveryQuestions), ['', String(p.demoLabel || '').toUpperCase(), p.demoLine, '', 'PRICING', p.pricingLine, '', 'OBJECTIONS'], list(p.objections), ['', 'NEXT STEP', p.nextStep]).filter(function (x) { return x !== undefined && x !== null; }).join('\n');
+  }
+  function more(l) {
+    var box = document.createElement('div');
+    var variants = (l.siteVariants || []).filter(function (v) { return v && typeof v.html === 'string'; });
+    if (variants.length) {
+      var d = document.createElement('details'), sm = document.createElement('summary'), row = document.createElement('div'), wrap = document.createElement('div'), fr = document.createElement('iframe');
+      sm.textContent = 'Site previews (' + variants.length + ')'; sm.style.cssText = 'cursor:pointer;min-height:40px;display:flex;align-items:center;color:#8ab4f8;';
+      row.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin:6px 0;'; wrap.style.cssText = 'max-width:390px;border:1px solid #262b36;border-radius:10px;overflow:hidden;background:#fff;';
+      fr.title = 'Site preview for ' + l.businessName; fr.setAttribute('sandbox', ''); fr.style.cssText = 'display:block;width:100%;height:520px;border:0;';
+      variants.forEach(function (v, i) {
+        var b = document.createElement('button'); b.type = 'button'; b.className = 'ac-go alt'; b.style.minHeight = '40px'; b.textContent = v.label || v.id || 'Look ' + (i + 1);
+        b.addEventListener('click', function () { fr.srcdoc = v.html; });
+        row.appendChild(b);
+      });
+      var shown = false;
+      d.addEventListener('toggle', function () { if (d.open && !shown) { shown = true; fr.srcdoc = variants[0].html; } });
+      wrap.appendChild(fr); d.append(sm, row, wrap); box.appendChild(d);
+    }
+    var text = pitchText(l.pitch);
+    if (text) {
+      var d2 = document.createElement('details'), s2 = document.createElement('summary'), pre = document.createElement('pre');
+      s2.textContent = 'Call pitch'; s2.style.cssText = 'cursor:pointer;min-height:40px;display:flex;align-items:center;color:#8ab4f8;';
+      pre.textContent = text; pre.style.cssText = 'white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:13px;background:#0b0d12;border:1px solid #262b36;border-radius:8px;padding:10px;';
+      d2.append(s2, pre); box.appendChild(d2);
+    }
+    return box;
+  }
   function render() {
     var f = $('ld-filter').value;
     var rows = leads.filter(function (l) { return f === 'all' || (f === 'unassigned' ? !l.assignedTo : !!l.assignedTo); });
@@ -723,8 +754,12 @@ document.getElementById('import-go').addEventListener('click', async function ()
         '<div style="font-size:12px;color:#9aa0a6;">' + esc(sub) + (l.assignedTo ? ' · with ' + esc(label(l.assignedTo)) : '') + ' · ' + esc(l.status || 'new') + '</div>' +
         '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px;">' +
         (l.phone ? '<a href="tel:' + esc(String(l.phone).replace(/[^0-9+]/g, '')) + '" style="color:#8ab4f8;min-height:40px;display:inline-flex;align-items:center;">' + esc(l.phone) + '</a>' : '') +
-        '<select class="ld-sel ld-pick" data-id="' + esc(l.id) + '" style="min-height:40px;" aria-label="Pass ' + esc(l.businessName) + ' to a caller">' + options(l.assignedTo) + '</select></div></div>';
+        '<select class="ld-sel ld-pick" data-id="' + esc(l.id) + '" style="min-height:40px;" aria-label="Pass ' + esc(l.businessName) + ' to a caller">' + options(l.assignedTo) + '</select></div><div class="ld-more" data-id="' + esc(l.id) + '"></div></div>';
     }).join('');
+    Array.prototype.forEach.call($('ld-list').querySelectorAll('.ld-more'), function (slot) {
+      var lead = rows.filter(function (x) { return String(x.id) === slot.dataset.id; })[0];
+      if (lead) slot.appendChild(more(lead));
+    });
   }
   function load() {
     return Promise.all([api('/api/forge-leads?scope=all'), api('/api/forge-clients?scope=callers')]).then(function (r) {
@@ -751,7 +786,7 @@ document.getElementById('import-go').addEventListener('click', async function ()
       .then(load).catch(function (err) { $('ld-msg').textContent = err.message; }).then(function () { $('ld-bulk').disabled = false; });
   });
   load();
-  setInterval(function () { if (!(document.activeElement && document.activeElement.classList.contains('ld-pick'))) load(); }, 30000);
+  setInterval(function () { if (!(document.activeElement && document.activeElement.classList.contains('ld-pick')) && !document.querySelector('#ld-list details[open]')) load(); }, 30000);
 })();
 </script>
 </body>
