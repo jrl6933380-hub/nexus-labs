@@ -80,6 +80,10 @@
   .site-frame-wrap { border: 1px solid #3a2c1c; border-radius: 10px; overflow: hidden; height: 360px; margin-bottom: 10px; background: #0b0806; }
   .site-frame-wrap iframe { width: 100%; height: 100%; border: 0; }
   .site-status { font-size: 12px; color: #a9977d; margin-bottom: 8px; }
+  .cust { margin-top: 12px; } .cust summary { font-weight: 600; padding: 10px 0; cursor: pointer; }
+  .cust label { display: block; font-size: 13px; margin: 8px 0; } .cust input, .cust textarea, .cust select { display: block; width: 100%; box-sizing: border-box; padding: 9px; margin-top: 4px; font: inherit; border: 1px solid #ccc; border-radius: 8px; }
+  .cu-h { font-weight: 600; font-size: 13px; margin: 12px 0 4px; } .cu-row { display: flex; gap: 8px; } .cu-row input:last-child { max-width: 110px; }
+  .share-box { margin-top: 14px; padding-top: 10px; border-top: 1px solid #ddd; }
   .edit-row { display: flex; gap: 8px; }
   .edit-row input {
     flex: 1; background: #0b0806; border: 1px solid #3a2c1c; border-radius: 8px; padding: 9px; color: #f2e9dd; font-size: 13px;
@@ -328,7 +332,30 @@ function siteBodyHtml(lead) {
     '</div>' +
     (statusLine ? '<div class="site-status">' + statusLine + '</div>' : '') +
     frame +
-    (lead.siteStatus === 'ready' ? '<div class="edit-row"><input id="edit-instruction" placeholder="e.g. make it feel more upscale…" /><button type="button" id="edit-site-btn">Send</button></div>' : '');
+    (lead.siteStatus === 'ready' ? customizeHtml(lead) + shareHtml(lead) : '');
+}
+
+var COLORS = [['', 'Keep current'], ['paper-green', 'Warm paper'], ['lime-night', 'Lime night'], ['mint-air', 'Mint'], ['barber-red', 'Barber red'], ['navy-gold', 'Navy + gold'], ['blush', 'Blush'], ['ink-bone', 'Ink + bone'], ['forest', 'Forest'], ['terracotta', 'Terracotta'], ['sky', 'Sky'], ['plum', 'Plum'], ['sand', 'Sand']];
+function customizeHtml(lead) {
+  var c = lead.siteContent || {};
+  var svc = (c.services || []).filter(function (x) { return x && x.name; }).concat([{}, {}, {}, {}, {}, {}]).slice(0, 6);
+  var hrs = (c.hours || []).concat([{}, {}, {}, {}]).slice(0, 4);
+  var v = function (x) { return escapeHtml(x || ''); };
+  return '<details class="cust"><summary>Edit this demo</summary>' +
+    '<label>Headline<input id="cu-headline" maxlength="90" value="' + v(c.headline) + '"></label>' +
+    '<label>Intro line<input id="cu-intro" maxlength="220" value="' + v(c.intro) + '"></label>' +
+    '<label>About<textarea id="cu-about" maxlength="600" rows="3">' + v(c.about) + '</textarea></label>' +
+    '<div class="cu-h">Services (name and price, leave blank to skip)</div>' +
+    svc.map(function (x, i) { return '<div class="cu-row"><input class="cu-sn" placeholder="Service" maxlength="60" value="' + v(x.name) + '"><input class="cu-sp" placeholder="$" maxlength="20" value="' + v(x.price) + '"></div>'; }).join('') +
+    '<div class="cu-h">Hours</div>' +
+    hrs.map(function (x) { return '<div class="cu-row"><input class="cu-hd" placeholder="Day" maxlength="30" value="' + v(x.day) + '"><input class="cu-ht" placeholder="9-5" maxlength="40" value="' + v(x.time) + '"></div>'; }).join('') +
+    '<label>Color<select id="cu-palette">' + COLORS.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === (lead.sitePalette || '') ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label>' +
+    '<button type="button" id="cu-save">Update all 3 looks</button><div class="site-status" id="cu-msg"></div></details>';
+}
+function shareHtml(lead) {
+  return '<div class="share-box"><div class="cu-h">Send the demo</div>' +
+    '<div class="site-actions"><button type="button" id="share-copy">Copy private link</button><a class="secondary" id="share-sms" href="#">Text it</a><button type="button" class="secondary" id="share-revoke">Turn link off</button></div>' +
+    '<div class="site-status" id="share-msg">One link, all 3 looks, swipe to see them. Forge never sends anything for you.</div></div>';
 }
 
 function renderLead(id) {
@@ -450,12 +477,48 @@ function renderLead(id) {
   if (generateBtn) generateBtn.addEventListener('click', function () { runSiteAction(lead.id, 'templates'); });
   const regenBtn = document.getElementById('regen-site-btn');
   if (regenBtn) regenBtn.addEventListener('click', function () { runSiteAction(lead.id, 'templates'); });
-  const editBtn = document.getElementById('edit-site-btn');
-  if (editBtn) editBtn.addEventListener('click', function () {
-    const instruction = document.getElementById('edit-instruction').value.trim();
-    if (!instruction) return;
-    runSiteAction(lead.id, 'edit', instruction);
+  const cuSave = document.getElementById('cu-save');
+  if (cuSave) cuSave.addEventListener('click', async function () {
+    const val = function (id) { return document.getElementById(id).value; };
+    const sn = view.querySelectorAll('.cu-sn'), sp = view.querySelectorAll('.cu-sp'), hd = view.querySelectorAll('.cu-hd'), ht = view.querySelectorAll('.cu-ht');
+    const services = [], hours = [];
+    sn.forEach(function (n, i) { if (n.value.trim()) services.push({ name: n.value, price: sp[i].value }); });
+    hd.forEach(function (n, i) { if (n.value.trim() && ht[i].value.trim()) hours.push({ day: n.value, time: ht[i].value }); });
+    const msg = document.getElementById('cu-msg');
+    cuSave.disabled = true; msg.textContent = 'Updating…';
+    try {
+      const res = await fetch('/api/forge-site', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId: lead.id, action: 'customize', changes: { headline: val('cu-headline'), intro: val('cu-intro'), about: val('cu-about'), services: services, hours: hours, palette: val('cu-palette') } }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not update.');
+      const idx = leads.findIndex(function (l) { return l.id === lead.id; });
+      if (idx !== -1) leads[idx] = Object.assign({}, leads[idx], data.lead, { pitch: leads[idx].pitch });
+      renderLead(lead.id); renderQueue();
+      const m2 = document.getElementById('cu-msg'); if (m2) m2.textContent = 'Updated. All 3 looks changed; the demo link shows the new version.';
+    } catch (err) { msg.textContent = err.message; cuSave.disabled = false; }
   });
+
+  async function demoCall(action) {
+    const res = await fetch('/api/forge-demo', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ leadId: lead.id, action: action }) });
+    const data = await res.json().catch(function () { return {}; });
+    if (!res.ok) throw new Error(data.error || 'Demo link unavailable.');
+    return data;
+  }
+  const shareCopy = document.getElementById('share-copy'), shareSms = document.getElementById('share-sms'), shareRevoke = document.getElementById('share-revoke');
+  if (shareCopy) {
+    const note = function (t) { document.getElementById('share-msg').textContent = t; };
+    shareCopy.addEventListener('click', async function () {
+      try {
+        const d = await demoCall('create'); const url = location.origin + d.path;
+        try { await navigator.clipboard.writeText(url); note('Link copied. Anyone with it can view the 3 looks for 30 days.'); } catch (e) { prompt('Copy this link:', url); }
+        shareSms.href = 'sms:?&body=' + encodeURIComponent('Here are 3 website ideas for ' + lead.businessName + ': ' + url);
+      } catch (e) { note(e.message); }
+    });
+    shareSms.addEventListener('click', async function (ev) {
+      if (shareSms.getAttribute('href') === '#') { ev.preventDefault(); try { const d = await demoCall('create'); const url = location.origin + d.path; shareSms.href = 'sms:?&body=' + encodeURIComponent('Here are 3 website ideas for ' + lead.businessName + ': ' + url); location.href = shareSms.href; } catch (e) { note(e.message); } }
+    });
+    shareRevoke.addEventListener('click', async function () { try { await demoCall('revoke'); shareSms.href = '#'; note('Link turned off. Old copies stop working.'); } catch (e) { note(e.message); } });
+  }
 
   document.getElementById('save-outcome').addEventListener('click', async function () {
     const disposition = document.getElementById('disposition').value;
