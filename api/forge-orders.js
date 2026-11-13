@@ -4,6 +4,7 @@ import '../lib/store/installFetch.js';
 import { getRequestUser } from '../lib/roomAuth.js';
 import { isForgeWorker, isForgeManager } from '../lib/forgeRoles.js';
 import { getLead } from '../lib/forgeLeads.js';
+import { sendEmail } from '../lib/emailSender.js';
 import { saveOrder, listOrders, getOrder, setOrderStatus } from '../lib/forgeOrders.js';
 
 function sameOrigin(req) {
@@ -12,7 +13,7 @@ function sameOrigin(req) {
   try { return Boolean(host && new URL(origin).host === host); } catch { return false; }
 }
 export function createForgeOrdersHandler(d = {}) {
-  const { user = getRequestUser, worker = isForgeWorker, manager = isForgeManager, lead = getLead, save = saveOrder, list = listOrders, get = getOrder, setStatus = setOrderStatus } = d;
+  const { user = getRequestUser, worker = isForgeWorker, manager = isForgeManager, lead = getLead, save = saveOrder, list = listOrders, get = getOrder, setStatus = setOrderStatus, email = sendEmail } = d;
   return async function handler(req, res) {
     res.setHeader('Cache-Control', 'private, no-store');
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -30,8 +31,17 @@ export function createForgeOrdersHandler(d = {}) {
       const body = req.body || {};
       if (req.method === 'PATCH') {
         if (!isManager) return res.status(403).json({ error: 'Forge admin access required.' });
-        const out = await setStatus(String(body.leadId || ''), body.status);
-        return out.error ? res.status(400).json({ error: out.error }) : res.status(200).json({ order: out.order });
+        const out = await setStatus(String(body.leadId || ''), body.status, { liveUrl: body.liveUrl });
+        if (out.error) return res.status(400).json({ error: out.error });
+        // Tell the customer when their site goes live. Best effort: the rep can still text them from Ops.
+        let emailed = false;
+        if (body.status === 'live' && out.order.liveUrl) {
+          try {
+            const l = await lead(out.order.leadId);
+            if (l?.email) { await email({ to: l.email, subject: `Your new website is live: ${out.order.businessName}`, html: `<p>Good news. Your new website is live:</p><p><a href="${out.order.liveUrl}">${out.order.liveUrl}</a></p><p>Questions or changes? Just reply to your rep.</p>` }); emailed = true; }
+          } catch (e) { console.error('forge-orders live email failed:', String(e?.message || e).slice(0, 120)); }
+        }
+        return res.status(200).json({ order: out.order, emailed });
       }
       const l = typeof body.leadId === 'string' && body.leadId ? await lead(body.leadId) : null;
       if (!l) return res.status(404).json({ error: 'No such lead.' });

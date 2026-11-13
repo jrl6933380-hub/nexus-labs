@@ -35,3 +35,15 @@ test('API: callers save only for their own lead and see only summaries; managers
   r = res(); await createForgeOrdersHandler({ ...d, user: async () => 'boss', manager: async () => true })(req('PATCH', { leadId: 'l1', status: 'live' }), r); assert.equal(r.code, 200);
   r = res(); await createForgeOrdersHandler({ ...d, user: async () => 'boss', manager: async () => true })({ method: 'GET', headers: {} }, r); assert.ok(r.body.orders[0].notes === 'n');
 });
+
+test('going live saves the link, rejects bad links, and emails the customer when there is an email', async () => {
+  const redis = hash(); await saveOrder(lead, { lookId: 'bold', by: 'caller01' }, { redis });
+  assert.ok((await setOrderStatus('l1', 'live', { redis, liveUrl: 'http://nope' })).error);
+  assert.equal((await setOrderStatus('l1', 'live', { redis, liveUrl: 'https://shop.example.com' })).order.liveUrl, 'https://shop.example.com');
+  const sent = [];
+  const d = { worker: async () => true, user: async () => 'boss', manager: async () => true, lead: async () => ({ ...lead, email: 'o@shop.test' }), setStatus: (id, s, o) => setOrderStatus(id, s, { redis, ...o }), email: async m => { sent.push(m); } };
+  let r = res(); await createForgeOrdersHandler(d)(req('PATCH', { leadId: 'l1', status: 'live', liveUrl: 'https://shop.example.com' }), r);
+  assert.equal(r.code, 200); assert.equal(r.body.emailed, true); assert.equal(sent[0].to, 'o@shop.test');
+  r = res(); await createForgeOrdersHandler({ ...d, email: async () => { throw new Error('no key'); } })(req('PATCH', { leadId: 'l1', status: 'live', liveUrl: 'https://shop.example.com' }), r);
+  assert.equal(r.code, 200); assert.equal(r.body.emailed, false);
+});

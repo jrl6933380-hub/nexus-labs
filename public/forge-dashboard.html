@@ -836,7 +836,8 @@ document.getElementById('import-go').addEventListener('click', async function ()
   var el = function (t, props, kids) { var n = document.createElement(t); Object.keys(props || {}).forEach(function (k) { if (k === 'text') n.textContent = props[k]; else n[k] = props[k]; }); (kids || []).forEach(function (c) { n.append(c); }); return n; };
   var post = function (url, method, body) { return fetch(url, { method: method, credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.error || 'Failed'); return d; }); }); };
   function paid(order, clients) {
-    var c = clients.filter(function (x) { return String(x.business_name || '').toLowerCase() === String(order.businessName || '').toLowerCase(); })[0];
+    var nm = function (v) { return String(v || '').toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, ''); }, ph = function (v) { return String(v || '').replace(/\D/g, '').slice(-10); };
+    var c = clients.filter(function (x) { return (nm(x.business_name) && nm(x.business_name) === nm(order.businessName)) || (ph(x.phone).length === 10 && ph(x.phone) === ph(order.phone)); })[0];
     return !c ? 'No sign-up yet' : c.status === 'active' ? 'PAID' : 'Waiting on payment';
   }
   function load() {
@@ -846,7 +847,11 @@ document.getElementById('import-go').addEventListener('click', async function ()
       if (!orders.length) { box.textContent = 'Nothing yet. When a caller taps "Send to build", it shows up here with the look they picked and the owner\'s notes.'; return; }
       box.replaceChildren.apply(box, orders.map(function (o) {
         var sel = el('select', {}, ['new', 'building', 'live'].map(function (s) { var op = el('option', { text: s, value: s }); op.selected = s === o.status; return op; }));
-        sel.addEventListener('change', function () { post('/api/forge-orders', 'PATCH', { leadId: o.leadId, status: sel.value }).catch(function (e) { alert(e.message); }); });
+        sel.addEventListener('change', function () {
+          var body = { leadId: o.leadId, status: sel.value };
+          if (sel.value === 'live') { var u = prompt('Paste the live site link (https://...). Leave blank to skip telling the customer.', o.liveUrl || ''); if (u) body.liveUrl = u.trim(); }
+          post('/api/forge-orders', 'PATCH', body).then(function (d) { if (d.emailed) alert('Customer emailed.'); if (body.liveUrl) load(); }).catch(function (e) { alert(e.message); });
+        });
         var view = el('button', { type: 'button', className: 'ac-go alt', text: 'See their demo' });
         view.addEventListener('click', function () { post('/api/forge-demo', 'POST', { leadId: o.leadId, action: 'create' }).then(function (d) { window.open(d.path, '_blank', 'noopener'); }).catch(function (e) { alert(e.message); }); });
         var sup = el('button', { type: 'button', className: 'ac-go alt', text: 'Copy support link' });
@@ -856,7 +861,7 @@ document.getElementById('import-go').addEventListener('click', async function ()
           el('div', { text: [o.category, o.location, o.phone].filter(Boolean).join(' · ') }),
           el('div', { text: 'Picked look: ' + o.lookLabel }),
           o.notes ? el('div', { style: 'white-space:pre-wrap;margin:4px 0;', text: 'Notes: ' + o.notes }) : el('span'),
-          el('div', { style: 'display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap;' }, [sel, view, sup])]);
+          el('div', { style: 'display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap;' }, [sel, view, sup].concat(o.status === 'live' && o.liveUrl && o.phone ? [el('a', { className: 'ac-go alt', style: 'text-decoration:none;', text: 'Text customer', href: 'sms:' + String(o.phone).replace(/[^0-9+]/g, '') + '?&body=' + encodeURIComponent('Your new website is live: ' + o.liveUrl + ' Anything you want changed, just text me.') })] : []))]);
       }));
     }).catch(function () { $('bq-list').textContent = 'Could not load the build queue.'; });
   }
