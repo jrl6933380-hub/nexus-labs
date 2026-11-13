@@ -10,6 +10,7 @@ import { generateSiteHtml, editSiteHtml } from '../lib/forgeSitePreview.js';
 import { generateSiteVariants, renderSiteVariant } from '../public/site-compose.mjs';
 import { PALETTES } from '../public/site-vocabulary.mjs';
 import { cleanCustomize } from '../lib/forgeCustomize.js';
+import { stockPhotosFor } from '../lib/stockPhotos.js';
 
 async function canAccessLead(lead, username, manager) {
   return manager || lead.assignedTo === username;
@@ -40,9 +41,16 @@ export default async function handler(req, res) {
     }
 
     if (action === 'templates') {
-      const variants = generateSiteVariants(lead);
+      // First build gets credited stock photos for the trade so the demo looks finished. Existing photos are kept.
+      let siteContent = lead.siteContent;
+      if (!(siteContent?.photos || []).length) {
+        const photos = await stockPhotosFor(lead.category, lead.businessName);
+        if (photos.length) siteContent = { ...(siteContent || {}), photos };
+      }
+      const probe = siteContent === lead.siteContent ? lead : { ...lead, siteContent };
+      const variants = generateSiteVariants(probe);
       const updated = await updateLeadSite(leadId, {
-        html: variants[0].html, status: 'ready', variants, templateId: variants[0].id,
+        html: variants[0].html, status: 'ready', variants, templateId: variants[0].id, siteContent,
       });
       return res.status(200).json({ lead: updated });
     }
