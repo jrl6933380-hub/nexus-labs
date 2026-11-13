@@ -18,8 +18,10 @@
     <h1>You're all set!</h1>
     <p>Payment received. We're putting the finishing touches on your new website now.</p>
     <p>You can hang up whenever you're ready. Your rep will follow up when it's live.</p>
+    <p id="help" hidden>Need anything in the meantime? <a href="#" id="help-link">Message support</a>. No account needed.</p>
   </div>
 <script>
+  (function () { var t = new URLSearchParams(location.search).get('s'); if (t && /^[A-Za-z0-9_-]{20,40}$/.test(t)) { document.getElementById('help').hidden = false; document.getElementById('help-link').href = '/support.html?s=' + t; } })();
   if (new URLSearchParams(location.search).get('cancelled')) {
     document.getElementById('card').innerHTML =
       '<h1>No problem</h1><p>Nothing was charged. If you change your mind, just let your rep know and they can send a new link.</p>';

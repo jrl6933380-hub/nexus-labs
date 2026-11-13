@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
+<title>Message support</title>
+<style>
+  body { margin:0; min-height:100vh; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:#f6f3ee; color:#1f1a14; padding:24px; box-sizing:border-box; }
+  .card { max-width:460px; margin:0 auto; background:#fff; border-radius:16px; padding:26px 22px; box-shadow:0 8px 30px rgba(0,0,0,.08); }
+  h1 { font-size:21px; margin:0 0 6px; } p { font-size:15px; line-height:1.5; color:#4a4238; margin:0 0 14px; }
+  label { display:block; font-size:13px; font-weight:600; margin:12px 0 4px; }
+  input, textarea { width:100%; box-sizing:border-box; font:inherit; font-size:16px; padding:11px; border:1px solid #cfc7ba; border-radius:10px; background:#fff; }
+  textarea { min-height:120px; resize:vertical; }
+  button { margin-top:16px; width:100%; font:inherit; font-weight:600; font-size:16px; padding:13px; border:0; border-radius:10px; background:#1f1a14; color:#fff; }
+  button:disabled { opacity:.6; } .msg { margin-top:12px; font-size:14px; } .hp { position:absolute; left:-9999px; height:0; overflow:hidden; }
+</style></head><body>
+<div class="card" id="card">
+  <h1 id="h">Message support</h1>
+  <p id="sub">Tell us what you need and we will get back to you. You do not need an account.</p>
+  <form id="f">
+    <label for="m">What do you need?</label><textarea id="m" maxlength="1500" required></textarea>
+    <label for="n">Your name (optional)</label><input id="n" maxlength="80" autocomplete="name">
+    <label for="c">Best phone or email to reach you (optional)</label><input id="c" maxlength="120" autocomplete="tel">
+    <div class="hp" aria-hidden="true"><label>Website<input id="w" tabindex="-1" autocomplete="off"></label></div>
+    <button id="b" type="submit">Send message</button><div class="msg" id="msg" role="status"></div>
+  </form>
+</div>
+<script>
+(function () {
+  var t = new URLSearchParams(location.search).get('s') || '';
+  var $ = function (i) { return document.getElementById(i); };
+  fetch('/api/forge-support?t=' + encodeURIComponent(t), { credentials: 'omit' }).then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.error); return d; }); })
+    .then(function (d) { if (d.name) $('h').textContent = 'Message support for ' + d.name; })
+    .catch(function () { $('f').hidden = true; $('sub').textContent = 'This support link is not valid. Please ask your rep for a new one.'; });
+  $('f').addEventListener('submit', function (e) {
+    e.preventDefault(); $('b').disabled = true; $('msg').textContent = 'Sending…';
+    fetch('/api/forge-support', { method: 'POST', credentials: 'omit', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ t: t, message: $('m').value, name: $('n').value, contact: $('c').value, website: $('w').value }) })
+      .then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.error || 'Could not send.'); return d; }); })
+      .then(function () { $('card').innerHTML = '<h1>Message sent</h1><p>Thank you. We got it and will get back to you as soon as we can.</p>'; })
+      .catch(function (err) { $('msg').textContent = err.message; $('b').disabled = false; });
+  });
+})();
+</script></body></html>

@@ -60,6 +60,11 @@
     <div id="bq-list" style="font-size:13px;color:#c7cad1;">Loading…</div>
   </div>
 
+  <h2>Support inbox</h2>
+  <div class="card" id="si" style="background:#14171f;border:1px solid #262b36;border-radius:12px;padding:14px;max-width:460px;margin-bottom:20px;">
+    <div id="si-list" style="font-size:13px;color:#c7cad1;">Loading…</div>
+  </div>
+
   <h2>Launch price</h2>
   <div class="card" id="lp" style="background:#14171f;border:1px solid #262b36;border-radius:12px;padding:14px;max-width:460px;margin-bottom:20px;">
     <label style="display:block;font-size:12px;color:#9aa0a6;margin-bottom:4px;">Charged today ($, includes the first month)</label>
@@ -844,16 +849,34 @@ document.getElementById('import-go').addEventListener('click', async function ()
         sel.addEventListener('change', function () { post('/api/forge-orders', 'PATCH', { leadId: o.leadId, status: sel.value }).catch(function (e) { alert(e.message); }); });
         var view = el('button', { type: 'button', className: 'ac-go alt', text: 'See their demo' });
         view.addEventListener('click', function () { post('/api/forge-demo', 'POST', { leadId: o.leadId, action: 'create' }).then(function (d) { window.open(d.path, '_blank', 'noopener'); }).catch(function (e) { alert(e.message); }); });
+        var sup = el('button', { type: 'button', className: 'ac-go alt', text: 'Copy support link' });
+        sup.addEventListener('click', function () { post('/api/forge-support', 'POST', { action: 'link', key: 'lead:' + o.leadId, businessName: o.businessName }).then(function (d) { var u = location.origin + d.path; (navigator.clipboard ? navigator.clipboard.writeText(u) : Promise.reject()).then(function () { sup.textContent = 'Copied'; }, function () { prompt('Copy this support link', u); }); }).catch(function (e) { alert(e.message); }); });
         return el('div', { style: 'border-top:1px solid #262b36;padding:10px 0;' }, [
           el('div', { style: 'font-weight:600;', text: o.businessName + ' · ' + paid(o, clients) }),
           el('div', { text: [o.category, o.location, o.phone].filter(Boolean).join(' · ') }),
           el('div', { text: 'Picked look: ' + o.lookLabel }),
           o.notes ? el('div', { style: 'white-space:pre-wrap;margin:4px 0;', text: 'Notes: ' + o.notes }) : el('span'),
-          el('div', { style: 'display:flex;gap:8px;align-items:center;margin-top:6px;' }, [sel, view])]);
+          el('div', { style: 'display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap;' }, [sel, view, sup])]);
       }));
     }).catch(function () { $('bq-list').textContent = 'Could not load the build queue.'; });
   }
   load(); setInterval(load, 30000);
+  function loadSupport() {
+    fetch('/api/forge-support', { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : { messages: [] }; }).then(function (d) {
+      var box = $('si-list'), msgs = (d.messages || []).filter(function (m) { return m.status !== 'done'; });
+      if (!msgs.length) { box.textContent = 'No open messages.'; return; }
+      box.replaceChildren.apply(box, msgs.map(function (m) {
+        var done = el('button', { type: 'button', className: 'ac-go alt', text: 'Done' });
+        done.addEventListener('click', function () { post('/api/forge-support', 'PATCH', { id: m.id, status: 'done' }).then(loadSupport).catch(function (e) { alert(e.message); }); });
+        var who = [m.name, m.contact].filter(Boolean).join(' · ');
+        return el('div', { style: 'border-top:1px solid #262b36;padding:10px 0;' }, [
+          el('div', { style: 'font-weight:600;', text: m.businessName + ' · ' + new Date(m.at).toLocaleString() }),
+          who ? el('div', { text: who }) : el('span'),
+          el('div', { style: 'white-space:pre-wrap;margin:4px 0;', text: m.message }), done]);
+      }));
+    }).catch(function () { $('si-list').textContent = 'Could not load support messages.'; });
+  }
+  loadSupport(); setInterval(loadSupport, 30000);
 })();
 </script>
 </body>

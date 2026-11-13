@@ -8,6 +8,7 @@ export function httpsUrl(value) {
 }
 export const pickPlaybook = category => PLAYBOOKS.find(p => p.match.test(category || '')) || PLAYBOOKS[PLAYBOOKS.length - 1];
 const PHONE = /^[0-9+().\-\s]{7,30}$/;
+const SUPPORT_URL = /^https:\/\/[a-z0-9.-]{3,80}\/support\.html\?s=[A-Za-z0-9_-]{20,40}$/;
 // Words that assert something about the business that Nexus cannot know. Rejected while concept is true.
 export const CLAIM = /\b(best|#\s?1|no\.?\s?1|number one|top[- ]rated|award[- ]?winning|awards?|years? (?:of experience|in business)|since (?:19|20)\d\d|established|guarantee[ds]?|licen[sc]ed|insured|certified|bonded|family[- ]owned|voted|leading|premier|cheapest|lowest price|free (?:estimates?|quotes?|consultations?)|same[- ]day|24\/7|open late|walk-?ins? welcome)\b/i;
 
@@ -28,6 +29,7 @@ export function normalizeBusiness(lead = {}) {
   })).filter(p => p.url);
   const hours = (Array.isArray(c.hours) ? c.hours : []).slice(0, LIMITS.hours).filter(h => text(h?.day) && text(h?.time)).map(h => ({ day: text(h.day, 30), time: text(h.time, 70) }));
   const phone = text(lead.phone, LIMITS.phone);
+  const supportUrl = SUPPORT_URL.test(String(lead.supportUrl || '')) ? String(lead.supportUrl) : '';
   return {
     name, category, location: text(lead.location, LIMITS.location), phone: PHONE.test(phone) ? phone : '',
     address: text(c.address, LIMITS.address), intro: text(c.intro, LIMITS.sub), about: text(c.about, LIMITS.body), headline: text(c.headline, LIMITS.headline),
@@ -35,7 +37,7 @@ export function normalizeBusiness(lead = {}) {
     rating: Number.isFinite(lead.rating) && lead.rating > 0 && lead.rating <= 5 && Number.isInteger(lead.reviewCount) && lead.reviewCount > 0 ? lead.rating : null,
     reviewCount: Number.isInteger(lead.reviewCount) && lead.reviewCount > 0 && Number.isFinite(lead.rating) && lead.rating > 0 && lead.rating <= 5 ? lead.reviewCount : null,
     initials: name.split(/\s+/).map(x => x[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || 'N',
-    playbook: pb.id
+    playbook: pb.id, supportUrl
   };
 }
 
@@ -67,7 +69,7 @@ export function validateSite(input) {
 
   // business
   const b = isObj(input.business) ? input.business : (err('$.business', 'Required.'), {});
-  only(b, ['name', 'category', 'location', 'phone', 'address', 'intro', 'about', 'headline', 'services', 'photos', 'hours', 'rating', 'reviewCount', 'initials', 'playbook'], '$.business');
+  only(b, ['name', 'category', 'location', 'phone', 'address', 'intro', 'about', 'headline', 'services', 'photos', 'hours', 'rating', 'reviewCount', 'initials', 'playbook', 'supportUrl'], '$.business');
   const business = {
     name: str(b.name, '$.business.name', LIMITS.name, { required: true }), category: str(b.category, '$.business.category', LIMITS.category, { required: true }),
     location: str(b.location, '$.business.location', LIMITS.location), phone: str(b.phone, '$.business.phone', LIMITS.phone),
@@ -75,6 +77,7 @@ export function validateSite(input) {
     about: str(b.about, '$.business.about', LIMITS.body), headline: str(b.headline, '$.business.headline', LIMITS.headline)
   };
   if (business.phone && !PHONE.test(business.phone)) err('$.business.phone', 'Digits, spaces and + ( ) - . only.');
+  business.supportUrl = b.supportUrl === undefined || b.supportUrl === '' ? '' : (SUPPORT_URL.test(String(b.supportUrl)) ? String(b.supportUrl) : (err('$.business.supportUrl', 'Must be this site\'s https support link.'), ''));
   business.initials = str(b.initials, '$.business.initials', 4) || business.name.split(/\s+/).map(x => x[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || 'N';
   business.playbook = enumOf(b.playbook, new Set(PLAYBOOKS.map(p => p.id)), '$.business.playbook', pickPlaybook(business.category).id);
   business.services = arr(b.services, '$.business.services', LIMITS.services).map((s, i) => {
