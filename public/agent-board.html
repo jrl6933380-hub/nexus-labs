@@ -94,6 +94,15 @@
 <input id="playSearch" placeholder="Search plays" style="margin-bottom:10px">
 <div id="plays"></div>
 
+<h2>Timeline</h2>
+<p class="sub">The running history. Agents read it first so they know what you did and what comes next. Save an entry whenever you finish working.</p>
+<div class="card">
+  <textarea id="tlDid" placeholder="What I did this time" maxlength="2000" style="min-height:70px"></textarea>
+  <textarea id="tlNext" placeholder="What's next (optional)" maxlength="1000" style="margin-top:8px;min-height:50px"></textarea>
+  <div class="row" style="margin-top:10px"><button class="primary" id="tlSave">Save to timeline</button></div>
+</div>
+<div id="timeline"></div>
+
 <h2>Latest messages</h2>
 <div id="messages"></div>
 
@@ -255,8 +264,37 @@ function render(data) {
   $('messages').replaceChildren(...(data.messages.length ? data.messages.map((m) => h('div', { class: 'note' }, h('b', {}, m.from + ' '), '· ' + ago(Date.now() - m.at) + ' · ' + String(m.message).slice(0, 280))) : [h('div', { class: 'empty' }, 'No messages.')]));
 }
 
+async function loadTimeline() {
+  try {
+    const res = await fetch('/api/timeline?limit=60', { cache: 'no-store' });
+    if (!res.ok) return;
+    const { entries } = await res.json();
+    let day = '';
+    const rows = [];
+    for (const e of entries) {
+      const d = new Date(e.at).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+      if (d !== day) { day = d; rows.push(h('div', { class: 'sub', style: 'margin:14px 0 4px;font-weight:600' }, d)); }
+      const t = new Date(e.at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+      rows.push(h('div', { class: 'card' }, h('div', { class: 'sub' }, (e.by === 'justin' ? 'You' : e.by) + ' · ' + t), h('div', { style: 'white-space:pre-wrap;margin-top:4px' }, e.did), e.next ? h('div', { class: 'sub', style: 'white-space:pre-wrap;margin-top:6px' }, 'Next: ' + e.next) : ''));
+    }
+    $('timeline').replaceChildren(...(rows.length ? rows : [h('div', { class: 'empty' }, 'Nothing saved yet.')]));
+  } catch { /* leave the last view */ }
+}
+$('tlSave').addEventListener('click', async () => {
+  const did = $('tlDid').value.trim();
+  if (!did) { toast('Write what you did first'); return; }
+  $('tlSave').disabled = true;
+  try {
+    const res = await fetch('/api/timeline', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ did, next: $('tlNext').value.trim() }) });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(d.error || 'Could not save');
+    $('tlDid').value = ''; $('tlNext').value = ''; toast('Saved to the timeline.'); await loadTimeline();
+  } catch (err) { toast(err.message); } finally { $('tlSave').disabled = false; }
+});
+
 let busy = false;
 async function load() {
+  loadTimeline();
   if (busy) return; busy = true;
   try {
     const res = await fetch('/api/board?view=dashboard', { cache: 'no-store' });
