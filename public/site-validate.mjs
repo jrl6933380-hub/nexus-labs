@@ -24,7 +24,7 @@ export function normalizeBusiness(lead = {}) {
     sample: s.sample === true || !supplied.length
   }));
   const photos = (Array.isArray(c.photos) ? c.photos : []).slice(0, LIMITS.photos).map(p => ({
-    url: httpsUrl(p?.url), alt: text(p?.alt, LIMITS.alt) || 'Business portfolio photograph', credit: text(p?.credit, LIMITS.credit)
+    url: httpsUrl(p?.url), alt: text(p?.alt, LIMITS.alt) || 'Business portfolio photograph', credit: text(p?.credit, LIMITS.credit), stock: p?.stock === true
   })).filter(p => p.url);
   const hours = (Array.isArray(c.hours) ? c.hours : []).slice(0, LIMITS.hours).filter(h => text(h?.day) && text(h?.time)).map(h => ({ day: text(h.day, 30), time: text(h.time, 70) }));
   const phone = text(lead.phone, LIMITS.phone);
@@ -89,10 +89,10 @@ export function validateSite(input) {
   business.photos = arr(b.photos, '$.business.photos', LIMITS.photos).map((ph, i) => {
     const p = `$.business.photos[${i}]`;
     if (!isObj(ph)) { err(p, 'Must be an object.'); return null; }
-    only(ph, ['url', 'alt', 'credit'], p);
+    only(ph, ['url', 'alt', 'credit', 'stock'], p);
     const url = httpsUrl(ph.url);
     if (!url) err(p + '.url', 'Must be an https URL without credentials.');
-    return { url, alt: str(ph.alt, p + '.alt', LIMITS.alt) || 'Business portfolio photograph', credit: str(ph.credit, p + '.credit', LIMITS.credit) };
+    return { url, alt: str(ph.alt, p + '.alt', LIMITS.alt) || 'Business portfolio photograph', credit: str(ph.credit, p + '.credit', LIMITS.credit), stock: ph.stock === true };
   }).filter(p => p && p.url);
   business.hours = arr(b.hours, '$.business.hours', LIMITS.hours).map((h, i) => {
     const p = `$.business.hours[${i}]`;

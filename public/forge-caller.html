@@ -82,6 +82,7 @@
   .site-status { font-size: 12px; color: #a9977d; margin-bottom: 8px; }
   .cust { margin-top: 12px; } .cust summary { font-weight: 600; padding: 10px 0; cursor: pointer; }
   .cust label { display: block; font-size: 13px; margin: 8px 0; } .cust input, .cust textarea, .cust select { display: block; width: 100%; box-sizing: border-box; padding: 9px; margin-top: 4px; font: inherit; border: 1px solid #ccc; border-radius: 8px; }
+  .cu-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 6px 0; } .cu-grid button { padding: 0; border: 2px solid transparent; border-radius: 8px; background: #222; overflow: hidden; aspect-ratio: 1; } .cu-grid button.on { border-color: #d97b2f; } .cu-grid img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .cu-h { font-weight: 600; font-size: 13px; margin: 12px 0 4px; } .cu-row { display: flex; gap: 8px; } .cu-row input:last-child { max-width: 110px; }
   .share-box { margin-top: 14px; padding-top: 10px; border-top: 1px solid #ddd; }
   .edit-row { display: flex; gap: 8px; }
@@ -349,6 +350,10 @@ function customizeHtml(lead) {
     svc.map(function (x, i) { return '<div class="cu-row"><input class="cu-sn" placeholder="Service" maxlength="60" value="' + v(x.name) + '"><input class="cu-sp" placeholder="$" maxlength="20" value="' + v(x.price) + '"></div>'; }).join('') +
     '<div class="cu-h">Hours</div>' +
     hrs.map(function (x) { return '<div class="cu-row"><input class="cu-hd" placeholder="Day" maxlength="30" value="' + v(x.day) + '"><input class="cu-ht" placeholder="9-5" maxlength="40" value="' + v(x.time) + '"></div>'; }).join('') +
+    '<div class="cu-h">Photos (stock, credited, shown as samples)</div>' +
+    '<div class="cu-row"><input id="cu-pq" maxlength="80" value="' + v(/barber/i.test(lead.category || '') ? 'barber haircut' : (lead.category || '')) + '"><button type="button" id="cu-pfind" class="secondary">Find</button></div>' +
+    '<div class="site-status" id="cu-pmsg">Tap a photo to add it. Tap a picked one to remove it. Up to 6; the first is the top picture.</div>' +
+    '<div class="cu-grid" id="cu-psel"></div><div class="cu-grid" id="cu-pres"></div>' +
     '<label>Color<select id="cu-palette">' + COLORS.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === (lead.sitePalette || '') ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label>' +
     '<button type="button" id="cu-save">Update all 3 looks</button><div class="site-status" id="cu-msg"></div></details>';
 }
@@ -478,6 +483,32 @@ function renderLead(id) {
   const regenBtn = document.getElementById('regen-site-btn');
   if (regenBtn) regenBtn.addEventListener('click', function () { runSiteAction(lead.id, 'templates'); });
   const cuSave = document.getElementById('cu-save');
+  let picked = ((lead.siteContent && lead.siteContent.photos) || []).filter(function (p) { return p && p.url; }).map(function (p) { return { url: p.url, alt: p.alt, credit: p.credit, thumb: p.url }; });
+  function drawPicked() {
+    const box = document.getElementById('cu-psel'); if (!box) return; box.replaceChildren();
+    picked.forEach(function (p, i) {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'on'; b.title = 'Remove';
+      const im = document.createElement('img'); im.src = p.thumb || p.url; im.alt = p.alt || ''; im.referrerPolicy = 'no-referrer'; b.append(im);
+      b.addEventListener('click', function () { picked.splice(i, 1); drawPicked(); }); box.append(b);
+    });
+  }
+  drawPicked();
+  const pFind = document.getElementById('cu-pfind');
+  if (pFind) pFind.addEventListener('click', async function () {
+    const msg = document.getElementById('cu-pmsg'), res = document.getElementById('cu-pres');
+    pFind.disabled = true; msg.textContent = 'Searching…'; res.replaceChildren();
+    try {
+      const r = await fetch('/api/forge-photos', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: document.getElementById('cu-pq').value }) });
+      const d = await r.json(); if (!r.ok) throw new Error(d.error || 'Search failed.');
+      msg.textContent = d.photos.length ? 'Tap a photo to add it. Tap a picked one to remove it.' : 'No photos found. Try another word.';
+      d.photos.forEach(function (p) {
+        const b = document.createElement('button'); b.type = 'button'; b.title = p.credit;
+        const im = document.createElement('img'); im.src = p.thumb; im.alt = p.alt || ''; im.loading = 'lazy'; im.referrerPolicy = 'no-referrer'; b.append(im);
+        b.addEventListener('click', function () { if (picked.length >= 6) { msg.textContent = 'Six is the most. Remove one first.'; return; } if (!picked.some(function (x) { return x.url === p.url; })) { picked.push(p); drawPicked(); } });
+        res.append(b);
+      });
+    } catch (e) { msg.textContent = e.message; } pFind.disabled = false;
+  });
   if (cuSave) cuSave.addEventListener('click', async function () {
     const val = function (id) { return document.getElementById(id).value; };
     const sn = view.querySelectorAll('.cu-sn'), sp = view.querySelectorAll('.cu-sp'), hd = view.querySelectorAll('.cu-hd'), ht = view.querySelectorAll('.cu-ht');
@@ -488,7 +519,7 @@ function renderLead(id) {
     cuSave.disabled = true; msg.textContent = 'Updating…';
     try {
       const res = await fetch('/api/forge-site', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leadId: lead.id, action: 'customize', changes: { headline: val('cu-headline'), intro: val('cu-intro'), about: val('cu-about'), services: services, hours: hours, palette: val('cu-palette') } }) });
+        body: JSON.stringify({ leadId: lead.id, action: 'customize', changes: { headline: val('cu-headline'), intro: val('cu-intro'), about: val('cu-about'), services: services, hours: hours, photos: picked.map(function (p) { return { url: p.url, alt: p.alt, credit: p.credit }; }), palette: val('cu-palette') } }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not update.');
       const idx = leads.findIndex(function (l) { return l.id === lead.id; });
