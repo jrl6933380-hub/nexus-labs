@@ -83,6 +83,7 @@
   .cust { margin-top: 12px; } .cust summary { font-weight: 600; padding: 10px 0; cursor: pointer; }
   .cust label { display: block; font-size: 13px; margin: 8px 0; } .cust input, .cust textarea, .cust select { display: block; width: 100%; box-sizing: border-box; padding: 9px; margin-top: 4px; font: inherit; border: 1px solid #ccc; border-radius: 8px; }
   .cu-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 6px 0; } .cu-grid button { padding: 0; border: 2px solid transparent; border-radius: 8px; background: #222; overflow: hidden; aspect-ratio: 1; } .cu-grid button.on { border-color: #d97b2f; } .cu-grid img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .cu-help { font-size: 13px; opacity: .8; margin: 2px 0 8px; } .cu-dots { display: flex; gap: 4px; flex-wrap: wrap; margin: 4px 0 8px; } .cu-dot { font-size: 11px; padding: 3px 8px; border-radius: 999px; background: #2a2118; opacity: .6; } .cu-dot.on { background: #d97b2f; color: #fff; opacity: 1; } .cu-nav { display: flex; gap: 8px; margin-top: 10px; }
   .cu-h { font-weight: 600; font-size: 13px; margin: 12px 0 4px; } .cu-row { display: flex; gap: 8px; } .cu-row input:last-child { max-width: 110px; }
   .share-box { margin-top: 14px; padding-top: 10px; border-top: 1px solid #ddd; }
   .edit-row { display: flex; gap: 8px; }
@@ -337,25 +338,27 @@ function siteBodyHtml(lead) {
 }
 
 var COLORS = [['', 'Keep current'], ['paper-green', 'Warm paper'], ['lime-night', 'Lime night'], ['mint-air', 'Mint'], ['barber-red', 'Barber red'], ['navy-gold', 'Navy + gold'], ['blush', 'Blush'], ['ink-bone', 'Ink + bone'], ['forest', 'Forest'], ['terracotta', 'Terracotta'], ['sky', 'Sky'], ['plum', 'Plum'], ['sand', 'Sand']];
+var CU_STEPS = ['Name', 'Services', 'Hours', 'Photos', 'Look'];
+var cuStep = 0;
 function customizeHtml(lead) {
   var c = lead.siteContent || {};
   var svc = (c.services || []).filter(function (x) { return x && x.name; }).concat([{}, {}, {}, {}, {}, {}]).slice(0, 6);
   var hrs = (c.hours || []).concat([{}, {}, {}, {}]).slice(0, 4);
   var v = function (x) { return escapeHtml(x || ''); };
-  return '<details class="cust"><summary>Edit this demo</summary>' +
-    '<label>Headline<input id="cu-headline" maxlength="90" value="' + v(c.headline) + '"></label>' +
-    '<label>Intro line<input id="cu-intro" maxlength="220" value="' + v(c.intro) + '"></label>' +
-    '<label>About<textarea id="cu-about" maxlength="600" rows="3">' + v(c.about) + '</textarea></label>' +
-    '<div class="cu-h">Services (name and price, leave blank to skip)</div>' +
-    svc.map(function (x, i) { return '<div class="cu-row"><input class="cu-sn" placeholder="Service" maxlength="60" value="' + v(x.name) + '"><input class="cu-sp" placeholder="$" maxlength="20" value="' + v(x.price) + '"></div>'; }).join('') +
-    '<div class="cu-h">Hours</div>' +
-    hrs.map(function (x) { return '<div class="cu-row"><input class="cu-hd" placeholder="Day" maxlength="30" value="' + v(x.day) + '"><input class="cu-ht" placeholder="9-5" maxlength="40" value="' + v(x.time) + '"></div>'; }).join('') +
-    '<div class="cu-h">Photos (stock, credited, shown as samples)</div>' +
-    '<div class="cu-row"><input id="cu-pq" maxlength="80" value="' + v(/barber/i.test(lead.category || '') ? 'barber haircut' : (lead.category || '')) + '"><button type="button" id="cu-pfind" class="secondary">Find</button></div>' +
-    '<div class="site-status" id="cu-pmsg">Tap a photo to add it. Tap a picked one to remove it. Up to 6; the first is the top picture.</div>' +
-    '<div class="cu-grid" id="cu-psel"></div><div class="cu-grid" id="cu-pres"></div>' +
-    '<label>Color<select id="cu-palette">' + COLORS.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === (lead.sitePalette || '') ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label>' +
-    '<button type="button" id="cu-save">Update all 3 looks</button><div class="site-status" id="cu-msg"></div></details>';
+  var step = function (n, title, help, body) { return '<div class="cu-step" data-step="' + n + '"' + (n === cuStep ? '' : ' hidden') + '><div class="cu-h">' + (n + 1) + ' of ' + CU_STEPS.length + ' · ' + title + '</div><div class="cu-help">' + help + '</div>' + body + '</div>'; };
+  return '<details class="cust"' + (cuStep > 0 ? ' open' : '') + '><summary>Edit this demo</summary><div class="cu-dots">' + CU_STEPS.map(function (t, i) { return '<span class="cu-dot' + (i === cuStep ? ' on' : '') + '">' + t + '</span>'; }).join('') + '</div>' +
+    step(0, 'Name and headline', 'Say the shop\'s name the way they do. Keep the headline short and plain. Skip big claims like "best in town": they are not allowed on a sample.',
+      '<label>Headline<input id="cu-headline" maxlength="90" value="' + v(c.headline) + '"></label><label>Intro line<input id="cu-intro" maxlength="220" value="' + v(c.intro) + '"></label><label>About (optional)<textarea id="cu-about" maxlength="600" rows="3">' + v(c.about) + '</textarea></label>') +
+    step(1, 'Services and prices', 'Add what they do most, 3 to 5 is plenty. Only put a price if the owner told you. Blank price is fine.',
+      svc.map(function (x) { return '<div class="cu-row"><input class="cu-sn" placeholder="Service" maxlength="60" value="' + v(x.name) + '"><input class="cu-sp" placeholder="$" maxlength="20" value="' + v(x.price) + '"></div>'; }).join('')) +
+    step(2, 'Hours', 'Only what they told you. Example: Mon-Fri, 9-6. Leave blank if you do not know yet.',
+      hrs.map(function (x) { return '<div class="cu-row"><input class="cu-hd" placeholder="Day" maxlength="30" value="' + v(x.day) + '"><input class="cu-ht" placeholder="9-5" maxlength="40" value="' + v(x.time) + '"></div>'; }).join('')) +
+    step(3, 'Photos', 'Pick 3 to 6. These are stock photos and are labelled that way on the page. The first one is the top picture.',
+      '<div class="cu-row"><input id="cu-pq" maxlength="80" value="' + v(/barber/i.test(lead.category || '') ? 'barber haircut' : (lead.category || '')) + '"><button type="button" id="cu-pfind" class="secondary">Find</button></div><div class="site-status" id="cu-pmsg">Tap a photo to add it. Tap a picked one to remove it.</div><div class="cu-grid" id="cu-psel"></div><div class="cu-grid" id="cu-pres"></div>') +
+    step(4, 'Look and finish', 'Pick a color that fits the shop. Then update, and the same link shows the new version.',
+      '<label>Color<select id="cu-palette">' + COLORS.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === (lead.sitePalette || '') ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label><button type="button" id="cu-save">Update all 3 looks</button>') +
+    '<div class="cu-nav"><button type="button" class="secondary" id="cu-back"' + (cuStep === 0 ? ' hidden' : '') + '>Back</button><button type="button" id="cu-next"' + (cuStep === CU_STEPS.length - 1 ? ' hidden' : '') + '>Next</button></div>' +
+    '<div class="site-status" id="cu-msg"></div></details>';
 }
 function shareHtml(lead) {
   return '<div class="share-box"><div class="cu-h">Send the demo</div>' +
@@ -363,7 +366,9 @@ function shareHtml(lead) {
     '<div class="site-status" id="share-msg">One link, all 3 looks, swipe to see them. Forge never sends anything for you.</div></div>';
 }
 
+var cuLeadId = null;
 function renderLead(id) {
+  if (cuLeadId !== id) { cuLeadId = id; cuStep = 0; }
   const lead = leads.find(function (l) { return l.id === id; });
   document.getElementById('empty-main').hidden = true;
   const view = document.getElementById('lead-view');
@@ -483,6 +488,15 @@ function renderLead(id) {
   const regenBtn = document.getElementById('regen-site-btn');
   if (regenBtn) regenBtn.addEventListener('click', function () { runSiteAction(lead.id, 'templates'); });
   const cuSave = document.getElementById('cu-save');
+  const cuGo = function (n) {
+    cuStep = Math.max(0, Math.min(CU_STEPS.length - 1, n));
+    view.querySelectorAll('.cu-step').forEach(function (el) { el.hidden = Number(el.dataset.step) !== cuStep; });
+    view.querySelectorAll('.cu-dot').forEach(function (el, i) { el.classList.toggle('on', i === cuStep); });
+    if (cuBack) cuBack.hidden = cuStep === 0; if (cuNext) cuNext.hidden = cuStep === CU_STEPS.length - 1;
+  };
+  const cuNext = document.getElementById('cu-next'), cuBack = document.getElementById('cu-back');
+  if (cuNext) cuNext.addEventListener('click', function () { cuGo(cuStep + 1); });
+  if (cuBack) cuBack.addEventListener('click', function () { cuGo(cuStep - 1); });
   let picked = ((lead.siteContent && lead.siteContent.photos) || []).filter(function (p) { return p && p.url; }).map(function (p) { return { url: p.url, alt: p.alt, credit: p.credit, thumb: p.url }; });
   function drawPicked() {
     const box = document.getElementById('cu-psel'); if (!box) return; box.replaceChildren();
@@ -524,7 +538,7 @@ function renderLead(id) {
       if (!res.ok) throw new Error(data.error || 'Could not update.');
       const idx = leads.findIndex(function (l) { return l.id === lead.id; });
       if (idx !== -1) leads[idx] = Object.assign({}, leads[idx], data.lead, { pitch: leads[idx].pitch });
-      renderLead(lead.id); renderQueue();
+      cuStep = 0; renderLead(lead.id); renderQueue();
       const m2 = document.getElementById('cu-msg'); if (m2) m2.textContent = 'Updated. All 3 looks changed; the demo link shows the new version.';
     } catch (err) { msg.textContent = err.message; cuSave.disabled = false; }
   });
