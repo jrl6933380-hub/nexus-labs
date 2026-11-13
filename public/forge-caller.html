@@ -84,6 +84,7 @@
   .cust label { display: block; font-size: 13px; margin: 8px 0; } .cust input, .cust textarea, .cust select { display: block; width: 100%; box-sizing: border-box; padding: 9px; margin-top: 4px; font: inherit; border: 1px solid #ccc; border-radius: 8px; }
   .cu-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 6px 0; } .cu-grid button { padding: 0; border: 2px solid transparent; border-radius: 8px; background: #222; overflow: hidden; aspect-ratio: 1; } .cu-grid button.on { border-color: #d97b2f; } .cu-grid img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .cu-help { font-size: 13px; opacity: .8; margin: 2px 0 8px; } .cu-dots { display: flex; gap: 4px; flex-wrap: wrap; margin: 4px 0 8px; } .cu-dot { font-size: 11px; padding: 3px 8px; border-radius: 999px; background: #2a2118; opacity: .6; } .cu-dot.on { background: #d97b2f; color: #fff; opacity: 1; } .cu-nav { display: flex; gap: 8px; margin-top: 10px; }
+  .ord-look { display: block; padding: 6px 0; font-size: 14px; } .ord-look input { display: inline; width: auto; margin: 0 6px 0 0; }
   .cu-h { font-weight: 600; font-size: 13px; margin: 12px 0 4px; } .cu-row { display: flex; gap: 8px; } .cu-row input:last-child { max-width: 110px; }
   .share-box { margin-top: 14px; padding-top: 10px; border-top: 1px solid #ddd; }
   .edit-row { display: flex; gap: 8px; }
@@ -262,6 +263,7 @@ async function loadLeads() {
     if (!res.ok) throw new Error('load failed');
     const data = await res.json();
     leads = (data.leads || []).filter(function (l) { return !l.suppressed; });
+    try { const or = await fetch('/api/forge-orders', { credentials: 'include' }); if (or.ok) { orders = {}; (await or.json()).orders.forEach(function (x) { orders[x.leadId] = x; }); } } catch (e) { /* orders are optional */ }
     stateEl.hidden = true;
     main.hidden = false;
     renderQueue();
@@ -334,7 +336,7 @@ function siteBodyHtml(lead) {
     '</div>' +
     (statusLine ? '<div class="site-status">' + statusLine + '</div>' : '') +
     frame +
-    (lead.siteStatus === 'ready' ? customizeHtml(lead) + shareHtml(lead) : '');
+    (lead.siteStatus === 'ready' ? customizeHtml(lead) + shareHtml(lead) + orderHtml(lead) : '');
 }
 
 var COLORS = [['', 'Keep current'], ['paper-green', 'Warm paper'], ['lime-night', 'Lime night'], ['mint-air', 'Mint'], ['barber-red', 'Barber red'], ['navy-gold', 'Navy + gold'], ['blush', 'Blush'], ['ink-bone', 'Ink + bone'], ['forest', 'Forest'], ['terracotta', 'Terracotta'], ['sky', 'Sky'], ['plum', 'Plum'], ['sand', 'Sand']];
@@ -359,6 +361,18 @@ function customizeHtml(lead) {
       '<label>Color<select id="cu-palette">' + COLORS.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === (lead.sitePalette || '') ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label><button type="button" id="cu-save">Update all 3 looks</button>') +
     '<div class="cu-nav"><button type="button" class="secondary" id="cu-back"' + (cuStep === 0 ? ' hidden' : '') + '>Back</button><button type="button" id="cu-next"' + (cuStep === CU_STEPS.length - 1 ? ' hidden' : '') + '>Next</button></div>' +
     '<div class="site-status" id="cu-msg"></div></details>';
+}
+var orders = {};
+function orderHtml(lead) {
+  var looks = Array.isArray(lead.siteVariants) ? lead.siteVariants : [];
+  if (!looks.length) return '';
+  var o = orders[lead.id];
+  return '<div class="share-box"><div class="cu-h">They picked one? Send it to build</div>' +
+    '<div class="cu-help">Tick the look they liked and add anything they asked for. We build the final site from it. You do not build it.</div>' +
+    looks.map(function (v) { return '<label class="ord-look"><input type="radio" name="ord-look" value="' + escapeHtml(v.id) + '"' + (v.id === lead.siteTemplateId ? ' checked' : '') + '> ' + escapeHtml(v.label) + '</label>'; }).join('') +
+    '<label>Notes from the owner<textarea id="ord-notes" maxlength="1500" rows="3" placeholder="Colors, services to add, hours, anything they said"></textarea></label>' +
+    '<button type="button" id="ord-save">Send to build</button>' +
+    '<div class="site-status" id="ord-msg">' + (o ? 'Sent: ' + escapeHtml(o.lookLabel) + ' (' + escapeHtml(o.status) + '). Send again to change it.' : 'Nothing sent yet.') + '</div></div>';
 }
 function shareHtml(lead) {
   return '<div class="share-box"><div class="cu-h">Send the demo</div>' +
@@ -487,6 +501,17 @@ function renderLead(id) {
   if (generateBtn) generateBtn.addEventListener('click', function () { runSiteAction(lead.id, 'templates'); });
   const regenBtn = document.getElementById('regen-site-btn');
   if (regenBtn) regenBtn.addEventListener('click', function () { runSiteAction(lead.id, 'templates'); });
+  const ordSave = document.getElementById('ord-save');
+  if (ordSave) ordSave.addEventListener('click', async function () {
+    const pick = view.querySelector('input[name="ord-look"]:checked'), msg = document.getElementById('ord-msg');
+    if (!pick) { msg.textContent = 'Tick the look they liked first.'; return; }
+    ordSave.disabled = true; msg.textContent = 'Sending…';
+    try {
+      const r = await fetch('/api/forge-orders', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ leadId: lead.id, lookId: pick.value, notes: document.getElementById('ord-notes').value }) });
+      const d = await r.json(); if (!r.ok) throw new Error(d.error || 'Could not send.');
+      orders[lead.id] = d.order; msg.textContent = 'Sent: ' + d.order.lookLabel + ' (' + d.order.status + '). We will build it.';
+    } catch (e) { msg.textContent = e.message; } ordSave.disabled = false;
+  });
   const cuSave = document.getElementById('cu-save');
   const cuGo = function (n) {
     cuStep = Math.max(0, Math.min(CU_STEPS.length - 1, n));

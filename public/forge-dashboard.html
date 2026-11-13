@@ -55,6 +55,11 @@
     <a href="/forge-hub.html#templates" target="_top">Templates</a>
   </div>
 
+  <h2>Build queue</h2>
+  <div class="card" id="bq" style="background:#14171f;border:1px solid #262b36;border-radius:12px;padding:14px;max-width:460px;margin-bottom:20px;">
+    <div id="bq-list" style="font-size:13px;color:#c7cad1;">Loading…</div>
+  </div>
+
   <h2>Launch price</h2>
   <div class="card" id="lp" style="background:#14171f;border:1px solid #262b36;border-radius:12px;padding:14px;max-width:460px;margin-bottom:20px;">
     <label style="display:block;font-size:12px;color:#9aa0a6;margin-bottom:4px;">Charged today ($, includes the first month)</label>
@@ -819,6 +824,36 @@ document.getElementById('import-go').addEventListener('click', async function ()
       .then(function (d) { $('lp-msg').textContent = 'Saved. New price is live: $' + dollars(d.pricing.firstChargeCents) + ' today, then $' + dollars(d.pricing.monthlyCents) + '/month.'; })
       .catch(function (e) { $('lp-msg').textContent = e.message; }).then(function () { $('lp-save').disabled = false; });
   });
+})();
+
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var el = function (t, props, kids) { var n = document.createElement(t); Object.keys(props || {}).forEach(function (k) { if (k === 'text') n.textContent = props[k]; else n[k] = props[k]; }); (kids || []).forEach(function (c) { n.append(c); }); return n; };
+  var post = function (url, method, body) { return fetch(url, { method: method, credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.error || 'Failed'); return d; }); }); };
+  function paid(order, clients) {
+    var c = clients.filter(function (x) { return String(x.business_name || '').toLowerCase() === String(order.businessName || '').toLowerCase(); })[0];
+    return !c ? 'No sign-up yet' : c.status === 'active' ? 'PAID' : 'Waiting on payment';
+  }
+  function load() {
+    Promise.all([fetch('/api/forge-orders', { credentials: 'same-origin' }).then(function (r) { return r.json(); }), fetch('/api/forge-clients?scope=all', { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : { clients: [] }; }).catch(function () { return { clients: [] }; })]).then(function (res) {
+      if (document.activeElement && document.activeElement.tagName === 'SELECT' && $('bq-list').contains(document.activeElement)) return;
+      var orders = res[0].orders || [], clients = res[1].clients || [], box = $('bq-list');
+      if (!orders.length) { box.textContent = 'Nothing yet. When a caller taps "Send to build", it shows up here with the look they picked and the owner\'s notes.'; return; }
+      box.replaceChildren.apply(box, orders.map(function (o) {
+        var sel = el('select', {}, ['new', 'building', 'live'].map(function (s) { var op = el('option', { text: s, value: s }); op.selected = s === o.status; return op; }));
+        sel.addEventListener('change', function () { post('/api/forge-orders', 'PATCH', { leadId: o.leadId, status: sel.value }).catch(function (e) { alert(e.message); }); });
+        var view = el('button', { type: 'button', className: 'ac-go alt', text: 'See their demo' });
+        view.addEventListener('click', function () { post('/api/forge-demo', 'POST', { leadId: o.leadId, action: 'create' }).then(function (d) { window.open(d.path, '_blank', 'noopener'); }).catch(function (e) { alert(e.message); }); });
+        return el('div', { style: 'border-top:1px solid #262b36;padding:10px 0;' }, [
+          el('div', { style: 'font-weight:600;', text: o.businessName + ' · ' + paid(o, clients) }),
+          el('div', { text: [o.category, o.location, o.phone].filter(Boolean).join(' · ') }),
+          el('div', { text: 'Picked look: ' + o.lookLabel }),
+          o.notes ? el('div', { style: 'white-space:pre-wrap;margin:4px 0;', text: 'Notes: ' + o.notes }) : el('span'),
+          el('div', { style: 'display:flex;gap:8px;align-items:center;margin-top:6px;' }, [sel, view])]);
+      }));
+    }).catch(function () { $('bq-list').textContent = 'Could not load the build queue.'; });
+  }
+  load(); setInterval(load, 30000);
 })();
 </script>
 </body>
