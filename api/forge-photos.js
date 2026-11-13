@@ -1,4 +1,4 @@
-// Photo finder for demo sites. Forge accounts only. Returns licensed, credited candidates from Pixabay and Openverse
+// Photo finder for demo sites. Forge accounts only. Returns licensed, credited candidates from Pixabay (and Pexels when its key is set)
 // (Pexels too when its key is set). Nothing is saved here; the caller picks photos in the demo editor.
 import '../lib/store/installFetch.js';
 import { getRequestUser } from '../lib/roomAuth.js';
@@ -23,7 +23,7 @@ export function createForgePhotosHandler(d = {}) {
       if (!(await worker(username))) return res.status(403).json({ error: 'Not a Forge account.' });
       const query = String(req.body?.query || '').trim().slice(0, 80);
       if (query.length < 2) return res.status(400).json({ error: 'Type what to look for, like "barber haircut".' });
-      const out = await search({ query, kind: 'photo', limit: 12, sources: ['pixabay', 'openverse', 'pexels'] }, { includeDownload: true });
+      const out = await search({ query, kind: 'photo', limit: 12, sources: ['pixabay', 'pexels'] }, { includeDownload: true });
       const photos = out.candidates.filter(c => c.kind === 'photo' && c.download_url && c.credit)
         .map(c => ({ id: c.id, thumb: c.thumb_url || c.download_url, url: c.download_url, alt: String(c.title || '').slice(0, 100), credit: c.credit, license: c.license, source: c.source }));
       return res.status(200).json({ photos });
